@@ -99,3 +99,11 @@ header.top nav a:hover,header.top nav a:focus-visible{color:var(--fg);border-col
 .pill.rn{border-color:var(--note);color:var(--note)}
 .paper .links{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;margin-top:10px}
 .paper .links a.go{font-weight:700}
+
+/* ---- Paper figures: openly licensed papers (e.g. CC BY) show the original figure; all-rights-reserved papers describe it and link to it ---- */
+figure.pfig{margin:20px 0;max-width:100%}
+figure.pfig.narrow{max-width:600px}
+figure.pfig img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+figure.pfig figcaption{font-size:14.5px;line-height:1.75;margin-top:8px;max-width:74ch}
+figure.pfig figcaption .lab{display:block;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:2px}
+.fig .lab a{font-family:var(--font-body);white-space:nowrap}
