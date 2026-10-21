@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GAUGE 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2608.05948 GAUGE 的中文精读：按原文章节逐节整理，含全部编号公式、主要结果表、图的文字描述和 15 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+/* This paper's wide tables: minimum widths so columns stay readable; each table scrolls inside its own box on narrow screens. */
+.t-cmp{min-width:780px}
+.t-tasks{min-width:760px}
+.t-solver{min-width:420px}
+.t-eng{min-width:680px}
+.t-wm{min-width:840px;font-size:12.5px}
+.t-wm th,.t-wm td{padding:6px 7px}
+.t-cfg{min-width:660px}
+.t-prompt{min-width:860px}
+.t-prompt td:nth-child(2){white-space:nowrap}
+.t-slow{min-width:480px}
+.t-links{min-width:640px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../index.html#how">怎么读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2608.05948 · cs.AI · 2026 年 8 月 6 日 · 中文精读</p>
+<h1>GAUGE：以真实测量为基准，评测仿真引擎与视频世界模型的物理保真度</h1>
+<p class="orig">GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models</p>
+<p>作者 15 人，Shuai Wang、Yaxin Feng、Xuekun Jiang、Shihan Tian、Ningyu Yan 为共同一作，通讯作者 Xing Gao。单位为上海人工智能实验室、香港科技大学、上海交通大学和浙江大学。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2608.05948">arXiv 原文</a><a href="https://internrobotics.github.io/GAUGE/">项目主页</a><span>正文 14 页，参考文献与附录到第 40 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>论文首页注明版权归上海人工智能实验室所有，arXiv 上用的是默认的非独占分发许可，没有授权翻译，所以这里不做逐字翻译。精读按原文顺序覆盖正文七节和附录 A、B、C 的每一小节，小节编号与原文一致，可以对照 PDF 阅读。</p>
+<p>公式按原文编号给出，表格数字照录原文。论文里的图用文字描述，并注明在原文第几页。标成“读者注”的框是整理时核算或对照发现的问题，不属于论文内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 GAUGE</a><a href="#s3-2">3.2 引擎流程</a><a href="#s3-3">3.3 世界模型流程</a><a href="#s4">4 实验设置</a><a href="#s5">5 结果</a><a href="#s6">6 局限与展望</a><a href="#s7">7 结论</a><a href="#apA">附录 A 数据集</a><a href="#apB">附录 B 引擎指标</a><a href="#apC">附录 C 世界模型</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>物理引擎支撑着具身智能的大规模训练和评测，生成式视频世界模型也开始被当作隐式的模拟器，用来预测未来的状态和交互。作者认为现有的物理保真度评测有两个问题。一是引擎和世界模型各评各的；二是打分主要依赖感知相似度或人工判断，说不清违反的是哪条物理原理、哪个参数。</p>
+<p>GAUGE 先做真实实验。22 个受控任务族覆盖刚体、柔性绳、布料和三维软体，涉及碰撞、摩擦、动量传递、振荡、自接触和形变，并换用多种材料和条件。每个任务都有真实轨迹、标定的物理元数据、不确定度标注和任务专属的观测量。在这份数据上做两件事：</p>
+<ul>
+<li>用广义轨迹误差，在 14 个任务族上评测 <a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a>、<a class="ds" href="https://genesis-embodied-ai.github.io/">Genesis</a> 和 <a class="ds" href="https://github.com/newton-physics/newton">Newton</a> 三个物理引擎。</li>
+<li>在 5 个刚体任务上评测 6 个图生视频或交互式模型，检查生成的运动是否符合物理定律的形式，以及从视频反推的参数是否正确、是否随时间稳定。</li>
+</ul>
+<p>主要发现有三条。</p>
+<ol>
+<li><b>没有哪个引擎处处可信。</b>差距最大的是冲击接触、快速运动的布料和三维软体形变。</li>
+<li><b>视频模型可以形式对、参数错。</b>生成的轨迹符合预期的方程形式，加速度、动量传递和振荡周期却算错了。</li>
+<li><b>提示词影响很大。</b>同一段负向提示词，对不同模型和任务的作用方向相反，所以评测要固定模板并成对报告。</li>
+</ol>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>背景。</b>具身智能的进展很大程度上得益于 real-to-sim-to-real 流程：在仿真里训练机器人、评测策略、批量生成数据。这些流程免不了近似，但 <a class="ds" href="https://simpler-env.github.io/">SIMPLER</a> 已经证明，只要仿真和真实场景仔细对齐，仿真里的策略排名就能预测真实世界里的相对表现。</p>
+<p><b>问题。</b>这类方法的前提是环境的物理保真度，环境既可能是数值仿真器，也就是物理引擎，也可能是生成式的视频世界模型。画面逼真不等于动力学正确。一个模拟器可以画面很真实，运动、接触或形变却算错了，后果是策略学会利用仿真瑕疵，或者策略排名出错。</p>
+<p><b>GAUGE 的定位。</b>已有基准主要衡量画面真实感，或者人觉得物理上是否说得通。GAUGE 以真实实验测量为基准，同时评测物理引擎和生成式世界模型（图 1）。22 个标准实验任务族覆盖刚体、一维柔性体、准二维布料和三维软体，考察碰撞、摩擦、动量传递、振荡、自接触、曲率、应变和大变形。每个任务都提供毫米级观测、标定的物理参数和测量不确定度估计。</p>
+<p><b>两条评测线。</b>引擎方面，作者在 Isaac Sim、Genesis 和 Newton 里重建几个代表性场景，把仿真结果和真实测量比较。世界模型方面，在刚体场景里给模型一张初始图像和一段文字提示，让它预测未来的视频，再从视频里恢复轨迹，检查运动是否符合对应物理定律的数学结构。这样能把结构是否一致和数值是否准确分开诊断。作者希望 GAUGE 不只回答模拟器有没有偏离真实物理，还能指出是哪个物理机制没有复现出来。</p>
+<p><b>三项贡献。</b></p>
+<ol>
+<li><b>统一的真实任务集。</b>22 个受控任务族，约 1,560 次动捕试验，附不确定度估计和任务专属的物理观测量。</li>
+<li><b>跨力学范畴的参数标注。</b>作者称这是第一个在同一套标准数据里，同时给出刚体接触、布料本构和三维软体力学三类实验表征参数的真实基准。</li>
+<li><b>两套互补的评测协议。</b>基于同一份真实数据，分别评测物理引擎和视频世界模型。前者度量每个任务的 sim-to-real 差距；后者区分三件事：是否符合物理定律的形式，参数是否准确，参数随时间是否稳定。</li>
+</ol>
+<div class="fig"><span class="lab">图 1 · 原文第 2 页</span>
+<p>总览图分三栏。中间一栏是真实实验：刚体 8 个、布料 6 个、软体 8 个任务，产出三类东西。一是标定数据与元数据，包括视频、物理元数据和标注；二是真值测量，包括轨迹、物理量和不确定度；三是任务专属指标，包括轨迹与运动学、动力学与阻尼、形变与应变。</p>
+<p>左栏是引擎线，共六步：输入与设置（14 个任务场景、资产几何、初始条件），运行引擎，输出仿真轨迹（引擎提供时也导出状态），提取观测（轨迹、关键点、派生信号），评测（6 个指标，分 3 组物理），报告（分数、失败模式、排行榜）。右栏是世界模型线：输入首帧和文本提示，生成视频，得到像素空间的预测视频，用 SAM3 跟踪并提取关键点和派生信号，用 5 个指标评测，最后报告。两条线在底部汇合为统一的物理评测。</p>
+</div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p>作者把已有工作分成三条线，并用表 1 横向比较。</p>
+<h3>引擎的真实世界验证</h3>
+<ul>
+<li><b>刚体。</b>对比仿真与实测的操作轨迹或高速冲击，结论是保真度强烈依赖接触几何、摩擦和各引擎的标定 [1, 6]；另有工作侧重标定流程，没有做跨引擎验证 [20]。</li>
+<li><b>可变形体。</b>细杆和薄板的缩放律实验，覆盖弯曲、扭转、屈曲和摩擦接触 [31]；<a class="ds" href="https://arxiv.org/abs/2204.03139">DiffCloud</a> 用真实点云辨识仿真器的质量和刚度缩放 [35]；一个<a class="ds" href="https://arxiv.org/abs/2310.09543">布料 sim-to-real 基准</a>在动态和准静态操作下对比 MuJoCo、Bullet、Flex 和 SOFA [3]；<a class="ds" href="https://pokeflex-dataset.github.io/">PokeFlex</a> 给三维软体配上同步的网格、点云和交互力 [28]；<a class="ds" href="https://arxiv.org/abs/2511.06434">RGBench</a> 把服装动力学和仪器测得的面料参数放在一起 [11]；<a class="ds" href="https://arxiv.org/abs/2512.15994">SORS</a> 用真实实验验证一个软体机器人仿真器 [21]。</li>
+</ul>
+<p>作者认为这些工作各自只盯一类物体，而且有的直接拿评测用的观测去拟合仿真器的等效参数，因此没法在共同的任务和打分定义下做跨范畴比较。</p>
+
+<h3>生成式世界模型的物理一致性</h3>
+<ul>
+<li><b>看观感的一类。</b><a class="ds" href="https://videophy2.github.io/">VideoPhy-2</a> 结合人工评判和学到的评估器 [2]；<a class="ds" href="https://phygenbench123.github.io/">PhyGenBench</a> [22]、<a class="ds" href="https://worldmodelbench-team.github.io/">WorldModelBench</a> [17] 和 <a class="ds" href="https://arxiv.org/abs/2507.13428">PhyWorldBench</a> [9] 让人或多模态模型按定律或场景打分。覆盖面广，但分数反映的是感知和常识层面的吻合，定位不到轨迹或参数上的错误。</li>
+<li><b>有参考真值的一类。</b><a class="ds" href="https://phyworld.github.io/">Kang 等人</a>用受控的二维仿真说明，模型学到的物理规律在分布外泛化很弱 [13]；<a class="ds" href="https://physics-iq.github.io/">Physics-IQ</a> 拿生成的续写和重复的真实实验比，<a class="ds" href="https://arxiv.org/abs/2606.18943">Physics-IQ Verified</a> 又审计了它的提示、参考片段和分数聚合 [23, 32]；<a class="ds" href="https://vision-x-nyu.github.io/pisa-experiments.github.io/">PISA</a> 用掩码和轨迹指标专门考自由落体 [16]；<a class="ds" href="https://arxiv.org/abs/2601.21282">WorldBench</a> 用真实加合成的测试逐个考物理概念，并从生成运动里反推重力、摩擦和黏度 [37]；RigidBench 用精确的合成三维轨迹评刚体运动 [12]。</li>
+</ul>
+<p>作者的评价是：这些基准更定量了，但往往以覆盖面为代价，要么判断粗，要么定律少，要么真值来自仿真器。</p>
+
+<h3>物理参数监督</h3>
+<p>物理元数据本来是另一条诊断途径，但各家标注的含义差别很大：</p>
+<ul>
+<li><a class="ds" href="https://arxiv.org/abs/2603.16432">IRIS</a> 给真实视频配上控制方程标签和参数目标，用于逆向辨识 [14]。阻尼和摩擦是从轨迹拟合的，碰撞耦合是等效量，不是实测的接触参数。</li>
+<li>PokeFlex 给的是物体级的等效刚度，不是材料的弹性模量；RGBench 的布料拉伸和弯曲性质则是专门仪器测的。</li>
+<li><a class="ds" href="https://arxiv.org/abs/2602.07064">FysicsEval</a> 考多模态模型从真实图像预测和推理物理属性，部分属性有仪器验证，但不涉及生成的动态过程 [10]。</li>
+</ul>
+<p>归纳起来，已有资源里的物理量要么只限一个力学范畴，要么从运动反推，要么和动态保真度评测脱节。GAUGE 把实验测得的刚体接触参数、布料本构参数和三维软体参数，与重复采集的真实状态轨迹配在一起。作者称它是第一个把这种跨范畴真值，和针对引擎、视频世界模型的专门协议结合起来的标准化真实基准。这些参数用于场景重建和失败诊断，不单独设参数估计赛道。</p>
+
+<div class="tablewrap"><table class="t-cmp">
+<thead>
+<tr><th rowspan="2">基准</th><th colspan="2" class="c">真值来源</th><th colspan="3" class="c">物理范畴</th><th colspan="2" class="c">评测对象</th><th colspan="2" class="c">诊断能力</th></tr>
+<tr><th class="c">真实动态</th><th class="c">实验参数</th><th class="c">刚体</th><th class="c">布料</th><th class="c">软体</th><th class="c">引擎</th><th class="c">视频世界模型</th><th class="c">方程形式</th><th class="c">参数准确</th></tr>
+</thead>
+<tbody>
+<tr><td>Physics-IQ / Verified [23, 32]</td><td class="c">✓</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td></tr>
+<tr><td>IRIS [14]</td><td class="c">✓</td><td class="c">△</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>WorldBench [37]</td><td class="c">△</td><td class="c">△</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">△</td><td class="c">✓</td></tr>
+<tr><td>RigidBench [12]</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td></tr>
+<tr><td>布料 Sim-to-Real [3]</td><td class="c">✓</td><td class="c">△</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td></tr>
+<tr><td>PokeFlex [28]</td><td class="c">✓</td><td class="c">△</td><td class="c">–</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td><td class="c">–</td></tr>
+<tr><td>RGBench [11]</td><td class="c">✓</td><td class="c">✓</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td><td class="c">–</td><td class="c">–</td></tr>
+<tr><td>FysicsEval [10]</td><td class="c">–</td><td class="c">△</td><td class="c">✓</td><td class="c">–</td><td class="c">△</td><td class="c">–</td><td class="c">–</td><td class="c">△</td><td class="c">✓</td></tr>
+<tr><td><b>GAUGE</b></td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 · 与代表性数据集和基准的对比。✓ 明确支持，△ 有限或间接支持，– 不支持。“真实动态”指与任务配对的真实动态参考；“实验参数”指与任务对应的实验表征，拟合得到的、等效的、为仿真调过的或只覆盖部分对象的参数记为 △。流体不在 GAUGE 当前范围内，表中没有这一列。</p>
+
+<h2 id="s3"><span class="no">3</span>GAUGE 基准</h2>
+<p>GAUGE 想给数值仿真器和生成式模拟器一套统一、标准化的任务，在一致的设置下公平、系统地比较它们刻画各种物理性质的能力。3.1 节讲任务设计和数据采集，3.2 节和 3.3 节分别是引擎和世界模型的评测流程。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>数据集流程</h3>
+<h4><span class="no">3.1.1</span>任务设计</h4>
+<p>面向具体操作任务的基准关心任务做没做成。GAUGE 从更基础的物理现象出发，设计了 22 个任务（附录 A.1），覆盖刚体和可变形体各自的特点：</p>
+<ul>
+<li><b>8 个刚体任务</b>：碰撞、摩擦、动量与能量守恒。</li>
+<li><b>可变形体</b>：1 个准一维任务（绳）、6 个准二维任务（布料）、7 个三维任务，考察刚度、弹性模量、刚体与可变形体的相互作用以及摩擦。</li>
+</ul>
+<p>每类物体还换用多种材料。刚体有木、塑料、金属三种；布料有六种常用面料，即人造丝（rayon）、缎（satin）、均匀布（uniform cloth）、牛津布（Oxford fabric）、合成革（synthetic leather）和尼龙塔丝隆（nylon taslan）；三维软体有软、硬两档，材料为泡沫和橡胶。</p>
+
+<div class="tablewrap"><table class="t-tasks">
+<thead><tr><th>任务</th><th>实验内容</th><th>考察的物理性质</th><th class="n">子任务</th><th>材料</th></tr></thead>
+<tbody>
+<tr class="grp"><th colspan="5">刚体</th></tr>
+<tr><td class="nw">斜面接触<br><span class="mono">slope contact</span></td><td>三直角四面体从斜面上落下</td><td>与斜面的碰撞</td><td class="n">1</td><td>木、塑料</td></tr>
+<tr><td class="nw">非光滑接触<br><span class="mono">nonsmooth contact</span></td><td>楔形块和棱锥下落</td><td>余维碰撞，即尖点、棱边与面的接触</td><td class="n">3</td><td>木、塑料</td></tr>
+<tr><td class="nw">斜面滑块<br><span class="mono">slope slider</span></td><td>方块沿斜面下滑</td><td>静摩擦与动摩擦</td><td class="n">3</td><td>木、塑料、金属</td></tr>
+<tr><td class="nw">转盘<br><span class="mono">turntable</span></td><td>方块在转盘上滑动</td><td>非惯性系中的静摩擦与动摩擦</td><td class="n">3</td><td>木、塑料、金属</td></tr>
+<tr><td class="nw">弹跳球<br><span class="mono">bouncing ball</span></td><td>球下落并反弹</td><td>快速冲击</td><td class="n">1</td><td>橡胶</td></tr>
+<tr><td class="nw">牛顿摆<br><span class="mono">newton’s cradle</span></td><td>紧贴的一排球相撞</td><td>动量传递</td><td class="n">1</td><td>金属</td></tr>
+<tr><td class="nw">撞墙<br><span class="mono">wall breaking</span></td><td>摆锤球撞一面墙</td><td>大规模密集碰撞</td><td class="n">1</td><td>木</td></tr>
+<tr><td class="nw">单摆<br><span class="mono">pendulum</span></td><td>球的摆动</td><td>周期运动</td><td class="n">1</td><td>金属</td></tr>
+<tr class="grp"><th colspan="5">绳与布料</th></tr>
+<tr><td class="nw">绕绳<br><span class="mono">rope winding</span></td><td>绳子缠绕</td><td>自碰撞与拉伸模量</td><td class="n">1</td><td>橡胶</td></tr>
+<tr><td class="nw">布料拉伸<br><span class="mono">textile stretching</span></td><td>布料受拉变形</td><td>拉伸模量</td><td class="n">1</td><td>6 种面料</td></tr>
+<tr><td class="nw">布料弯曲<br><span class="mono">textile bending</span></td><td>布料自然下垂</td><td>弯曲模量</td><td class="n">1</td><td>6 种面料</td></tr>
+<tr><td class="nw">甩布<br><span class="mono">textile flinging</span></td><td>布料飘动</td><td>局部高加速度下的运动</td><td class="n">1</td><td>6 种面料</td></tr>
+<tr><td class="nw">漏斗<br><span class="mono">funnel</span></td><td>布料穿过一个孔</td><td>碰撞、摩擦</td><td class="n">1</td><td>6 种面料</td></tr>
+<tr><td class="nw">旋转球<br><span class="mono">rotating ball</span></td><td>转动的球带动布料</td><td>静摩擦与动摩擦</td><td class="n">1</td><td>人造丝、缎、均匀布</td></tr>
+<tr><td class="nw">抽桌布<br><span class="mono">tablecloth pulling</span></td><td>从刚体下面把布抽出</td><td>静摩擦与动摩擦</td><td class="n">1</td><td>木、塑料、金属</td></tr>
+<tr class="grp"><th colspan="5">三维软体</th></tr>
+<tr><td class="nw">泡沫拉伸</td><td>拉伸弹性长方体</td><td>拉伸模量</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">泡沫压缩</td><td>压缩弹性长方体</td><td>压缩模量</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">泡沫剪切</td><td>剪切弹性长方体</td><td>剪切模量</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">泡沫扭转</td><td>扭转弹性长方体</td><td>扭转模量</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">泡沫弯曲</td><td>弯曲弹性长方体</td><td>弯曲模量</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">弹性杆滑动<br><span class="mono">stick-stack</span></td><td>弹性杆在平面上滑动</td><td>静摩擦与动摩擦</td><td class="n">1</td><td>软、硬</td></tr>
+<tr><td class="nw">悬臂梁<br><span class="mono">cantilever beam</span></td><td>弹性悬臂梁自由下垂</td><td>刚度比很大时的耦合</td><td class="n">1</td><td>软、硬</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · GAUGE 的 22 个任务族，列出每个实验考察的物理性质、条件变体数和材料。6 种面料指人造丝、缎、均匀布、牛津布、合成革和尼龙塔丝隆。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 试验次数</span><p>按表 2 把子任务数乘材料数，一共是 75 组条件。4.1 节说每个评测任务采 20 次独立试验，合起来是 1,500 次。论文写的是约 1,560 次，原文没有说明这 60 次的差额从哪来。</p></div>
+
+<h4><span class="no">3.1.2</span>数据采集</h4>
+<p><b>轨迹。</b>用毫米级精度的动作捕捉系统记录物体运动。刚体上贴的标记点定义一个固连在几何中心的坐标系，从而得到随时间变化的 6 自由度位姿。可变形体借助系统的骨架跟踪功能，把相邻标记点连成三角化的表面网格，记录每个标记点在整个试验中的三维位置（图 2(b)(c)）。</p>
+<p><b>物理参数。</b>每个任务里所有物体的尺寸、质量和密度都做了标定。刚体的摩擦系数和恢复系数用斜面实验和碰撞实验测；布料的拉伸、剪切和弯曲刚度来自 <a class="ds" href="https://www.style3d.com/">Style3D</a> 做的面料测试；三维软体的杨氏模量和泊松比用拉伸试验和数字图像相关（DIC）标定，细节在附录 A.2。有了精确的轨迹和完整的参数，作者建立了 22 个标准化评测场景。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 杨氏模量的测法</span><p>这里写杨氏模量用拉伸试验标定，附录 A.2.1 写的是压缩试验。两处说法不一致，原文没有说明哪个是准的。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>物理引擎流程</h3>
+<h4><span class="no">3.2.1</span>仿真与跟踪</h4>
+<p>评测对象是 Isaac Sim 6.0.0、Genesis 1.12.0 和 Newton 1.3.0，共 14 个代表性任务。每个场景先用对应的数字资产和动捕记录的初始状态重建，再生成仿真轨迹。不同类别的物体用不同的求解器：</p>
+<div class="tablewrap"><table class="t-solver">
+<thead><tr><th>物体类别</th><th>Isaac Sim</th><th>Genesis</th><th>Newton</th></tr></thead>
+<tbody>
+<tr><td>刚体</td><td>PhysX</td><td>Genesis 原生求解器</td><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td></tr>
+<tr><td>布料</td><td>表面 FEM</td><td>PBD</td><td>VBD</td></tr>
+<tr><td>三维软体</td><td>FEM</td><td>显式 MPM</td><td>隐式 MPM</td></tr>
+</tbody></table></div>
+<p>作者要测的是开箱即用的表现：物理参数取 GAUGE 的标定值，其余设置都保持默认，不针对任务调参。</p>
+<p>刚体的 6 自由度位姿可以直接从引擎导出。可变形体多一步，因为仿真里的顶点或粒子和动捕标记点并不对应。作者用匈牙利算法 [15] 给每个初始标记点分配附近一个唯一的顶点或粒子，匹配误差小于 1 cm，之后在整段仿真里把这些点当作标记点的替身来跟踪。</p>
+
+<h4><span class="no">3.2.2</span>评测指标</h4>
+<p>为了让不同类别的物体在同一框架下比较，又保留各自的物理特征，每段仿真都表示成一条广义轨迹（计算细节见附录 B.1）：</p>
+<div class="eq"><div class="m">\[ g(t)=\begin{cases}\mathbf P(t)\in\mathbb R^{3}\\[2pt] \mathbf K(t)\in\mathbb R^{N_m}\\[2pt] \mathbf A(t)\in\mathbb R^{N_f}\end{cases} \]</div><span class="no">(1)</span></div>
+<p>三行依次对应刚体、布料和三维软体。\(\mathbf P\) 是刚体位置；\(\mathbf K\) 收集布料各标记点处的高斯曲率；\(\mathbf A\) 收集软体上相邻标记点围成的三角面的面积；\(N_m\) 和 \(N_f\) 是标记点数和三角面数。</p>
+<div class="fig"><span class="lab">图 2 · 原文第 7 页</span><p>三行照片对应三种广义轨迹。(a) 刚体用物体位置，示例在 X–Z 平面上把真实均值及其不确定带和三条仿真轨迹放在一起比较；(b) 布料用跟踪网格上各标记点的高斯曲率，照片是一块贴满标记点的悬挂布料；(c) 三维软体用相邻标记点组成的三角面面积，照片是夹在试验装置上的泡沫块。</p></div>
+<p>给定仿真轨迹 \(g_{\mathrm{sim}}\) 和多次真实试验的平均轨迹 \(\bar g_{\mathrm{real}}\)，计算两种误差：</p>
+<div class="eq"><div class="m">\[ \begin{aligned} E_{\mathrm{RMSE}}&amp;=\sqrt{\frac{1}{T}\sum_{t=1}^{T}\bigl\lVert g_{\mathrm{sim}}(t)-\bar g_{\mathrm{real}}(t)\bigr\rVert_2^2}\\[6pt] E_{\mathrm{DTW}}&amp;=\frac{1}{|\pi^\star|}\sum_{(i,j)\in\pi^\star}\bigl\lVert g_{\mathrm{sim}}(i)-\bar g_{\mathrm{real}}(j)\bigr\rVert_2 \end{aligned} \]</div><span class="no">(2)</span></div>
+<p>\(\pi^\star\) 是最优的动态时间规整（DTW）对齐路径。RMSE 按帧对齐算误差；DTW 允许单调的时间对齐，对整体偏快或偏慢不那么敏感。</p>
+<p><b>真实基线。</b>表 3 的基线完全来自真实数据。试验内 RMSE 是 \(\operatorname{mean}_i\,E_{\mathrm{RMSE}}(g_{\mathrm{real},i},\bar g_{\mathrm{real}})\)，表示单次真实轨迹偏离平均轨迹的典型幅度；逐次 RMSE 标准差是同一组值的 \(\operatorname{std}_i\)，表示这种偏离在不同试验之间稳不稳定。引擎的误差都除以基线均值，所以归一化值小于 1，就说明引擎离真实平均轨迹的距离，比真实试验彼此之间的差别还小。</p>
+<p><b>单摆类任务的专用指标。</b>轨迹误差反映不出来的行为，单独用物理量来测：</p>
+<ul>
+<li><b>牛顿摆的最长静止时长（LSD）</b>：所有满足静止条件的时段里最长的一段，看是否出现应有的冲击式运动。</li>
+<li><b>牛顿摆的动量传递效率（MTE）</b>：出射球与入射球的动量之比，看碰撞中动量是否完整传过去。</li>
+<li><b>单摆周期（PD）</b>：摆一个完整来回的时间，看仿真周期是否符合预期。</li>
+<li><b>单摆能量损失（EL）</b>：最终损失的机械能占初始机械能的比例，看无阻尼设置下机械能是否近似守恒。</li>
+</ul>
+
+<h3 id="s3-3"><span class="no">3.3</span>世界模型流程</h3>
+<h4><span class="no">3.3.1</span>生成与跟踪</h4>
+<p>现有世界模型在三维一致性和可变形体动力学上还很吃力，所以这条线只考刚体场景。六个参评模型里五个是图生视频模型：<a class="ds" href="https://arxiv.org/abs/2606.02800">Cosmos3</a>-Nano、Cosmos3-Super-Image2Video（下文简称 Cosmos3-Super-I2V）、<a class="ds" href="https://github.com/Wan-Video/Wan2.2">Wan-2.2</a>、Wan-2.7 和 <a class="ds" href="https://seed.bytedance.com/en/seedance2_0">Seedance 2.0</a>；第六个是交互式世界模型 <a class="ds" href="https://deepmind.google/models/genie/">Genie 3</a>。</p>
+<p>每个任务给所有模型同一张正面首帧和同一段标准化文本提示，提示里写清场景、物体属性和预期运动，模型据此生成后续视频。对 Cosmos3 和 Wan 两个系列还做了受控消融：加一段所有模型共用的负向提示词来压制物理上不合理的行为，看它对结果的影响（附录 C.1.1）。</p>
+<p>从生成视频里恢复运动靠 <a class="ds" href="https://ai.meta.com/sam3/">SAM3</a>：一般用文本提示指定目标，分割有歧义时再加负点提示排除背景。得到可靠的掩码后，用每帧二值掩码的质心近似物体的二维像素坐标。物体到相机的深度基本不变，尺寸又已知，就能定出像素到米的比例，把质心序列换算成实验坐标系里的二维轨迹（附录 C.2.1）。</p>
+
+<h4><span class="no">3.3.2</span>评测指标</h4>
+<p>GAUGE 从两个互补的角度判断模型有没有学到物理规律：控制方程的结构形式，以及方程背后的物理参数。这样能把真正掌握了运动规律的模型，和只会生成看着合理的视频的模型区分开。三个指标如下。</p>
+<ul>
+<li><b>动力学误差（DE）</b>：一般用于外力已知的任务，检验是否符合牛顿第二定律。\(T\) 为帧数，\(m\)、\(x_t\)、\(f_t\) 为物体质量、第 \(t\) 帧的位置和合外力，越低越好。
+<div class="eq"><div class="m">\[ \mathrm{DE}=\frac{1}{T}\sum_{t=1}^{T}\bigl|\,m\,\ddot x_t-f_t\,\bigr| \]</div><span class="no">(3)</span></div></li>
+<li><b>决定系数（R²）</b>：DE 直接检验力和运动是否一致，R² 衡量预期的物理模型能在多大程度上解释生成的轨迹，越高说明越符合预期的方程形式。</li>
+<li><b>二次形式改进（QFI）</b>：在预期的线性关系上再加一个二次项，看残差还能降多少，作为 R² 的补充。匀加速运动（比如自由落体）的位移应该与时间的平方成线性关系；QFI 低说明线性形式已经够用，高说明还有额外的弯曲。R² 和 QFI 的算法在附录 C.3。</li>
+</ul>
+<div class="note" id="n3"><span class="lab">读者注 3 · DE 的两种定义</span><p>正文式 (3) 把 DE 写成牛顿第二定律的残差。表 4 里 DE 只用在转盘任务上，附录 C.3.3 的实际算法（式 32）是逐帧算所需力超出最大摩擦力的部分，不超出记 0，再取平均。后者只惩罚超过摩擦上限的加速度，和式 (3) 不是同一个量。</p></div>
+
+<h2 id="s4"><span class="no">4</span>实验设置</h2>
+<h3><span class="no">4.1</span>数据采集</h3>
+<ul>
+<li><b>动捕空间。</b>2 m × 2 m × 2 m，16 台 NOKOV Mars9H 红外相机分三层高度布置，覆盖整个工作区。相机工作在 180 Hz，三维定位精度达到亚毫米级。</li>
+<li><b>实验台与坐标系。</b>平台是一块 0.9 m × 0.9 m 的黑色光学面包板，工作区左上角的 L 形标定架确定世界坐标系。为了减小环境漂移，每次实验前都用 T 形标定杆把全部相机联合标定一遍。</li>
+<li><b>标记点。</b>刚体贴 6 mm 的反光球，每个约 0.5 g；球形刚体改用反光贴片。刚体形状不变，系统持续估计由几个标记点定义的刚体坐标系的位姿。布料和可变形体表面贴 6 mm 的反光贴片，系统把相邻标记点连成局部骨架，逐点跟踪。标记点质量都可以忽略，对物体动力学没有可测的影响。</li>
+<li><b>数据处理。</b>每段记录先截取有效的实验区间，再降采样到 30 fps。每个评测任务采 20 次独立的真实试验，处理后的轨迹和标定的物理性质一起存成 JSON。</li>
+</ul>
+<div class="fig"><span class="lab">图 3 · 原文第 9 页</span><p>(a) 动捕场地全景，红框标出相机，图上标注了 2 m 的空间尺寸、0.9 m 的平台尺寸和坐标轴方向，平台上有一台机械臂；(b)、(c)、(d) 分别是刚体、布料和软体在动捕软件里的跟踪界面。</p></div>
+
+<h3><span class="no">4.2</span>物理引擎</h3>
+<p>三个引擎都跑在同一台 Windows 11 工作站上，配一张 NVIDIA GeForce RTX 4090。刚体和布料任务的仿真频率是 180 Hz，与动捕一致；三维软体提高到 900 Hz，防止数值发散。所有任务的仿真状态都按 30 Hz 记录。</p>
+
+<h3><span class="no">4.3</span>世界模型</h3>
+<p>所有模型输入同一张 832 × 480 的初始图像，Genie 3 例外，用 1300 × 750；生成的视频保留各模型原生的分辨率和帧率。开源模型（Cosmos3 系列和 Wan-2.2）部署在 DLC 分布式计算平台上：Cosmos3-Nano 用 1 张 RTX 4090，Cosmos3-Super-I2V 和 Wan-2.2 各用 8 张。闭源模型走官方服务：Wan-2.7 和 Seedance 2.0 调远程 API，Genie 3 直接在在线界面上生成。</p>
+
+<h2 id="s5"><span class="no">5</span>结果</h2>
+<h3 id="s5-1"><span class="no">5.1</span>物理引擎</h3>
+<p>表 3 给出各引擎相对真实基线均值的差距。RMSE 和 DTW 的归一化值低于 1，表示仿真与真实的差距小于真实重复试验之间的差距。</p>
+<h4>刚体</h4>
+<ul>
+<li><b>常规接触和滑动大体能复现，名次看接触几何和参考系。</b>Isaac Sim 在斜面接触、非光滑接触和转盘上误差最低，转盘尤其小，归一化 RMSE 0.17、DTW 0.61。Genesis 在斜面滑块上最好，RMSE 0.58、DTW 0.69；Newton 在这个摩擦主导的任务上明显偏差更大。</li>
+<li><b>苛刻的刚体事件差距大得多。</b>弹跳球最好的结果也是基线的 15.63 倍（RMSE）和 5.58 倍（DTW）。牛顿摆上，Isaac Sim 和 Newton 的最长静止时长都是 0，归一化 MTE 只有 0.20 和 0.26；Genesis 没有跑出有效结果。</li>
+<li><b>低频运动对得上，冲击和长时程能量未必对得上。</b>单摆的频率相对容易，Isaac Sim 和 Newton 的归一化周期是 1.10 和 1.09。但跑得更久之后，三个引擎都积累了能量误差，EL 原始值在 −0.041 到 0.034 之间。</li>
+</ul>
+<h4>布料与三维软体</h4>
+<ul>
+<li><b>布料结果随形变类型差别很大。</b>拉伸任务里 Isaac Sim 和 Newton 的归一化误差接近或低于 1；弯曲任务里最好的 RMSE 和 DTW 也升到 7.94 和 11.78。求解器之间最大的落差在甩布：Genesis 的 RMSE 最低，为 8.54，Isaac Sim 是 128.26。准静态下对得上，推不出快速、空间变化剧烈的形变下也对得上。</li>
+<li><b>三维软体的误差普遍偏大。</b>Genesis 在拉伸、剪切、扭转上最低，Newton 在弯曲上最好，但最好的结果也比真实基线高大约一个数量级。</li>
+</ul>
+<p><b>小结：</b>没有哪个引擎在刚体、布料和三维软体上全面领先，各家求解器的长处互补。剩下的 sim-to-real 误差主要来自三处：动态接触、高加速度的布料运动和三维形变。</p>
+
+<div class="tablewrap"><table class="t-eng">
+<thead><tr><th>任务</th><th>材料</th><th class="n">帧数</th><th>指标</th><th class="n">真实基线</th><th class="n">Isaac Sim</th><th class="n">Genesis</th><th class="n">Newton</th></tr></thead>
+<tbody>
+<tr class="grp"><th colspan="8">刚体</th></tr>
+<tr><td rowspan="2">斜面接触</td><td rowspan="2">塑料</td><td class="n" rowspan="2">10</td><td>RMSE</td><td class="n">12.31 (7.62)</td><td class="n best">1.26</td><td class="n">1.60</td><td class="n">1.75</td></tr>
+<tr><td>DTW</td><td class="n">5.30 (1.84)</td><td class="n best">1.83</td><td class="n">2.57</td><td class="n">3.07</td></tr>
+<tr><td rowspan="2">非光滑接触</td><td rowspan="2">塑料</td><td class="n" rowspan="2">20</td><td>RMSE</td><td class="n">17.67 (6.19)</td><td class="n best">1.53</td><td class="n">10.04</td><td class="n">6.05</td></tr>
+<tr><td>DTW</td><td class="n">8.92 (2.44)</td><td class="n best">1.90</td><td class="n">14.37</td><td class="n">8.01</td></tr>
+<tr><td rowspan="2">斜面滑块</td><td rowspan="2">金属</td><td class="n" rowspan="2">60</td><td>RMSE</td><td class="n">38.01 (28.53)</td><td class="n">0.61</td><td class="n best">0.58</td><td class="n">1.95</td></tr>
+<tr><td>DTW</td><td class="n">9.54 (8.52)</td><td class="n">0.71</td><td class="n best">0.69</td><td class="n">2.93</td></tr>
+<tr><td rowspan="2">转盘</td><td rowspan="2">金属</td><td class="n" rowspan="2">95</td><td>RMSE</td><td class="n">13.26 (7.43)</td><td class="n best">0.17</td><td class="n">0.57</td><td class="n">20.04</td></tr>
+<tr><td>DTW</td><td class="n">3.33 (0.81)</td><td class="n best">0.61</td><td class="n">2.01</td><td class="n">66.72</td></tr>
+<tr><td rowspan="2">弹跳球</td><td rowspan="2">橡胶</td><td class="n" rowspan="2">18</td><td>RMSE</td><td class="n">5.29 (3.60)</td><td class="n best">15.63</td><td class="n">22.50</td><td class="n">22.71</td></tr>
+<tr><td>DTW</td><td class="n">4.23 (2.87)</td><td class="n best">5.58</td><td class="n">14.58</td><td class="n">14.89</td></tr>
+<tr><td rowspan="2">牛顿摆</td><td rowspan="2">金属</td><td class="n" rowspan="2">1027</td><td>LSD</td><td class="n">0.38 (0.015)</td><td class="n">0.00</td><td class="n">–</td><td class="n">0.00</td></tr>
+<tr><td>MTE</td><td class="n">93.02 (2.47)</td><td class="n">0.20</td><td class="n">–</td><td class="n best">0.26</td></tr>
+<tr><td rowspan="2">单摆</td><td rowspan="2">金属</td><td class="n">300</td><td>PD</td><td class="n">1.14 (0.066)</td><td class="n">1.10</td><td class="n">2.47</td><td class="n best">1.09</td></tr>
+<tr><td class="n">3000</td><td>EL</td><td class="n">0.00</td><td class="n">0.034</td><td class="n">−0.041</td><td class="n best">0.022</td></tr>
+<tr class="grp"><th colspan="8">布料</th></tr>
+<tr><td rowspan="2">布料拉伸</td><td rowspan="2">缎</td><td class="n" rowspan="2">380</td><td>RMSE</td><td class="n">0.21 (0.42)</td><td class="n best">0.73</td><td class="n">1.51</td><td class="n best">0.73</td></tr>
+<tr><td>DTW</td><td class="n">0.21 (0.42)</td><td class="n">0.76</td><td class="n">1.56</td><td class="n best">0.75</td></tr>
+<tr><td rowspan="2">布料弯曲</td><td rowspan="2">缎</td><td class="n" rowspan="2">335</td><td>RMSE</td><td class="n">1.92 (0.69)</td><td class="n best">7.94</td><td class="n">11.73</td><td class="n">19.90</td></tr>
+<tr><td>DTW</td><td class="n">1.20 (0.17)</td><td class="n best">11.78</td><td class="n">17.35</td><td class="n">18.82</td></tr>
+<tr><td rowspan="2">甩布</td><td rowspan="2">缎</td><td class="n" rowspan="2">562</td><td>RMSE</td><td class="n">0.016 (0.0056)</td><td class="n">128.26</td><td class="n best">8.54</td><td class="n">9.25</td></tr>
+<tr><td>DTW</td><td class="n">0.012 (0.0014)</td><td class="n">167.31</td><td class="n best">11.27</td><td class="n">12.12</td></tr>
+<tr class="grp"><th colspan="8">三维软体</th></tr>
+<tr><td rowspan="2">泡沫拉伸</td><td rowspan="2">软</td><td class="n" rowspan="2">30</td><td>RMSE</td><td class="n">8.72 (6.94)</td><td class="n">16.15</td><td class="n best">10.05</td><td class="n">15.46</td></tr>
+<tr><td>DTW</td><td class="n">8.19 (6.93)</td><td class="n">17.18</td><td class="n best">10.65</td><td class="n">16.45</td></tr>
+<tr><td rowspan="2">泡沫剪切</td><td rowspan="2">软</td><td class="n" rowspan="2">37</td><td>RMSE</td><td class="n">5.60 (0.70)</td><td class="n">26.13</td><td class="n best">15.26</td><td class="n">26.57</td></tr>
+<tr><td>DTW</td><td class="n">5.07 (0.59)</td><td class="n">28.85</td><td class="n best">16.74</td><td class="n">29.34</td></tr>
+<tr><td rowspan="2">泡沫扭转</td><td rowspan="2">软</td><td class="n" rowspan="2">65</td><td>RMSE</td><td class="n">8.07 (0.53)</td><td class="n">17.14</td><td class="n best">10.86</td><td class="n">16.78</td></tr>
+<tr><td>DTW</td><td class="n">7.48 (0.39)</td><td class="n">18.47</td><td class="n best">11.67</td><td class="n">18.07</td></tr>
+<tr><td rowspan="2">泡沫弯曲</td><td rowspan="2">软</td><td class="n" rowspan="2">35</td><td>RMSE</td><td class="n">7.00 (4.39)</td><td class="n">10.71</td><td class="n">14.43</td><td class="n best">10.37</td></tr>
+<tr><td>DTW</td><td class="n">3.52 (1.05)</td><td class="n">21.28</td><td class="n">27.51</td><td class="n best">20.53</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 三个引擎在 14 个任务上的物理保真度，每个任务列一种代表性材料。真实基线是均值（标准差）。引擎数值已除以基线均值：RMSE 和 DTW 越低越好；LSD、MTE、PD 越接近 1 越好。单摆 EL 的基线是 0，没法归一化，给的是原始值，0 最理想。“–”表示没有可用的仿真结果。底色是按这些规则判断的每行最好值。MTE 基线 93.02 应是百分数；原文没有标 RMSE 和 DTW 的单位。</p>
+
+<div class="note" id="n4"><span class="lab">读者注 4 · 表 3 只是每个任务的一个切面</span><p>表 3 每个任务只列了一种材料或一个子任务，附录表 5 才是全量。换一种材料，名次和结论会变：</p>
+<ul>
+<li>斜面接触换成木块，最好的是 Newton（RMSE 2.66），不是 Isaac Sim。</li>
+<li>非光滑接触在子任务 1 和 2 上，三个引擎都在基线的 2.1 到 3.8 倍之间，差别很小。表 3 选的子任务 3 塑料件，恰好是 Genesis 和 Newton 明显变差的一组。</li>
+<li>布料拉伸接近或低于 1 倍只在缎面上成立。缎面的真实基线是 0.21，标准差 0.42，比其余五种面料（0.006 到 0.027）大一个数量级。按绝对误差算，Isaac Sim 在六种面料上都在 0.10 到 0.18 之间；归一化以后，Isaac Sim 和 Newton 在其余五种面料上是 5.7 到 18 倍。</li>
+</ul></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>世界模型</h3>
+<h4>定律形式与参数准确性是两种能力</h4>
+<ul>
+<li><b>斜面滑块。</b>木、塑料、金属三种材料上 QFI 最低的分别是 Cosmos3-Super-I2V、Seedance 2 和 Cosmos3-Nano，名次随材料变，跨材料的一致性有限。更要紧的是 QFI 低保证不了加速度对。木块的最佳估计 2.06 m/s²，离实测 2.58 m/s² 不远；塑料和金属最接近的也只有 0.75 和 0.43 m/s²，实测是 2.57 和 2.67 m/s²。图 4(a) 里好几条轨迹在 \(t^2\) 坐标下几乎是直线，斜率却差得很远。</li>
+<li><b>弹跳球</b>更典型。Cosmos3-Super-I2V 加负向提示时 QFI 最低，为 12.50，推出的加速度却只有 0.088 m/s²；Seedance 2 的加速度最接近，也只有 1.84 m/s²，远低于重力加速度。图 4(b) 说明，生成的运动在一小段时间里可以很像匀加速，物理尺度却是错的。所以方程结构和参数准确性要分开评。</li>
+</ul>
+<h4>相互作用与振荡</h4>
+<ul>
+<li><b>动量传递仍然很难。</b>十个模型配置里有六个生成不出有效的牛顿摆序列。Wan-2.2 加负向提示的 MTE 最高，为 0.76，仍低于真实的约 1。</li>
+<li><b>单摆说明了观感的局限。</b>Wan-2.2 和 Genie 3 的 R² 都到了 0.99，振荡拟合得很好，周期却是 1.93 s 和 1.90 s，实测为 1.06 s。最接近的是 Wan-2.7 的 1.83 s，仍长约 73%。图 4(c) 里各模型拟合出的阻尼和振幅差别也很大，阻尼的正负号都不一致。看上去有周期、拟合分数也高的视频，照样可能违反真实的时间参数和能量行为。</li>
+</ul>
+<h4>对提示词敏感</h4>
+<p>表 4 的成对设置显示，负向提示词带来的改进并不一致。它把 Cosmos3-Super-I2V 弹跳球的 QFI 从 270.69 降到 12.50，也让 Wan-2.2 生成出了牛顿摆；可同一个模型在木块斜面上的 QFI 却从 13.61 涨到 569.36。变化的方向和幅度同时取决于模型和任务。作者因此建议物理评测固定提示词模板、报告成对结果，不要凭一次碰巧好的生成下结论。更多分析在附录 C.3。</p>
+
+<div class="tablewrap"><table class="t-wm">
+<thead>
+<tr><th rowspan="2">任务</th><th rowspan="2">材料</th><th rowspan="2">指标</th><th rowspan="2" class="n">真实基线</th><th colspan="2" class="c">Cosmos3-Nano</th><th colspan="2" class="c">Cosmos3-Super-I2V</th><th colspan="2" class="c">Wan-2.2</th><th colspan="2" class="c">Wan-2.7</th><th class="c">Seedance 2</th><th class="c">Genie 3</th></tr>
+<tr><th class="n">无</th><th class="n">有</th><th class="n">无</th><th class="n">有</th><th class="n">无</th><th class="n">有</th><th class="n">无</th><th class="n">有</th><th class="n">无</th><th class="n">无</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="6">斜面滑块</td><td rowspan="2">木</td><td>QFI</td><td class="n">0.00</td><td class="n">64.89</td><td class="n">26.65</td><td class="n best">13.61</td><td class="n">569.36</td><td class="n">393.00</td><td class="n">15.74</td><td class="n">1201.08</td><td class="n">558.97</td><td class="n">781.51</td><td class="n">40.11</td></tr>
+<tr><td>a</td><td class="n">2.58</td><td class="n best">2.06</td><td class="n">0.90</td><td class="n">0.13</td><td class="n">0.12</td><td class="n">0.43</td><td class="n">0.091</td><td class="n">0.061</td><td class="n">0.038</td><td class="n">0.23</td><td class="n">0.62</td></tr>
+<tr><td rowspan="2">塑料</td><td>QFI</td><td class="n">0.00</td><td class="n">129.76</td><td class="n">276.49</td><td class="n">25.60</td><td class="n">330.31</td><td class="n">14.24</td><td class="n">40.12</td><td class="n">1164.59</td><td class="n">942.08</td><td class="n best">8.69</td><td class="n">67.07</td></tr>
+<tr><td>a</td><td class="n">2.57</td><td class="n">0.58</td><td class="n">0.22</td><td class="n">0.36</td><td class="n">0.030</td><td class="n best">0.75</td><td class="n">0.16</td><td class="n">0.055</td><td class="n">0.063</td><td class="n">0.20</td><td class="n">0.58</td></tr>
+<tr><td rowspan="2">金属</td><td>QFI</td><td class="n">0.00</td><td class="n best">4.41</td><td class="n">184.09</td><td class="n">1266.40</td><td class="n">924.39</td><td class="n">116.64</td><td class="n">6.96</td><td class="n">60.70</td><td class="n">1145.94</td><td class="n">730.22</td><td class="n">70.37</td></tr>
+<tr><td>a</td><td class="n">2.67</td><td class="n">0.36</td><td class="n">0.15</td><td class="n">0.056</td><td class="n">0.068</td><td class="n">0.24</td><td class="n">0.40</td><td class="n">0.046</td><td class="n">0.038</td><td class="n">0.074</td><td class="n best">0.43</td></tr>
+<tr><td rowspan="3">转盘</td><td>木</td><td>DE</td><td class="n">0.00</td><td class="n">0.078</td><td class="n">0.10</td><td class="n">0.092</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.18</td><td class="n">0.00037</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>塑料</td><td>DE</td><td class="n">0.00</td><td class="n">0.11</td><td class="n">0.17</td><td class="n">0.0029</td><td class="n">0.11</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.032</td><td class="n">0.050</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>金属</td><td>DE</td><td class="n">0.00</td><td class="n">0.0064</td><td class="n">0.19</td><td class="n">0.040</td><td class="n">0.25</td><td class="n">0.00048</td><td class="n">0.00</td><td class="n">0.12</td><td class="n">0.78</td><td class="n">0.0024</td><td class="n">0.00</td></tr>
+<tr><td rowspan="2">弹跳球</td><td rowspan="2">橡胶</td><td>QFI</td><td class="n">0.00</td><td class="n">2620.05</td><td class="n">1125.36</td><td class="n">270.69</td><td class="n best">12.50</td><td class="n">428.39</td><td class="n">38.72</td><td class="n">59.49</td><td class="n">16.08</td><td class="n">65.16</td><td class="n">88.70</td></tr>
+<tr><td>a</td><td class="n">9.81</td><td class="n">0.45</td><td class="n">0.33</td><td class="n">0.076</td><td class="n">0.088</td><td class="n">0.051</td><td class="n">0.064</td><td class="n">0.16</td><td class="n">0.15</td><td class="n best">1.84</td><td class="n">−0.052</td></tr>
+<tr><td>牛顿摆</td><td>金属</td><td>MTE</td><td class="n">约 1</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n best">0.76</td><td class="n">0.55</td><td class="n">0.48</td><td class="n">0.24</td><td class="n">–</td></tr>
+<tr><td rowspan="2">单摆</td><td rowspan="2">金属</td><td>R²</td><td class="n">1.00</td><td class="n">0.86</td><td class="n">0.66</td><td class="n">0.50</td><td class="n">0.92</td><td class="n">0.98</td><td class="n best">0.99</td><td class="n">0.71</td><td class="n">0.72</td><td class="n">0.96</td><td class="n best">0.99</td></tr>
+<tr><td>PD</td><td class="n">1.06</td><td class="n">2.36</td><td class="n">2.93</td><td class="n">17.95</td><td class="n">2.34</td><td class="n">6.03</td><td class="n">1.93</td><td class="n best">1.83</td><td class="n">1.87</td><td class="n">3.13</td><td class="n">1.90</td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · 视频世界模型在五个刚体任务上的物理一致性。“无”和“有”指不加或加负向提示词；Seedance 2 和 Genie 3 的接口没有负向提示字段，只有“无”。QFI 和 DE 越低越好；加速度 a、MTE、PD 与真实基线比；R² 越高越好。a 的单位是 m/s²，PD 是秒，DE 是牛顿。“–”表示没有可用的生成结果。底色是每行最好值；DE 各行有多个配置并列为 0，不标。</p>
+
+<div class="fig"><span class="lab">图 4 · 原文第 13 页</span><p>三幅拟合图。(a) 木块斜面滑块，位移 \(s\) 对 \(t^2\) 作图；(b) 弹跳球第一段自由落体，同样对 \(t^2\) 作图，匀加速运动在这种坐标下应是直线；(c) 单摆释放后的摆角和拟合出的阻尼振荡。点线是从视频恢复的轨迹，实线是物理模型拟合，图例给出每个模型的 QFI、R² 或周期误差。斜率、弯曲、周期和阻尼上的差别，是只看画面发现不了的错误。</p></div>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 图 4、图 10 与表 4 对不上</span><p>不加负向提示的曲线，图例数值和表 4 一致；加负向提示的几条对不上。比如 Cosmos3-Super-I2V 加负向提示：木块斜面图例 QF=174.0，表 4 是 569.36；弹跳球图例 QF=3.1，表 4 是 12.50；单摆图例 R²=0.815，表 4 是 0.92。附录图 10 的塑料和金属两栏也是这样。另外，图 4(c) 的周期误差是按约 1.09 s 的基准换算的，例如 Wan-2.7 的 1.83 s 标为 68.3%，正文用的基线却是 1.06 s。原文没有说明哪组数是最终结果。</p></div>
+
+<div class="note" id="n6"><span class="lab">读者注 6 · 把参数误差换算成慢放倍数</span><p>加速度的量纲是长度除以时间的平方。如果一段视频里的物理过程完全正确、只是整体放慢了 k 倍，方程形式不会变，加速度变成真实值的 1/k²，周期变成 k 倍。按这个关系换算每个任务里最接近真实的那个结果：</p>
+<div class="tablewrap"><table class="t-slow">
+<thead><tr><th>任务</th><th>最接近的配置</th><th class="n">生成值</th><th class="n">真实值</th><th class="n">等效慢放倍数</th></tr></thead>
+<tbody>
+<tr><td>斜面滑块 · 木</td><td>Cosmos3-Nano 无</td><td class="n">a = 2.06</td><td class="n">2.58</td><td class="n">1.12</td></tr>
+<tr><td>斜面滑块 · 塑料</td><td>Wan-2.2 无</td><td class="n">a = 0.75</td><td class="n">2.57</td><td class="n">1.85</td></tr>
+<tr><td>斜面滑块 · 金属</td><td>Genie 3</td><td class="n">a = 0.43</td><td class="n">2.67</td><td class="n">2.49</td></tr>
+<tr><td>弹跳球</td><td>Seedance 2</td><td class="n">a = 1.84</td><td class="n">9.81</td><td class="n">2.31</td></tr>
+<tr><td>单摆</td><td>Wan-2.7 无</td><td class="n">PD = 1.83 s</td><td class="n">1.06 s</td><td class="n">1.73</td></tr>
+</tbody></table></div>
+<p>除木块外，最好的结果都相当于慢放 1.7 到 2.5 倍；其余配置更慢，比如弹跳球 Cosmos3-Super-I2V 加负向提示的 0.088 m/s² 相当于慢放约 10.6 倍。这和形式对、参数错的现象吻合。生成视频的时间轴取自各模型输出文件标称的帧率（附录表 6），如果画面内容实际对应的帧率和标称值不同，也会表现成这种时间尺度误差，论文没有讨论这种可能。</p></div>
+
+<h2 id="s6"><span class="no">6</span>局限与展望</h2>
+<ul>
+<li><b>材料和参数范围有限。</b>名义上同一类的材料，也会因表面处理、内部结构、制造工艺、温度和磨损而不同。后续版本要加入更多材料，覆盖更宽的摩擦、刚度、密度、恢复系数和阻尼范围；任务也要扩展到流体和耦合过程，比如流体与刚体、流体与软体的相互作用，更贴近具身智能体实际遇到的物理多样性。</li>
+<li><b>世界模型赛道只做了刚体。</b>这些任务能用二维图像轨迹评测；布料和三维软体的状态涉及分布式形变、深度变化、自遮挡和自接触，二维表示不够用。等能稳定拿到三维坐标，指标就应建立在重建的点云、网格或跟踪的表面单元上，可测的量包括局部应变、面积和体积变化、高斯曲率和平均曲率、弯曲能、测地距离畸变、自接触、振动模态、阻尼和能量耗散。对应关系和重建的不确定度也要显式建模，免得把三维感知的误差算到世界模型头上。再结合 GAUGE 的定律形式和参数稳定性分析，才能更准确地评测生成的布料和软体动力学。</li>
+</ul>
+
+<h2 id="s7"><span class="no">7</span>结论</h2>
+<p>GAUGE 是一个以真实测量为基准、同时评测物理引擎和生成式视频世界模型的基准：22 个受控任务族，配有重复的真实轨迹、标定的物理参数和任务专属的观测量；评测框架统一，指标又对各个物理范畴有意义。</p>
+<ul>
+<li><b>引擎的精度强烈依赖领域。</b>Isaac Sim 在几个刚体接触任务上表现好，Genesis 在动态布料和多数软体任务上更有竞争力，Newton 在个别形变任务上最强，没有一个在所有范畴都准。</li>
+<li><b>视频世界模型的问题相关但不同。</b>它们能生成画面可信、甚至能被物理方程拟合得很好的轨迹，同时给出错误的加速度、动量传递效率、振荡周期或阻尼行为，表现还对提示词的写法很敏感。</li>
+</ul>
+<p>作者的结论是，物理保真度不能只靠画面质量、单一的轨迹距离或单纯的参数估计来刻画。把定律形式、物理参数和时间行为放在一起，和真实测量对照，才能为改进面向具身智能的仿真器和世界模型提供诊断依据。</p>
+
+<h2 id="apA"><span class="no">A</span>附录：基准数据集</h2>
+<h3><span class="no">A.1</span>标准场景</h3>
+<p>附录把 22 个场景按 8 个刚体、6 个布料、8 个可变形体（含绳）重新归了类。刚体场景关注碰撞、摩擦、弹性以及动量和能量的传递；布料和可变形体场景主要考察自碰撞、各种刚度性质和刚柔耦合。</p>
+<div class="fig"><span class="lab">图 5 · 原文第 20 页</span><p>22 个实验场景的实物照片，排成六行：斜面接触、非光滑接触、斜面滑块、转盘；牛顿摆、撞墙、单摆、弹跳球；布料拉伸、布料弯曲、甩布；漏斗、旋转球、抽桌布；绕绳、泡沫拉伸、泡沫压缩、泡沫剪切；泡沫扭转、泡沫弯曲、弹性杆滑动、悬臂梁。</p></div>
+<p>有三个任务各分三个子任务：</p>
+<ul>
+<li><b>非光滑接触</b>按几何组合分（图 6）：四棱锥落入方槽底座，四棱锥落入三角槽底座，楔形块落入三角槽底座。</li>
+<li><b>斜面滑块</b>用三种不同的斜面倾角，<b>转盘</b>用三种不同的转速。这样方块会经历不同的摩擦状态：静摩擦、动摩擦以及两者之间的转换。原文没有写明哪个子任务对应哪种状态。</li>
+</ul>
+<div class="fig"><span class="lab">图 6 · 原文第 21 页</span><p>非光滑接触的三种几何变体 (a)(b)(c)，对应上面三种组合。</p></div>
+
+<h3><span class="no">A.2</span>参数标定</h3>
+<h4><span class="no">A.2.1</span>参数测量</h4>
+<p>除了质量和几何尺寸，GAUGE 还测了每个场景的关键参数：刚体的摩擦系数和恢复系数，布料的拉伸和弯曲刚度，可变形材料的杨氏模量和泊松比。作者把这一点当作和其他基准的主要区别。</p>
+<ul>
+<li><b>摩擦系数</b>（刚体之间，以及刚体与布料之间）主要用斜面法测（图 7(a)）。测出物体沿斜面的滑动速度 \(v(t)\)，由 \(m\dot v=mg\sin\theta-\mu mg\cos\theta\) 得
+<div class="eq"><div class="m">\[ \mu=\frac{g\sin\theta-\dot v}{g\cos\theta} \]</div></div>
+其中 \(\theta\) 是斜面倾角。</li>
+<li><b>恢复系数</b>用碰撞法测。为了消除摩擦、保证每次碰撞的初速度一致，用的是倾斜的气浮导轨（图 7(b)）：一个物体固定在导轨一端，另一个每次从同一高度释放，取 \(e=v_{\mathrm{out}}/v_{\mathrm{in}}\)。</li>
+<li><b>布料</b>用 Style3D 的拉伸仪和弯曲仪，分别做拉伸试验和悬臂弯曲试验。拉伸沿经向、纬向测，再沿对角方向测以表征剪切刚度；仿真里取经向和纬向拉伸刚度的平均值。为了验证测量，把一块 1 m² 的布挂起来，对比真实和仿真的悬垂形态（图 7(c)）。</li>
+<li><b>三维软体</b>的杨氏模量用压缩试验、泊松比用 DIC 标定。实验基本在小变形区，所以只拿应力–应变曲线开头的线性段拟合杨氏模量（图 7(d)）；泊松比取 DIC 测得的横向与纵向应变之比（图 7(e)）。</li>
+</ul>
+<div class="fig"><span class="lab">图 7 · 原文第 22 页</span><p>(a) 斜面法测摩擦；(b) 倾斜气浮导轨上的碰撞实验；(c) 1 m² 布料的悬挂对比，真实照片和仿真结果并列；(d) 软体材料的应力–应变曲线；(e) DIC 测量时的应变场。</p></div>
+
+<h4><span class="no">A.2.2</span>布料参数映射</h4>
+<p>记号：\(K_s\)、\(K_{\mathrm{sh}}\) 是单位宽度的拉伸和剪切刚度（N/m），\(t\) 是厚度，\(K_\theta\) 是离散弯曲铰链的力矩与转角之比。\(K_s\) 取横向边界自由时单轴拉伸的切线刚度。</p>
+<p>三个引擎的本构模型和离散方式各不相同，同一组测量值不能原样当成数值系数填进去。作者的办法是匹配小应变下的响应，为每个模型推导初值。得到的是等效的各向同性求解器参数，并不精确代表本来就各向异性的布料。</p>
+<p><b>Isaac Sim（PhysX 表面 FEM）。</b>平面应力下的各向同性薄膜满足</p>
+<div class="eq"><div class="m">\[ K_s=Et,\qquad K_{\mathrm{sh}}=\frac{Et}{2(1+\nu)} \]</div><span class="no">(4)</span></div>
+<p>反解出杨氏模量和泊松比：</p>
+<div class="eq"><div class="m">\[ \nu=\frac{K_s}{2K_{\mathrm{sh}}}-1,\qquad E=\frac{K_s}{t} \]</div><span class="no">(5)</span></div>
+<p>如果 \(\nu\) 落在所用配置支持的非拉胀范围之外，就保留实测的拉伸刚度，泊松比换成固定的回退值：</p>
+<div class="eq"><div class="m">\[ \nu\leftarrow\begin{cases}\nu, &amp; 0\le\nu\lt 0.5\\ 0.30, &amp; \nu\lt 0\\ 0.45, &amp; \nu\ge 0.5\end{cases} \]</div><span class="no">(6)</span></div>
+<p>弯曲方面，PhysX 用一个类似模量的参数 <code>surfaceBendStiffness</code>，由它得到的边刚度与 \(t^3\) 成正比 [27]。对规则方格加对角线三角化的网格，作者取</p>
+<div class="eq"><div class="m">\[ \texttt{surfaceBendStiffness}\simeq\frac{K_\theta}{4t^{3}} \]</div><span class="no">(7)</span></div>
+<p>系数 1/4 来自这种三角化里两类边的平均，换一种网格就不成立 [8]。</p>
+<p><b>Genesis（PBD）。</b>Genesis 用离散的距离约束和二面角约束表示布料。按 XPBD 的能量约定，柔度参数取刚度的倒数：</p>
+<div class="eq"><div class="m">\[ \texttt{stretch_compliance}=\frac{1}{K_s},\qquad \texttt{bending_compliance}=\frac{1}{K_\theta} \]</div><span class="no">(8)</span></div>
+<p>这两个倒数不是从宏观布料性质到网格无关参数的精确换算。Genesis 把同一组系数用到每条边和每个铰链上，实际响应还取决于网格、子步长、松弛因子和投影迭代次数 [7, 19, 24]。所以这些设置固定不调，和基准一起公布。另外，所评测的 Genesis 布料模型没有单独输入 \(K_{\mathrm{sh}}\) 的通道。</p>
+<p><b>Newton（VBD）。</b>薄膜用 stable Neo-Hookean 弹性，输入系数对应小应变下的 Lamé 参数 \(\mu\)、\(\lambda\)，内部换算为 \(\mu_{\mathrm{NH}}=\mu\)、\(\lambda_{\mathrm{NH}}=\lambda+\mu\) [25, 34]。匹配横向自由的单轴拉伸和工程剪切，得到</p>
+<div class="eq"><div class="m">\[ K_{\mathrm{sh}}=\mu,\qquad K_s=\frac{4\mu(\lambda+\mu)}{\lambda+2\mu} \]</div><span class="no">(9)</span></div>
+<p>于是 Newton 的系数初始化为</p>
+<div class="eq"><div class="m">\[ \texttt{tri_ke}=\tilde K_{\mathrm{sh}},\qquad \texttt{tri_ka}=\frac{2\tilde K_{\mathrm{sh}}\,\bigl(K_s-2\tilde K_{\mathrm{sh}}\bigr)}{4\tilde K_{\mathrm{sh}}-K_s} \]</div><span class="no">(10)</span></div>
+<div class="eq"><div class="m">\[ \tilde K_{\mathrm{sh}}=\begin{cases}K_{\mathrm{sh}}, &amp; 2\lt K_s/K_{\mathrm{sh}}\lt 4\\ K_s/2.7, &amp; \text{otherwise}\end{cases} \]</div><span class="no">(11)</span></div>
+<p>区间 (2, 4) 是二维各向同性模型里 \(\lambda\) 为正的范围，不是普遍适用的容许条件。2.7 是一个固定的工程先验，用在各向异性的测量值无法用这个各向同性模型表示的时候，不是 Newton 或 stable Neo-Hookean 的理论常数。最后，Newton 的弯曲核用等效铰链系数 \(k_e=\texttt{edge_ke}\cdot\ell_e\)，所以取</p>
+<div class="eq"><div class="m">\[ \texttt{edge_ke}=\frac{K_\theta}{\bar\ell_e} \]</div><span class="no">(12)</span></div>
+<p>\(\bar\ell_e\) 是这张近乎均匀的网格的平均静止边长。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 两个引擎能直接用实测值的范围不同</span><p>由式 (5)，\(0\le\nu\lt 0.5\) 等价于 \(2\le K_s/K_{\mathrm{sh}}\lt 3\)。由式 (9) 解出 \(\lambda=2\mu(K_s-2\mu)/(4\mu-K_s)\)，正好是式 (10) 的 <code>tri_ka</code>，\(\lambda\gt 0\) 等价于 \(2\lt K_s/K_{\mathrm{sh}}\lt 4\)。两边都满足 \(K_s/K_{\mathrm{sh}}=2(1+\nu)\)，区别在于 Isaac Sim 的配置按三维材料把泊松比限制在 0.5 以下，而二维薄膜的泊松比上限是 1。所以刚度比落在 3 到 4 之间的面料，Newton 能直接用实测值，Isaac Sim 要换成回退的 \(\nu=0.45\)。Newton 回退时 \(K_s/\tilde K_{\mathrm{sh}}=2.7\)，对应 \(\lambda\approx1.08\,\mu\)。</p></div>
+
+<h2 id="apB"><span class="no">B</span>附录：物理引擎</h2>
+<h3><span class="no">B.1</span>指标</h3>
+<p><b>广义轨迹。</b>回顾正文：刚体用位置 \(P\)（图 8(a)），布料用标记点处的高斯曲率 \(K\)（图 8(b)），软体用标记点三角面的面积 \(A\)（图 8(c)）。</p>
+<p><b>高斯曲率的算法</b>是 Gauss–Bonnet 定理的离散形式，也叫角亏法。每一帧里，对每个作为网格顶点的标记点 \(i\)，计算它在每个相邻三角形中的内角。设 \(\mathbf a\)、\(\mathbf b\) 是从顶点 \(i\) 指向该三角形另外两个顶点的边向量：</p>
+<div class="eq"><div class="m">\[ \theta=\arccos\!\left(\frac{\mathbf a\cdot\mathbf b}{\lVert\mathbf a\rVert\,\lVert\mathbf b\rVert}\right) \]</div><span class="no">(13)</span></div>
+<p>把顶点 \(i\) 周围的内角加起来记作 \(\sum\theta_i\)，离散高斯曲率就是参考全角减去这个和：</p>
+<div class="eq"><div class="m">\[ k_i=\Theta_i-\sum\theta_i \]</div><span class="no">(14)</span></div>
+<ul>
+<li>布料样本是有边界的矩形片，不是封闭曲面，所以标记点按在网格中的位置分成内部点、直边点和角点，\(\Theta_i\) 分别取 \(2\pi\)、\(\pi\)、\(\pi/2\)。这正是曲率为零时三类点被完整平面、半平面、四分之一平面覆盖的角度。</li>
+<li>逐帧独立计算。某个标记点这一帧因遮挡等原因没有三维坐标，或者相邻三角形因顶点重合而退化，对应的内角就不计入求和。</li>
+<li>\(k_i\) 本质上是顶点处的角亏，单位是弧度，没有除以顶点对应的局部面积，所以严格说不是量纲为长度<sup>−2</sup> 的高斯曲率。图 8(b) 里的 \(K\) 是各顶点 \(k_i\) 组成的向量的范数。</li>
+</ul>
+<div class="note" id="n8"><span class="lab">读者注 8 · 角亏对单向弯曲不敏感</span><p>角亏只取决于标记点三角形的边长。布料如果只弯曲、不拉伸，也就是做等距变形，各顶点的内角和就不变，\(K\) 也不变。所以 \(K\) 主要反映双向弯曲、褶皱和面内的拉伸剪切，对单向弯曲的幅度不太敏感；标记点间距较大时，弦长缩短会带来一点信号。图 8(b) 里 Genesis 的 \(K\) 贴近 0，只说明它的标记点网格几乎没有非等距变形；Isaac Sim 的 \(K\) 很大，说明网格出现了强烈的非等距变形。两者都不能直接说明甩动的轨迹本身对不对。</p></div>
+
+<p><b>最长静止时长（LSD）。</b>真实牛顿摆的动量传递几乎完美，碰撞之后球会静止一段时间，轨迹呈一段一段的冲击式（图 8(d)）。LSD 专门找相邻两次冲击之间的静止段：</p>
+<div class="eq"><div class="m">\[ \mathrm{LSD}=\max_{S}\ \frac{|S|}{f_s}\quad\text{s.t.}\quad \max(z_S)-\min(z_S)\le\epsilon_z,\ \ |v_S|\le v_{\mathrm{th}} \]</div><span class="no">(15)</span></div>
+<p>\(S\) 是满足静止条件的一段连续帧，\(f_s\) 是采样频率。作者取位置阈值 \(\epsilon_z=0.5\) mm、速度阈值 \(v_{\mathrm{th}}=5\) mm/s。</p>
+<p><b>动量传递效率（MTE）。</b>LSD 看时间上的形态，MTE 直接从动量角度看传递效率，而且只算第一次碰撞：</p>
+<div class="eq"><div class="m">\[ \mathrm{MTE}=\sqrt{\Delta H_{\mathrm{out}}/\Delta H_{\mathrm{in}}} \]</div><span class="no">(16)</span></div>
+<p>\(\Delta H_{\mathrm{in}}\) 是入射球释放时相对平衡位置的高度差，\(\Delta H_{\mathrm{out}}\) 是出射球摆起的最大高度差。等质量的球速度为 \(\sqrt{2gh}\)，所以动量之比就是高度比的平方根。MTE 越大，入射球的动量传给出射球的比例越高。</p>
+<p><b>周期。</b>GAUGE 的单摆从水平位置释放，小角度近似下的周期公式不适用。所以先对轨迹做傅里叶谱分析找主频，用主频的倒数作为周期。</p>
+<p><b>能量损失（EL）</b>用来检查数值积分器是否守恒能量：</p>
+<div class="eq"><div class="m">\[ \mathrm{EL}=\frac{E_{\mathrm{start}}-E_{\mathrm{end}}}{E_{\mathrm{start}}} \]</div><span class="no">(17)</span></div>
+<p>实际在摆到最高点时计算，此时动能全部转成了重力势能，机械能近似等于势能。原文写“越接近 1 越好”，并说低于 0 表示数值积分误差累积，使系统能量非物理地增加了。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · EL 的好坏方向</span><p>按式 (17)，EL = 1 意味着能量全部损失，表 3 的表注也写“0 最理想”。附录这句“越接近 1 越好”应是笔误，按定义理解为越接近 0 越好。</p></div>
+
+<div class="fig"><span class="lab">图 8 · 原文第 24 页</span>
+<p>(a) 斜面滑块在 X–Z 平面上的轨迹：Isaac Sim 和 Genesis 与真实均值基本重合，Newton 的轨迹整体偏低，落点更远。</p>
+<p>(b) 甩布的曲率范数 \(K\) 随时间的变化：真实均值约 0.2，几乎不动；Isaac Sim 先剧烈振荡，峰值约 2.7，之后停在约 1.2；Newton 在 0 到 0.6 之间抖动；Genesis 一直贴近 0。</p>
+<p>(c) 泡沫扭转的三角面面积 \(A\)：真实均值从约 1108 mm² 缓慢降到约 1063 mm²；Genesis 保持在 1070 mm² 上下；Newton 和 Isaac Sim 分别从约 895 mm² 和 875 mm² 起步，几乎是平的。</p>
+<p>(d) 牛顿摆中一颗球的高度 \(Z\) 随时间的变化：真实样本是一串逐渐降低的尖峰，从约 158 mm 降到约 70 mm；Newton 和 Isaac Sim 只在 50 mm 上下小幅振荡，看不到冲击式的传递。</p>
+</div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 泡沫面积从第一帧就偏了</span><p>图 8(c) 里 Newton 和 Isaac Sim 的面积从第一帧起就比真实值低约 19% 到 21%，之后基本不变，真实曲线那点约 4% 的下降也没有复现。这部分误差在扭转开始前就存在，更像来自初始几何或标记点到网格顶点的匹配（匹配允许 1 cm 以内的误差），而不是扭转动力学本身。RMSE 把两者混在了一起，原文没有拆开。</p></div>
+
+<p><b>表 5：全部子任务和材料。</b>表 5 是表 3 的完整版，按子任务和材料逐一列出。表 3 之外值得注意的几点：</p>
+<ul>
+<li><b>斜面滑块子任务 1</b>的真实基线最小（RMSE 0.59 到 1.90），Isaac Sim 和 Genesis 的归一化误差只有 0.01 到 0.08，Newton 却是 4.3 到 24.7 倍。</li>
+<li><b>转盘</b>子任务 1 和 3 上 Newton 是 9.5 到 66.7 倍；子任务 2 反过来，Newton 在木块和金属块上最好（RMSE 2.88 和 1.97）。</li>
+<li><b>非光滑接触</b>子任务 1、2 上三个引擎都在 2.1 到 3.8 倍；子任务 3 上 Genesis 变差（木 5.84、塑料 10.04），Newton 在塑料上也变差（6.05）。</li>
+<li><b>布料弯曲</b>六种面料都是 Isaac Sim 最好（RMSE 4.78 到 12.49），Newton 最差（12.53 到 37.13）。</li>
+<li><b>甩布</b>六种面料上 Isaac Sim 都是 61.6 到 128.3 倍，Genesis 全部最好（3.66 到 9.31）。</li>
+<li><b>布料拉伸</b>除缎面外，五种面料的基线只有 0.006 到 0.027，三个引擎的 RMSE 在 5.7 到 51.2 倍之间；Newton 在均匀布和合成革上没有结果。</li>
+<li><b>硬泡沫</b>上 Genesis 明显领先（拉伸 1.74、剪切 6.12、扭转 4.7、弯曲 9.96），Isaac Sim 和 Newton 在 10.8 到 58.4 倍。</li>
+</ul>
+
+<h2 id="apC"><span class="no">C</span>附录：世界模型</h2>
+<h3><span class="no">C.1</span>模型配置</h3>
+<h4><span class="no">C.1.1</span>标准输入</h4>
+<p><b>首帧。</b>五个图生视频模型的首帧统一放到 832 × 480 的画布上。原图宽 \(W\)、高 \(H\)，按等比系数</p>
+<div class="eq"><div class="m">\[ s=\min\!\left(\frac{832}{W},\ \frac{480}{H}\right) \]</div></div>
+<p>缩放到 \(sW\times sH\) 并取整，保持宽高比和完整视野，再居中贴到 832 × 480 的黑色画布上，四周对称补黑边。不裁剪，也不拉伸变形。Genie 3 是例外：Project Genie 要求输入至少 1280 × 704，所以它的首帧做成 1300 × 750，宽高比和 832 × 480 相同，导出的视频是 1280 × 704。</p>
+<p><b>负向提示的传入方式。</b>两个 Cosmos3 模型用 Diffusers 的 <code>negative_prompt</code> 参数；Wan-2.2 写进 <code>shared_config</code> 里的 <code>wan_shared_cfg.sample_neg_prompt</code>，基线条件下这个变量设为空字符串；Wan-2.7 通过 API 传入；本研究用到的 Seedance 2.0 和 Genie 3 接口没有单独的负向提示字段。</p>
+<div class="tablewrap"><table class="t-cfg">
+<thead><tr><th>模型</th><th>调用方式</th><th>输出视频</th><th class="n">时长</th><th>部署环境</th></tr></thead>
+<tbody>
+<tr><td class="nw">Cosmos3-Nano</td><td>Diffusers <code>Cosmos3OmniPipeline</code></td><td class="nw">832 × 480，189 帧，24 fps</td><td class="n">7.9 s</td><td>1 × RTX 4090，DSW 或 DLC</td></tr>
+<tr><td class="nw">Cosmos3-Super-I2V</td><td>Diffusers <code>Cosmos3OmniPipeline</code></td><td class="nw">832 × 480，189 帧，24 fps</td><td class="n">7.9 s</td><td>8 × RTX 4090，DLC</td></tr>
+<tr><td class="nw">Wan-2.2-I2V-A14B</td><td>官方推理脚本 <code>generate.py</code></td><td class="nw">832 × 464，81 帧，16 fps</td><td class="n">5.1 s</td><td>8 × RTX 4090，DLC</td></tr>
+<tr><td class="nw">Wan-2.7</td><td>DashScope API</td><td class="nw">1264 × 728，240 帧，30 fps</td><td class="n">8.0 s</td><td>远程服务</td></tr>
+<tr><td class="nw">Seedance 2.0</td><td>火山引擎方舟 API</td><td class="nw">864 × 496，193 帧，24 fps</td><td class="n">8.0 s</td><td>远程服务</td></tr>
+<tr><td class="nw">Genie 3</td><td>Project Genie 界面</td><td class="nw">1280 × 704，200 帧，20 fps</td><td class="n">10.0 s</td><td>远程服务</td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · 各世界模型的调用方式、输出视频设置和部署环境。“时长”一列是本页按帧数除以帧率算的，原表没有。</p>
+
+<p><b>文本提示。</b>提示覆盖七个任务族：斜面接触、非光滑接触、斜面滑块、转盘、牛顿摆、单摆和弹跳球。摩擦、恢复、惯性或接触行为随材料变化的任务，按材料各写一版；所有模型用同一套提示。每条提示的结构相同：先固定镜头（正面或俯视的静止机位），再写物体的质量、材质、形状和摆放，给出实测的摩擦系数和恢复系数，接着描述释放后的预期运动，最后统一加一句，要求保持物体结构和一致性，不变形、不融合、背景不闪烁。下表整理了各条提示里的事实信息。</p>
+<div class="tablewrap"><table class="t-prompt">
+<thead><tr><th>任务</th><th>镜头</th><th>物体</th><th>支撑或底座</th><th>提示里的参数</th><th>预期运动</th></tr></thead>
+<tbody>
+<tr><td class="nw">斜面接触</td><td>正面</td><td>84 g 木质三直角四面体</td><td>997 g 固定木底座，两者起初拼成一个直立长方块，中间一条斜接缝</td><td class="nw">μ 0.39，e 0.37</td><td>从斜面静止滑下，在桌面上弹跳后停下</td></tr>
+<tr><td class="nw">非光滑接触 · 塑料</td><td>正面</td><td>98 g 黑色塑料四棱锥，尖端朝下略倾斜，由静止的机械臂夹着</td><td>115 g 固定木底座，带方形凹槽</td><td class="nw">μ 0.28，e 约 0.36</td><td>夹爪松开后自由下落，撞上底座、弹跳、停稳，机械臂始终不动</td></tr>
+<tr><td class="nw">非光滑接触 · 木</td><td>正面</td><td>43 g 木质四棱锥</td><td>同上</td><td class="nw">μ 0.27，e 约 0.33</td><td>同上</td></tr>
+<tr><td class="nw">斜面滑块<br>塑料 / 木 / 金属</td><td>正面</td><td>147 g 塑料、90 g 木、340 g 金属方块，放在木板上端</td><td>477 g 固定木板，倾角 30°，旁边有直尺和数显量角器</td><td class="nw">μ 0.28 / 0.27 / 0.26<br>e 0.38 / 0.22 / 0.33</td><td>沿斜面滑下，最后落到桌面，木板不动</td></tr>
+<tr><td class="nw">转盘<br>塑料 / 木 / 金属</td><td>俯视</td><td>147 g、90 g、340 g 方块，偏离圆心放置</td><td>722 g 木质圆转盘，电机驱动逆时针匀速转动</td><td class="nw">μ 0.32 / 0.38 / 0.33<br>e 约 0.32 / 0.29 / 约 0.23</td><td>转动中方块在盘面上滑动</td></tr>
+<tr><td class="nw">牛顿摆</td><td>正面</td><td>5 颗相同的 33 g 金属球</td><td>4 颗静止相贴；最左一颗拉到接近水平，抵在滑轨上一根独立杠杆的尖端</td><td>球间 e 0.20，称碰撞为中度非弹性</td><td>释放后撞上静止的一排，动量依次传递，最末一颗被弹出</td></tr>
+<tr><td class="nw">单摆</td><td>正面</td><td>318 g 黑色金属球，装在轻质刚性杆末端</td><td>水平轴架在两根立柱之间</td><td>初始杆角 10°</td><td>摆过立柱、在另一侧升起，来回多次，振幅因摩擦缓慢衰减</td></tr>
+<tr><td class="nw">弹跳球</td><td>正面</td><td>121 g 黑色球，悬在高处</td><td>下方是固定在光学平台上的木板</td><td class="nw">μ 0.81，e 0.58</td><td>自由下落后多次弹跳，峰高递减，最后停在木板上</td></tr>
+</tbody></table></div>
+<p class="tcap">μ 为摩擦系数，e 为恢复系数，均按提示原文的数值整理。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 提示词里的笔误和矛盾</span>
+<ul>
+<li>金属滑块的提示把摩擦系数写成 plastic and wood 之间的值；塑料和金属转盘的提示都写成 the wood cube slides；塑料棱锥的提示写成 releasing the wood pyramid。另有 fontal、blank（应为 plank）等拼写错误。如果送进模型的就是这些原文，模型读到的材质描述和画面并不一致。</li>
+<li>牛顿摆的提示给出球间恢复系数 0.20，并说碰撞中度非弹性、理想行为被明显抑制；可真实装置第一次碰撞的 MTE 约 93%（表 3），表 4 的参考值也是约 1。提示描述的物理和用来打分的真实行为互相矛盾。</li>
+</ul></div>
+<p><b>负向提示词。</b>Cosmos3-Super 自带一个结构化的 <code>negative_prompt.json</code>，按主体、空间关系、背景、光照、美学、镜头、时间一致性和物理真实感分栏，作者在附录里照录了物理真实感一栏。它列举的失败模式包括：物体违背重力、穿过固体、无故改变质量和动量；流体、布料和刚体物理全面失效；能量不守恒，物体自发获得或失去动能；弹性碰撞表现成非弹性，或者反过来；摩擦不一致，在粗糙面上打滑、在光滑面上粘住；空气阻力只作用于一部分物体。为满足 Wan 接口的长度限制，作者把它压缩成 493 个字符，保留主要的失败模式。压缩版统一用于 Cosmos3-Nano、Cosmos3-Super-I2V、Wan-2.2 和 Wan-2.7，传入方式见上；Seedance 2.0 和 Genie 3 的接口没有负向提示字段，不参加这组对照。</p>
+
+<h3><span class="no">C.2</span>轨迹记录</h3>
+<h4><span class="no">C.2.1</span>SAM3</h4>
+<ul>
+<li><b>两阶段。</b>生成的视频进入第二阶段，用基于 SAM3（Segment Anything with Concepts）的流程分割和跟踪。SAM3 可以用文字或点等视觉提示指定目标，并把掩码沿整段视频传播下去。</li>
+<li><b>提示的初始化。</b>每个任务在标准首帧上设好参考文本提示和一组点提示，并在处理生成视频之前记下参考点坐标、文本描述和预处理元数据。</li>
+<li><b>逐个视频重新校准。</b>输入的首帧虽然相同，生成视频未必保持同样的分辨率，也未必在像素级复现输入的几何：原生分辨率、内部缩放、残留的黑边、首帧重建和 API 端的预处理，都可能让目标偏离标注位置。所以每段视频的首帧都单独校准点提示。仍是 832 × 480 的输出，校准后的点通常离标准坐标很近；其他分辨率先按横竖缩放系数变换坐标，再用针对该输出的偏移量修正黑边或构图变化。确认目标位置后，把最终的文本提示、点提示、帧数、FPS、分辨率和坐标变换参数存进 JSON。</li>
+<li><b>逐帧分割。</b>SAM3 对每一帧输出目标的二值掩码。没有前景像素的帧记为缺失观测，不人为补一个位置。</li>
+</ul>
+<p>有效掩码含 \(N\) 个前景像素 \(\{(x_i,y_i)\}_{i=1}^{N}\)，其几何质心为</p>
+<div class="eq"><div class="m">\[ c_x(t)=\frac{1}{N}\sum_{i=1}^{N}x_i,\qquad c_y(t)=\frac{1}{N}\sum_{i=1}^{N}y_i \]</div><span class="no">(18)</span></div>
+<p>质心取整为像素位置，每个有效观测存成</p>
+<div class="eq"><div class="m">\[ \bigl(t,\ c_x(t),\ c_y(t)\bigr) \]</div><span class="no">(19)</span></div>
+<p>其中 \(t\) 是帧序号。之后这些轨迹送进物理一致性分析。</p>
+
+<h4><span class="no">C.2.2</span>结果展示</h4>
+<div class="fig"><span class="lab">图 9 · 原文第 33 页</span><p>以 Seedance 2.0 的一组生成结果为例，每行一个场景，给出 0 s、2.5 s、5.0 s 三个时刻的画面和提取出的物体轨迹，标出起点和终点。前面几行依次是三种材料的斜面滑块、三种材料的转盘、弹跳球、牛顿摆和单摆。最后三行是斜面接触和非光滑接触，这两类场景有明显的三维几何变化，物体状态也不连续，所以没有纳入后面的定量评测。</p></div>
+
+<h3><span class="no">C.3</span>物理一致性分析</h3>
+<p>这一节说明表 4 的各项指标怎么算，顺序和表 4 相同：斜面滑块、转盘、弹跳球、牛顿摆、单摆。分析用的都是分割跟踪得到的质心轨迹。除非特别说明，坐标既不平滑也不插值，所以跟踪跳变、停顿、反向和模型生成的几何漂移都会如实留在指标里。</p>
+
+<h4><span class="no">C.3.1</span>统一的坐标和时间处理</h4>
+<p>生成视频宽 \(W\)、高 \(H\)、帧率 fps，第 \(f_i\) 帧的图像坐标是 \(\mathbf p_i=(x_i,y_i)\)。各模型的原生分辨率不同，先把坐标映射到任务参考图的尺寸 \(W_{\mathrm{ref}}\times H_{\mathrm{ref}}\)，横竖分别缩放：</p>
+<div class="eq"><div class="m">\[ \tilde x_i=x_i\,\frac{W_{\mathrm{ref}}}{W},\qquad \tilde y_i=y_i\,\frac{H_{\mathrm{ref}}}{H} \]</div><span class="no">(20)</span></div>
+<p>再用每个任务里已知尺寸的物体得到米每像素的比例 \(c\)，换算成米制坐标。时间按 JSON 里的原始帧号算，不按数组下标：</p>
+<div class="eq"><div class="m">\[ t_i=\frac{f_i-f_0}{\mathrm{fps}} \]</div><span class="no">(21)</span></div>
+<p>\(f_0\) 是这个任务拟合时保留的第一帧。这样缺帧也能保留真实的时间间隔。物理事件开始前的静止帧可以去掉，但评测区间里的运动瑕疵都保留。</p>
+
+<h4><span class="no">C.3.2</span>斜面滑块</h4>
+<p><b>标定与投影。</b>检验从静止释放的方块是否沿固定斜面做匀加速运动。在参考帧里标出边长 \(L_{\mathrm{block}}=0.05\) m 的方块的一个可见面，四条边的平均像素长度为 \(L_{\mathrm{px}}\)，比例尺为</p>
+<div class="eq"><div class="m">\[ c=\frac{L_{\mathrm{block}}}{L_{\mathrm{px}}} \]</div><span class="no">(22)</span></div>
+<p>斜面上两个标注点确定一个固定的单位方向 \(\mathbf e\)。经式 (20) 和比例尺换算后，沿斜面的带符号位移为</p>
+<div class="eq"><div class="m">\[ s_i=\bigl(\mathbf p^{m}_i-\mathbf p^{m}_0\bigr)\cdot\mathbf e \]</div><span class="no">(23)</span></div>
+<p>斜面方向不从生成的轨迹里重新估计，否则一条不符合物理的轨迹可能连评测它的方向一起改掉。</p>
+<p><b>截取区间。</b>用 6 帧的位移窗口去掉开头和结尾持续静止的部分；向前运动建立之后，第一次持续停顿或反向就结束拟合，因为那已经不属于第一次连续下滑。这些窗口只用来选帧，选中的坐标本身不滤波。</p>
+<p><b>加速度。</b>静止释放、匀加速时</p>
+<div class="eq"><div class="m">\[ s(t)=s_0+\tfrac12\,a\,t^2 \]</div><span class="no">(24)</span></div>
+<p>令 \(u_i=t_i^2\)，用普通最小二乘拟合</p>
+<div class="eq"><div class="m">\[ \hat s_i=b+k\,u_i,\qquad a=2k \]</div><span class="no">(25)</span></div>
+<p>加速度 \(a\)（m/s²）是生成轨迹隐含的物理时间尺度。它是参数估计，不是拟合优度，所以拿去和每种材料的实测基线比。</p>
+<p><b>QFI。</b>检验 \(s\) 和 \(u=t^2\) 之间的线性关系够不够用。把式 (25) 与带二次项的模型比较：</p>
+<div class="eq"><div class="m">\[ \hat s^{Q}_i=b_Q+k_Q\,u_i+c_Q\,u_i^2=b_Q+k_Q\,t_i^2+c_Q\,t_i^4 \]</div><span class="no">(26)</span></div>
+<div class="eq"><div class="m">\[ \mathrm{SSE}_L=\sum_{i=1}^{N}\bigl(s_i-\hat s_i\bigr)^2,\qquad \mathrm{SSE}_Q=\sum_{i=1}^{N}\bigl(s_i-\hat s^{Q}_i\bigr)^2 \]</div><span class="no">(27)</span></div>
+<p>表里的 QFI 是嵌套模型的 \(F\) 统计量：</p>
+<div class="eq"><div class="m">\[ \mathrm{QFI}=\frac{(\mathrm{SSE}_L-\mathrm{SSE}_Q)/1}{\mathrm{SSE}_Q/(N-3)} \]</div><span class="no">(28)</span></div>
+<p>QFI 低，说明加上 \(t^4\) 项几乎没有多解释什么，符合理想的匀加速；QFI 高，说明 \(s\) 对 \(t^2\) 的关系有系统性弯曲。\(F\) 统计量还随样本数变化，所以要结合残差图看，不能当成绝对的轨迹误差。</p>
+<p><b>结果。</b>图 10 显示，斜率和弯曲程度在不同模型、不同材料之间都差别很大。</p>
+<ul>
+<li>木块：Cosmos3-Super-I2V 不加负向提示时 QFI 最低（13.61），最接近的加速度却来自 Cosmos3-Nano 不加负向提示的 2.06 m/s²，实测 2.58 m/s²。方程形式最好的模型，物理参数并不最好。</li>
+<li>塑料：Seedance 2.0 的 QFI 最低（8.69），但所有模型里最接近的加速度也只有 0.75 m/s²，基线 2.57 m/s²。</li>
+<li>金属：Cosmos3-Nano 不加负向提示时 QFI 最低（4.41），最接近的加速度是 Genie 3 的 0.43 m/s²，实测 2.67 m/s²。</li>
+<li>负向提示没有一致的效果：Cosmos3-Super-I2V 的木块 QFI 从 13.61 变成 569.36，但对另一些模型和任务的组合有改善。</li>
+</ul>
+<div class="fig"><span class="lab">图 10 · 原文第 36 页</span><p>三种材料 (a) 木、(b) 塑料、(c) 金属的斜面滑块轨迹。点是保留下来、没有滤波的投影位移，实线是 \(s\) 对 \(t^2\) 的线性拟合，图例给出每个模型的 QF 和 R²。看上去是直线的轨迹，斜率也就是加速度照样可能是错的。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 斜面的标定参数是自洽的</span><p>斜面倾角 30°，把提示里的摩擦系数代入 \(a=g(\sin\theta-\mu\cos\theta)\)：木 μ = 0.27 得 2.61 m/s²，塑料 μ = 0.28 得 2.53 m/s²，金属 μ = 0.26 得 2.70 m/s²，和实测的 2.58、2.57、2.67 m/s² 相差都不到 2%。说明这组摩擦系数和真实轨迹对得上，表 4 的加速度基线可以放心用。</p></div>
+
+<h4><span class="no">C.3.3</span>转盘</h4>
+<p><b>直接求加速度。</b>检验生成的方块轨迹所需的水平力，是否在转盘摩擦能提供的范围内。比例尺同样用方块 0.05 m 的边长。只去掉开头持续静止和末尾冻结的帧，然后直接对米制轨迹做差分。等间隔 \(\Delta t=1/\mathrm{fps}\) 时</p>
+<div class="eq"><div class="m">\[ \mathbf a_i=\frac{\mathbf p^{m}_{i+1}-2\,\mathbf p^{m}_i+\mathbf p^{m}_{i-1}}{\Delta t^2},\qquad a_i=\lVert\mathbf a_i\rVert_2 \]</div><span class="no">(29)</span></div>
+<p>缺帧造成间隔不等时，用三点公式</p>
+<div class="eq"><div class="m">\[ \mathbf a_i=\frac{2}{t_{i+1}-t_{i-1}}\left(\frac{\mathbf p^{m}_{i+1}-\mathbf p^{m}_i}{t_{i+1}-t_i}-\frac{\mathbf p^{m}_i-\mathbf p^{m}_{i-1}}{t_i-t_{i-1}}\right) \]</div><span class="no">(30)</span></div>
+<p>之所以逐点计算，是因为如果拟合一个固定的加速度向量，转一圈过程中不断变向的向心加速度会互相抵消。差分之前不做平滑。</p>
+<p><b>DE。</b>方块质量 \(m\)、摩擦系数 \(\mu\)、\(g=9.80665\) m/s²，最大可用摩擦力为</p>
+<div class="eq"><div class="m">\[ F_{\mathrm{fric,max}}=\mu\,m\,g \]</div><span class="no">(31)</span></div>
+<p>记 \([z]_+=\max(0,z)\)。逐帧的超出量和表 4 里的 DE 为</p>
+<div class="eq"><div class="m">\[ e_i=\bigl[m\,a_i-F_{\mathrm{fric,max}}\bigr]_+,\qquad \mathrm{DE}=\frac{1}{M}\sum_{i=1}^{M}e_i \]</div><span class="no">(32)</span></div>
+<p>DE 的单位是牛顿，所需力不超过摩擦上限时为 0。程序还记录了加速度的中位数、95 分位数和最大值、超限帧的比例和最大超出量；表 4 用的是式 (32) 的平均值，所以零星的小尖峰会影响 DE，但 DE 不只由最大的那个尖峰决定。</p>
+<p><b>辅助的几何诊断。</b>把相对标定转盘中心的径向变化范围除以方块边长，超过 10% 就标记为可能存在径向滑动。纯切向的打滑，没有独立跟踪的转盘角度就识别不出来，所以径向标记不能代替 DE。</p>
+<p><b>结果。</b>转盘任务出现了好几个为 0 或接近 0 的 DE。这只说明从生成运动估出的逐帧力一般没有超过标定的摩擦上限，并不能证明方块在跟着转盘正确地转。木块有几个配置正好是 0，Cosmos3-Nano 不加负向提示是 0.078 N，Wan-2.7 不加负向提示是 0.18 N；金属块里 Wan-2.7 加负向提示最大，为 0.78 N，另有几个配置为 0 或接近 0。可见 DE 能抓住质心突变和过大的局部加速度，但动得太慢、几乎不动或不同步的运动照样能得到 0，必须配合径向滑动标记和直接查看轨迹。负向提示也不总是有益：对某个模型和材料压住了超限，对另一个却放大了超限。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 转盘的摩擦上限有多大</span><p>按提示里的参数，木、塑料、金属方块的最大摩擦力 \(\mu mg\) 约为 0.34 N、0.46 N、1.10 N，对应允许的最大加速度 \(\mu g\) 约为 3.7、3.1、3.2 m/s²，逐帧加速度超出这个值的部分才计入 DE。金属块 Wan-2.7 加负向提示的 DE = 0.78 N，相当于平均每帧多出约 2.3 m/s² 的加速度。</p></div>
+
+<h4><span class="no">C.3.4</span>弹跳球</h4>
+<p><b>只看第一段自由落体。</b>这个指标只评第一次碰撞或反弹之前的那段下落。参考帧里有一个直径 \(D_{\mathrm{ball}}=0.06\) m 的球，平均像素直径为 \(d_{\mathrm{px}}\)，比例尺为</p>
+<div class="eq"><div class="m">\[ c=\frac{D_{\mathrm{ball}}}{d_{\mathrm{px}}} \]</div><span class="no">(33)</span></div>
+<p>取图像向下为正方向，相对保留的释放点有</p>
+<div class="eq"><div class="m">\[ s_i=c\,(\tilde y_i-\tilde y_0),\qquad q_i=c\,(\tilde x_i-\tilde x_0) \]</div><span class="no">(34)</span></div>
+<p>\(s_i\) 是主指标用的竖直位移，\(q_i\) 留作水平漂移的诊断。用持续窗口检测器定位释放时刻，跳过开头的等待；向下运动建立后，第一次竖直反向、持续的接触平台、跟踪目标切换或观测丢失，都会结束这段弹道。碰撞之后的正常样本被排除而不是被惩罚，因为反弹不服从单一的自由落体模型。选中的空中段样本全部不滤波。</p>
+<p><b>加速度和 QFI。</b>静止释放、恒定重力，理想情况下</p>
+<div class="eq"><div class="m">\[ s(t)=s_0+\tfrac12\,a\,t^2,\qquad a=g \]</div><span class="no">(35)</span></div>
+<p>拟合方式与式 (25) 相同：</p>
+<div class="eq"><div class="m">\[ \hat s_i=b+k\,t_i^2,\qquad a=2k \]</div><span class="no">(36)</span></div>
+<p>得到的加速度和真实基线 \(g\approx9.81\) m/s² 比较。一条画面上很平滑的抛物线，形状误差可以很小，对应的重力大小却是错的。QFI 同样加一个 \(t^4\) 项、按式 (28) 计算；QFI 低只说明 \(s\) 对 \(t^2\) 的线性形式够用，不代表斜率给出的重力加速度正确。程序还拟合水平方向</p>
+<div class="eq"><div class="m">\[ q(t)=b_x+v_x\,t+\tfrac12\,a_x\,t^2 \]</div><span class="no">(37)</span></div>
+<p>并记录水平范围、净位移和 \(a_x/g\)，防止一条竖直分量看着准、整体却明显不竖直的轨迹蒙混过关。</p>
+<p><b>结果。</b>图 4(b) 里既有近似直线的段，也有明显的弯曲、平台、反向和孤立的跳变。</p>
+<ul>
+<li>Cosmos3-Super-I2V 加负向提示 QFI 最低，为 12.50，比不加时的 270.69 好很多；但拟合加速度只有 0.088 m/s²，不到 9.81 m/s² 的 1%。它在 \(s\)–\(t^2\) 图上更接近直线，只是斜率错了。</li>
+<li>Seedance 2.0 的加速度最接近，为 1.84 m/s²，仍比重力低约 81%，QFI 是 65.16。</li>
+<li>Genie 3 拟合出负的加速度 −0.052 m/s²，和曲线里的反向趋势一致。</li>
+<li>Wan-2.2 先是一段很长的平缓区，之后才明显运动，QFI 高达 428.39。</li>
+</ul>
+<p>没有一个模型同时做到自由落体的形式对、重力大小也对。</p>
+
+<h4><span class="no">C.3.5</span>牛顿摆</h4>
+<p><b>用摆动最高点估计动量传递。</b>球的质量相同时，出射与入射的动量之比可以用对应最高点的势能高度来估计。入射的左球从静止球心以上 \(h_L\) 处释放，机械能守恒给出碰前速度 \(v_L=\sqrt{2gh_L}\)；右球碰后第 \(i\) 个最高点高 \(h_{R,i}\)，对应速度 \(v_{R,i}=\sqrt{2gh_{R,i}}\)。单次事件的效率和表 4 里的 MTE 为</p>
+<div class="eq"><div class="m">\[ \eta_i=\frac{m\,v_{R,i}}{m\,v_L}=\sqrt{\frac{h_{R,i}}{h_L}} \]</div><span class="no">(38)</span></div>
+<div class="eq"><div class="m">\[ \mathrm{MTE}=\bar\eta=\frac{1}{N}\sum_{i=1}^{N}\eta_i \]</div><span class="no">(39)</span></div>
+<ul>
+<li>参考球直径 0.02 m，按每种生成分辨率分别把竖直像素差换算成高度；标注的左球初始高度约为 \(h_L=13.294\) cm。</li>
+<li>右球事件是逐帧独立检测后找到的局部最高、最靠右的点，并设了最小时间间隔，免得把相邻几帧算成几次碰撞。汇总图不计为事件。</li>
+<li>理想的无损等质量牛顿摆 MTE ≈ 1；小于 1 表示传递不完全或阻尼过大；大于 1 表示生成的振幅凭空变大了。表 4 里的“–”表示模型没有产生可以逐个识别的右球最高点序列，不等于 MTE 为 0。</li>
+</ul>
+<p><b>结果。</b>十个模型与提示的组合里，六个没有产生能测 MTE 的有效序列。有效的几个中，Wan-2.2 加负向提示的平均效率最高，为 0.76；Wan-2.7 不加和加负向提示分别是 0.55 和 0.48；Seedance 2.0 只有 0.24。所有有效结果都低于理想值 1，说明传给出射球的动量不完整。Wan-2.2 检测到的第一次事件略高于 1，但后面的事件衰减得很快，把平均值拉了下来。失败率高、事件之间差异大，说明生成一个看得出是牛顿摆的画面，离复现反复碰撞的动力学还差得远。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 两条赛道的 MTE 不能直接比</span><p>引擎赛道的 MTE（式 16）只看第一次碰撞，世界模型赛道（式 39）对右球所有最高点取平均。真实牛顿摆每次碰撞都有损失，图 8(d) 里真实样本的峰值在 10 秒内从约 158 mm 降到约 70 mm，所以按式 (39) 平均，真实装置自己也会明显低于 1。表 4 把参考值记作约 1，对这个平均指标偏高。另外，各模型视频长度从 5 秒到 10 秒不等（表 6），参与平均的事件数也不一样。</p></div>
+
+<h4><span class="no">C.3.6</span>单摆</h4>
+<p><b>提取摆角。</b>用标定的固定支点 \(\mathbf p=(x_p,y_p)\)、直径 0.06 m 的球和参考帧里支点到球心的长度。分辨率归一化后，相对图像竖直向下方向的带符号摆角为</p>
+<div class="eq"><div class="m">\[ \theta_i=\operatorname{atan2}\bigl(\tilde x_i-x_p,\ \tilde y_i-y_p\bigr) \]</div><span class="no">(40)</span></div>
+<p>瞬时半径</p>
+<div class="eq"><div class="m">\[ r_i=\sqrt{(\tilde x_i-x_p)^2+(\tilde y_i-y_p)^2} \]</div><span class="no">(41)</span></div>
+<p>也保留下来，用来诊断支点漂移和摆长变化。只去掉释放前持续的等待；释放后的转折点、阻尼、振幅增长、暂时停顿都留在拟合里。</p>
+<p><b>阻尼振荡拟合。</b>小角度阻尼摆的方程是</p>
+<div class="eq"><div class="m">\[ \ddot\theta+2\beta\dot\theta+\omega_0^2\,\theta=0,\qquad \omega_0=\sqrt{g/L} \]</div><span class="no">(42)</span></div>
+<p>欠阻尼轨迹用下面的模型拟合：</p>
+<div class="eq"><div class="m">\[ \hat\theta(t)=\theta_{\mathrm{eq}}+e^{-\beta t}\bigl[C\cos(\omega_d t)+D\sin(\omega_d t)\bigr] \]</div><span class="no">(43)</span></div>
+<p>对每组候选的 \((\beta,\omega_d)\)，用线性最小二乘解出 \(\theta_{\mathrm{eq}}\)、\(C\)、\(D\)，再挑残差平方和最小的一组。拟合不强制 \(\beta\) 为正，所以振幅增长这种非物理行为不会被掩盖。表 4 里的决定系数是</p>
+<div class="eq"><div class="m">\[ R^2=1-\frac{\sum_{i=1}^{N}\bigl(\theta_i-\hat\theta_i\bigr)^2}{\sum_{i=1}^{N}\bigl(\theta_i-\bar\theta\bigr)^2} \]</div><span class="no">(44)</span></div>
+<p>R² 高，说明阻尼正弦能解释生成的摆角变化，但不能说明周期、支点或摆长在物理上是对的。</p>
+<p><b>周期。</b>直接由拟合出的阻尼角频率得到</p>
+<div class="eq"><div class="m">\[ \mathrm{PD}=T_d=\frac{2\pi}{\omega_d} \]</div><span class="no">(45)</span></div>
+<p>表 4 拿它和实测的 1.06 s 比较。同侧相邻转折点也能给出单周期估计 \(T_k=t_{k+2}-t_k\)，但只作诊断，表里的 PD 是式 (45) 的全局拟合值。所以一段视频可以因为看起来很有周期性拿到高 R²，又因为振荡的时间尺度太慢或太快拿到错误的 PD。拟合出的频率和阻尼还给出</p>
+<div class="eq"><div class="m">\[ \omega_0=\sqrt{\omega_d^2+\beta^2},\qquad g_{\mathrm{fit}}=L\,\omega_0^2 \]</div><span class="no">(46)</span></div>
+<p>作为绝对尺度的辅助诊断。固定支点的径向误差和周期的稳定性也单独记录，都不并入 R²。</p>
+<p><b>结果。</b>图 4(c) 中各条轨迹在振幅、平衡位置偏移、阻尼行为和周期上都差别很大。</p>
+<ul>
+<li>Wan-2.2 加负向提示和 Genie 3 的 R² 都是 0.99，阻尼正弦把摆角描述得很好；拟合周期却是 1.93 s 和 1.90 s，实测 1.06 s。形状分数高，不等于物理时间尺度对。</li>
+<li>最接近的周期是 Wan-2.7 不加负向提示的 1.83 s，仍比实测长约 73%，而且 R² 只有 0.71。</li>
+<li>另一个极端是 Cosmos3-Super-I2V 不加负向提示：拟合周期 17.95 s，R² 为 0.50，摆角几乎不动。</li>
+<li>负向提示有时改善振荡拟合或周期，但不能稳定地恢复真实动力学。所以 R² 和 PD 应分开报告。</li>
+</ul>
+<div class="note" id="n15"><span class="lab">读者注 15 · 单摆的两个基线</span><p>表 3 的单摆基线周期是 1.14 s（傅里叶主频），表 4 是 1.06 s，相差约 7%，原文没有解释。附录 B 说单摆从水平位置释放；如果是这样，90° 振幅下的周期比小角度公式长约 18%，而附录 C.3.6 用的是小角度方程 (42)，那么即使视频完全正确，由式 (46) 反推的 \(g_{\mathrm{fit}}\) 也会偏低约 28%。提示里写的初始杆角 10° 没有说明相对哪个方向，所以没法确定世界模型这一侧的释放角。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">试验次数</a>：按表 2 是 75 组条件，乘 20 次为 1,500 次，论文写约 1,560 次。</li>
+<li><a href="#n2">杨氏模量的测法</a>：正文写拉伸试验，附录写压缩试验。</li>
+<li><a href="#n3">DE 的两种定义</a>：正文是牛顿第二定律残差，转盘实际用的是摩擦上限的超出量。</li>
+<li><a href="#n4">表 3 只是一个切面</a>：换材料或子任务，引擎的名次会变；布料拉伸的好成绩来自缎面偏大的基线。</li>
+<li><a href="#n5">图表数值对不上</a>：加负向提示的曲线，图例数值与表 4 不一致；图 4(c) 的周期误差基准约 1.09 s。</li>
+<li><a href="#n6">慢放倍数</a>：最接近真实的结果多相当于把视频慢放 1.7 到 2.5 倍。</li>
+<li><a href="#n7">布料参数的可用范围</a>：Isaac Sim 直接可用的刚度比是 [2, 3)，Newton 是 (2, 4)。</li>
+<li><a href="#n8">角亏对单向弯曲不敏感</a>：布料只弯不拉时 K 不变，甩布的 K 不能直接说明轨迹对错。</li>
+<li><a href="#n9">EL 的好坏方向</a>：附录写越接近 1 越好，按定义应是越接近 0 越好。</li>
+<li><a href="#n10">泡沫面积的初始偏移</a>：Newton 和 Isaac Sim 从第一帧起就低约 20%，误差混入了初始几何。</li>
+<li><a href="#n11">提示词的笔误和矛盾</a>：几条提示写错了材质；牛顿摆提示的恢复系数与实测行为矛盾。</li>
+<li><a href="#n12">斜面参数自洽</a>：用提示里的摩擦系数算出的加速度与实测相差不到 2%。</li>
+<li><a href="#n13">转盘的摩擦上限</a>：三种方块允许的最大加速度约 3.1 到 3.7 m/s²。</li>
+<li><a href="#n14">两种 MTE</a>：引擎只看第一次碰撞，世界模型平均所有事件，真实装置按后者算也低于 1。</li>
+<li><a href="#n15">单摆的两个基线</a>：1.14 s 和 1.06 s 并存；大振幅下用小角度方程反推 g 会偏低。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的基准、引擎、模型和工具。名字链接到主页，没有主页的链接到论文；所有链接在 2026 年 10 月 21 日核对过可以打开。</p>
+<div class="tablewrap"><table class="t-links">
+<thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead>
+<tbody>
+<tr><td><a class="ds" href="https://internrobotics.github.io/GAUGE/">GAUGE</a></td><td>本文</td><td>internrobotics.github.io/GAUGE</td><td><a href="https://arxiv.org/abs/2608.05948">2608.05948</a></td></tr>
+<tr><td><a class="ds" href="https://simpler-env.github.io/">SIMPLER</a></td><td>用仿真评测真实机器人策略</td><td>simpler-env.github.io</td><td><a href="https://arxiv.org/abs/2405.05941">2405.05941</a></td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a></td><td>物理引擎（PhysX）</td><td>developer.nvidia.com/isaac/sim</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://genesis-embodied-ai.github.io/">Genesis</a></td><td>物理引擎</td><td>genesis-embodied-ai.github.io</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/newton-physics/newton">Newton</a></td><td>物理引擎</td><td>github.com/newton-physics/newton</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td><td>Newton 的刚体求解器</td><td>mujoco.org</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://videophy2.github.io/">VideoPhy-2</a></td><td>视频生成的物理常识评测</td><td>videophy2.github.io</td><td><a href="https://arxiv.org/abs/2503.06800">2503.06800</a></td></tr>
+<tr><td><a class="ds" href="https://phygenbench123.github.io/">PhyGenBench</a></td><td>视频生成的物理常识评测</td><td>phygenbench123.github.io</td><td><a href="https://arxiv.org/abs/2410.05363">2410.05363</a></td></tr>
+<tr><td><a class="ds" href="https://worldmodelbench-team.github.io/">WorldModelBench</a></td><td>把视频模型当世界模型评测</td><td>worldmodelbench-team.github.io</td><td><a href="https://arxiv.org/abs/2502.20694">2502.20694</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2507.13428">PhyWorldBench</a></td><td>文生视频的物理真实感评测</td><td>–</td><td><a href="https://arxiv.org/abs/2507.13428">2507.13428</a></td></tr>
+<tr><td><a class="ds" href="https://physics-iq.github.io/">Physics-IQ</a></td><td>对照真实实验的物理理解评测</td><td>physics-iq.github.io</td><td><a href="https://arxiv.org/abs/2501.09038">2501.09038</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.18943">Physics-IQ Verified</a></td><td>对 Physics-IQ 的审计</td><td>–</td><td><a href="https://arxiv.org/abs/2606.18943">2606.18943</a></td></tr>
+<tr><td><a class="ds" href="https://vision-x-nyu.github.io/pisa-experiments.github.io/">PISA</a></td><td>自由落体的物理后训练与评测</td><td>vision-x-nyu.github.io/pisa-experiments.github.io</td><td><a href="https://arxiv.org/abs/2503.09595">2503.09595</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2601.21282">WorldBench</a></td><td>逐个物理概念的世界模型评测</td><td>–</td><td><a href="https://arxiv.org/abs/2601.21282">2601.21282</a></td></tr>
+<tr><td><a class="ds" href="https://phyworld.github.io/">Kang 等人</a></td><td>从物理定律角度看视频生成</td><td>phyworld.github.io</td><td><a href="https://arxiv.org/abs/2411.02385">2411.02385</a></td></tr>
+<tr><td>RigidBench</td><td>刚体运动的视频生成评测</td><td>–</td><td>ICLR 2026 世界模型研讨会论文，未找到 arXiv 版本</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2603.16432">IRIS</a></td><td>单目视频的物理系统逆向辨识</td><td>–</td><td><a href="https://arxiv.org/abs/2603.16432">2603.16432</a></td></tr>
+<tr><td><a class="ds" href="https://pokeflex-dataset.github.io/">PokeFlex</a></td><td>三维软体真实数据集</td><td>pokeflex-dataset.github.io</td><td><a href="https://arxiv.org/abs/2410.07688">2410.07688</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2511.06434">RGBench</a></td><td>服装操作基准与仿真器</td><td>–</td><td><a href="https://arxiv.org/abs/2511.06434">2511.06434</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2602.07064">FysicsEval</a></td><td>物理属性预测评测，出自 OmniFysics 论文</td><td>–</td><td><a href="https://arxiv.org/abs/2602.07064">2602.07064</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2204.03139">DiffCloud</a></td><td>点云 real-to-sim</td><td>–</td><td><a href="https://arxiv.org/abs/2204.03139">2204.03139</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2310.09543">布料 sim-to-real 基准</a></td><td>布料仿真器对比</td><td>–</td><td><a href="https://arxiv.org/abs/2310.09543">2310.09543</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2512.15994">SORS</a></td><td>软体机器人仿真器</td><td>–</td><td><a href="https://arxiv.org/abs/2512.15994">2512.15994</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.02800">Cosmos 3</a></td><td>世界模型</td><td>–</td><td><a href="https://arxiv.org/abs/2606.02800">2606.02800</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Wan-Video/Wan2.2">Wan 2.2</a></td><td>视频生成模型</td><td>github.com/Wan-Video/Wan2.2</td><td><a href="https://arxiv.org/abs/2503.20314">2503.20314</a></td></tr>
+<tr><td><a class="ds" href="https://seed.bytedance.com/en/seedance2_0">Seedance 2.0</a></td><td>视频生成模型</td><td>seed.bytedance.com</td><td><a href="https://arxiv.org/abs/2604.14148">2604.14148</a></td></tr>
+<tr><td><a class="ds" href="https://deepmind.google/models/genie/">Genie 3</a></td><td>交互式世界模型</td><td>deepmind.google/models/genie</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://ai.meta.com/sam3/">SAM 3</a></td><td>分割与跟踪</td><td>ai.meta.com/sam3</td><td><a href="https://arxiv.org/abs/2511.16719">2511.16719</a></td></tr>
+<tr><td><a class="ds" href="https://www.style3d.com/">Style3D</a></td><td>面料参数测试</td><td>style3d.com</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer>
+<p>依据 arXiv 2608.05948v1 的 PDF 整理的中文精读，不是逐字翻译。表格数字照录原文，“读者注”里的核算和推断是本页所加。原文版权归作者及上海人工智能实验室所有。</p>
+</footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

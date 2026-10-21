@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paper Reading Lab</title>
+<meta name="description" content="论文阅读与理解的记录：每篇论文一页中文精读，按原文章节逐节整理，公式照原文编号排版，核算出的问题单独标成读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="index.html">Paper Reading Lab</a>
+<nav><a href="#list">论文列表</a><a href="#how">怎么读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">论文精读 · 阅读与理解记录</p>
+<h1>按原文顺序，把一篇论文读透</h1>
+<p class="lead">这是一份论文阅读与理解的记录。每篇论文一页中文精读，小节编号和原文一致，可以对着 PDF 读。公式照原文编号排好版，主要结果表照录数字，图用文字描述并注明页码。读的时候核算出的问题单独标成“读者注”，和论文内容分开。</p>
+
+<h2 id="list">已读论文</h2>
+<div class="papers">
+<article class="paper">
+<p class="t"><a href="papers/gauge.html">GAUGE：以真实测量为基准，评测仿真引擎与视频世界模型的物理保真度</a></p>
+<p class="en">GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models</p>
+<div class="meta"><span>arXiv 2608.05948</span><span>2026-08-06</span><span>上海人工智能实验室等</span><span>2026-10-21 读</span></div>
+<p class="d">用真实动捕实验给物理保真度定标尺：22 个任务族、约 1,560 次试验，覆盖刚体、绳、布料和三维软体。用这份数据评测 Isaac Sim、Genesis、Newton 三个物理引擎，以及 Cosmos3、Wan、Seedance、Genie 3 等 6 个视频世界模型。论文的三条结论：</p>
+<ul class="d">
+<li>没有哪个引擎处处可信，冲击接触、快速运动的布料和三维软体差距最大。</li>
+<li>视频模型可以形式对、参数错：轨迹符合方程形式，加速度、动量传递和周期却算错了。</li>
+<li>同一段负向提示词，对不同模型和任务的作用方向相反。</li>
+</ul>
+<div class="tags"><span class="pill">物理引擎</span><span class="pill">视频世界模型</span><span class="pill">真实测量基准</span><span class="pill rn">15 条读者注</span></div>
+<div class="links"><a class="go" href="papers/gauge.html">读精读 →</a><a href="https://arxiv.org/abs/2608.05948">arXiv 原文</a><a href="https://internrobotics.github.io/GAUGE/">项目主页</a></div>
+</article>
+</div>
+
+<h3>在其他站点里读过的</h3>
+<div class="papers">
+<article class="paper">
+<p class="t"><a href="https://haoxiangntu.github.io/world-model-lab/docs/vpp2.html">Video Prediction Policy 2 讲了一个什么故事</a></p>
+<p class="en">Video Prediction Policy 2: Predict Better, Act Better</p>
+<div class="meta"><span>arXiv 2610.10270</span><span>2026-10</span><span>在 World Model Lab</span></div>
+<p class="d">把视频生成模型变成机器人策略的世界动作模型。导读讲问题、核心观察、数据流水线、三阶段训练和三组结果；Wan2.1 架构、MoT 原理、后训练过程和评测数据集各有一页拆解，带可交互的 3D 实验。</p>
+<div class="links"><a class="go" href="https://haoxiangntu.github.io/world-model-lab/docs/vpp2.html">读导读 →</a><a href="https://arxiv.org/abs/2610.10270">arXiv 原文</a><a href="https://haoxiangntu.github.io/world-model-lab/">World Model Lab</a></div>
+</article>
+</div>
+
+<h2 id="how">怎么读这些精读</h2>
+<ul>
+<li><b>不是逐字翻译。</b>论文保留版权时，用自己的话按原文顺序整理。正文和附录的每一小节都会讲到，小节编号和原文一致。</li>
+<li><b>公式</b>按原文编号给出，用 MathJax 排版。</li>
+<li><b>表格</b>的数字照录原文，最好的格子加了底色。放不下的大表整理成要点。</li>
+<li><b>图</b>用文字描述，注明在原文第几页。仓库不收录论文 PDF 和原图。</li>
+<li><b>读者注</b>是橙色边框的框，记录核算或对照时发现的问题，比如图表数字对不上、定义前后不一致。它不属于论文内容，页尾有汇总。</li>
+<li><b>蓝色链接</b>是文中提到的基准、数据集、引擎和模型，指向主页。页尾链接表同时给主页和论文，发布前逐个核对过能打开。</li>
+</ul>
+
+<h2>仓库里有什么</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>路径</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
+<tr><td><code>papers/gauge.html</code></td><td>GAUGE 精读</td></tr>
+<tr><td><code>assets/site.css</code></td><td>共用样式，沿用 World Model Lab 的配色</td></tr>
+</tbody></table></div>
+<p>静态 HTML，本地直接打开 <code>index.html</code> 即可，不需要构建。</p>
+
+<footer>
+<p>Paper Reading Lab · 论文阅读与理解记录 · <a href="https://github.com/haoxiangNtu/paper-reading-lab">源码</a> · 姊妹站 <a href="https://haoxiangntu.github.io/world-model-lab/">World Model Lab</a>、<a href="https://haoxiangntu.github.io/llm-inference-lab/">LLM Inference Lab</a>。原文版权归各自作者所有。</p>
+</footer>
+</div>
+</body>
+</html>
