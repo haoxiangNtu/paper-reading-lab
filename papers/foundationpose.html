@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>FoundationPose 架构专题 · Paper Reading Lab</title><meta name="description" content="统一已知模型与参考视图两种输入，通过候选位姿、迭代精化和层次评分估计新物体的 6D 位姿。"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap"><link rel="stylesheet" href="../assets/site.css"></head><body><div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="../index.html#architecture">架构专题</a><a href="../interactives/foundationpose-wapr/index.html">交互图解</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+<p class="eyebrow">CVPR 2024 · arXiv 2312.08344 · 2026-10-27 整理</p><h1>FoundationPose：渲染、精化与位姿排序</h1><p class="orig">FoundationPose: Unified 6D Pose Estimation and Tracking of Novel Objects</p><p class="lead">统一已知模型与参考视图两种输入，通过候选位姿、迭代精化和层次评分估计新物体的 6D 位姿。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2312.08344">论文</a><a href="https://nvlabs.github.io/FoundationPose/">官方项目</a><a href="https://github.com/NVlabs/FoundationPose">官方代码</a></div>
+<div class="callout"><p><b>阅读范围：</b>这是原理与架构专题，整理本次阅读及官方代码核对；不宣称逐节覆盖全文，也未复现模型实验。所有交互示意为重新绘制。</p><p><a href="../interactives/foundationpose-wapr/index.html"><b>打开本站交互图解 →</b></a> · <a href="../interactives/foundationpose-wapr/index.html#network">直接看网络／对比</a> · <a href="https://pose-lab-fp-wapr-1027.icy-sage-0697.chatgpt.site">原 Sites 网页（需登录）</a></p></div>
+<nav class="toc" aria-label="目录"><a href="#principle">原理</a><a href="#network">网络结构</a><a class="rn" href="#notes">读者注</a><a href="#related">关联阅读</a><a href="#links">相关链接</a></nav>
+
+<h2 id="principle">原理：让渲染结果与观测对齐</h2>
+<p>输入包括 RGB-D、相机内参和目标物体区域。物体表示来自已有 CAD/mesh，或先用具有已知相机位姿的参考视图构建可渲染表示。后者称为 model-free，并不表示推理时完全不需要物体几何。</p>
+<p>首次定位先由深度初始化平移，并在球面视向与平面内旋转上生成候选。每个候选渲染出“当前猜测下物体应该长什么样”，与真实观测一起裁剪、编码，预测旋转和平移增量。更新位姿后重新渲染，重复精化，再用评分器选优。</p>
+<h2 id="network">网络：RefineNet 与 ScoreNet 分工</h2>
+<div class="tablewrap"><table><thead><tr><th>模块</th><th>数据流与作用</th></tr></thead><tbody>
+<tr><td>输入</td><td>官方精化预测路径将深度反投影为 XYZ，与 RGB 拼接；不是直接把原始 RGB-D 当四通道输入。</td></tr>
+<tr><td>共享 CNN</td><td>观测与候选渲染共用编码器，经卷积和残差块提取特征，再拼接、融合为 512 维空间特征，并加入位置编码。</td></tr>
+<tr><td>精化头</td><td>旋转、平移各用一个独立 Transformer 层与线性输出，沿 token 聚合得到位姿增量。</td></tr>
+<tr><td>ScoreNet</td><td>先在单个候选与观测的图像特征内聚合，再在候选间比较，输出相对排名分数。</td></tr>
+</tbody></table></div>
+<p>交互图解可以在 FoundationPose 与 WAPR 的网络之间切换，查看共享骨架和新增模块；其中的几何修正动画是教学示意，不是模型运行结果。</p>
+<h2 id="notes">读者注：首次定位与跟踪要分开</h2>
+<div class="note"><span class="lab">读者注 · 两条计算路径</span><p><code>register</code> 从全局候选出发并评分；<code>track_one</code> 从上一帧位姿出发调用精化器。单帧定位基准的时间不能直接用于描述常规跟踪 FPS。</p></div>
+<div class="note"><span class="lab">读者注 · 适用条件</span><p>候选数量受采样、聚类和对称性处理影响，不宜把一种配置当成固定架构常数。评分也不是经过校准的成功概率。深度缺失、模型尺度错误及严重遮挡仍会影响估计。</p></div>
+<h2 id="related">与另外两篇的关系</h2><p><a href="wapr.html">WAPR</a> 扩大精化器能学习的初始旋转偏差范围；<a href="tro-grasp.html">T(R,O) Grasp</a> 则生成灵巧手抓取，原论文真实实验将 FoundationPose 用作上游物体位姿估计与跟踪模块。</p>
+
+<h2 id="links">相关链接</h2><ul><li><a href="https://arxiv.org/html/2312.08344v2">论文 HTML</a> · <a href="https://nvlabs.github.io/FoundationPose/">项目主页</a> · <a href="https://github.com/NVlabs/FoundationPose">代码仓库</a></li><li><a href="../interactives/foundationpose-wapr/index.html">GitHub Pages 交互图解</a>：本站托管，不需要 ChatGPT 登录。</li><li><a href="https://pose-lab-fp-wapr-1027.icy-sage-0697.chatgpt.site">原 Sites 版本</a>：保留最初制作的链接，访问权限沿用原设置。</li></ul>
+<footer><p><a href="../index.html#architecture">← 返回架构专题</a> · 原文版权归各自作者所有；本页是阅读笔记。网络图、公式示意和工程分析的来源见各交互页。</p></footer></div></body></html>

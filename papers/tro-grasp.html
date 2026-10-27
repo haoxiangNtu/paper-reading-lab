@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>T(R,O) Grasp 架构专题 · Paper Reading Lab</title><meta name="description" content="先生成各手部连杆相对物体的空间位姿，再通过逆运动学求关节配置；逐层拆解几何编码、OR/RR 注意力和噪声输出头。"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap"><link rel="stylesheet" href="../assets/site.css"></head><body><div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="../index.html#architecture">架构专题</a><a href="../interactives/tro-grasp/index.html">交互图解</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+<p class="eyebrow">ICRA 2026 · Lin Shao 团队 · arXiv 2510.12724 · 2026-10-27 整理</p><h1>T(R,O) Grasp：从图扩散网络到灵巧手抓取</h1><p class="orig">T(R,O) Grasp: Efficient Graph Diffusion of Robot-Object Spatial Transformation for Cross-Embodiment Dexterous Grasping</p><p class="lead">先生成各手部连杆相对物体的空间位姿，再通过逆运动学求关节配置；逐层拆解几何编码、OR/RR 注意力和噪声输出头。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2510.12724">论文</a><a href="https://nus-lins-lab.github.io/trograspweb/">官方项目</a><a href="https://github.com/Barrybarry-Smith/TRO-Grasp">官方代码</a></div>
+<div class="callout"><p><b>阅读范围：</b>这是原理与架构专题，整理本次阅读及官方代码核对；不宣称逐节覆盖全文，也未复现模型实验。所有交互示意为重新绘制。</p><p><a href="../interactives/tro-grasp/index.html"><b>打开本站交互图解 →</b></a> · <a href="../interactives/tro-grasp/index.html#denoiser">直接看网络／对比</a> · <a href="https://tro-grasp-network-lab-1027.icy-sage-0697.chatgpt.site">原 Sites 网页（需登录）</a></p></div>
+<nav class="toc" aria-label="目录"><a href="#principle">原理</a><a href="#network">网络结构</a><a class="rn" href="#notes">读者注</a><a href="#related">关联阅读</a><a href="#links">相关链接</a></nav>
+
+<h2 id="principle">原理：统一空间关系，暂时放松关节约束</h2>
+<p>输入是物体点云、手部连杆局部几何和 URDF。不同灵巧手的关节参数不具有统一语义，但连杆的空间位姿可以使用统一表示。生成器先预测各连杆目标，Pyroki IK 再求一组尽量实现这些目标的机械结构配置。</p>
+<p>图节点表示物体 patch 或手部连杆；OR 边表示物体与连杆的相对变换，RR 边表示连杆之间的相对变换。只有连杆位姿参与扩散，物体与连杆几何作为条件保留；每次采样更新后重算几何边。</p>
+<h2 id="network">网络：两路编码、六层图去噪器、两个噪声头</h2>
+<div class="tablewrap"><table><thead><tr><th>模块</th><th>结构与尺寸</th></tr></thead><tbody>
+<tr><td>物体编码器</td><td>PointNet++：采样中心 256→128→25，通道 128→256→512；1×1 卷积降至 64 维，再做 VQ。25 个 patch 各带中心 3、尺度 1、特征 64，共 68 维。编码器冻结。</td></tr>
+<tr><td>连杆编码器</td><td>124 个 BPS 距离 + 中心 3 + 尺度 1 → 128→128→128 MLP；与当前位姿 6 维拼接。公开配置存在下述 128/64 维差异。</td></tr>
+<tr><td>图去噪器</td><td>节点与边投影至 384 维，时间嵌入 200 维。6 层，每层先 OR Attention，后 RR Attention。</td></tr>
+<tr><td>注意力</td><td>Q 来自目标连杆；OR 的 K 来自物体，RR 的 K 来自来源连杆。V 由目标、来源节点与边拼接产生。聚合后更新连杆及边的隐特征。</td></tr>
+<tr><td>输出头</td><td>初始特征与六层输出拼接：7×384=2688→384。分别拼接当前 3 维平移/轴角，通过两个 MLP 输出 3+3 维噪声。</td></tr>
+<tr><td>采样 / IK</td><td>测试配置 20 步 DDIM，多次调用同一个六层网络；去噪后输出连杆目标，IK 求基座与手指关节配置。</td></tr>
+</tbody></table></div>
+<p>完整交互页还标出了各级 PointNet++ 邻域、VQ 码本、注意力分组与缩放、边池化、时间条件注入及每个输出头的层宽。</p>
+<h2 id="notes">读者注：论文与公开实现的差异</h2>
+<div class="note"><span class="lab">读者注 · 代码快照 8e9719777a78</span><p>构图代码生成 128 维连杆几何嵌入，但配置 <code>V_robot_dims=[3,3,64]</code> 只读取前 64 维几何特征，未看到额外 128→64 投影。此结论来自静态路径分析，未判断发布权重是否对应其他配置。</p><p><code>c_atten_head=32</code> 在实际 reshape 中把 384 通道分为 12 组、每组 32 通道，不应直接写为“32 个头”。位姿代码使用平移与 SO(3) 轴角拼接，与完整 SE(3) log 的平移项不同。</p><p>交互页另列 OR 边方向、RR 边输出模块、attention mask、归一化和条件引导的差异，并给出固定提交的文件链接。这些是读者核对，不是作者声明，也不是复现实验。</p></div>
+<h2 id="related">系统边界与关联阅读</h2>
+<p>噪声网络不会自动严格满足关节连接、限位与碰撞约束，仍需 IK 和系统级规划。原论文真实实验使用 <a href="foundationpose.html">FoundationPose</a> 追踪扫描物体模型，再生成抓取；<a href="wapr.html">WAPR</a> 属于可考虑的上游位姿模块，但这里没有测试替换效果。</p>
+<p>原版完全陌生手型的零样本泛化仍有限。2026-10 发布的 <a href="https://arxiv.org/abs/2610.25410">T(R,O) Grasp++</a> 是面向杂乱场景的后续工作，本页未混入其架构与指标。</p>
+
+<h2 id="links">相关链接</h2><ul><li><a href="https://arxiv.org/html/2510.12724v1">论文 HTML</a> · <a href="https://nus-lins-lab.github.io/trograspweb/">项目主页</a> · <a href="https://github.com/Barrybarry-Smith/TRO-Grasp">代码仓库</a></li><li><a href="../interactives/tro-grasp/index.html">GitHub Pages 交互图解</a>：本站托管，不需要 ChatGPT 登录。</li><li><a href="https://tro-grasp-network-lab-1027.icy-sage-0697.chatgpt.site">原 Sites 版本</a>：保留最初制作的链接，访问权限沿用原设置。</li></ul>
+<footer><p><a href="../index.html#architecture">← 返回架构专题</a> · 原文版权归各自作者所有；本页是阅读笔记。网络图、公式示意和工程分析的来源见各交互页。</p></footer></div></body></html>
