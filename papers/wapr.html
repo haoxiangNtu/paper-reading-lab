@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>WAPR 架构专题 · Paper Reading Lab</title><meta name="description" content="结合大角度训练、对称性监督和图像特征融合，用更稀疏的候选进行未见物体 6D 位姿估计。"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap"><link rel="stylesheet" href="../assets/site.css"></head><body><div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="../index.html#architecture">架构专题</a><a href="../interactives/foundationpose-wapr/index.html">交互图解</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+<p class="eyebrow">ECCV 2026 · arXiv 2610.09535 · 2026-10-27 整理</p><h1>WAPR：大角度精化为何能减少位姿候选</h1><p class="orig">WAPR: A Foundation Model for Wide-Angle Refinement in Unseen Object Pose Estimation</p><p class="lead">结合大角度训练、对称性监督和图像特征融合，用更稀疏的候选进行未见物体 6D 位姿估计。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2610.09535">论文</a><a href="https://wangyulin-seu.github.io/WAPR/">官方项目</a><a href="https://github.com/WangYuLin-SEU/WAPR">官方代码</a></div>
+<div class="callout"><p><b>阅读范围：</b>这是原理与架构专题，整理本次阅读及官方代码核对；不宣称逐节覆盖全文，也未复现模型实验。所有交互示意为重新绘制。</p><p><a href="../interactives/foundationpose-wapr/index.html"><b>打开本站交互图解 →</b></a> · <a href="../interactives/foundationpose-wapr/index.html#tradeoffs">直接看网络／对比</a> · <a href="https://pose-lab-fp-wapr-1027.icy-sage-0697.chatgpt.site">原 Sites 网页（需登录）</a></p></div>
+<nav class="toc" aria-label="目录"><a href="#principle">原理</a><a href="#network">网络结构</a><a class="rn" href="#notes">读者注</a><a href="#related">关联阅读</a><a href="#links">相关链接</a></nav>
+
+<h2 id="principle">原理：让较差的候选也有机会修正回来</h2>
+<p>Wide-Angle 指初始候选与真实位姿之间的旋转偏差较大；Unseen Object 指位姿模型训练中未见过的物体，不是被遮挡的物体。核心仍是 RGB-D 渲染与观测比较、预测增量、更新后重新渲染。</p>
+<p>训练采用最高 90° 的旋转扰动，配合 SA6D 的对称性一致监督和 angle-balanced loss。前者减少等价外观对应矛盾目标的问题；后者降低缺乏对应线索的大误差样本对优化的干扰。90° 是训练范围，不是保证成功的硬阈值。</p>
+<h2 id="network">网络：共享编码、联合理解、分别回归</h2>
+<div class="tablewrap"><table><thead><tr><th>阶段</th><th>结构</th></tr></thead><tbody>
+<tr><td>双分支输入</td><td>真实观测和候选渲染，带 RGB-D 与 mask 信息；通过共享 CNN/残差块提取特征。</td></tr>
+<tr><td>融合</td><td>拼接两路特征，经残差融合与位置编码，得到 512 维融合特征。</td></tr>
+<tr><td>联合建模</td><td>两层联合 Transformer，在融合特征上建立全局关系。</td></tr>
+<tr><td>分支回归</td><td>旋转、平移各一个 Transformer 层，经注意力池化和线性层预测位姿增量。</td></tr>
+</tbody></table></div>
+<h2 id="notes">读者注：版本、遮挡与比较条件</h2>
+<div class="note"><span class="lab">读者注 · 论文与仓库不是同一套配方</span><p>论文快速流程使用 12 个候选：全部精化 2 轮，保留 Top-4 再精化 3 轮，并使用 FoundationPose ScoreNet。2026-10-27 核对的仓库默认是 12 候选 → WAPR ×3 → SAPR ×2 → WBPS。不能混用不同版本的结构、最高精度与最快速度。</p></div>
+<div class="note"><span class="lab">读者注 · 对遮挡的帮助需要具体解释</span><p>遮挡既可能造成较差初值，也会直接减少可用视觉证据。大角度精化主要帮助前一种问题；mask 提示与预测 mask 训练也有帮助，但它不能恢复不存在的观测信息，更不能替代跟丢检测和重新初始化。</p><p>论文表 3 在相同 MUSE 检测、每实例 12 候选设置下，LM-O 的 AR 为 FoundationPose 67.4、WAPR 75.5。该比较支持此配置下的收益，不证明遮挡越重优势越大，也不代表 FoundationPose 的所有配置。</p></div>
+<p>工程上，WAPR 可减少候选相关计算，但仍依赖真实尺度 mesh 和深度，仍需迭代渲染；高精度多检测器设置也不等同于实时跟踪。</p>
+<h2 id="related">关联阅读</h2><p>先看 <a href="foundationpose.html">FoundationPose 的 RefineNet / ScoreNet</a>，再用交互图解对照 WAPR 的变化；<a href="tro-grasp.html">T(R,O) Grasp</a> 负责下游抓取生成，任务目标不同。</p>
+
+<h2 id="links">相关链接</h2><ul><li><a href="https://arxiv.org/html/2610.09535v1">论文 HTML</a> · <a href="https://wangyulin-seu.github.io/WAPR/">项目主页</a> · <a href="https://github.com/WangYuLin-SEU/WAPR">代码仓库</a></li><li><a href="../interactives/foundationpose-wapr/index.html">GitHub Pages 交互图解</a>：本站托管，不需要 ChatGPT 登录。</li><li><a href="https://pose-lab-fp-wapr-1027.icy-sage-0697.chatgpt.site">原 Sites 版本</a>：保留最初制作的链接，访问权限沿用原设置。</li></ul>
+<footer><p><a href="../index.html#architecture">← 返回架构专题</a> · 原文版权归各自作者所有；本页是阅读笔记。网络图、公式示意和工程分析的来源见各交互页。</p></footer></div></body></html>

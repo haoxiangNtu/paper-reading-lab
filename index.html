@@ -11,13 +11,13 @@
 <body>
 <div class="wrap">
 <header class="top"><a class="brand" href="index.html">Paper Reading Lab</a>
-<nav><a href="#list">论文列表</a><a href="#how">怎么读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+<nav><a href="#list">论文列表</a><a href="#architecture">架构专题</a><a href="#how">怎么读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
 
 <p class="eyebrow">论文精读 · 阅读与理解记录</p>
-<h1>按原文顺序，把一篇论文读透</h1>
-<p class="lead">这是一份论文阅读与理解的记录。每篇论文一页中文精读，小节编号和原文一致，可以对着 PDF 读。公式照原文编号排好版，主要结果表照录数字。开放许可的论文直接放原图，版权保留的论文用文字描述那张图，并链接到原文。读的时候核算出的问题单独标成“读者注”，和论文内容分开。</p>
+<h1>读论文，也拆解方法与网络</h1>
+<p class="lead">这是一份论文阅读与理解的记录。逐节精读按原文顺序整理；架构专题围绕方法、网络与代码展开，并配交互图解。逐节精读的小节编号和原文一致，可以对着 PDF 读。公式照原文编号排好版，主要结果表照录数字。开放许可的论文直接放原图，版权保留的论文用文字描述那张图，并链接到原文。读的时候核算出的问题单独标成“读者注”，和论文内容分开。</p>
 
-<h2 id="list">已读论文</h2>
+<h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
 <p class="t"><a href="papers/simpler.html">SIMPLER：在仿真里评测真实世界的机器人操作策略</a></p>
@@ -47,6 +47,7 @@
 </article>
 </div>
 
+<h2 id="architecture">架构专题与交互图解</h2><p>聚焦已讨论的方法与网络，不等同于逐节全文精读。三篇阅读笔记关联两份本站交互网页；原 Sites 链接保留在各篇的相关链接中。</p><div class="papers"><article class="paper"><p class="t"><a href="papers/foundationpose.html">FoundationPose：渲染、精化与位姿排序</a></p><p class="en">FoundationPose: Unified 6D Pose Estimation and Tracking of Novel Objects</p><div class="meta"><span>CVPR 2024</span><span>arXiv 2312.08344</span><span>2026-10-27 读</span></div><p class="d">统一已知模型与参考视图两种输入，通过候选位姿、迭代精化和层次评分估计新物体的 6D 位姿。</p><div class="tags"><span class="pill">架构专题</span><span class="pill">交互图解</span><span class="pill rn">含代码／比较条件核对</span></div><div class="links"><a class="go" href="papers/foundationpose.html">读架构笔记 →</a><a href="interactives/foundationpose-wapr/index.html">本站交互图解</a><a href="https://arxiv.org/abs/2312.08344">arXiv 原文</a><a href="https://github.com/NVlabs/FoundationPose">官方代码</a></div></article><article class="paper"><p class="t"><a href="papers/wapr.html">WAPR：大角度精化为何能减少位姿候选</a></p><p class="en">WAPR: A Foundation Model for Wide-Angle Refinement in Unseen Object Pose Estimation</p><div class="meta"><span>ECCV 2026</span><span>arXiv 2610.09535</span><span>2026-10-27 读</span></div><p class="d">结合大角度训练、对称性监督和图像特征融合，用更稀疏的候选进行未见物体 6D 位姿估计。</p><div class="tags"><span class="pill">架构专题</span><span class="pill">交互图解</span><span class="pill rn">含代码／比较条件核对</span></div><div class="links"><a class="go" href="papers/wapr.html">读架构笔记 →</a><a href="interactives/foundationpose-wapr/index.html">本站交互图解</a><a href="https://arxiv.org/abs/2610.09535">arXiv 原文</a><a href="https://github.com/WangYuLin-SEU/WAPR">官方代码</a></div></article><article class="paper"><p class="t"><a href="papers/tro-grasp.html">T(R,O) Grasp：从图扩散网络到灵巧手抓取</a></p><p class="en">T(R,O) Grasp: Efficient Graph Diffusion of Robot-Object Spatial Transformation for Cross-Embodiment Dexterous Grasping</p><div class="meta"><span>ICRA 2026 · Lin Shao 团队</span><span>arXiv 2510.12724</span><span>2026-10-27 读</span></div><p class="d">先生成各手部连杆相对物体的空间位姿，再通过逆运动学求关节配置；逐层拆解几何编码、OR/RR 注意力和噪声输出头。</p><div class="tags"><span class="pill">架构专题</span><span class="pill">交互图解</span><span class="pill rn">含代码／比较条件核对</span></div><div class="links"><a class="go" href="papers/tro-grasp.html">读架构笔记 →</a><a href="interactives/tro-grasp/index.html">本站交互图解</a><a href="https://arxiv.org/abs/2510.12724">arXiv 原文</a><a href="https://github.com/Barrybarry-Smith/TRO-Grasp">官方代码</a></div></article></div>
 <h3>在其他站点里读过的</h3>
 <div class="papers">
 <article class="paper">
@@ -76,6 +77,8 @@
 <tr><td><code>papers/simpler.html</code></td><td>SIMPLER 精读</td></tr>
 <tr><td><code>papers/simpler/</code></td><td>SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切</td></tr>
 <tr><td><code>papers/gauge.html</code></td><td>GAUGE 精读</td></tr>
+<tr><td><code>papers/foundationpose.html</code><br><code>papers/wapr.html</code><br><code>papers/tro-grasp.html</code></td><td>位姿估计与灵巧抓取架构专题</td></tr>
+<tr><td><code>interactives/foundationpose-wapr/</code><br><code>interactives/tro-grasp/</code></td><td>两份本站交互图解，含独立 HTML、CSS 和 JavaScript</td></tr>
 <tr><td><code>assets/site.css</code></td><td>共用样式，沿用 World Model Lab 的配色</td></tr>
 </tbody></table></div>
 <p>静态 HTML，本地直接打开 <code>index.html</code> 即可，不需要构建。</p>

@@ -1,6 +1,6 @@
 # Paper Reading Lab
 
-论文阅读与理解的记录。每篇论文一页中文精读：按原文顺序逐节整理，公式照原文编号排版，主要结果表照录数字。开放许可的论文直接放原图，版权保留的论文用文字描述那张图，并链接到原文。读的时候核算出的问题单独标成“读者注”，和论文内容分开。
+论文阅读与理解的记录。包含逐节精读与架构专题；架构专题附交互图解，明确标注阅读范围。逐节精读：按原文顺序逐节整理，公式照原文编号排版，主要结果表照录数字。开放许可的论文直接放原图，版权保留的论文用文字描述那张图，并链接到原文。读的时候核算出的问题单独标成“读者注”，和论文内容分开。
 
 **站点：https://haoxiangntu.github.io/paper-reading-lab/**
 
@@ -12,6 +12,16 @@
 | GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models（[arXiv 2608.05948](https://arxiv.org/abs/2608.05948)，2026-08） | [GAUGE 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gauge.html) | 用真实测量评测物理引擎和视频世界模型的物理保真度 | 15 条 |
 
 在其他站点里读过的：[VPP2 论文导读](https://haoxiangntu.github.io/world-model-lab/docs/vpp2.html)（[arXiv 2610.10270](https://arxiv.org/abs/2610.10270)），在 World Model Lab 里，另有 Wan2.1 架构、MoT 原理、后训练过程和评测数据集的拆解页。
+
+## 架构专题与交互图解
+
+这三篇整理原理、网络与代码核对，未宣称逐节覆盖论文全文，也未复现模型实验。两份自绘交互网页已迁入本站，可直接通过 GitHub Pages 访问；原 Sites 私有链接保留在各阅读页的相关链接中。
+
+| 论文 | 架构笔记 | 本站交互图解 | 核对重点 |
+|---|---|---|---|
+| [FoundationPose](https://arxiv.org/abs/2312.08344), CVPR 2024 | [架构笔记](papers/foundationpose.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | RefineNet / ScoreNet；首次定位与跟踪 |
+| [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
+| [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 
 ## SIMPLER 读后要点
 
@@ -61,9 +71,14 @@ index.html          论文列表与写法约定
 papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/gauge.html   GAUGE 精读
+papers/foundationpose.html  FoundationPose 架构专题
+papers/wapr.html            WAPR 架构专题
+papers/tro-grasp.html       T(R,O) Grasp 架构专题
+interactives/foundationpose-wapr/  位姿估计对比交互图解
+interactives/tro-grasp/            图扩散抓取网络交互图解
 assets/site.css     共用样式，沿用 World Model Lab 的配色
 ```
 
 本地打开 `index.html` 即可，不需要构建；公式用 MathJax，从 cdnjs 加载。新加一篇论文：仿照 `papers/simpler.html` 或 `papers/gauge.html` 的页头和骨架写成 `papers/<简称>.html`，再在 `index.html` 和上面的表里各加一条。
 
-原文版权归各自作者所有，这里只放阅读笔记。姊妹站：[World Model Lab](https://haoxiangntu.github.io/world-model-lab/)、[LLM Inference Lab](https://haoxiangntu.github.io/llm-inference-lab/)。
+交互页只包含自行绘制的图与解释，不包含模型权重、论文 PDF 或运行后的模型输出。原文版权归各自作者所有，这里只放阅读笔记。姊妹站：[World Model Lab](https://haoxiangntu.github.io/world-model-lab/)、[LLM Inference Lab](https://haoxiangntu.github.io/llm-inference-lab/)。
