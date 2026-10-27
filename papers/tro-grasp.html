@@ -23,7 +23,7 @@
 <div class="note"><span class="lab">读者注 · 代码快照 8e9719777a78</span><p>构图代码生成 128 维连杆几何嵌入，但配置 <code>V_robot_dims=[3,3,64]</code> 只读取前 64 维几何特征，未看到额外 128→64 投影。此结论来自静态路径分析，未判断发布权重是否对应其他配置。</p><p><code>c_atten_head=32</code> 在实际 reshape 中把 384 通道分为 12 组、每组 32 通道，不应直接写为“32 个头”。位姿代码使用平移与 SO(3) 轴角拼接，与完整 SE(3) log 的平移项不同。</p><p>交互页另列 OR 边方向、RR 边输出模块、attention mask、归一化和条件引导的差异，并给出固定提交的文件链接。这些是读者核对，不是作者声明，也不是复现实验。</p></div>
 <h2 id="related">系统边界与关联阅读</h2>
 <p>噪声网络不会自动严格满足关节连接、限位与碰撞约束，仍需 IK 和系统级规划。原论文真实实验使用 <a href="foundationpose.html">FoundationPose</a> 追踪扫描物体模型，再生成抓取；<a href="wapr.html">WAPR</a> 属于可考虑的上游位姿模块，但这里没有测试替换效果。</p>
-<p>原版完全陌生手型的零样本泛化仍有限。2026-10 发布的 <a href="https://arxiv.org/abs/2610.25410">T(R,O) Grasp++</a> 是面向杂乱场景的后续工作，本页未混入其架构与指标。</p>
+<p>原版完全陌生手型的零样本泛化仍有限。2026-10 发布的 <a href="https://arxiv.org/abs/2610.25410">T(R,O) Grasp++</a> 是面向杂乱场景的后续工作，本页未混入其架构与指标。现在可以继续看本站的 <a href="tro-grasp-plus-plus.html">Grasp++ 与原版逐层对比</a>，以及 <a href="graspgen.html">NVIDIA GraspGen 的扩散生成与成功率判别</a>。</p>
 
 <h2 id="links">相关链接</h2><ul><li><a href="https://arxiv.org/html/2510.12724v1">论文 HTML</a> · <a href="https://nus-lins-lab.github.io/trograspweb/">项目主页</a> · <a href="https://github.com/Barrybarry-Smith/TRO-Grasp">代码仓库</a></li><li><a href="../interactives/tro-grasp/index.html">GitHub Pages 交互图解</a>：本站托管，不需要 ChatGPT 登录。</li><li><a href="https://tro-grasp-network-lab-1027.icy-sage-0697.chatgpt.site">原 Sites 版本</a>：保留最初制作的链接，访问权限沿用原设置。</li></ul>
 <footer><p><a href="../index.html#architecture">← 返回架构专题</a> · 原文版权归各自作者所有；本页是阅读笔记。网络图、公式示意和工程分析的来源见各交互页。</p></footer></div></body></html>
