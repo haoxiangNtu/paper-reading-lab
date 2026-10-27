@@ -15,13 +15,15 @@
 
 ## 架构专题与交互图解
 
-这三篇整理原理、网络与代码核对，未宣称逐节覆盖论文全文，也未复现模型实验。两份自绘交互网页已迁入本站，可直接通过 GitHub Pages 访问；原 Sites 私有链接保留在各阅读页的相关链接中。
+这五篇整理原理、网络与代码核对，未宣称逐节覆盖论文全文，也未复现模型实验。两份独立自绘交互网页已迁入本站，Grasp++ 与 GraspGen 的交互图直接嵌入阅读页，均可通过 GitHub Pages 访问；原 Sites 私有链接保留在各阅读页的相关链接中。
 
 | 论文 | 架构笔记 | 本站交互图解 | 核对重点 |
 |---|---|---|---|
 | [FoundationPose](https://arxiv.org/abs/2312.08344), CVPR 2024 | [架构笔记](papers/foundationpose.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | RefineNet / ScoreNet；首次定位与跟踪 |
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
+| [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+| [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
 
 ## SIMPLER 读后要点
 
@@ -74,6 +76,10 @@ papers/gauge.html   GAUGE 精读
 papers/foundationpose.html  FoundationPose 架构专题
 papers/wapr.html            WAPR 架构专题
 papers/tro-grasp.html       T(R,O) Grasp 架构专题
+papers/tro-grasp-plus-plus.html  Grasp++ 与原版逐层对比
+papers/graspgen.html        GraspGen 与 GAN 的区别、网络与训练
+assets/grasp-lab.css        新增架构图样式
+assets/grasp-lab.js         网络 / 训练切换与尺寸计算
 interactives/foundationpose-wapr/  位姿估计对比交互图解
 interactives/tro-grasp/            图扩散抓取网络交互图解
 assets/site.css     共用样式，沿用 World Model Lab 的配色

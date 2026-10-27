@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T(R,O) Grasp++：原版到杂乱场景的网络改造 · Paper Reading Lab</title><meta name="description" content="对照论文和官方代码，逐层比较 T(R,O) Grasp 与 Grasp++：环境分支、运动学指纹、OR/ER/RR 注意力、张量维度、输出头和实现差异。"><link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="../assets/grasp-lab.css"><script src="../assets/grasp-lab.js" defer></script></head>
+<body><div class="wrap lab-wrap" id="top"><header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="tro-grasp.html">原版</a><a href="graspgen.html">GraspGen</a><a href="../index.html#architecture">全部架构专题</a></nav></header>
+<div class="lab-hero"><p class="lab-kicker">ARCHITECTURE STUDY · 02 / DEXTEROUS GRASPING</p><h1>T(R,O) Grasp++<br>让图扩散同时看见环境与手的结构</h1><p class="orig">Cross-Embodiment Dexterous Grasping in Cluttered Environments at Scale</p><p class="lead">与原版相比，真正改变的是“网络知道什么”：新增周围环境，补入连杆的运动学身份，再将图去噪器扩展至 8 层、768 维。生成各连杆位姿，再用 IK 恢复关节配置的主线仍然保留。</p><div class="meta"><span>Lin Shao 团队 · CoRL 2026（官方仓库标注）</span><a href="https://arxiv.org/html/2610.25410v1">论文 v1</a><a href="https://nus-lins-lab.github.io/TROGrasp2Web/">项目</a><a href="https://github.com/Barrybarry-Smith/TROGraspV2">代码</a><span>核对：2026-10-27</span></div></div>
+<div class="lab-stats"><div><strong>OR → ER → RR</strong><span>每层三种关系，新增环境分支</span></div><div><strong>8 × 768</strong><span>默认去噪网络层数 × 通道</span></div><div><strong>6 + 128 + 128</strong><span>连杆位姿、几何、结构身份</span></div></div>
+<div class="callout"><p><b>阅读范围：</b>架构与原版差异专题。图均为本站重绘；交互只切换解释，不执行模型。论文与公开实现不完全一致，具体尺寸以标注的代码配置为准；未加载权重或复现成功率。</p></div>
+<nav class="toc" aria-label="目录"><a href="#compare">改了什么</a><a href="#encoders">输入与编码器</a><a href="#denoiser">逐层网络</a><a href="#scale">模型规模</a><a href="#sampling">训练与采样</a><a href="#evidence">效果与边界</a><a class="rn" href="#audit">论文 / 代码核对</a><a href="#sources">来源</a></nav>
+
+<h2 id="compare"><span class="no">01</span>先看原版和 ++ 的结构差异</h2>
+<figure class="lab-figure"><h3>同一条“连杆位姿 → IK”主线，两种条件信息</h3><div class="lab-controls" data-switch><button type="button" data-target="graph-original" aria-controls="graph-original" aria-pressed="false">原版 T(R,O) Grasp</button><button type="button" data-target="graph-plus" aria-controls="graph-plus" aria-pressed="true">Grasp++ 新增了什么</button></div>
+<div id="graph-original" data-panel hidden><div class="lab-flow"><div class="lab-row"><div class="lab-box obj"><strong>物体点云</strong><small>PointNet++ / VQ-VAE → 25 个物体节点</small></div><div class="lab-box robot"><strong>连杆局部几何</strong><small>BPS 编码；没有新增的运动学指纹</small></div><div class="lab-box"><strong>带噪连杆位姿</strong><small>每根连杆：平移 3 + 轴角 3</small></div></div><div class="lab-arrow">构建 OR / RR 相对变换边</div><div class="lab-band"><span class="lab-kicker">6 层 · 384 通道</span><div class="lab-chain"><div class="lab-box obj"><strong>OR Attention</strong><small>手与目标物体的关系</small></div><span>→</span><div class="lab-box robot"><strong>RR Attention</strong><small>手部连杆间的关系</small></div></div></div><div class="lab-arrow">预测 3 + 3 维噪声；测试配置重复调用 20 次</div><div class="lab-box good"><strong>连杆目标位姿 → Pyroki IK → 关节配置</strong><small>原版详细实现与配置差异见独立交互页。</small></div></div></div>
+<div id="graph-plus" data-panel><div class="lab-flow"><div class="lab-row"><div class="lab-box obj"><strong>目标物体 512 × 3</strong><small>独立 VQ-VAE → 25 × 131</small></div><div class="lab-box env"><strong>新增：环境 2048 × 3</strong><small>另一个 VQ-VAE → 25 × 131</small></div><div class="lab-box robot"><strong>URDF + 连杆几何 + 带噪位姿</strong><small>新增位置指纹与关节范围编码</small></div></div><div class="lab-arrow">三类节点；OR / ER / RR 边；分字段投影至 768 维</div><div class="lab-band"><span class="lab-kicker">8 层 · 12 头 · 每头 64 维</span><div class="lab-chain"><div class="lab-box obj"><strong>OR</strong><small>靠近目标物体</small></div><span>→</span><div class="lab-box env"><strong>新增：ER</strong><small>结合周围障碍</small></div><span>→</span><div class="lab-box robot"><strong>增强：RR</strong><small>相对位姿 + 运动学</small></div></div></div><div class="lab-arrow">两路噪声头 → DDIM 更新位姿 → 重算几何边，20 步</div><div class="lab-box good"><strong>各连杆 SE(3) 目标 → 多初值 Pyroki IK → 关节配置</strong><small>“结合障碍”是条件建模能力，不是硬性无碰撞证明。</small></div></div></div>
+<figcaption>图 1 · 数据流示意。原版按本站已核对代码，++ 按论文 §4、附录 §9 及 val.yaml。箭头上的“靠近 / 结合 / 协调”是对模块作用的解释，不是三个独立的监督损失。</figcaption></figure>
+<div class="tablewrap"><table><thead><tr><th>方面</th><th>原版</th><th>Grasp++</th></tr></thead><tbody>
+<tr><td>场景输入</td><td>目标物体几何</td><td>目标物体与环境分开编码</td></tr><tr><td>连杆身份</td><td>主要由局部几何表征</td><td>几何 + 在手上的位置；边再带关节活动范围信息</td></tr><tr><td>图消息传递</td><td>OR → RR</td><td>OR → <b>ER</b> → RR；新增环境—连杆边</td></tr><tr><td>默认主干</td><td>6 层 / 384 维</td><td>8 层 / 768 维；提供多规模配方</td></tr><tr><td>输出空间</td><td>逐连杆的 6 维位姿噪声</td><td>保持逐连杆输出，未改成直接预测所有关节角</td></tr><tr><td>训练条件</td><td>三种手；原版数据与场景</td><td>八种手、约 4.44 亿标注；批内提高物体与手型多样性</td></tr></tbody></table></div>
+<p class="lab-source">来源：<a href="https://arxiv.org/html/2610.25410v1#S4">++ §4</a>；<a href="../interactives/tro-grasp/index.html#denoiser">原版逐层核对</a>。下文比较的是指定版本，不代表所有分支和权重配置。</p>
+
+<h2 id="encoders"><span class="no">02</span>输入张量与三个编码分支</h2>
+<h3>物体与环境：同类结构，分别预训练、分别冻结</h3>
+<p>两路都使用 PointNet++ 形式的 VQ-VAE 编码器。物体专注可接触的形状；环境提供桌面、箱壁和其他物体的上下文。它们没有合成一个无法区分“目标”和“障碍”的点集，也不共享同一份编码器权重。</p>
+<div class="lab-equation">物体 512 点 / 环境 2048 点
+  → SA1：256 中心，半径 0.2，邻域 32，MLP [64,64,128]
+  → SA2：128 中心，半径 0.4，邻域 64，MLP [128,128,256]
+  → SA3：25 中心，半径 0.8，邻域 64，MLP [256,256,512]
+  → 1×1 Conv：512 → 128
+  → VQ：2048 个 128 维码字
+  → 每个 patch：中心坐标 3 + 几何特征 128 = 131 维</div>
+<p>半径属于归一化点云空间。当前实现先分别归一化两路点云用于几何编码，再将物体 patch 中心还原、变换到环境的归一化坐标系。因而<b>几何编码坐标</b>与<b>构图坐标</b>不能混为一谈；详见读者注。</p>
+
+<h3>连杆：除了长什么样，还要知道它是哪个部位</h3>
+<p>食指和中指的两根指节可能外形几乎相同，但在手掌上的位置、父子关节和活动范围不同。仅靠 BPS 外形，模型容易给它们预测相近甚至重叠的目标。++ 给网络补上区分这些连杆的结构特征。</p>
+<figure class="lab-figure"><h3>当前代码中的“运动学指纹”</h3><div class="lab-row"><div class="lab-box robot"><strong>几何 BPS · 128</strong><small>共享 128 个基点，半径 0.15 m；记录到局部连杆网格的最近距离。当前分支直接载入预计算特征。</small></div><div class="lab-box robot"><strong>位置指纹 · 128</strong><small>预处理用 q=0 做 FK，得到连杆在手基座下的 6 维位姿。MLP：6→128→128→128；前两层 LN + GELU。</small></div><div class="lab-box robot"><strong>关节关系指纹 · 128</strong><small>相邻连杆的关节范围等距取 128 个值。每个相对位姿 6→128→128→128；max / mean 池化拼成 256，再 256→128→128。</small></div></div><div class="lab-arrow">位置特征进入节点；关节关系特征进入 RR 边</div><div class="lab-two"><div class="lab-box"><strong>连杆节点：L × 262</strong><small>当前带噪平移 3 + 轴角 3 + BPS 128 + 位置 128</small></div><div class="lab-box"><strong>RR 边：L × L × 134</strong><small>当前相对位姿 6 + 关节关系编码 128</small></div></div><figcaption>图 2 · 依照 get_edge_embedding.py 与 troe_graph.py 重绘。论文 §4.1.2 用采样可行关节配置描述指纹构建；当前代码的 q=0 位置分支和等距关节采样是更具体、也有差别的实现。</figcaption></figure>
+<p>非直接相连的连杆对在预计算关节样本中填零，但 RR 消息传递仍覆盖连杆对，不是只在 URDF 树的相邻节点上传递。由于带偏置的编码器会处理这些零输入，也不应把“输入填零”理解成“编码后严格为零”。</p>
+
+<h3>进入去噪网络前的尺寸</h3>
+<div class="tablewrap"><table><thead><tr><th>元素</th><th>输入形状（省略 batch）</th><th>分字段线性映射后</th></tr></thead><tbody>
+<tr><td>物体 O</td><td>25 × (3 + 128)</td><td>25 × 768</td></tr><tr><td>环境 E</td><td>25 × (3 + 128)</td><td>25 × 768</td></tr><tr><td>机器人 R</td><td>L × (3 + 3 + 128 + 128)</td><td>L × 768</td></tr><tr><td>OR / ER</td><td>L × 25 × (3 + 3)</td><td>L × 25 × 768</td></tr><tr><td>RR</td><td>L × L × (3 + 3 + 128)</td><td>L × L × 768</td></tr></tbody></table></div>
+<p>各字段分别投影，再相加。原始 131 / 262 / 134 维不是直接作为注意力头的通道数。这里的“6 维位姿”是 3 维平移和 3 维轴角；与某些论文所说的“6D rotation representation”不是同一概念。</p>
+
+<h2 id="denoiser"><span class="no">03</span>拆开一层：OR → ER → RR</h2>
+<figure class="lab-figure"><h3>选择一种关系，查看 Q / K / V 从哪里来</h3><div class="lab-controls" data-switch><button type="button" data-target="attention-or" aria-controls="attention-or" aria-pressed="true">OR · 目标物体</button><button type="button" data-target="attention-er" aria-controls="attention-er" aria-pressed="false">ER · 周围环境</button><button type="button" data-target="attention-rr" aria-controls="attention-rr" aria-pressed="false">RR · 手的协调</button></div>
+<div class="lab-detail" id="attention-or" data-panel><p><b>Q：</b>当前机器人连杆特征。<b>K：</b>25 个目标物体 patch 特征。<b>V：</b>来源物体、目标连杆、OR 相对位姿边共同生成。</p><p>解释：给每根连杆提供与目标表面有关的条件；不直接输出接触点标签。</p></div>
+<div class="lab-detail" id="attention-er" data-panel hidden><p><b>Q：</b>经过 OR 更新后的连杆特征。<b>K：</b>25 个环境 patch 特征。<b>V：</b>环境、连杆、ER 相对位姿边共同生成。</p><p>解释：同一目标物体放在桌面、墙边或箱里，连杆应接收不同的环境条件。这是原版缺少的通路；不是额外的碰撞分类器。</p></div>
+<div class="lab-detail" id="attention-rr" data-panel hidden><p><b>Q / K：</b>经过 OR 和 ER 更新后的连杆特征。<b>V：</b>两根连杆的特征、当前相对位姿和运动学关系共同生成。</p><p>解释：在满足目标与环境条件后协调整只手；网络输出仍是软预测，精确运动学一致性交给后续 IK。</p></div>
+<div class="lab-equation">时间绑定：x̃ = SiLU(Wx x + Wt emb(t))，emb(t) 为 128 维
+每个注意力头：Q = Wq r，K = Wk s
+边条件 Value：vᵢⱼ = W₂ SiLU(Ws sⱼ + Wr rᵢ + We eᵢⱼ)
+αᵢⱼ = softmaxⱼ(Qᵢ Kⱼᵀ / √64)
+rᵢ′ = Σⱼ αᵢⱼ vᵢⱼ + SiLU(Wself rᵢ)
+12 个头合并 → 768 维；依次进行 OR、ER、RR</div>
+<figcaption>图 3 · 默认 0.2B 模型的数据流；s 表示当前关系的来源节点。边直接参与 Value，因此“边条件注意力”不等于把边作为 QK 分数的显式加性偏置。</figcaption></figure>
+<p>每层也更新三类边的隐特征：对上一层边张量沿两个节点轴分别求均值，再平均，和当前 Value 一起输入 EdgeUpdateNet。最后一层不再更新边，因为后面只读取机器人节点。</p>
+<p>要区分两个循环：<b>单次去噪内部</b>的 8 层学习更新隐特征；<b>DDIM 的相邻采样步</b>根据更新后的位姿重新计算实际几何关系。网络并不在每一层都把隐特征还原成新坐标。</p>
+
+<h3>相较原版，还有这些实现变化</h3>
+<ul><li><b>注意力实现：</b>改用 PyTorch scaled_dot_product_attention；配置里的 <code>c_atten_head=12</code> 现在就是 12 个头。原版该变量 32 在 reshape 中代表每组通道数，384/32=12 组，不能直接比较变量值。</li><li><b>Value 和时间绑定：</b>先分别线性映射再相加，避免显式复制后拼接大张量；在线性层层面可与拼接投影对应，不是凭空新增一种注意力理论。</li><li><b>节点更新：</b>当前 ++ 层中未保留原版那条“连杆全局 max pooling 后再拼接”的融合支路；RR 本身继续交换整手信息。</li><li><b>边更新：</b>OR、ER、RR 各有独立输出模块，当前 RR 分支确实调用 <code>rr_edge_out</code>。</li></ul>
+
+<h3>两个输出头，怎样从 768 维得到 6 维噪声？</h3>
+<div class="lab-equation">初始节点特征 + 8 层机器人节点输出
+  → 拼接 9 × 768 = 6912 → Linear → 768
+
+平移头：拼当前平移 3 → 771 → 512 → 256 → 128
+        拼输入及各隐藏层：771+512+256+128 = 1667 → Linear → 3
+旋转头：拼当前轴角 3 → 同样结构 → 3
+
+每个隐藏层：Linear → LayerNorm → LeakyReLU
+最终：L × 6 噪声预测；不是直接输出关节角</div>
+
+<h2 id="scale"><span class="no">04</span>网络可以怎样扩展？</h2>
+<figure class="lab-figure"><h3>论文表 10 的四档规模</h3><div class="lab-controls"><label for="model-scale">模型配置</label><select id="model-scale"><option value="small">10M</option><option value="medium">50M</option><option value="default" selected>0.2B · 默认</option><option value="large">1B</option></select></div><p id="scale-summary" aria-live="polite">8 层 ×（OR → ER → RR）；12 个头 × 64 维；节点与边均为 768 维。</p><div class="lab-box"><strong id="scale-wide">初始 + 8 层特征 → 6912 → 768 维</strong><small>交互根据论文配置与代码的层间拼接规则计算尺寸，不预测训练表现。</small></div><figcaption>物体与环境各 25 个节点；论文设置最多 25 个连杆。网络尺寸属于不同规模，实际参数量不必等于档位名称的整数值。</figcaption></figure>
+<div class="tablewrap"><table><thead><tr><th>规模</th><th>层</th><th>头</th><th>节点 / 边宽</th><th>输出隐藏层</th></tr></thead><tbody><tr><td>10M</td><td>4</td><td>4</td><td>256</td><td>128, 64</td></tr><tr><td>50M</td><td>8</td><td>6</td><td>384</td><td>256, 128</td></tr><tr><td>0.2B</td><td>8</td><td>12</td><td>768</td><td>512, 256, 128</td></tr><tr><td>1B</td><td>12</td><td>24</td><td>1536</td><td>512, 256, 128</td></tr></tbody></table></div>
+
+<h2 id="sampling"><span class="no">05</span>训练、生成、IK 各负责什么</h2>
+<div class="lab-two"><section><h3>训练：恢复被加噪的连杆位姿</h3><p>物体、环境与手结构作为条件，只给连杆平移和旋转加噪。当前训练配置为 1000 个 cosine 扩散时间步，每批采 5 个噪声时间；两路有效连杆噪声 MSE 相加。</p><p>附录给出 AdamW、学习率 10⁻⁴、1000 步 warmup、梯度裁剪 1.0、每 GPU batch 48、8 张 A100 80GB、bfloat16。数据与模型同时扩大，不能把总体提升全归因于新增 ER。</p></section><section><h3>推理：20 次调用同一个网络</h3><p>从高斯随机连杆位姿出发。每步预测噪声、估计干净位姿，再进行 DDIM 更新；节点中的几何和身份条件保持，几何边随位姿重算。</p><p>最后把位置恢复到实际尺度，使用 Pyroki 进行逆运动学。附录给出 8 个并行初值，再选 FK 后平均目标连杆位置误差最低者；这一步不等于完整的机械臂避障轨迹规划。</p></section></div>
+
+<h2 id="evidence"><span class="no">06</span>为什么对杂乱场景更有帮助？证据有多强？</h2>
+<p><b>机制解释：</b>若只观察同一个杯子，模型很难知道杯子左侧紧挨箱壁。ER 分支把箱壁相对每根手指的位置加入条件；位置 / 关节指纹则帮助区分外形相似的手指。前者补充“周围空间”，后者补充“手的身份”。这两件事与图像遮挡恢复不是同一个任务。</p>
+<div class="tablewrap"><table><thead><tr><th>论文实验</th><th>结果</th><th>正确解读</th></tr></thead><tbody>
+<tr><td>八种手、未见物体、单次尝试</td><td>平均 87.96%</td><td>在该文构建的杂乱场景协议下，成功包含无环境碰撞并抬起目标</td></tr><tr><td>去掉位置及运动学指纹</td><td>四种手平均 87.16% → 9.61%</td><td>支持“结构身份很重要”；不是只去掉 ER 的消融</td></tr><tr><td>同表延迟 / PPS</td><td>原版 0.210 s / &gt;100；++ 0.336 s / 1.15</td><td>++ 单次更慢，但此场景下每个成功所需候选更少；不能说比原版延迟快十倍</td></tr><tr><td>最多四次尝试</td><td>87.96% → 98.46%</td><td>“四次任一成功”的累计结果，不是单次成功率</td></tr></tbody></table></div>
+<ul class="lab-limits"><li><b>杂乱不等于遮挡全解决。</b>单视角部分点云实验另外生成训练数据并微调。基础模型的多视角结果不能直接当成强遮挡单视角的零样本结果。</li><li><b>零样本手型结论有限。</b>附录主要改变已知手的连杆长度与关节范围；它不能证明对任意全新拓扑、任意 URDF 都同样有效。</li><li><b>条件学习不是硬约束求解。</b>生成结果可能不完全可达、接触不稳或碰撞；噪声损失并未给出可执行性的数学保证。</li><li><b>数据生成会影响结论。</b>杂乱场景围绕可行抓取构建，并在手—物体投影占据区外放障碍。这个分布与完全任意堆叠的真实场景有差别。</li></ul>
+<p class="lab-source">来源：<a href="https://arxiv.org/html/2610.25410v1#S5">论文 §5、表 4 / 6</a>，<a href="https://arxiv.org/html/2610.25410v1#S10">附录 §10</a>。原版论文的成功率与本表不是同一评测，不能跨表直接排名。</p>
+
+<h2 id="audit"><span class="no">07</span>读者核对：不要把论文与代码拼成一个不存在的模型</h2>
+<p>以下是对提交 <code>d0a00d050723</code> 的静态核对，不代表对作者实验的复现或错误归因。</p>
+<details class="lab-audit" open><summary>位置指纹：论文采样描述，代码 q=0 预计算</summary><p>论文描述在可行关节空间采样并编码 link pose。仓库的 <code>get_pos_embeddings</code> 使用零关节向量做 FK；<code>LinkPosEncoder</code> 是逐连杆 MLP，没有对多个随机配置进行集合池化。关节关系分支则确实处理 128 个采样值，但它们是沿范围等距取值。</p></details>
+<details class="lab-audit"><summary>归一化：共享构图坐标，不等于共享编码前处理</summary><p>论文文字说以环境中心和尺度归一化两路点云。代码给每个编码器分别归一化输入，再只将物体 patch 中心转换到环境归一化空间。因此不能说物体 VQ 编码器直接吃环境尺度下的点云。</p></details>
+<details class="lab-audit"><summary>连杆上限与手型列表随配置变化</summary><p>论文与八手 <code>val.yaml</code> 使用上限 25；当前 <code>train.yaml</code> 使用 26，并包含 Wuji 相关元数据。论文的八手设置与后来扩展的九手资产应分开描述，不应自动把它们的数字合并。</p></details>
+<details class="lab-audit"><summary>DDIM 参数：要看推理配置和实际更新公式</summary><p>论文附录与 <code>val.yaml</code> 都写 20 步、η=1；验证配置另有 λ=0.2，用于缩放随机噪声项。训练 YAML 的 η=0、λ=0 不能替代测试配方；代码并非只由一个 η 数值完整决定噪声注入。</p></details>
+<details class="lab-audit"><summary>训练损失：公式范数与代码平方误差</summary><p>论文式 (8) 显示 L2 范数，没有平方；代码对平移 / 旋转分别计算平方误差并按有效连杆归一化。网络内部注意力没有传入有效节点 mask，但训练损失使用 mask；不能把损失遮罩当成注意力遮罩。</p></details>
+<details class="lab-audit"><summary>关节边双向写入，以及未调用的碰撞投影函数</summary><p>预处理把同一个关节特征样本赋给正反两个索引；它是关系指纹，不能把反向项当成已经取逆的严格相对变换。<code>project_pose_with_env_pc</code> 虽然在文件中定义，检查的 DDIM 推理循环没有调用它；因此本页没有把“每步碰撞梯度投影”画成默认采样流程。</p></details>
+
+<h2 id="sources"><span class="no">08</span>继续阅读与可追溯来源</h2>
+<ul class="lab-source-list"><li><a href="https://arxiv.org/html/2610.25410v1">Grasp++ 论文 v1</a>：§4 是方法，§9 是规模和训练配置，§10 是未见手型变体实验。</li><li><a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/model/tro_denoiser.py">固定提交 · tro_denoiser.py</a>：TROEGraphLayer、分字段投影、输出头。</li><li><a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/model/troe_graph.py">troe_graph.py</a> · <a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/get_edge_embedding.py">get_edge_embedding.py</a>：结构编码、噪声损失、DDIM。</li><li><a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/model/vqvae_encoder.py">vqvae_encoder.py</a> · <a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/model/vqvae/pn2.py">pn2.py</a> · <a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/config/val.yaml">val.yaml</a> · <a href="https://github.com/Barrybarry-Smith/TROGraspV2/blob/d0a00d050723bdff0000a2b43a5e879a0dfddb91/config/train.yaml">train.yaml</a>。</li><li><a href="tro-grasp.html">本站原版笔记</a> · <a href="../interactives/tro-grasp/index.html">原版逐层交互图解与固定代码来源</a> · <a href="graspgen.html">GraspGen：为什么有判别器也不等于 GAN</a>。</li></ul>
+<footer><p>Paper Reading Lab · 原创架构图与阅读分析；论文和代码版权归各自作者。<a href="../index.html#architecture">返回论文列表</a> · <a href="#top">回到顶部</a></p></footer></div></body></html>
