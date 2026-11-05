@@ -20,6 +20,19 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/3dws.html">3D World Simulator：用粒子-体素混合动力学做多模态 3D 世界模拟</a></p>
+<p class="en">Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation</p>
+<div class="meta"><span>arXiv 2611.04492</span><span>2026-11-03</span><span>Columbia、UC Berkeley、密歇根大学、NVIDIA、Analog Devices</span><span>2026-11-05 读</span></div>
+<p class="d">不在 2D 视频空间里预测，而是把点云压成 3D 体素潜变量，在潜空间里按动作往前推，再解码成带 3D 高斯的稠密粒子，同一个状态同时给出任意视角的 RGB-D、点云和触觉。在 ALOHA 双臂的六个任务和 Deform360 上验证。论文的结论：</p>
+<ul class="d">
+<li>200 步开环预测的图像、深度、几何、触觉指标都好过 2D 视频基线和 3D 粒子基线。</li>
+<li>只用模拟器数据训练的策略，真机成功率接近真实数据训练的，包括触觉、腕部相机和新视角。</li>
+<li>模拟器评测和真机评测的成功率高度相关；在 Deform360 上预训练后能对未见物体零样本规划。</li>
+</ul>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">3D 高斯</span><span class="pill">视触觉</span><span class="pill">CC BY 4.0 · 含原图</span><span class="pill rn">12 条读者注</span></div>
+<div class="links"><a class="go" href="papers/3dws.html">读精读 →</a><a href="https://arxiv.org/abs/2611.04492">arXiv 原文</a><a href="https://jwang771.github.io/3dworldsimulator/">项目主页</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/simpler.html">SIMPLER：在仿真里评测真实世界的机器人操作策略</a></p>
 <p class="en">Evaluating Real-World Robot Manipulation Policies in Simulation</p>
 <div class="meta"><span>arXiv 2405.05941</span><span>2024-05-09</span><span>UCSD、Stanford、UC Berkeley、Google DeepMind</span><span>2026-10-21 读</span></div>
@@ -78,6 +91,8 @@
 <thead><tr><th>路径</th><th>内容</th></tr></thead>
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
+<tr><td><code>papers/3dws.html</code></td><td>3D World Simulator 精读</td></tr>
+<tr><td><code>papers/3dws/</code></td><td>3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切</td></tr>
 <tr><td><code>papers/simpler.html</code></td><td>SIMPLER 精读</td></tr>
 <tr><td><code>papers/simpler/</code></td><td>SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切</td></tr>
 <tr><td><code>papers/gauge.html</code></td><td>GAUGE 精读</td></tr>
