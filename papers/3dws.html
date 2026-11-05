@@ -42,7 +42,7 @@
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 架构图</a><a href="#s3-2">3.2 自编码器</a><a href="#s3-3">3.3 潜空间动力学</a><a href="#s4">4 实验</a><a href="#s4-2">4.2 基线对比</a><a href="#s4-3">4.3 生成训练数据</a><a href="#s4-4">4.4 策略评测</a><a href="#s4-5">4.5 规划</a><a href="#s5">5 结论</a><a href="#apA">附录 A Deform360</a><a href="#apB">附录 B 模型细节</a><a href="#apC">附录 C 任务与可视化</a><a href="#apD">附录 D 策略训练</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 架构图</a><a href="#s3-2">3.2 自编码器</a><a href="#i3d-ae">自编码器动画</a><a href="#s3-3">3.3 潜空间动力学</a><a href="#s4">4 实验</a><a href="#s4-2">4.2 基线对比</a><a href="#s4-3">4.3 生成训练数据</a><a href="#s4-4">4.4 策略评测</a><a href="#s4-5">4.5 规划</a><a href="#s5">5 结论</a><a href="#apA">附录 A Deform360</a><a href="#apB">附录 B 模型细节</a><a href="#apC">附录 C 任务与可视化</a><a href="#apD">附录 D 策略训练</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -108,6 +108,13 @@
 <li><b>一致性正则</b> \(\mathcal{L}_{\mathrm{cons}}\)：同一个观测的不同子采样，可能编码出不一致的潜变量。所以对两份独立子采样的点云分别编码，惩罚两个潜变量之间的 \(\ell_2\) 差。</li>
 </ul>
 <p>各项的精确定义见<a href="#apB-1">附录 B.1</a>。</p>
+
+<div class="i3d" id="i3d-ae">
+<p class="lab">交互图解 · 自编码器拆开看（9 幕 3D 动画）</p>
+<p>上面这一节写得很紧。下面按官方代码把自编码器拆成 9 步，每一步是一段循环动画：点怎么落进格子、子流形稀疏卷积为什么不让形状变胖、步长 2 下采样、8 通道潜变量怎么来的、它凭什么叫自编码器、体素解码器怎样由粗到细、粒子头怎样在每个占据格里放 16 个 3D 高斯，以及 Chamfer 和渲染两种监督。可以暂停、拖进度条、旋转。</p>
+<iframe src="../interactives/3dws/ae.html?embed=1" title="3D World Simulator 自编码器分步 3D 动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/3dws/ae.html">全屏打开，含逐层结构表和“论文 vs 代码”对照 →</a></p>
+</div>
 
 <h3 id="s3-3">3.3 3D 潜空间动力学模型</h3>
 <p>自编码器训好之后，在它的 3D 潜空间上学动作条件的动力学模型 \(F_\phi\)（图 2b）。在时刻 \(t\)，给定输入潜变量 \(z_t\)、前 \(H\) 个历史潜变量 \(z_{t-H:t-1}\) 和动作 \(a_t\)，模型预测 \(\hat z_{t+1}=F_\phi(z_{t-H:t},a_t)\) 来逼近下一状态 \(z_{t+1}\)。预测出的潜变量可以解码成 3D 几何、多视角图像和触觉信号。</p>
