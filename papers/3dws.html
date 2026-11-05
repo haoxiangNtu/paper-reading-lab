@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D World Simulator 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.04492 Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation 的中文精读：按原文章节逐节整理，含全部编号公式、18 张原文插图、5 张表和 12 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+/* Wide tables keep a minimum width and scroll inside their own box on narrow screens. */
+.t-1{min-width:720px;font-size:13px}
+.t-1 th,.t-1 td{padding:6px 8px}
+.t-2{min-width:600px}
+.t-3,.t-4{min-width:480px}
+.t-5{min-width:560px}
+.t-f7{min-width:600px}
+.t-links{min-width:640px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../index.html#how">怎么读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2611.04492 · cs.RO · 2026 年 11 月 3 日 · 中文精读</p>
+<h1>3D World Simulator：用粒子-体素混合动力学做多模态 3D 世界模拟</h1>
+<p class="orig">Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation</p>
+<p>作者 8 人：Jimmy Wang、Yifan Chou、Kaifeng Zhang、Yixuan Wang、Binghao Huang、Tao Yu、Saleh Nabi、Yunzhu Li。单位为哥伦比亚大学、加州大学伯克利分校、密歇根大学、NVIDIA 和 Analog Devices，通讯作者是 Yunzhu Li。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2611.04492">arXiv 原文</a><a href="https://jwang771.github.io/3dworldsimulator/">项目主页</a><a href="https://github.com/jwang771/3d-world-simulator">代码</a><a href="https://jwang771--3dws-demo.us-east.modal.run">在线演示</a><span>正文 10 页，参考文献到第 15 页，附录第 16 到 25 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布，注明出处就可以转载、翻译和改编。本页按原文顺序覆盖正文五节和附录 A 到 D，小节编号与原文一致，可以对照 PDF 阅读。</p>
+<p>公式按原文编号给出，表格数字照录原文。18 张插图直接取自原文 PDF，只做了裁切，图下的说明是本页写的。标成“读者注”的框是整理时核算或对照发现的问题，不属于论文内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-2">3.2 自编码器</a><a href="#s3-3">3.3 潜空间动力学</a><a href="#s4">4 实验</a><a href="#s4-2">4.2 基线对比</a><a href="#s4-3">4.3 生成训练数据</a><a href="#s4-4">4.4 策略评测</a><a href="#s4-5">4.5 规划</a><a href="#s5">5 结论</a><a href="#apA">附录 A Deform360</a><a href="#apB">附录 B 模型细节</a><a href="#apC">附录 C 任务与可视化</a><a href="#apD">附录 D 策略训练</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>机器人策略的训练、评测和规划，都需要预测“做了这个动作之后世界会变成什么样”。现在大多数动作条件世界模型是在 2D 图像或视频空间里预测的，没有显式表示背后的 3D 场景。这样一来，换个视角看是否一致、长时间交互后几何是否还对，都很难保证。</p>
+<p>论文提出 3D World Simulator：从一个统一的 3D 表示同时预测外观、几何和触觉。它分两部分。第一部分是粒子-体素混合自编码器，把点云压成紧凑的 3D 体素潜变量，再解码回稠密粒子，每个粒子带一个可以渲染的 3D 高斯。第二部分是动作条件的 3D 潜空间动力学模型，预测这个体素潜变量下一步怎么变。结论有四条。</p>
+<ol>
+<li><b>预测更准。</b>在 ALOHA 双臂机器人的六个任务上做 200 步开环预测，图像、深度、几何、触觉各项指标都好过 3 个 2D 视频基线和 3 个 3D 粒子基线（表 1）。</li>
+<li><b>能生成训练数据。</b>只用模拟器生成的数据训练模仿学习策略，真机成功率和用真实数据训练的接近，包括要用触觉、腕部相机和新视角的任务（图 6）。</li>
+<li><b>能评测策略。</b>同一批策略在模拟器里和真机上的成功率高度相关，三个任务的 Pearson r 是 0.958、0.965、0.859（图 7）。</li>
+<li><b>能扩展。</b>在大规模的 Deform360 数据集上训练后，可以对没见过的物体和机械臂做零样本的模型预测控制（图 8）。</li>
+</ol>
+<figure class="pfig">
+<img src="3dws/fig1.webp" width="1208" height="463" alt="图 1：3D World Simulator 总览，中间是动作条件的 3D 场景，左边是渲染的 RGB-D 视图和触觉信号，右边是六个任务" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页</span>中间是动作条件的 3D 世界模拟：模型在统一的 3D 表示里预测场景几何，周围一圈相机图标表示可以在任意时刻从任意视角渲染。左上是从新视角渲染出的 RGB 和深度图，左下是生成的触觉信号，红色标出夹爪上预测的接触。右边是六个任务：叠布、零件装配、装箱、穿绳、推 T 形块、插马克笔。按图注的说法，模型支持 50 Hz 的交互式长时程数据生成。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>预测 3D 世界怎样随交互演变，是智能机器人的基础能力，可以用来为策略训练生成数据、评测策略、做基于模型的规划，也可以作为世界动作模型的骨干。现有的动作条件世界模型主要建在 2D 视频生成模型上。它们能生成逼真的画面，但没有显式表示 3D 场景，所以很难保持跨视角的一致，也很难精确刻画接触和几何的空间关系。已有工作试过 3D 表示，但通常依赖很强的结构假设，比如针对特定物体的状态表示，或者显式的点对应关系。在复杂交互里，这些假设常常不可靠，也限制了适用范围。</p>
+<p><b>方案。</b>3D World Simulator 在统一的 3D 表示空间里做预测，用一个公共接口同时生成 3D 粒子、与之对齐的触觉信号，以及从新视角渲染的多视图一致画面。它支持 50 Hz 的交互式长时程多模态 3D 视频预测，在大规模数据上训练后能泛化到多样的物体和环境。技术上有两个组件：</p>
+<ol>
+<li><b>粒子-体素混合自编码器。</b>编码器直接吃 RGB-D 视频得到的点云，压成紧凑的 3D 体素潜变量。解码器由粗到细，先上采样成更高分辨率的体素，再变成稠密的 3D 粒子。每个粒子参数化一个 3D 高斯，可以从任意视角光栅化渲染；触觉信号也直接表示成同一输出空间里的 3D 粒子。</li>
+<li><b>3D 潜空间动力学模型。</b>以动作为条件，直接预测下一步的 3D 体素潜变量。潜变量把整个场景作为一个整体编码，所以动力学模型不依赖针对物体的状态表示，也不需要显式的点对应。</li>
+</ol>
+<p><b>3D 带来的好处。</b>预测出的一个场景状态，就是多种能力共用的接口。外观建立在共享的 3D 高斯上，所以：(1) 渲染在几何上、视角间都一致，包括新视角和随手臂运动的腕部相机；(2) 可以自然地加入别的模态，触觉预测直接是 3D 粒子，和被接触的表面对齐；(3) 能和现有 3D 资产组合，比如静态背景、物体和运动学的机器人模型，从而对模拟画面有更多控制。</p>
+<p><b>应用与贡献。</b>论文在六个涉及刚体、铰接体和可变形物体的任务上展示交互式长时程多模态预测，好过最先进的 2D 视频和 3D 基线；用模拟器生成数据训练依赖视触觉和多视角观测的模仿学习策略；用模拟器评测策略，与真机评测强相关；在大规模多视角视触觉数据集 <a class="ds" href="https://arxiv.org/abs/2607.05390">Deform360</a> 上训练，好过 3D 基线，并能对未见过的物体和机械臂做零样本规划。贡献概括为三点：一个通用的动作条件多模态世界建模框架；统一 3D 表示空间里的粒子-体素混合动力学；一个支持策略训练、策略评测和规划的统一模型。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>2D 动作条件视频模型。</b>这类模型能预测逼真的未来画面，已经用在数据生成、策略评测、规划、动作预测、策略引导和策略改进上。但它们不显式表示 3D 世界，难以保证空间一致，也难以刻画复杂的物体交互。最接近本文的是同组的 <a class="ds" href="https://arxiv.org/abs/2603.08546">Interactive World Simulator</a>（IWS）：一个针对特定任务的 2D 动作条件视频模型，能做交互式、稳定、物理上合理的长时程模拟，但它只在像素空间预测，任意视角预测和空间一致性都是难点。本文显式表示 3D 场景，并且能准确模拟叠布、零件装配这类困难的交互。</p>
+<p><b>3D 动力学模型。</b>已有很多工作用各种 3D 表示建模物体动力学：点云、稀疏粒子、神经辐射场、3D 高斯和网格，有些专门针对弹塑性物体、布料或流体。最接近的是 <a class="ds" href="https://arxiv.org/abs/2601.03782">PointWorld</a> 和 <a class="ds" href="https://kywind.github.io/pgnd">PGND</a>，它们在点或粒子空间训练 3D 世界模型，结果在空间上一致、物理上合理。但两者都要用点跟踪提供训练监督，也不关注逼真的 2D 渲染，而后者是训练和评测视觉运动策略所必需的。本文不需要点跟踪监督，能迁移到多样的场景，并支持从固定外部相机和运动的腕部相机做逼真渲染。</p>
+<p><b>多模态世界模型。</b>把触觉加进世界模型的工作，多数是在预测 2D 视觉图像的同时预测 2D 触觉图像。本文在 3D 空间里预测，空间上一致。<a class="ds" href="https://arxiv.org/abs/2407.01418">RoboPack</a> 也在 3D 空间里建模触觉和物体交互，用于密集装箱任务，但它的动力学模型主要针对装箱，预测时程也比较短。</p>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<p>先在 3.1 节给出问题形式，再在 3.2 和 3.3 节分别讲怎样训练自编码器和潜空间动力学模型，3.4 节讲怎样和其他 3D 资产组合，3.5 节讲推理时怎样自回归地展开。</p>
+
+<h3 id="s3-1">3.1 问题形式</h3>
+<p>时刻 \(t\) 的输入点云记为 \(P_t\in\mathbb{R}^{7\times n}\)，含 \(n\) 个视觉点，有触觉时也包括触觉点。每个点有 3 维世界坐标、3 维 RGB 颜色，外加 1 个留给触觉信息的通道。实验用的触觉传感器是 <a class="ds" href="https://arxiv.org/abs/2604.28156">FlexiTac</a>，但方法对传感器类型没有要求。目标是建一个模型，输入历史点云 \(P_{t-H:t}\) 和动作 \(a_t\)，预测下一步 \(\hat P_{t+1}\)，让它和真实的 \(P_{t+1}\) 尽量接近。</p>
+<p>模型分两部分。自编码器里，编码器 \(E_\theta\) 把点云 \(P_t\) 压成紧凑的潜变量 \(z_t\)，解码器 \(D_\psi\) 再从它重建点云。潜空间动力学模型 \(F_\phi\) 输入当前潜变量 \(z_t\)、前 \(H\) 个历史潜变量 \(z_{t-H:t-1}\) 和动作 \(a_t\)，预测 \(\hat z_{t+1}=F_\phi(z_{t-H:t},a_t)\)。</p>
+<figure class="pfig">
+<img src="3dws/fig2.webp" width="1211" height="722" alt="图 2：模型结构，上半是粒子-体素混合自编码器，下半是 3D 潜空间动力学模型" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页</span>(a) 自编码器：输入点云 \(P_t\) 经编码器 \(E_\theta\) 压成蓝色方块表示的 3D 潜变量 \(z_t\)，解码器 \(D_\psi\) 先把它上采样成更细的体素，再变成稠密的视觉粒子和可选的触觉粒子，每个视觉粒子带高斯参数，可以从新视角渲染；最右是解码出的点云和渲染图。(b) 动力学模型：当前潜变量、历史潜变量和机器人动作一起送进 3D 卷积和时空注意力，自回归地预测 \(z_{t+1},z_{t+2},\ldots,z_{t+K}\)；每一步都能用 \(D_\psi\) 解码成点云和渲染图。</figcaption>
+</figure>
+
+<h3 id="s3-2">3.2 粒子-体素混合自编码器</h3>
+<p><b>稀疏体素编码器。</b>先把输入点云 \(P_t\) 体素化到一个稀疏 3D 网格上：落在同一个体素里的点取特征平均，只有被占据的体素才有特征。编码器 \(E_\theta\) 再用带步长的稀疏 3D 卷积逐级下采样，得到紧凑的潜变量 \(z_t\)，不在空的空间上浪费计算。每个潜变量体素沿通道维做单位归一化，然后再送进解码器或动力学模型。</p>
+<p><b>由粗到细的粒子-体素解码器。</b>解码器 \(D_\psi\) 分两段从 \(z_t\) 重建场景（图 2a）：</p>
+<ol>
+<li><b>体素上采样。</b>用转置 3D 卷积逐级上采样 \(z_t\)，直到目标体素分辨率。每一级都预测场景占据，逐层给出更细的结构估计。</li>
+<li><b>粒子上采样。</b>对每个被占据的体素，用一个轻量 MLP 预测连续的粒子位置。每个粒子预测自己的 3D 位置，以及一个 3D 高斯的参数：颜色、尺度、旋转和不透明度，这样就能从任意视角渲染。</li>
+</ol>
+<p><b>训练目标。</b>自编码器端到端训练，损失为</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{AE}}=\mathcal{L}_{\mathrm{voxel}}+\mathcal{L}_{\mathrm{particle}}+\mathcal{L}_{\mathrm{render}}+\mathcal{L}_{\mathrm{cons}} \]</div><span class="no">无编号</span></div>
+<ul>
+<li><b>体素损失</b> \(\mathcal{L}_{\mathrm{voxel}}\)：在解码器的每一级，把预测的占据和真实占据比较，各级相加。</li>
+<li><b>粒子损失</b> \(\mathcal{L}_{\mathrm{particle}}\)：预测粒子和真实点之间的 Chamfer 距离（CD）；粒子的颜色和触觉值在匹配点上再用 \(\ell_1\) 误差监督。</li>
+<li><b>渲染损失</b> \(\mathcal{L}_{\mathrm{render}}\)：用预测的 3D 高斯从训练相机视角渲染 RGB-D 图像，RGB 用 \(\ell_1\)、SSIM 和 LPIPS 的组合监督，深度在有效像素上用 \(\ell_1\)。</li>
+<li><b>一致性正则</b> \(\mathcal{L}_{\mathrm{cons}}\)：同一个观测的不同子采样，可能编码出不一致的潜变量。所以对两份独立子采样的点云分别编码，惩罚两个潜变量之间的 \(\ell_2\) 差。</li>
+</ul>
+<p>各项的精确定义见<a href="#apB-1">附录 B.1</a>。</p>
+
+<h3 id="s3-3">3.3 3D 潜空间动力学模型</h3>
+<p>自编码器训好之后，在它的 3D 潜空间上学动作条件的动力学模型 \(F_\phi\)（图 2b）。在时刻 \(t\)，给定输入潜变量 \(z_t\)、前 \(H\) 个历史潜变量 \(z_{t-H:t-1}\) 和动作 \(a_t\)，模型预测 \(\hat z_{t+1}=F_\phi(z_{t-H:t},a_t)\) 来逼近下一状态 \(z_{t+1}\)。预测出的潜变量可以解码成 3D 几何、多视角图像和触觉信号。</p>
+<p>动力学模型是一个 3D U-Net。先用 3D 卷积下采样输入的潜变量体素，再交替做空间注意力和因果时间注意力，最后由解码器上采样回输入的潜变量分辨率。</p>
+<p><b>训练目标。</b>为了让长时程推理更稳，训练时就自回归地预测 \(K\) 步 \(\hat z_{t+1:t+K}\)，并用带折扣的损失监督：</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{dyn}}=\frac{1}{K}\sum_{k=1}^{K}\gamma^{\,k-1}\,\lVert \hat z_{t+k}-z_{t+k}\rVert_2^2 \]</div><span class="no">(1)</span></div>
+<p>\(\gamma\) 是折扣因子。训练采用课程，逐渐增大 \(K\)，思路类似 scheduled sampling。为了进一步稳定长时程推理，训练时还给每个历史潜变量加随机采样的高斯噪声。自编码器和动力学模型在一张 RTX 5090 上各训练约 16 小时。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 最终的 K 没有给出</span>
+<p>式 (1) 的效果取决于 \(K\) 最后增大到多少，但正文和附录都没有给出最终的 \(K\)，也没有给课程怎样增加。附录 B.2 只给了 \(\gamma=0.95\)。按这个折扣，第 5 步的权重是 \(0.95^4\approx0.81\)，第 10 步是 0.63，第 20 步是 0.38，第 50 步只剩 0.08。所以 \(K\) 是 10 还是 50，训练对远端预测的约束差别很大。另外，附录说每次前向只预测 1 步，\(K\) 步是把预测接回历史、反复调用得到的。</p>
+</div>
+
+<h3 id="s3-4">3.4 与其他“模拟骨干”统一组合</h3>
+<p>模型只覆盖一个特定的工作空间。为了模拟更大的场景，可以把自编码器的原始输出和由 3D 高斯构成的各种静态背景组合起来。机械臂可能伸出工作空间之外，所以还可以用运动学的 3D 高斯机器人模型补全画面。模型本身不依赖物体级的表示，但可以微调成输出标签，把机械臂、物体和桌面分开。有了这种可分性，就能换上训练时没见过的机械臂和运动学模型，以及不同的背景。</p>
+
+<h3 id="s3-5">3.5 推理</h3>
+<p>推理时以开环方式自回归展开：从编码得到的初始潜变量 \(z_1\) 开始，动力学模型按动作预测下一个潜变量，再把预测结果作为下一步的输入。每个预测出的潜变量都能解码成视觉点云、触觉点云和 3D 高斯，后者可以从任意视角渲染。为了在开环展开时渲染腕部相机的画面，作者在解码器上微调了一个预测头。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · “50 Hz”和“200 步”各对应多长时间</span>
+<p>摘要和图 1 都说模型能做 50 Hz 的交互式预测，但论文没有给出任何计时，包括动力学一步、解码和高斯渲染各要多久，也没说在什么硬件上测的。</p>
+<p>数据的帧率也没有交代。附录 D.3 说策略示范是 10 Hz 记录的。表 1 的“长时程”是 200 步：如果每步是 1/50 秒，就是 4 秒；如果是 1/10 秒，就是 20 秒。作为参照，4.1 节说每个任务约 200 条轨迹、共 2 小时，平均一条 36 秒。所以 200 步可能只覆盖一条示范的九分之一，也可能覆盖一半多，论文里无法确定。</p>
+</div>
+<figure class="pfig">
+<img src="3dws/fig3.webp" width="1205" height="859" alt="图 3：零件装配和叠布任务的多视角开环预测，与 4DGen、IWS、Cosmos 对比" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 6 页</span>上半是零件装配，下半是叠布，每个任务有前视、俯视、腕部三个视角。左边两列是本方法开环展开的第 0 步和第 100 步。右边五列是第 200 帧的对比：本方法、真值、Robot4DGen（图中写作 4DGen）、IWS 和 Cosmos。红框标出基线的三类问题：不同视角之间不一致、画面扭曲、物体和机械臂的结构不对。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig4.webp" width="1190" height="414" alt="图 4：插马克笔、穿绳、推 T 三个任务的点云开环预测对比" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 6 页</span>三行是插马克笔、穿绳和推 T（正文叫 T Pushing）。左边两列是本方法点云的第 0 步和第 100 步，右边是本方法、真值和三个视频基线的点云。视频基线的点云是从预测的深度反投影得到的，可以看到大量散乱、错位的点，本方法的点云和真值接近。</figcaption>
+</figure>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>实验回答三个问题：(1) 在 3D 几何、多视角一致的渲染和触觉信号的长时程预测上，3D World Simulator 和基线比怎么样？(2) 能否用它训练和评测模仿学习策略，尤其是用腕部相机、触觉或多视角观测的策略？(3) 在大规模数据上训练后，能否从单个任务扩展到多样的物体和交互，并用于对未见物体和机械臂的规划？</p>
+
+<h3 id="s4-1">4.1 实验设置</h3>
+<p><b>ALOHA 任务。</b>数据采集和实验用 <a class="ds" href="https://tonyzhaozh.github.io/aloha/">ALOHA</a> 双臂机器人，每个指尖装一个 FlexiTac 触觉传感器。六个任务覆盖可变形、刚性和铰接物体：零件装配、叠布、推 T、装箱、穿绳、插马克笔，详见<a href="#apC">附录 C</a>。数据用运动学遥操设备加键盘采集，每个任务约 200 条轨迹、2 小时。</p>
+<p><b>Deform360 数据集。</b>为了检验可扩展性，用了 Deform360：一个视触觉数据集，有 198 种日常物体、1980 段交互、超过 215 小时的观测，来自 41 个环绕相机和双臂触觉夹爪。Deform360 只提供以物体为中心的深度，所以在它上面只用物体粒子训练，不像 ALOHA 那样重建机器人和周围环境。</p>
+<figure class="pfig">
+<img src="3dws/fig5.webp" width="1211" height="916" alt="图 5：Deform360 上的定性对比，上四行是训练物体，下三行是留出物体" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 7 页</span>每行一个物体。前两列是真实的初始和结束画面，后面依次是真值、本方法、ParticleFormer、PGND、PointWorld 渲染出的高斯。上四行是训练时见过的物体：彩色绳、毛线帽、布条、印花布；下三行是留出的物体：手套、细绳、布。按作者的说法，两类物体上本方法的几何都更接近真值。</figcaption>
+</figure>
+
+<h3 id="s4-2">4.2 与 2D 视频预测和 3D 粒子基线的对比</h3>
+<p><b>基线和指标。</b>在六个 ALOHA 任务上，和 2D 视频预测基线、3D 粒子基线比较。指标覆盖像素重建（PSNR、LPIPS）、深度预测（Abs Rel 和 \(\delta&lt;1.25\)）、点云重建（场景点和物体点的 Chamfer 距离）和触觉预测（L1）。长时程预测的指标在 200 帧的开环展开上取平均。在 Deform360 上只和 3D 粒子基线比较，因为数据集里没有每个视角的场景深度。</p>
+<p>2D 视频基线是 <a class="ds" href="https://arxiv.org/abs/2507.01099">Robot4DGen</a>、<a class="ds" href="https://github.com/nvidia-cosmos">Cosmos</a> 和 IWS；3D 粒子基线是 <a class="ds" href="https://arxiv.org/abs/2506.23126">ParticleFormer</a>、PointWorld 和 PGND（Particle-Grid Neural Dynamics）。基线怎样改造见<a href="#apC-3">附录 C.3</a>。</p>
+<div class="tablewrap"><table class="t-1">
+<thead><tr><th></th><th>方法</th><th class="n">PSNR ↑</th><th class="n">LPIPS ↓</th><th class="n">Abs Rel ↓</th><th class="n">δ&lt;1.25 ↑</th><th class="n">CD ↓</th><th class="n">物体 CD ↓</th><th class="n">触觉 L1 ↓</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">视频</td><td>Cosmos</td><td class="n">18.51</td><td class="n">0.441</td><td class="n">0.147</td><td class="n">0.833</td><td class="n">12.43</td><td class="n">16.64</td><td class="n">0.135</td></tr>
+<tr><td>Robot4DGen</td><td class="n">20.59</td><td class="n">0.340</td><td class="n">0.172</td><td class="n">0.790</td><td class="n">10.43</td><td class="n">15.97</td><td class="n">0.128</td></tr>
+<tr><td>IWS</td><td class="n">12.59</td><td class="n">0.562</td><td class="n">0.163</td><td class="n">0.791</td><td class="n">10.81</td><td class="n">17.69</td><td class="n">0.207</td></tr>
+<tr><td rowspan="3">粒子</td><td>PGND</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">17.11</td><td class="n">25.48</td><td class="n">0.208</td></tr>
+<tr><td>PointWorld</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">15.32</td><td class="n">21.74</td><td class="n">0.148</td></tr>
+<tr><td>ParticleFormer</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">13.78</td><td class="n">20.23</td><td class="n">0.151</td></tr>
+<tr><td></td><td><b>本方法</b></td><td class="n best">23.24</td><td class="n best">0.240</td><td class="n best">0.097</td><td class="n best">0.913</td><td class="n best">7.72</td><td class="n best">11.52</td><td class="n best">0.081</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 · 原文第 8 页。ALOHA 六个任务的定量对比，在 6 个任务上平均，并在 200 步的展开上平均。图像、深度两组只有视频基线能比。加底色的是每列最好的值。按表注的说法，粒子基线虽然用显式 3D，长时程下会退化，遮挡附近尤其明显。</p>
+<p><b>ALOHA 结果。</b>表 1 中本方法在所有指标上都好过所有基线。图 3 显示它在长时程下能给出多视角一致的渲染，而 2D 视频基线有视角间不一致、动力学不准和伪影累积的问题。图 4 显示基线预测的点云不一致。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 1 里几处没交代的地方</span>
+<p>第一，CD 没有单位。附录表 2 的 CD 标的是毫米，表 1 很可能也是，但没写。</p>
+<p>第二，三个粒子基线都有触觉 L1，可附录 C.3 只说用 CoTracker 的点轨迹训练它们，没说它们怎样预测触觉值。视频基线的触觉是怎么来的也没有说明。</p>
+<p>第三，一个值得注意的现象：三个视频基线的场景 CD 是 10.4 到 12.4，全部好过三个粒子基线的 13.8 到 17.1。视频基线的点云是从预测深度反投影出来的，图 4 里看起来噪点很多，但平均 Chamfer 距离反而更小。这和“显式 3D 的粒子基线长时程会退化”的说法一致，不过也说明 CD 这个指标对散乱噪点并不敏感。</p>
+</div>
+<p><b>Deform360 结果。</b>表 2（在<a href="#apA">附录 A</a>）显示，在训练见过的物体上，本方法的图像和几何指标都好过 3D 粒子基线。在留出的物体上，本方法几何预测更好，图像指标更差。作者的解释是，粒子基线是在预先拟合好的高斯泼溅上输出点轨迹，而本方法是从头生成外观。图 5 显示，本方法对见过和没见过的物体都能生成逼真的动力学和外观。</p>
+
+<h3 id="s4-3">4.3 为策略训练生成数据</h3>
+<p>这一节检验 3D World Simulator 能否作为可扩展的数据生成器，特别是为依赖腕部相机、触觉，或采集时根本没有相机的新视角的策略生成数据。评测四种模仿学习策略：<a class="ds" href="https://tonyzhaozh.github.io/aloha/">ACT</a>、<a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a>（DP）、<a class="ds" href="https://www.physicalintelligence.company/blog/pi05">π0.5</a> 和 <a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-policy/">Cosmos Policy</a>。任务有三个：零件装配、叠布、推 T。每个任务在真机上采 100 条示范，在模拟器里也采 100 条，报告四种策略的平均成功率。</p>
+<p>每个任务考模拟器的一种能力。零件装配考视触觉策略的训练，推 T 考从新视角学策略，叠布考前视加腕部相机的多视角一致性。图 6 中，用模拟的视触觉数据训练的零件装配策略，成绩和用真实数据训练的相当，并且远好过只用视觉、用真实数据训练的策略，说明模型生成的触觉信号有用。叠布和推 T 的结果说明模拟器对多视角和新视角观测也有用。</p>
+<figure class="pfig">
+<img src="3dws/fig6.webp" width="956" height="310" alt="图 6：分别用真实数据和模拟器数据训练的策略在真机上的成功率柱状图" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 8 页</span>纵轴是真机成功率。深蓝是用真实数据训练，浅蓝是用 3D World Simulator 数据训练。四组从左到右：带触觉的零件装配、不带触觉的零件装配、叠布、新视角下的推 T。右边上下两张小图是同一个新视角的真实画面和模拟画面。读图的数值约为 0.81 / 0.68、0.16 / 0.18、0.95 / 1.00、0.84 / 0.68，见读者注 4。</figcaption>
+</figure>
+<div class="note" id="n4"><span class="lab">读者注 4 · 图 6 的柱高和差距有多大</span>
+<p>从 PDF 里的原图按像素量柱高，八根柱子是 0.813、0.675、0.163、0.175、0.950、1.000、0.838、0.675。它们都正好是 1/80 的整数倍：65、54、13、14、76、80、67、54。这和“4 种策略、每种在真机上试 20 次”对得上，不过图 6 的试验次数论文只在 4.4 节对图 7 说过。</p>
+<p>按每根柱 80 次独立试验做双侧 Fisher 精确检验：零件装配 65 对 54，p ≈ 0.07；推 T 67 对 54，p ≈ 0.03；叠布 76 对 80，p ≈ 0.12。所以零件装配的“相当”勉强成立，推 T 的差距在统计上是显著的。</p>
+<p>附录 D.2 把推 T 成绩偏低归因于“新视角本身比俯视更难”，而不是渲染。但图 6 里真实数据训练的策略用的是同一个新视角，成功率 0.84。视角难度对两根柱子是一样的，解释不了 0.84 和 0.68 之间的差距，这个差距更可能来自模拟画面和真实画面的差别。图中的误差棒是怎么算的也没有说明。</p>
+</div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 模拟数据是怎么来的</span>
+<p>论文说“在 3D World Simulator 里也采 100 条示范”，但没有说动作从哪来：是人在模拟器里遥操，是重放真实示范的动作序列，还是别的方式。如果是重放真实动作，模拟数据和真实数据就是同一批轨迹的两种渲染，比较的其实是观测的真实度；如果是在模拟器里重新遥操，比较的还包括示范本身的差异。两种情况的含义不一样。</p>
+<p>同样，4.4 节在模拟器里评测策略时，成功怎么判定也没有说明。附录 D.1 的标准，比如插头插进插座、掩码 IoU 超过 0.6，在模拟器里分别怎样实现，论文没有交代。</p>
+</div>
+
+<h3 id="s4-4">4.4 可信的策略评测</h3>
+<p>为了检验 3D World Simulator 能否替代真机评测，作者看同一批策略在模拟器和真机上的成绩是否正相关。训练 ACT、DP、π0.5、Cosmos Policy 四种策略，任务同 4.3 节，每个任务采样 20 个初始配置。图 7 显示，三个任务、四种策略下，真机成绩和模拟器成绩高度相关。横轴是真机成功率，纵轴是模拟器里的成功率。每个点是一种策略在某个训练步的检查点，颜色区分策略类型。误差棒是 Clopper-Pearson 置信区间，模拟和真机每个点都各评测 20 次。</p>
+<figure class="pfig">
+<img src="3dws/fig7.webp" width="1188" height="343" alt="图 7：三个任务上模拟器成功率对真机成功率的散点图，r 分别为 0.958、0.965、0.859" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 9 页</span>三张散点图依次是零件装配、叠布、推 T，横轴是真机成功率，纵轴是模拟器成功率，虚线是拟合线。绿、橙、蓝、紫分别是 ACT、DP、π0.5（图中写作 Pi 0.5）和 Cosmos Policy。左上角标的 Pearson r 是 0.958、0.965、0.859。</figcaption>
+</figure>
+<div class="note" id="n6"><span class="lab">读者注 6 · 把图 7 的 36 个点读出来</span>
+<p>图 7 是矢量图，可以从 PDF 里直接取出每个点的坐标。每个任务 12 个点，每种策略 3 个检查点，坐标全部落在 1/20 的整数倍上，和每点 20 次试验一致。推 T 有一个 DP 点在 (0, 0)，被坐标轴遮住了一半，容易数漏。</p>
+<div class="tablewrap"><table class="t-f7">
+<thead><tr><th>任务</th><th>ACT</th><th>DP</th><th>π0.5</th><th>Cosmos</th></tr></thead>
+<tbody>
+<tr><td>零件装配</td><td>.15/.30 · .70/1 · .90/1</td><td>0/.20 · .60/.90 · .80/.95</td><td>.05/.25 · .35/.35 · .80/1</td><td>0/.15 · .30/.65 · .40/.45</td></tr>
+<tr><td>叠布</td><td>.05/.20 · .80/1 · 1/1</td><td>.20/.20 · .80/.95 · .90/1</td><td>.70/.75 · .75/1 · .95/.95</td><td>.05/.15 · .40/.65 · 1/1</td></tr>
+<tr><td>推 T</td><td>.10/.05 · .65/.45 · 1/.90</td><td>0/0 · .75/.50 · .80/.75</td><td>.15/.40 · .45/.15 · .85/.55</td><td>.20/.05 · .20/.35 · .60/.65</td></tr>
+</tbody></table></div>
+<p class="tcap">每格三个检查点，写作“真机 / 模拟”。</p>
+<p>用这些点复算 Pearson r，得到 0.956、0.964、0.859，和图上的 0.958、0.965、0.859 基本一致。再看几个图上没说的方面：</p>
+<ul>
+<li><b>相关主要来自训练进度。</b>每种策略都有一个刚开始训练、两边都很差的检查点和一个训练好、两边都很好的检查点，这就撑起了大部分相关性。在成绩相近的检查点之间，模拟器分辨力有限：66 对检查点里，排反的分别有 3、4、8 对。</li>
+<li><b>有天花板。</b>叠布有 5 个检查点在模拟器里是满分，它们的真机成绩从 0.75 到 1.0；零件装配有 3 个模拟满分，真机是 0.7 到 0.9。用模拟器挑最好的检查点，在这两个任务上挑不出来。</li>
+<li><b>有系统偏差。</b>模拟成功率减真机成功率，平均是零件装配 +0.18、叠布 +0.10、推 T −0.08。前两个任务模拟器偏乐观，推 T 偏悲观。相关性高说明排序大体对，不说明绝对成功率可以直接拿来用。</li>
+<li><b>每点只有 20 次。</b>例如 14/20 的 95% Clopper-Pearson 区间是 0.46 到 0.88，单个点的不确定度本身就很大。</li>
+</ul>
+</div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 图 6 和图 7 不是同一批策略</span>
+<p>图 7 里每种策略在零件装配上真机成绩最好的检查点分别是 ACT 0.90、DP 0.80、π0.5 0.80、Cosmos 0.40，平均 0.725。图 6 里用真实数据训练的零件装配平均成绩却是 0.81。推 T 和叠布对应的两组数是 0.81 对 0.84、0.96 对 0.95，也不完全一致。所以图 6 和图 7 用的不是同一批训练结果，或者不是取每种策略最好的检查点。图 7 的策略是用真实数据还是模拟数据训练的，论文也没有说。</p>
+</div>
+
+<h3 id="s4-5">4.5 对未见物体做基于模型的规划</h3>
+<p>把在 Deform360 上预训练好的模型用于下游规划。实验用一套训练时没见过的 ALOHA 单臂设置，加四个没见过的物体：布、绳子、泡沫块和树懒玩偶。规划用模型预测控制，具体是 PGND 里现成的 MPPI 实现。图 8 从定性和定量两方面说明，预训练模型可以零样本完成规划。</p>
+<figure class="pfig">
+<img src="3dws/fig8.webp" width="1214" height="269" alt="图 8：布、绳、泡沫、树懒四个未见物体的规划结果，每行是初始、规划、最终和目标状态" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 9 页</span>每行一个物体，从左到右是初始状态、规划过程、最终状态和目标。最终状态上标了与目标的 Chamfer 距离：布 0.031、绳 0.024、泡沫 0.035、树懒 0.047。</figcaption>
+</figure>
+<div class="note" id="n8"><span class="lab">读者注 8 · 图 8 的“定量”结果很薄</span>
+<p>图 8 每个物体只有一次规划，给的是最终状态和目标之间的一个 CD 值。这个 CD 没有单位：表 2 的 CD 单位是毫米、数值在 10 左右，图 8 的 0.024 到 0.047 显然不是同一单位，可能是米，也就是 2.4 到 4.7 厘米。另外没有成功标准，没有多次试验，也没有和其他模型（比如 PGND 自己）对比。所以这一节能说明“可以用来规划”，但说明不了规划得多好。</p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>结论</h2>
+<p>论文提出 3D World Simulator，一个在统一 3D 表示空间里预测的动作条件多模态世界建模框架，用一个公共接口生成 3D 粒子、多视角一致的 RGB 渲染和触觉预测。这个统一模型支持多种应用：为视触觉策略、依赖多视角、新视角和腕部相机的策略生成训练数据；评测这些策略，模拟与真机结果强相关；在大规模数据上训练后，对未见物体和机器人配置做基于模型的规划。今后计划扩展到更多样、更有挑战的环境，以及多房间场景和移动操作等更大规模的场景。</p>
+<p>致谢中列出的资助来自 Analog Devices、丰田研究院和美国国家科学基金会（NSF 2409661）。</p>
+
+<h2 id="apA"><span class="no">A</span>更多实验结果：Deform360</h2>
+<div class="tablewrap"><table class="t-2">
+<thead><tr><th rowspan="2">方法</th><th colspan="3">训练物体</th><th colspan="3">留出物体</th></tr>
+<tr><th class="n">PSNR ↑</th><th class="n">LPIPS ↓</th><th class="n">CD (mm) ↓</th><th class="n">PSNR ↑</th><th class="n">LPIPS ↓</th><th class="n">CD (mm) ↓</th></tr></thead>
+<tbody>
+<tr><td>PGND</td><td class="n">14.9</td><td class="n">0.41</td><td class="n">18.6</td><td class="n">12.3</td><td class="n">0.50</td><td class="n">25.2</td></tr>
+<tr><td>PointWorld</td><td class="n">16.8</td><td class="n">0.34</td><td class="n">12.4</td><td class="n">15.0</td><td class="n">0.58</td><td class="n">14.5</td></tr>
+<tr><td>ParticleFormer</td><td class="n">18.0</td><td class="n">0.30</td><td class="n">10.5</td><td class="n best">15.6</td><td class="n best">0.31</td><td class="n">13.4</td></tr>
+<tr><td><b>本方法</b></td><td class="n best">18.6</td><td class="n best">0.26</td><td class="n best">9.6</td><td class="n">14.8</td><td class="n">0.43</td><td class="n best">12.1</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · 原文第 16 页。Deform360 上的定量对比，在 150 步开环展开上平均。加底色的是每列最好的值。见过的物体上本方法各项都最好；留出物体上几何仍最好，渲染质量较差。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 表 2 的留出物体</span>
+<p>留出物体上，本方法的 PSNR 14.8 低于 ParticleFormer 的 15.6 和 PointWorld 的 15.0，LPIPS 0.43 也比 ParticleFormer 的 0.31 差得多，只有 CD 最好。表注把这个结果写成“This advantage can be explained by...”，按上下文应该是劣势。</p>
+<p>作者给的解释是粒子基线在预先拟合好的高斯泼溅上移动点，外观是从数据里拿来的，而本方法要从头生成外观。这个解释说得通，但也说明在这个对比里，粒子基线在外观上拿到了额外的信息，两边的条件并不完全相同。另外，表 2 是在 150 步上平均，表 1 是 200 步，两张表的数字不能直接对比。</p>
+</div>
+
+<h2 id="apB"><span class="no">B</span>模型和训练细节</h2>
+<p>下面给出自编码器和动力学模型在 ALOHA 数据集和 Deform360 数据集上的细节。</p>
+<h3 id="apB-1">B.1 粒子-体素混合自编码器</h3>
+<p><b>表示。</b>ALOHA 的观测是裁剪后的操作空间，包括机器人、物体，有触觉时还包括触觉点。Deform360 的观测是物体点云。所有位置在体素化之前都变换到同一个坐标系。两个数据集的编码器都输出 8 通道的潜变量网格。</p>
+<div class="tablewrap"><table class="t-3">
+<thead><tr><th>设置</th><th>ALOHA</th><th>Deform360</th></tr></thead>
+<tbody>
+<tr><td>潜变量网格 (X, Y, Z)</td><td>32 × 16 × 32</td><td>32 × 32 × 32</td></tr>
+<tr><td>潜变量通道数</td><td>8</td><td>8</td></tr>
+<tr><td>工作空间尺寸 (X, Y, Z)，米</td><td>0.52 × 0.32 × 0.28</td><td>0.515 × 0.525 × 0.38</td></tr>
+<tr><td>稀疏编码器宽度</td><td>8, 16, 32, 64</td><td>8, 16, 32, 64</td></tr>
+<tr><td>体素解码器宽度</td><td>256, 128, 64</td><td>320, 160, 80</td></tr>
+<tr><td>粒子头隐藏宽度</td><td>64</td><td>64</td></tr>
+<tr><td>粒子细化阶段数</td><td>2</td><td>2</td></tr>
+<tr><td>高斯尺度</td><td>各向异性</td><td>各向异性</td></tr>
+<tr><td>球谐阶数</td><td>1</td><td>1</td></tr>
+<tr><td>触觉监督</td><td>开启</td><td>关闭</td></tr>
+<tr><td>最大输入点数</td><td>300,000</td><td>50,000</td></tr>
+<tr><td>每进程批大小</td><td>1</td><td>1</td></tr>
+<tr><td>初始学习率</td><td>2 × 10⁻⁴</td><td>2 × 10⁻⁴</td></tr>
+<tr><td>最小学习率</td><td>10⁻⁵</td><td>10⁻⁵</td></tr>
+<tr><td>权重衰减</td><td>10⁻⁴</td><td>10⁻⁴</td></tr>
+<tr><td>潜变量噪声标准差</td><td>0.1</td><td>0.1</td></tr>
+<tr><td>一致性系数</td><td>100</td><td>100</td></tr>
+<tr><td>KL 正则</td><td>关闭</td><td>关闭</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 原文第 17 页。两个数据集上自编码器的精确配置。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 潜变量有多大，一个体素有多大</span>
+<p>ALOHA 的潜变量是 32 × 16 × 32 × 8 = 131,072 个数，Deform360 是 32³ × 8 = 262,144 个数。按表 3 的工作空间尺寸，ALOHA 一个潜变量体素是 0.52/32 × 0.32/16 × 0.28/32 米，也就是 16.25 × 20 × 8.75 毫米，三个方向并不相同，竖直方向最细。Deform360 是 16.1 × 16.4 × 11.9 毫米。</p>
+<p>动力学模型的注意力在下采样两次之后做：ALOHA 是 8 × 4 × 8 = 256 个空间 token，Deform360 是 8³ = 512 个，每个 token 对应 4 × 4 × 4 个潜变量体素，ALOHA 上约 6.5 × 8 × 3.5 厘米。5 帧历史加 1 个预测槽，每次前向一共 6 × 256 = 1536 个 token。</p>
+<p>论文没有给的是：输入体素化的分辨率（编码器有 4 个宽度，可能对应 3 次下采样，但没写），解码器三级占据各是什么分辨率，以及稠密潜变量网格里没被占据的格子填的是什么。</p>
+</div>
+<p><b>解码器。</b>体素解码器在三个分辨率上预测占据，在最细的分辨率上预测颜色。被占据的体素作为种子，进入两个连续的粒子细化阶段。粒子头预测连续位置和高斯渲染属性，主要是各向异性高斯和一阶球谐系数。</p>
+<p><b>体素监督。</b>每一级解码分辨率上用二元交叉熵监督占据。体素 RGB 在被占据的格子上用 \(\ell_1\) 监督，触觉粒子和视觉粒子都算在内。</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{voxel}}=\sum_{\ell}\lambda_{\mathrm{occ},\ell}\,\mathcal{L}^{(\ell)}_{\mathrm{BCE}} \]</div><span class="no">(2)</span></div>
+<p>有触觉观测时，还用二元交叉熵监督触觉占据，在触觉占据的格子上用 \(\ell_1\) 监督触觉信号值；没有触觉监督时省去这些项。空间加权会突出物体和接触区域。</p>
+<p><b>粒子监督。</b>对每个被占据的种子体素，记 \(\hat P\) 为它预测的粒子，\(P\) 为它局部体素邻域内的真实点。用局部双向 Chamfer 距离：</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{CD}}=\frac{1}{\lvert\hat P\rvert}\sum_{\hat p\in\hat P}\min_{p\in P}\lVert\hat p-p\rVert_2+\frac{1}{\lvert P\rvert}\sum_{p\in P}\min_{\hat p\in\hat P}\lVert p-\hat p\rVert_2 \]</div><span class="no">(3)</span></div>
+<p>这个目标在有效的种子邻域上取平均，两个粒子细化阶段都用；邻域里没有真实点的不参与这一项。颜色监督时，把每个真实点分给邻域内最近的预测粒子，分到的真实点颜色的平均值作为这个粒子的 \(\ell_1\) 目标。粒子损失合起来是</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{particle}}=\sum_{r}\Big(\mathcal{L}^{(r)}_{\mathrm{CD}}+\mathcal{L}^{(r)}_{\mathrm{rgb}}\Big) \]</div><span class="no">(4)</span></div>
+<p>\(r\) 遍历两个细化阶段。</p>
+<p><b>渲染监督。</b>对训练相机 \(j\)，预测的高斯渲染出 RGB 图 \(\hat I_j\)、深度 \(\hat D_j\) 和不透明度。渲染损失为</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{render}}=\lambda_{\mathrm{RGB}}\Big(\mathcal{L}^{\mathrm{RGB}}_{1}+\lambda_{\mathrm{SSIM}}\,\mathcal{L}_{\mathrm{SSIM}}+\mathcal{L}_{\mathrm{LPIPS}}\Big)+\mathcal{L}^{\mathrm{Depth}}_{1} \]</div><span class="no">(5)</span></div>
+<p>其中</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{SSIM}}=\frac{1-\mathrm{SSIM}(\hat I_j,I_j)}{2} \]</div><span class="no">(6)</span></div>
+<p>图像损失在所有受监督的相机视角上累加。取 \(\lambda_{\mathrm{RGB}}=4\)，\(\lambda_{\mathrm{SSIM}}=0.5\)。</p>
+<p><b>子采样一致性。</b>对同一观测独立采样两份点云，用同一组权重编码，最小化</p>
+<div class="eq"><div class="m">\[ \mathcal{L}_{\mathrm{cons}}=\frac{1}{c\,\lvert\Omega_t\rvert}\sum_{v\in\Omega_t}\Big\lVert E_\theta\big(P^{(1)}_t\big)(v)-E_\theta\big(P^{(2)}_t\big)(v)\Big\rVert_2^2 \]</div><span class="no">(7)</span></div>
+<p>\(\Omega_t\) 是被占据的潜变量格子，\(c\) 是通道数。用颜色增强时，两份子采样做同样的颜色变换，所以一致性项不会鼓励模型对物体外观不敏感。表 3 里一致性系数是 100。</p>
+<p><b>训练阶段。</b>参考配方先训练体素自编码器 10 个 epoch；接下来 10 个 epoch 冻结体素自编码器，只训练粒子头和渲染头；之后自编码器和粒子头联合优化。</p>
+
+<h3 id="apB-2">B.2 3D 潜空间动力学</h3>
+<p><b>逐帧空间编码器。</b>观测历史有 \(H\) 个潜变量网格，含最新一帧：\(z_{t-H+1},\ldots,z_t\)。一个共享的 3D 卷积编码器独立处理每一帧，保留显式的时间维。两个空间下采样阶段分别得到潜变量网格 1/2 和 1/4 分辨率的特征。</p>
+<p><b>动作条件。</b>每个观测帧配上对应的机器人状态或动作描述；一个未来查询槽以所请求预测步的动作为条件。一个 MLP 把动作、相对时间戳和历史噪声水平嵌入，并注入各个特征块。在 Deform360 上，动作描述包括每个夹爪的 3D 位置、<a class="ds" href="https://arxiv.org/abs/1812.07035">6D 旋转表示</a>、开合度和是否存在的标志，位置和朝向与物体潜变量在同一坐标系。在 ALOHA 上，描述由机器人运动学和夹爪状态得到。还可以给每帧拼接 4 个空间动作通道：每个夹爪一个位置热图和一个按开合度调制的热图。未来查询使用目标动作的空间通道；不存在的夹爪对应全零通道。</p>
+<p><b>分解的时空注意力。</b>在最粗的分辨率上，模型交替做空间注意力和时间注意力。空间注意力作用于一帧内的所有粗体素：</p>
+<div class="eq"><div class="m">\[ \bar h_\tau=h_\tau+\mathrm{SA}\big(\mathrm{LN}(h_\tau)\big) \]</div><span class="no">(8)</span></div>
+<p>时间注意力再在每个粗空间位置上跨帧槽进行：</p>
+<div class="eq"><div class="m">\[ h'_{\tau,v}=\bar h_{\tau,v}+\mathrm{TA}_{\mathrm{causal}}\big(\mathrm{LN}(\bar h_{\le\tau,v})\big) \]</div><span class="no">(9)</span></div>
+<p>每个注意力块都带残差前馈网络，空间位置和时间偏移都显式编码。未来查询可以看所有观测帧，但永远看不到未来的真实潜变量特征。对 32³ 的潜变量，注意力作用在每帧 8³ = 512 个空间 token 上，不必在全部 32³ 个细网格位置上做注意力；ALOHA 网格对应的粗网格是 8 × 4 × 8。</p>
+<p><b>解码器和跳连。</b>一个共享的 3D 解码器把注意力特征上采样回原潜变量分辨率。预测槽的跳连特征取自最近一个可用的历史帧；开环预测时，这一帧本身可能就是模型之前的预测。跳连路径里不会用到未来的真实特征。输出直接就是潜变量预测，每预测一步只需调用一次网络。</p>
+<div class="tablewrap"><table class="t-4">
+<thead><tr><th>设置</th><th>ALOHA</th><th>Deform360</th></tr></thead>
+<tbody>
+<tr><td>潜变量网格</td><td>32 × 16 × 32</td><td>32³</td></tr>
+<tr><td>潜变量通道数</td><td>8</td><td>8</td></tr>
+<tr><td>历史帧数</td><td>5</td><td>5</td></tr>
+<tr><td>编码器宽度</td><td>128, 256, 512</td><td>128, 256, 512</td></tr>
+<tr><td>卷积核</td><td>3³</td><td>3³</td></tr>
+<tr><td>空间下采样阶段数</td><td>2</td><td>2</td></tr>
+<tr><td>注意力网格</td><td>8 × 4 × 8</td><td>8³</td></tr>
+<tr><td>时空块对数</td><td>4</td><td>4</td></tr>
+<tr><td>注意力头数</td><td>8</td><td>8</td></tr>
+<tr><td>每头维度</td><td>64</td><td>64</td></tr>
+<tr><td>前馈扩展倍数</td><td>2</td><td>2</td></tr>
+<tr><td>动作嵌入维度</td><td>512</td><td>512</td></tr>
+<tr><td>每次前向的预测步数</td><td>1</td><td>1</td></tr>
+<tr><td>优化器</td><td>AdamW</td><td>AdamW</td></tr>
+<tr><td>权重衰减</td><td>10⁻⁴</td><td>10⁻⁴</td></tr>
+<tr><td>梯度裁剪</td><td>10</td><td>10</td></tr>
+<tr><td>历史噪声最大标准差</td><td>0.4</td><td>0.4</td></tr>
+<tr><td>展开折扣 γ</td><td>0.95</td><td>0.95</td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · 原文第 19 页。3D 潜空间动力学模型的配置。</p>
+<p><b>自回归训练。</b>先用冻结的自编码器预先算好潜变量序列。每个训练样本从观测历史开始：模型预测一个未来潜变量，把它接到历史末尾，去掉最老的一帧，如此重复。真实的未来潜变量只用作损失的目标。用 \(K\) 表示受监督的预测步数，\(K=1\) 就是只训练下一帧，这样就不会和只数额外反馈步数的实现混淆。受监督的各步用 \(\gamma=0.95\) 折扣，定义见 3.3 节。对每个历史帧，采样 \(\sigma_\tau\sim\mathcal{U}(0,\sigma_{\max})\)，令</p>
+<div class="eq"><div class="m">\[ \tilde z_\tau=z_\tau+\sigma_\tau\,\epsilon_\tau,\qquad \epsilon_\tau\sim\mathcal{N}(0,I) \]</div><span class="no">(10)</span></div>
+<p>网络把 \(\sigma_\tau\) 作为条件输入。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 历史噪声其实很大</span>
+<p>3.2 节说每个潜变量体素沿通道做了单位归一化，也就是 8 维向量的长度是 1，每个通道的均方根约为 \(1/\sqrt8\approx0.354\)。式 (10) 的噪声是逐通道独立的，\(\sigma_{\max}=0.4\)。在最大噪声下，噪声的单通道标准差已经超过信号的单通道均方根，噪声向量长度约为 \(0.4\sqrt8\approx1.13\)，比信号本身还长。</p>
+<p>由于 \(\sigma_\tau\) 是在 0 到 0.4 之间均匀采样的，这个强度只出现在一部分样本上。它说明作者为了长时程稳定，主动让模型学会面对噪声很重的历史，这也是模型要以 \(\sigma_\tau\) 为条件的原因。作为对照，自编码器里的潜变量噪声是 0.1，对应噪声向量长度约 0.28。这里假设噪声加在归一化之后的潜变量上，论文没有明说。</p>
+</div>
+
+<h2 id="apC"><span class="no">C</span>ALOHA 数据集的任务设置</h2>
+<h3 id="apC-1">C.1 任务描述与设置</h3>
+<ul>
+<li><b>零件装配：</b>左臂抓住插座，右臂从不同的初始位置抓住插头。右臂先把插头压在插座上调整朝向，再提起插进插座。</li>
+<li><b>叠布：</b>左臂先抓住布的左上边缘提起来，让上边缘绷直；右臂沿这条边滑过去把布展开；然后两臂一起把布叠好。</li>
+<li><b>推 T：</b>两个夹爪都闭合，限制在桌面平面内运动，用来把 T 形块推到不同位置。</li>
+<li><b>插马克笔：</b>左臂从笔筒里抓出马克笔，右臂接过来，通过滑动和转动在手里把笔调到 90 度，再由左臂把笔插进笔座。</li>
+<li><b>穿绳：</b>绳子开始时是卷曲交叠的。右臂抓住绳子一端，左臂沿绳子反复滑动直到另一端，抓住另一端附近后把它穿进一个吊环。</li>
+<li><b>装箱：</b>盒盖开始是打开的，平放在桌上。两个夹爪一起抬起盒盖把盒子合上。</li>
+</ul>
+<p><b>相机。</b>三台静态的 RealSense D455 双目相机，一台俯视，两台从工作空间两侧朝前；另外每条手臂上装一台腕部 RealSense D405。</p>
+<p><b>数据处理。</b>每台相机的双目图像先用 <a class="ds" href="https://github.com/NVlabs/FoundationStereo">FoundationStereo</a> 算深度，再反投影到世界坐标系得到点云。触觉粒子的位置用 ALOHA 关节角做正运动学，算出触觉垫的位置。最后用手工设定的工作空间包围盒裁剪点云。</p>
+
+<h3 id="apC-2">C.2 开环展开的定性可视化</h3>
+<p>下面六张图是六个任务的开环展开。每张图五列是第 0、50、100、150、200 步，四行是点云、俯视、前视和后视渲染。</p>
+<figure class="pfig">
+<img src="3dws/fig9.webp" width="1204" height="749" alt="图 9：插马克笔任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 20 页</span>插马克笔。两臂配合把笔从笔筒里取出、调整姿态，点云和三个渲染视角在 200 步里保持一致。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig10.webp" width="1208" height="750" alt="图 10：穿绳任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 21 页</span>穿绳。深蓝色的绳子随两臂动作被拉直、移动，木板上的吊环在各视角里位置一致。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig11.webp" width="1206" height="749" alt="图 11：零件装配任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 21 页</span>零件装配。蓝色插座和插头在两手之间对准、插入。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig12.webp" width="1204" height="748" alt="图 12：装箱任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 22 页</span>装箱。青色盒盖从平放、被抬起到合上，铰接物体的运动在四个视角里一致。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig13.webp" width="1206" height="749" alt="图 13：推 T 任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 22 页</span>推 T。粉色 T 形块被两个闭合的夹爪推着平移和旋转。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig14.webp" width="1204" height="748" alt="图 14：叠布任务的开环展开" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 23 页</span>叠布。绿色的布被提起、展开、对折，可变形物体的形状在各视角里一致。</figcaption>
+</figure>
+
+<h3 id="apC-3">C.3 基线细节</h3>
+<p>为了让 Cosmos 能预测深度、渲染多视角，按其指南把四个视角拼成一张图，再加上映射到 RGB 空间的深度。IWS 改成在 RGB 之外也预测深度，并按其训练指南为每个视角拼接一个潜变量。Robot4DGen 本来就是 3D 感知的、支持多视角渲染，按原配方训练。3D 粒子基线用 <a class="ds" href="https://co-tracker.github.io/">CoTracker</a> 为每个物体和场景点提供点轨迹来训练。</p>
+
+<h2 id="apD"><span class="no">D</span>策略训练和评测细节</h2>
+<h3 id="apD-1">D.1 评测标准</h3>
+<p>零件装配：插头成功插进插座算成功。叠布：没抓到布边算失败；抓到布边且掩码 IoU 高于 0.6 算成功。推 T：掩码 IoU 高于 0.60 算成功。</p>
+<h3 id="apD-2">D.2 任务细节</h3>
+<p><b>零件装配。</b>策略只看右腕相机，插座在左手里被严重遮挡，所以能否插进去取决于腕部相机观测和触觉反馈都要准。</p>
+<p><b>推 T。</b>使用一个世界模型训练时没见过的新视角。作者认为成绩略低，多半是因为这个新视角本身比俯视更难完成任务，而不是渲染的问题（参见读者注 4）。</p>
+<p><b>叠布。</b>策略要沿布边滑动，而这段布边在前视相机里看不到，体现多视角观测的用处。</p>
+<h3 id="apD-3">D.3 策略训练细节</h3>
+<p>在叠布、零件装配、推 T 三个任务上训练 ACT、DP、π0.5 和 Cosmos。每个任务 100 条示范，以 10 Hz 记录，90 条训练、10 条留出。叠布用前视和腕部相机，零件装配用腕部相机加触觉，推 T 用单个新视角相机。真实图像经过颜色校正、裁剪和缩放，以匹配对应的模拟观测。ACT 和 DP 输入 128 × 128 的图像，π0.5 和 Cosmos 输入 224 × 224。</p>
+<p>零件装配的触觉观测是 4 块 12 × 32 的触觉垫。归一化前加一个小的死区，训练时做少量触觉增强；叠布和推 T 不用触觉输入。ACT 和 DP 用批大小 64 训练 30,000 步，π0.5 用批大小 8 训练 30,000 步。ACT 每次预测 30 个动作块，DP 预测 16 步，π0.5 预测 30 个动作块。ACT 用 ImageNet 初始化的 ResNet-18 视觉编码器加 Transformer 策略；DP 用 ResNet-18 视觉编码器加条件时序 U-Net 扩散模型；π0.5 用 LoRA 微调；Cosmos 从 <code>Cosmos-Policy-ALOHA-Predict2-2B</code> 初始化。图像增强用随机颜色抖动、随机裁剪和模糊；零件装配的触觉增强用稀疏噪声、dropout 和高斯噪声。</p>
+<div class="tablewrap"><table class="t-5">
+<thead><tr><th></th><th>ACT</th><th>DP</th><th>π0.5</th><th>Cosmos Policy</th></tr></thead>
+<tbody>
+<tr><td>输入分辨率</td><td>128²</td><td>128²</td><td>224²</td><td>224²</td></tr>
+<tr><td>观测历史</td><td>1</td><td>2</td><td>1</td><td>1</td></tr>
+<tr><td>动作时域</td><td>30</td><td>16</td><td>30</td><td>30</td></tr>
+<tr><td>批大小</td><td>64</td><td>64</td><td>8</td><td>192</td></tr>
+<tr><td>学习率</td><td>10⁻⁵</td><td>10⁻⁴</td><td>2.5 × 10⁻⁵</td><td>10⁻⁴</td></tr>
+<tr><td>优化器</td><td>AdamW</td><td>Adam</td><td>AdamW</td><td>AdamW</td></tr>
+<tr><td>训练步数</td><td>30k</td><td>30k</td><td>30k</td><td>10k</td></tr>
+</tbody></table></div>
+<p class="tcap">表 5 · 原文第 24 页。策略训练配置。</p>
+
+<h3 id="apD-4">D.4 真实示范的可视化</h3>
+<figure class="pfig">
+<img src="3dws/fig15.webp" width="1196" height="614" alt="图 15：推 T、叠布、零件装配三个任务的真实示范" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 24 到 25 页</span>三行是推 T、叠布和零件装配的真实模仿学习数据，从左到右按时间排列。</figcaption>
+</figure>
+<h3 id="apD-5">D.5 世界模型生成的策略输入</h3>
+<figure class="pfig">
+<img src="3dws/fig16.webp" width="1205" height="301" alt="图 16：零件装配任务中世界模型生成的腕部相机画面" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 25 页</span>零件装配：世界模型生成的腕部相机画面，作为策略输入。蓝色插头在橙色夹爪之间逐步对准。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig17.webp" width="1204" height="529" alt="图 17：叠布任务中世界模型生成的前视和腕部相机画面" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 25 页</span>叠布：世界模型生成的前视（上）和腕部（下）画面。腕部视角里能看到夹爪沿布边滑动，这正是前视相机看不到的部分。</figcaption>
+</figure>
+<figure class="pfig">
+<img src="3dws/fig18.webp" width="1211" height="304" alt="图 18：推 T 任务的俯视相机策略输入" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 25 页</span>推 T：俯视相机的策略输入。注意 D.3 说推 T 的策略用的是一个新视角，这张图的标题写的却是俯视相机，两处说法对不上。</figcaption>
+</figure>
+<div class="note" id="n12"><span class="lab">读者注 12 · 文字上的小问题</span>
+<ul>
+<li>第 3 节开头说“在 3.5 节讲推理”，跳过了 3.4 节；3.2 节标题写作 voxel–particle，其他地方都是 particle-voxel。</li>
+<li>附录目录里 A 节标的页码是 24，实际在第 16 页；A 节下的小节编号是 A.0.1，目录里写 A.1。</li>
+<li>图 3 里的 4DGen 就是正文的 Robot4DGen；图 4 的 Push T 就是 T Pushing；图 7 的 Pi 0.5 就是 π0.5。</li>
+<li>D.3 说推 T 用“单个新视角相机”，D.2 也说用新视角，但图 18 的标题是“俯视相机的策略输入”。</li>
+<li>3.4 节有拼写错误 specificied。</li>
+</ul>
+</div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点标题跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">最终的 K 没有给出</a>：γ = 0.95 时第 10 步权重 0.63、第 50 步 0.08，K 取多少差别很大。</li>
+<li><a href="#n2">50 Hz 和 200 步</a>：没有计时数据，数据帧率也没交代，200 步可能是 4 秒也可能是 20 秒。</li>
+<li><a href="#n3">表 1</a>：CD 没单位，粒子基线怎样预测触觉没说，视频基线的场景 CD 反而全部好过粒子基线。</li>
+<li><a href="#n4">图 6 的差距</a>：柱高是 k/80；零件装配 p ≈ 0.07，推 T p ≈ 0.03；D.2 的“视角更难”解释不了同视角下的差距。</li>
+<li><a href="#n5">模拟数据的来源</a>：模拟示范的动作从哪来、模拟器里怎样判定成功，都没有说明。</li>
+<li><a href="#n6">图 7 的 36 个点</a>：复算 r 为 0.956、0.964、0.859；相关主要来自训练进度，模拟器有天花板和系统偏差。</li>
+<li><a href="#n7">图 6 与图 7</a>：两图的策略成绩对不上，不是同一批结果；图 7 策略的训练数据来源没说。</li>
+<li><a href="#n8">图 8 的定量结果</a>：每个物体一次规划，CD 没单位，没有成功标准和对比。</li>
+<li><a href="#n9">表 2 的留出物体</a>：本方法 PSNR 和 LPIPS 都不是最好，表注把劣势写成了 advantage；两张表的展开步数不同。</li>
+<li><a href="#n10">潜变量和体素的尺寸</a>：ALOHA 潜变量 131,072 个数，一个体素 16.25 × 20 × 8.75 毫米；每帧 256 个注意力 token；输入体素分辨率等没有给出。</li>
+<li><a href="#n11">历史噪声很大</a>：单位长度的 8 通道潜变量，单通道约 0.354；σ 最大 0.4 时噪声向量比信号还长。</li>
+<li><a href="#n12">文字上的小问题</a>：章节号、目录页码、图中名称不统一，图 18 标题与 D.3 矛盾。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的模型、数据集、传感器和工具。名字链接到主页，没有主页的链接到论文；所有链接在 2026 年 11 月 5 日核对过可以打开。</p>
+<div class="tablewrap"><table class="t-links">
+<thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead>
+<tbody>
+<tr><td><a class="ds" href="https://jwang771.github.io/3dworldsimulator/">3D World Simulator</a></td><td>本文</td><td>jwang771.github.io/3dworldsimulator</td><td><a href="https://arxiv.org/abs/2611.04492">2611.04492</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/jwang771/3d-world-simulator">3d-world-simulator</a></td><td>本文代码</td><td>github.com/jwang771/3d-world-simulator</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2607.05390">Deform360</a></td><td>大规模多视角视触觉数据集，198 种物体</td><td>–</td><td><a href="https://arxiv.org/abs/2607.05390">2607.05390</a></td></tr>
+<tr><td><a class="ds" href="https://tonyzhaozh.github.io/aloha/">ALOHA / ACT</a></td><td>低成本双臂机器人和动作分块策略</td><td>tonyzhaozh.github.io/aloha</td><td><a href="https://arxiv.org/abs/2304.13705">2304.13705</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2604.28156">FlexiTac</a></td><td>低成本开源触觉传感器</td><td>–</td><td><a href="https://arxiv.org/abs/2604.28156">2604.28156</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2410.24091">3D-ViTac</a></td><td>把触觉表示成 3D 点的视触觉策略</td><td>–</td><td><a href="https://arxiv.org/abs/2410.24091">2410.24091</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2603.08546">IWS</a></td><td>Interactive World Simulator，2D 视频基线</td><td>–</td><td><a href="https://arxiv.org/abs/2603.08546">2603.08546</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2507.01099">Robot4DGen</a></td><td>几何感知的 4D 视频生成，视频基线</td><td>–</td><td><a href="https://arxiv.org/abs/2507.01099">2507.01099</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/nvidia-cosmos">Cosmos</a></td><td>NVIDIA 世界基础模型，视频基线</td><td>github.com/nvidia-cosmos</td><td><a href="https://arxiv.org/abs/2501.03575">2501.03575</a></td></tr>
+<tr><td><a class="ds" href="https://kywind.github.io/pgnd">PGND</a></td><td>粒子-网格神经动力学，粒子基线，规划用的 MPPI 也来自它</td><td>kywind.github.io/pgnd</td><td><a href="https://arxiv.org/abs/2506.15680">2506.15680</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2601.03782">PointWorld</a></td><td>大规模 3D 点云世界模型，粒子基线</td><td>–</td><td><a href="https://arxiv.org/abs/2601.03782">2601.03782</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2506.23126">ParticleFormer</a></td><td>多物体多材质的点云世界模型，粒子基线</td><td>–</td><td><a href="https://arxiv.org/abs/2506.23126">2506.23126</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2407.01418">RoboPack</a></td><td>3D 空间里的触觉动力学，用于装箱</td><td>–</td><td><a href="https://arxiv.org/abs/2407.01418">2407.01418</a></td></tr>
+<tr><td><a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a></td><td>扩散模型策略</td><td>diffusion-policy.cs.columbia.edu</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td></tr>
+<tr><td><a class="ds" href="https://www.physicalintelligence.company/blog/pi05">π0.5</a></td><td>视觉-语言-动作模型</td><td>physicalintelligence.company</td><td><a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td></tr>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-policy/">Cosmos Policy</a></td><td>由视频模型微调的策略</td><td>research.nvidia.com</td><td><a href="https://arxiv.org/abs/2601.16163">2601.16163</a></td></tr>
+<tr><td><a class="ds" href="https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/">3D Gaussian Splatting</a></td><td>粒子渲染用的 3D 高斯表示</td><td>repo-sam.inria.fr</td><td><a href="https://arxiv.org/abs/2308.04079">2308.04079</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/FoundationStereo">FoundationStereo</a></td><td>零样本双目深度估计，用来得到点云</td><td>github.com/NVlabs/FoundationStereo</td><td><a href="https://arxiv.org/abs/2501.09898">2501.09898</a></td></tr>
+<tr><td><a class="ds" href="https://co-tracker.github.io/">CoTracker</a></td><td>点跟踪，用来给粒子基线做监督</td><td>co-tracker.github.io</td><td><a href="https://arxiv.org/abs/2307.07635">2307.07635</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1606.06650">3D U-Net</a></td><td>动力学模型的骨架</td><td>–</td><td><a href="https://arxiv.org/abs/1606.06650">1606.06650</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1711.10275">稀疏卷积</a></td><td>编码器用的子流形稀疏卷积</td><td>–</td><td><a href="https://arxiv.org/abs/1711.10275">1711.10275</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2102.05095">TimeSformer</a></td><td>分解的时空注意力</td><td>–</td><td><a href="https://arxiv.org/abs/2102.05095">2102.05095</a></td></tr>
+<tr><td><a class="ds" href="simpler.html">SIMPLER</a></td><td>本站的另一篇精读，同样讨论仿真评测和真机成绩的相关性</td><td>本站</td><td><a href="https://arxiv.org/abs/2405.05941">2405.05941</a></td></tr>
+</tbody></table></div>
+
+<footer>
+<p>依据 arXiv 2611.04492v1 的 PDF 整理的中文精读。原文：Jimmy Wang、Yifan Chou、Kaifeng Zhang 等，《Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation》，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。插图取自原文 PDF，只做了裁切；表格数字照录原文；“读者注”里的核算和推断是本页所加。</p>
+</footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

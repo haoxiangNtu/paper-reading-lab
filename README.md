@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation（[arXiv 2611.04492](https://arxiv.org/abs/2611.04492)，2026-11，CC BY 4.0） | [3D World Simulator 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/3dws.html) | 粒子-体素混合的 3D 动作条件世界模型，同时预测外观、几何和触觉，含原文插图 | 12 条 |
 | Evaluating Real-World Robot Manipulation Policies in Simulation（[arXiv 2405.05941](https://arxiv.org/abs/2405.05941)，2024-05，CC BY 4.0） | [SIMPLER 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/simpler.html) | 用仿真代替真机评测机器人操作策略，含原文插图 | 15 条 |
 | GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models（[arXiv 2608.05948](https://arxiv.org/abs/2608.05948)，2026-08） | [GAUGE 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gauge.html) | 用真实测量评测物理引擎和视频世界模型的物理保真度 | 15 条 |
 
@@ -24,6 +25,21 @@
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
 | [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
+
+## 3D World Simulator 读后要点
+
+3D World Simulator 把 RGB-D 点云压成 3D 体素潜变量，用 3D U-Net 加时空注意力在潜空间里按动作自回归预测，再解码成带 3D 高斯的粒子，所以同一个预测状态能渲染任意视角，也能输出触觉粒子。论文的结论：
+
+- ALOHA 六个任务上 200 步开环预测，各项指标都好过 Cosmos、Robot4DGen、IWS 三个视频基线和 PGND、PointWorld、ParticleFormer 三个粒子基线。
+- 只用模拟器数据训练的 ACT、DP、π0.5、Cosmos Policy，真机成功率接近真实数据训练的。
+- 模拟器成功率和真机成功率的 Pearson r 为 0.958、0.965、0.859；在 Deform360 上预训练后能对未见物体做 MPPI 规划。
+
+精读时核算出的问题，挑最重要的几条，全部 12 条见精读页末尾：
+
+- **图 7 的相关性主要来自训练进度。**从矢量图读出全部 36 个点，复算 r 为 0.956、0.964、0.859。模拟器有天花板，叠布 5 个检查点模拟满分、真机 0.75 到 1.0；还有系统偏差，零件装配平均高估 0.18。
+- **图 6 的“相当”要打折扣。**柱高都是 1/80 的整数倍；推 T 是 67 对 54，p ≈ 0.03。附录把差距归因于新视角更难，但两根柱子用的是同一个视角。
+- **图 6 和图 7 不是同一批策略**，模拟示范的动作从哪来、模拟器里怎样判成功也没说明。
+- **“50 Hz”没有计时数据**，数据帧率也没交代，200 步可能是 4 秒也可能是 20 秒；课程训练最终的 K 也没给。
 
 ## SIMPLER 读后要点
 
@@ -70,6 +86,8 @@ GAUGE 用 22 个任务族、约 1,560 次动捕试验做真实基准，覆盖刚
 
 ```
 index.html          论文列表与写法约定
+papers/3dws.html   3D World Simulator 精读
+papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/gauge.html   GAUGE 精读
