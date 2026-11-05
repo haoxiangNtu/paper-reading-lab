@@ -16,6 +16,13 @@
 .t-5{min-width:560px}
 .t-f7{min-width:600px}
 .t-links{min-width:640px}
+/* embedded 3D architecture viewer */
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:540px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:880px} }
 </style>
 </head>
 <body>
@@ -35,7 +42,7 @@
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-2">3.2 自编码器</a><a href="#s3-3">3.3 潜空间动力学</a><a href="#s4">4 实验</a><a href="#s4-2">4.2 基线对比</a><a href="#s4-3">4.3 生成训练数据</a><a href="#s4-4">4.4 策略评测</a><a href="#s4-5">4.5 规划</a><a href="#s5">5 结论</a><a href="#apA">附录 A Deform360</a><a href="#apB">附录 B 模型细节</a><a href="#apC">附录 C 任务与可视化</a><a href="#apD">附录 D 策略训练</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 架构图</a><a href="#s3-2">3.2 自编码器</a><a href="#s3-3">3.3 潜空间动力学</a><a href="#s4">4 实验</a><a href="#s4-2">4.2 基线对比</a><a href="#s4-3">4.3 生成训练数据</a><a href="#s4-4">4.4 策略评测</a><a href="#s4-5">4.5 规划</a><a href="#s5">5 结论</a><a href="#apA">附录 A Deform360</a><a href="#apB">附录 B 模型细节</a><a href="#apC">附录 C 任务与可视化</a><a href="#apD">附录 D 策略训练</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -77,6 +84,13 @@
 <img src="3dws/fig2.webp" width="1211" height="722" alt="图 2：模型结构，上半是粒子-体素混合自编码器，下半是 3D 潜空间动力学模型" loading="lazy">
 <figcaption><span class="lab">图 2 · 原文第 4 页</span>(a) 自编码器：输入点云 \(P_t\) 经编码器 \(E_\theta\) 压成蓝色方块表示的 3D 潜变量 \(z_t\)，解码器 \(D_\psi\) 先把它上采样成更细的体素，再变成稠密的视觉粒子和可选的触觉粒子，每个视觉粒子带高斯参数，可以从新视角渲染；最右是解码出的点云和渲染图。(b) 动力学模型：当前潜变量、历史潜变量和机器人动作一起送进 3D 卷积和时空注意力，自回归地预测 \(z_{t+1},z_{t+2},\ldots,z_{t+K}\)；每一步都能用 \(D_\psi\) 解码成点云和渲染图。</figcaption>
 </figure>
+
+<div class="i3d" id="i3d">
+<p class="lab">交互图解 · 我理解的架构（3D，可拖动）</p>
+<p>上面的图 2 是作者画的示意。下面是我按第 3 节和附录 B 画的 3D 版：每一块标了用什么网络、张量多大、论文哪里写的，论文没给的数标为“示意”。拖动旋转，点部件看说明，“因果时间注意力”按钮能看到时间维上被遮挡的槽。</p>
+<iframe src="../interactives/3dws/index.html?embed=1" title="3D World Simulator 架构 3D 交互图" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/3dws/index.html">全屏打开，含部件清单和形状表 →</a></p>
+</div>
 
 <h3 id="s3-2">3.2 粒子-体素混合自编码器</h3>
 <p><b>稀疏体素编码器。</b>先把输入点云 \(P_t\) 体素化到一个稀疏 3D 网格上：落在同一个体素里的点取特征平均，只有被占据的体素才有特征。编码器 \(E_\theta\) 再用带步长的稀疏 3D 卷积逐级下采样，得到紧凑的潜变量 \(z_t\)，不在空的空间上浪费计算。每个潜变量体素沿通道维做单位归一化，然后再送进解码器或动力学模型。</p>

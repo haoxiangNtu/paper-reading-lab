@@ -8,7 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
-| Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation（[arXiv 2611.04492](https://arxiv.org/abs/2611.04492)，2026-11，CC BY 4.0） | [3D World Simulator 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/3dws.html) | 粒子-体素混合的 3D 动作条件世界模型，同时预测外观、几何和触觉，含原文插图 | 12 条 |
+| Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation（[arXiv 2611.04492](https://arxiv.org/abs/2611.04492)，2026-11，CC BY 4.0） | [3D World Simulator 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/3dws.html) | 粒子-体素混合的 3D 动作条件世界模型，同时预测外观、几何和触觉，含原文插图和 [3D 架构图](https://haoxiangntu.github.io/paper-reading-lab/interactives/3dws/) | 12 条 |
 | Evaluating Real-World Robot Manipulation Policies in Simulation（[arXiv 2405.05941](https://arxiv.org/abs/2405.05941)，2024-05，CC BY 4.0） | [SIMPLER 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/simpler.html) | 用仿真代替真机评测机器人操作策略，含原文插图 | 15 条 |
 | GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models（[arXiv 2608.05948](https://arxiv.org/abs/2608.05948)，2026-08） | [GAUGE 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gauge.html) | 用真实测量评测物理引擎和视频世界模型的物理保真度 | 15 条 |
 
@@ -88,6 +88,8 @@ GAUGE 用 22 个任务族、约 1,560 次动捕试验做真实基准，覆盖刚
 index.html          论文列表与写法约定
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切
+interactives/3dws/ 3D World Simulator 的 3D 可交互架构图（精读页内嵌）
+assets/lab3d.js    3D 交互图共用的 three.js 工具
 papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/gauge.html   GAUGE 精读
