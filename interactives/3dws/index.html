@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D World Simulator 架构 3D 图解 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.04492 的 3D 可交互架构图：稀疏体素编码器、8 通道潜变量、粒子-体素解码器与 3D 高斯、3D U-Net 动力学模型的分解时空注意力，每一块标出用的什么网络、形状多大、论文哪里写的。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/3dws.html">返回精读</a><a href="../../papers/3dws.html#s3">原文第 3 节</a><a href="../../papers/3dws.html#apB">附录 B</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2611.04492 · 3D WORLD SIMULATOR</p>
+<h1>两个网络，一个 3D 潜空间</h1>
+<p class="lead">上排是<b>自编码器</b>：把点云压成 8 通道体素潜变量，再解码回粒子和 3D 高斯。下排是<b>动力学模型</b>：一个 3D U-Net，在潜空间里按动作往前推一步。两排在中间的潜变量 \(z_t\) 处相接。</p>
+<p class="howto">拖动旋转，滚轮缩放，点任意部件看说明。网络宽度和形状按原文表 3、表 4 标注。标了“示意”的地方，论文没给数，是我按自己的理解画的。切到 Deform360 只改说明和表里的数字，3D 图形一直按 ALOHA 的尺寸画。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 架构图，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg" role="group" aria-label="视角">
+        <button data-view="all" aria-pressed="true">全景</button>
+        <button data-view="ae" aria-pressed="false">自编码器</button>
+        <button data-view="dyn" aria-pressed="false">动力学</button>
+      </div>
+      <div class="seg" role="group" aria-label="数据集">
+        <button data-ds="aloha" aria-pressed="true">ALOHA</button>
+        <button data-ds="d360" aria-pressed="false">Deform360</button>
+      </div>
+    </div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一个部件">‹ 上一步</button>
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一个部件">下一步 ›</button>
+      <span class="sep"></span>
+      <div class="seg" role="group" aria-label="注意力类型">
+        <button data-attn="spatial" aria-pressed="true">空间注意力</button>
+        <button data-attn="temporal" aria-pressed="false">因果时间注意力</button>
+      </div>
+      <button id="roll">自回归展开一步 ▶</button>
+      <label class="chk"><input type="checkbox" id="loss"> 显示训练损失</label>
+    </div>
+    <div id="hover" class="hovertip" hidden></div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 图画不出来。下面的部件列表和形状表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">从这里开始</p>
+    <h2 id="infoTitle">点一个部件，或按“下一步”</h2>
+    <div id="infoBody"><p>图里的颜色按功能分：<span class="sw" style="--c:#38d1ff"></span>原始点云，<span class="sw" style="--c:#3aa8e0"></span>潜变量，<span class="sw" style="--c:#9d8cff"></span>编码器卷积，<span class="sw" style="--c:#4fc98a"></span>解码器，<span class="sw" style="--c:#f2c14e"></span>粒子和高斯，<span class="sw" style="--c:#d45fa0"></span>注意力，<span class="sw" style="--c:#f0963c"></span>动作和触觉。</p>
+    <p>流动的小亮点表示数据流向。虚线表示跳连和条件注入。</p></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">部件清单</h2>
+<p class="sub">点一行，3D 视图会转到对应部件。这张清单不依赖 WebGL，内容和点 3D 部件时看到的说明一样。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="shapes">形状一览（<span id="dsName">ALOHA</span>）</h2>
+<div class="tablewrap"><table class="shapes"><thead><tr><th>位置</th><th>张量</th><th>形状</th><th>来源</th></tr></thead><tbody id="shapeRows"></tbody></table></div>
+<p class="sub">空间维度按原文 (X, Y, Z) 顺序写。图里 Z 朝上，所以 ALOHA 的潜变量在图中宽 32 格、高 32 格、进深 16 格。</p>
+
+<h2 id="mine">哪些是我的理解</h2>
+<ul class="mine">
+<li><b>输入体素分辨率、编码器下采样次数。</b>表 3 只给了 4 个宽度（8、16、32、64）。图里按 4 级、3 次步长卷积画，输入网格画成潜变量的 2 倍，都是示意。</li>
+<li><b>解码器三级占据的分辨率。</b>附录只说“三个分辨率”。图里画成潜变量的 1、2、4 倍。</li>
+<li><b>每个体素出几个粒子。</b>论文没写。图里画成第一级 8 个、第二级 32 个。</li>
+<li><b>动力学编码器的 3 个宽度对应哪一级。</b>表 4 给了 128、256、512 和 2 次下采样，正好 3 个分辨率，我按一一对应理解。</li>
+<li><b>动作嵌入怎样注入。</b>附录说的是“注入各个特征块”，没说是相加还是调制（如 FiLM）。图里只画成虚线。</li>
+<li><b>场景点云。</b>是按零件装配任务随手生成的示意点，不是论文数据。</li>
+</ul>
+<p class="sub">其余数字都出自原文：第 3.2、3.3 节，附录 B.1、B.2，表 3、表 4。逐条核对见<a href="../../papers/3dws.html#n10">精读页读者注 10</a>和<a href="../../papers/3dws.html#n11">读者注 11</a>。</p>
+</section>
+<footer><p>图解是我对 arXiv 2611.04492（CC BY 4.0）方法部分的理解，不是作者的官方图。官方示意见<a href="../../papers/3dws.html#s3-1">原文图 2</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>
