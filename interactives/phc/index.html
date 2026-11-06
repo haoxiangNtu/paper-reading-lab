@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHC 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2305.06456 PHC 的核心框架做成 11 幕 3D 动画：目标状态与绝对动作、模仿奖励、AMP、可单步的 PMCP 与困难序列挖掘、遗忘、权重共享、失败恢复、当场计算的 primitive 组合、实时流水线、结果表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .sl{background:color-mix(in srgb,var(--bg2) 88%,transparent);border-radius:7px;padding:3px 7px}
+.ctl .sl label{display:inline-flex;align-items:center;gap:3px;color:var(--fg)}
+.ctl .sl input{width:62px;accent-color:var(--accent)}
+.ctl .sl b{font-family:var(--font-mono);font-size:11.5px;min-width:2.3em}
+.ctl .rd{background:color-mix(in srgb,var(--bg2) 88%,transparent);border-radius:7px;padding:3px 8px;color:var(--fg);line-height:1.5}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+body.embed .ctl .sl input{width:48px}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="phc.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/phc.html">返回精读</a><a href="../../papers/phc.html#s3-2">原文 §3.2</a><a href="../../papers/phc.html#apB">附录 B</a><a href="https://arxiv.org/abs/2305.06456">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2305.06456 · ICCV 2023 · PHC</p>
+<h1>一个不用重置的人形控制器，是怎样一步步长出来的</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 4 幕是每个网络共用的底子：输入输出、奖励、AMP；<b>第 5 幕是核心，可以单步走 PMCP</b>；第 6、7 幕回答为什么要新建网络、怎样接；第 8 幕是失败恢复；<b>第 9 幕当场算 primitive 组合</b>；第 10 幕接到摄像头；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。网络大小和超参数来自论文和官方代码（提交 846988d）；第 7、8、11 幕的柱子是原文表格数字。小人是手工做的示意，没有任何 PHC 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 ZhengyiLuo/PHC 提交 846988d（2025-08-21），只读未运行；它比论文晚很多，后来又加了别的模型，配置里的默认值不一定是论文实验所用。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（846988d）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>primitive P⁽ᵏ⁾</td><td>MLP [1024, 512]，输出 N(μ(s), σ)，固定对角协方差</td><td>im_pnn.yaml 相同；ReLU；输出 69 维；另有 im_pnn_big.yaml 更大的版本</td></tr>
+<tr><td>N2</td><td>composer C</td><td>输入同 primitive，输出 k+1 维权重，C ≥ 0</td><td>im_mcp.yaml：[1024, 512] 接 num_prim 维输出，末尾留 ReLU，无 softmax</td></tr>
+<tr><td>N3</td><td>判别器 D</td><td>D(s^p_{t−10:t})，[1024, 512]</td><td>相同；numAMPObsSteps = 10；BCE；disc_grad_penalty = 5；disc_reward_scale = 2</td></tr>
+<tr><td>N4</td><td>价值函数 V</td><td>[1024, 512]，训练新 primitive 时不新建，继续微调</td><td>critic_coef = 5</td></tr>
+<tr><td>N5</td><td>模型大小</td><td>4 个 primitive 的最终模型 28.8 MB</td><td>按 934 维输入算 4×1,517,637 + 1,484,292 = 7,554,840 个参数，float32 下 28.82 MiB（我的计算）</td></tr>
+<tr class="grp"><td colspan="4">输入输出</td></tr>
+<tr><td>I1</td><td>本体 s^p</td><td>q, q̇, 可选 β ∈ ℝ¹⁰</td><td>1 + 24×15 − 3 = 358 维（不含 β）</td></tr>
+<tr><td>I2</td><td>旋转版目标</td><td>6 项：θ̂⊖θ, p̂−p, v̂−v, ω̂−ω, θ̂, p̂</td><td>obs_v = 6，24 × 24 = 576 维</td></tr>
+<tr><td>I3</td><td>关键点版目标</td><td>3 项：p̂−p, v̂−v, p̂</td><td>obs_v = 7，24 × 9 = 216 维</td></tr>
+<tr><td>I4</td><td>动作</td><td>PD 目标 a ∈ ℝ^(23×3)，不用残差、外力、meta-PD</td><td>env.step 接 PD；primitive 的 μ 确定性输出</td></tr>
+<tr class="grp"><td colspan="4">奖励</td></tr>
+<tr><td>R1</td><td>式 (1)</td><td>0.5 r^g + 0.5 r^amp + r^energy</td><td>task_reward_w = disc_reward_w = 0.5；energy 含在 task 项内，因此实际乘 0.5</td></tr>
+<tr><td>R2</td><td>式 (2)</td><td>e^(−k‖·‖)，k = 100, 10, 0.1, 0.1，w = 0.5, 0.3, 0.1, 0.1</td><td>同样的 k、w，但指数里是平方的平均</td></tr>
+<tr><td>R3</td><td>能耗</td><td>−0.0005·Σ|μⱼωⱼ|²；恢复时再乘 0.1</td><td>−coef·Σ|τq̇|（一次方）；默认 coef = 0.0005，env_im_getup_mcp.yaml = 0.00005</td></tr>
+<tr><td>R4</td><td>r^point</td><td>d_{t−1} − d_t</td><td>clamp(d_{t−1} − d_t, max = 1/3) × 9</td></tr>
+<tr class="grp"><td colspan="4">PMCP 和恢复</td></tr>
+<tr><td>P1</td><td>挖掘</td><td>Q̂⁽ᵏ⁺¹⁾ = P⁽ᵏ⁾ 在 Q̂⁽ᵏ⁾ 上失败的序列</td><td>forward_pmcp.py：最近 6 次评估失败的并集；手动运行</td></tr>
+<tr><td>P2</td><td>新 primitive</td><td>侧向连接或复制权重，主实验复制</td><td>forward_pmcp.py 复制权重；has_lateral: False</td></tr>
+<tr><td>P3</td><td>切换距离</td><td>0.5 m</td><td>close_distance 默认 0.25；demo 里 0.5</td></tr>
+<tr><td>P4</td><td>远距离钳制</td><td>&gt; 5 m</td><td>far_distance 默认 3（注释写着 “&gt; 5 meters”）</td></tr>
+<tr><td>P5</td><td>早停</td><td>关节平均离参考 &gt; 0.5 m；去掉脚踝和脚趾（RET）</td><td>reset_bodies 去掉脚踝和脚趾；配置 terminationDistance = 0.25，训练时取最大值，im_eval 时取平均</td></tr>
+<tr><td>P6</td><td>恢复训练</td><td>随机摔倒、2 到 5 m 远、Q^loco</td><td>getup_schedule：前 getup_udpate_epoch 个 epoch 只用风格奖励且全部从倒地开始</td></tr>
+<tr class="grp"><td colspan="4">训练和运行</td></tr>
+<tr><td>T1</td><td>PPO</td><td>γ = 0.99，ε = 0.2；表 5 学习率写 5×2⁻⁵</td><td>learning_rate = 2e-5；horizon 32，minibatch 16384，mini_epochs 6</td></tr>
+<tr><td>T2</td><td>σ</td><td>表 5：固定方差 0.05</td><td>sigma_init = −2.9，按 log std 算 std = 0.055，方差 0.003</td></tr>
+<tr><td>T3</td><td>规模</td><td>1536 个人形，A100 单卡，约 7 天，约 100 亿样本</td><td>env_im_pnn.yaml 默认 3072，env_im_getup_mcp.yaml 默认 1024，可覆盖</td></tr>
+<tr><td>T4</td><td>频率</td><td>策略 30 Hz，仿真 60 Hz</td><td>controlFrequencyInv = 2；step_dt = 1/60</td></tr>
+<tr><td>T5</td><td>滤波</td><td>高斯，t−120 到 t，mirror</td><td>deque(maxlen=30)；σ = 10, 5（根）和 2（关节）；mirror</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段。不是 SMPL 人形，不是策略输出。第 8 幕的轨迹也是我设的，但上面的 d、r^point 和切换时刻按式 (3) 算。</li>
+<li><b>第 2 幕的单关节 PD。</b>增益和噪声是我设的，公式 τ = kᵖ(a−q) − kᵈq̇ 是论文的。残差那条是策略输出为 0 的最坏情形。</li>
+<li><b>第 3 幕的比例。</b>旋转、速度误差和 d 的比例是我定的，指数和权重是论文和代码的。</li>
+<li><b>第 4 幕的判别器。</b>当场训练的二次逻辑回归，只说明对抗机制，特征名只是名字。</li>
+<li><b>第 5、6 幕的玩具。</b>600 个点、14 个 RBF 的回归、0.15 的成功阈值，都是我设的。训练、挖掘和组合都当场计算（代码在 phc.js 的 buildToy）。composer 在玩具里是监督回归，论文里是 PPO。玩具的成功率和论文没有可比性。</li>
+<li><b>第 6 幕的“图 7 重读”。</b>从原文位图取样，白读为失败。这是重画，不是原图。</li>
+<li><b>第 9 幕的数字。</b>四个 primitive 的 μ、σ 是我设的。式 (6) 和数值积分是当场算的。</li>
+<li><b>第 10 幕的噪声。</b>合成的正弦加白噪声，不是 MeTRAbs 的输出。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2305.06456 后的理解，不是作者的官方图。原图见<a href="../../papers/phc.html">精读页</a>（CC BY-NC-SA 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

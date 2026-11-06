@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SONIC 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.07820v4 SONIC 的中文精读：按原文章节逐节整理，含全部编号公式、结果表、原图、官方代码对照、和 SuperMimic 声称的逐条核对、11 幕 3D 框架动画和 18 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+.note.wide{max-width:100%}.note.wide .t-w{min-width:0}
+.ok{color:var(--good,#199e70);font-weight:600}.no2{color:var(--warn,#d95926);font-weight:600}.un{color:var(--muted);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/sonic/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2511.07820v4 · cs.RO · v1 2025 年 11 月，v4 2026 年 8 月 13 日 · Science Robotics 11 (117), eaed4592 (2026) · 中文精读</p>
+<h1>SONIC：把动作跟踪放大，当作人形全身控制的基础任务</h1>
+<p class="orig">SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control</p>
+<p>作者 Zhengyi Luo、Ye Yuan、Tingwu Wang、Chenran Li、Fernando Castañeda（共同一作）等 28 人，NVIDIA，Linxi “Jim” Fan 和 Yuke Zhu 共同指导。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2511.07820">arXiv 原文</a><a href="https://arxiv.org/html/2511.07820">网页版</a><a href="https://arxiv.org/pdf/2511.07820">PDF</a><a href="https://nvlabs.github.io/GEAR-SONIC/">项目主页</a><a href="https://github.com/NVlabs/GR00T-WholeBodyControl">官方代码</a><a href="https://doi.org/10.5281/zenodo.21273312">Zenodo 数据</a><span>主文 20 页，参考文献到第 27 页，补充材料到第 39 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>我读的是 <b>arXiv v4（2026 年 8 月 13 日）</b>。<b>没有读</b> Science Robotics 上发表的版本：science.org 对脚本返回 403，我也没有它的全文，它的条款也可能不同。本页所有转载只来自 arXiv 版。需要时我对照了 v1、v2、v3 和项目主页上的 PDF（内容接近 v3）。</p>
+<p><b>许可。</b>arXiv 摘要页标注 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>。插图从 arXiv PDF 裁切，只裁切和缩放（约 1600 px 宽，转成 webp），没有其他改动，署名 Luo et al.。按 ShareAlike 条款，本页的文字和裁切图同样按 CC BY-SA 4.0 提供。内容用自己的话按原文顺序写，不是逐字翻译，公式按原文编号，表格数字照录。</p>
+<p><b>代码。</b>官方仓库 <a href="https://github.com/NVlabs/GR00T-WholeBodyControl">NVlabs/GR00T-WholeBodyControl</a>，我读的是 commit <code>1e1ec4f</code>（2026-11-02），只读，没有运行。许可是双重的：代码 Apache 2.0，权重 NVIDIA Open Model License。我还读了 Hugging Face 上 <a href="https://huggingface.co/nvidia/GEAR-SONIC">nvidia/GEAR-SONIC</a> 的两个 <code>config.yaml</code> 和文件大小（没有下载权重），以及 Zenodo 存档（Apache 2.0）里作者的 Data S1 和 commit <code>6d8e931</code> 的代码快照。项目的网页 demo 没有碰。</p>
+<p>标成“读者注”的框是我核对的内容，不属于论文，页尾有汇总。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可标注的矛盾</span><p>arXiv 摘要页的许可链接指向 CC BY-SA 4.0，这是我这里转载的依据。但 PDF 第一页页脚印着 “© 2026 NVIDIA. All rights reserved.”，v1 到 v4 都有类似字样。这两者字面上不一致。我按 arXiv 登记的许可处理，把这一点列出来，读者要再转载时请自己判断。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 结果</a><a href="#s2-1">2.1 动作跟踪</a><a href="#s2-2">2.2 交互控制</a><a href="#s2-3">2.3 视频与多模态</a><a href="#s2-4">2.4 VR</a><a href="#s2-5">2.5 VLA</a><a href="#s2-6">2.6 讨论</a><a href="#s3">3 方法</a><a href="#s3-1">3.1 数据</a><a href="#s3-2">3.2 通用跟踪</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 规划器</a><a href="#s3-4">3.4 多模态生成</a><a href="#s3-5">3.5 部署</a><a href="#s3-6">3.6 消融</a><a href="#s3-7">3.7 统计</a><a href="#s4">4 致谢与可得性</a><a href="#S1">S1 补充方法</a><a href="#S2">S2 补充讨论</a><a href="#S3">S3 视频</a><a href="#S4">S4 数据</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>基础模型靠几千张 GPU 放大，但人形控制还停留在小网络、少数任务、几张 GPU。论文认为症结是任务选得不对：行走之类的任务要为每个场景设计奖励，无法放大。它提出把<b>动作跟踪</b>当作基础任务，因为动捕数据每一帧都提供目标，不用设计奖励。</p>
+<ul>
+<li><b>放大：</b>网络 1.2M 到 42M 参数，数据 100M+ 帧（约 700 小时动捕），算力 21k GPU 小时（128 卡，7 天）。</li>
+<li><b>结果：</b>未见过的动作内容上成功率 99.6%（Isaac Lab），同一判据换到 <a class="ds" href="https://mujoco.org">MuJoCo</a> 是 98.5%；真机 124 段动作成功 123 段。</li>
+<li><b>下游一：</b>实时运动学规划器，把手柄命令变成短时间的参考动作，能走、跑、蹲、爬、打拳。</li>
+<li><b>下游二：</b>通用 token 空间。人体动作、机器人动作、VR 关键点进入不同编码器，出来是同一种量化后的 token。VR 遥操作和 VLA（vision-language-action）模型都接在这里。</li>
+<li><b>大模型：</b>GR00T N1.5 预测 token，五个任务平均成功 75%，比直接预测 SMPL 姿态好（三个任务上 68% 对 27%）。</li>
+</ul>
+<p>读完我认为最值得记住的三点：(1) 三根轴放大的收益在失败率上才看得出来，而且是一次动一根轴，没有交叉实验；(2) 通用 token 是个相当工程化的设计，论文和代码之间在权重、量化前后、公布模型大小上都有差异；(3) 论文 v4 正文的成功判据比作者自己的数据说明和代码少了一项朝向，这直接影响别人怎么用它（读者注 <a href="#n5">5</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="sonic/fig1.webp" width="1600" height="1171" alt="图 1：G1 人形机器人做家务、打拳、爬行、跑步、操作物体等多种行为的拼图" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S0.F1">看原图 ↗</a></span>同一个策略驱动的多种任务拼图：室内开垃圾桶和操作物体、户外跑跳、低矮处爬行、桌面捡取。</figcaption>
+</figure>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a>（arXiv 2610.28480）把 SONIC 当作主要的对比基线，而且一路都在算和它的差距。两者解决的是同一个问题，方向相反：SONIC 的回答是堆算力和数据，用无模型 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a>；SuperMimic 用一个可微世界模型把算力降下来。</p>
+<p>按 SuperMimic 的原文，它和 SONIC 的具体联系是：</p>
+<ul>
+<li><b>比算力。</b>引言和 §4.1 用 SONIC 的 128 张 L40 × 7 天（约 21,000 GPU 小时）对 1 张 H100 × 3 小时，得出 GPU 小时少 1000 倍以上。</li>
+<li><b>比回报和失败数。</b>评测 SONIC 公布的检查点，归一化回报 0.90；附录 F 在 129,514 个动作上比失败数：SONIC 179，v1.1 检查点 239，SuperMimic 25 和 0。</li>
+<li><b>拿了一份词表。</b>附录 E 的名字过滤“改自 SONIC 公开的数据处理代码”。这是我找到的唯一直接拿来的材料。数据 <a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a> 也是 SONIC 数据的公开部分。</li>
+<li><b>归类。</b>相关工作表把 SONIC 归为“三阶段联合 PPO，任务信号是蒸馏（跟踪奖励和潜变量对齐）”。这和本文 §3.2 一致。</li>
+<li><b>同样的起点，不同的结构。</b>两者都从 <a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a> 的跟踪设定出发。两者都是多编码器加共享解码器，但 SuperMimic 的潜变量是 32 维 tanh 连续值，没有 FSQ，解码器也小得多（约 473 万参数对 3739 万）。论文没有说这是从 SONIC 继承的，我不这样写。</li>
+</ul>
+
+<div class="note wide" id="n2"><span class="lab">读者注 2 · SuperMimic 关于 SONIC 的说法，逐条对照原始来源</span>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>SuperMimic 的说法</th><th>结果</th><th>我查到的</th></tr></thead><tbody>
+<tr><td>128 张 GPU</td><td class="ok">对得上</td><td>§2.1。公布配置 <code>world_size: 128</code></td></tr>
+<tr><td>7 天、约 168 h</td><td class="ok">对得上</td><td>v4 写 “128 GPUs over 7 days”。168 是 7 × 24，SONIC 自己没写这个数</td></tr>
+<tr><td>约 21,000 GPU 小时</td><td class="ok">对得上 v3、v4</td><td>128 × 168 = 21,504。但 v1、v2 不一样，见<a href="#n3">读者注 3</a></td></tr>
+<tr><td>“SONIC 报告的” NVIDIA <b>L40</b></td><td class="un">论文里没有</td><td>arXiv v1–v4 和项目主页 PDF 都没写 GPU 型号。仓库安装文档写 “L40 recommended”，<code>eval_exp.yaml</code> 注释提到 “L40 (49GB VRAM)”，都不是在说那 128 张卡。合理的推测，但不是“报告的”。发表版我没读，那里可能有</td></tr>
+<tr><td>611 h 数据</td><td class="ok">对得上</td><td>§3.1、表 2</td></tr>
+<tr><td>BONES-SEED 是公开子集，142,220 个片段</td><td class="ok">对得上</td><td>§3.1。SONIC 写 288 h，SuperMimic 的 264.56 h 是过滤后的长度</td></tr>
+<tr><td>过滤词表来自 SONIC 代码</td><td class="ok">词表存在</td><td><code>filter_and_copy_bones_data.py</code>。文档说去掉约 8.7%，SuperMimic 去掉 12,553/142,220 = 8.83%</td></tr>
+<tr><td>公布检查点回报 0.90；失败 179；v1.1 失败 239</td><td class="un">核对不了</td><td>SONIC 的论文、代码、Data S1 都没有这个基准。要验证只能自己跑仿真，我没有跑</td></tr>
+<tr><td>这些动作“对两者都是训练动作”</td><td class="un">核对不了</td><td>公布配置写的是 <code>motion_lib_bones_seed/robot_filtered/</code>，但文档说配置里是内部路径。公开词表去掉了 acrobatics_、cartwheel、handstand、safety_roll 等，空翻和侧滚片段到底有没有进 SONIC 的训练集，我没有片段清单，判断不了</td></tr>
+<tr><td>SONIC 自己的判据“没有朝向项”</td><td class="no2">只对 v4 正文成立</td><td>v1–v3 正文、Data S1 说明页、官方 <code>tracking/eval.yaml</code> 都有 1 rad 朝向项，见<a href="#n5">读者注 5</a></td></tr>
+<tr><td>把 21k GPU 小时算在“公布检查点”头上</td><td class="un">两者不一定是一回事</td><td>21k 是论文 5 万次迭代、42M 模型的开销。默认公布检查点的解码器小得多，配置写 10 万次迭代，还带一个加载路径，见<a href="#n16">读者注 16</a></td></tr>
+</tbody></table></div>
+<p>结论：算力和数据的数字站得住。1000 倍这个比值的分母和分子不是同一个模型，这一点值得记在心里，但 7000 多倍的余量很大。真正需要修正的是判据那一条。<a href="supermimic.html#n13">SuperMimic 页的读者注 14</a> 说 SONIC 被一个“它训练时没针对”的判据评判，从代码看不成立，公布配置训练时的朝向判据比 SuperMimic 严得多。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>GPT 这类基础模型用 25,000+ 张 GPU，视频和图像模型用几千张，规模带来了涌现能力、泛化和鲁棒性。人形控制没有这样的放大：通常是三层 MLP、几张 GPU、一个任务，奖励逐任务手写。</p>
+<p><b>为什么没放大。</b>论文认为根子在任务选择。行走的奖励对跳舞、起身或遥操作没有帮助，每加一个能力就要重写目标。AMP、ASE、CALM 这类生成式模仿（用判别器匹配动作分布，加上简单任务奖励）给了统一目标，但已有工作表明动作集又大又杂时判别器信号容易模式塌缩。而且就算目标能放大，也要接得上遥操作、导航、视觉语言命令等不同的用法。</p>
+<p><b>做法。</b>把动作跟踪当作可放大的基础任务。动捕数据提供逐帧的稠密监督，不用设计奖励，数据也现成（走、跑、舞、运动、物体交互都有）。已有跟踪工作多半只展示训练数据上的结果，也很少接下游任务。本文放大到 1 亿帧（50 Hz）、128 卡，并加两样东西：一个运动学动作生成系统，负责交互控制；一个通用 token 空间，把异构的动作来源统一到一个接口。</p>
+<p>SONIC 是 “Supersizing mOtion tracking for Natural humanoId Control” 的缩写。token 空间让估计出的人体动作可以直接驱动机器人，运行时不用显式<b>重定向</b>（把人体动作映射到机器人关节）。</p>
+<p><b>三项贡献。</b></p>
+<ol>
+<li>确立动作跟踪是可放大的基础任务，展示它随算力和数据多样性变好，放大到 21k GPU 小时和 1 亿帧。</li>
+<li>实时运动学动作生成器，以及带专门编码器的通用 token 空间。</li>
+<li>全面的评测：放大趋势、对未见动作的零次迁移、真机部署、基础模型集成，包括五个真实世界的 VLA 任务。</li>
+</ol>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · GPU 小时在几个版本里变过</span>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>版本</th><th>摘要</th><th>§2 第一句</th><th>我算的</th></tr></thead><tbody>
+<tr><td>v1（2025-11）、v2（2025-12）</td><td>9k GPU hours</td><td>32,000 GPU hours (128 GPUs over 3 days)</td><td>128 × 72 = 9,216，和 9k 一致，和 32,000 不一致</td></tr>
+<tr><td>v3（2026-05）、v4（2026-08）</td><td>21k GPU hours</td><td>21k（v3 写 21,000）GPU hours (128 GPUs over 7 days)</td><td>128 × 168 = 21,504，一致</td></tr>
+</tbody></table></div>
+<p>所以引用时要写清版本。SuperMimic 用的是后一组，发表时间也在 v4 之后。论文没有解释改动的原因。v1 和 v2 的 3 天和 v3 的 7 天是同一次训练还是重训了，我查不到。</p></div>
+
+<h2 id="s2"><span class="no">2</span>结果</h2>
+<p>平台是 <a class="ds" href="https://www.unitree.com/g1">Unitree G1</a> 人形机器人（29 个驱动关节）。</p>
+<h3 id="s2-1"><span class="no">2.1</span>动作跟踪</h3>
+<p><b>指标。</b>成功率 Succ：偏离参考太远算失败。MPJPE-L：相对根部的平均关节位置误差，单位 mm，算 14 个身体部件。\(E_{\rm acc}\)（mm/帧²）和 \(E_{\rm vel}\)（mm/帧）：仿真机器人和参考之间的加速度差和速度差，衡量物理真实度。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · “14 个部件”的列表</span><p>原文括号里写 pelvis, knees, ankles, torso, elbows, wrists，左右分开数是 10 个。代码 <code>im_eval_callback.py</code> 和 <code>motion.yaml</code> 列的 14 个，另外还有左右髋（hip_roll）和左右肩（shoulder_roll）。数目是对的，是括号漏了两类。</p></div>
+<p><b>测试集。</b>从自己的动捕数据留出两份：test-content（7,016 片段，15 小时，182 个训练中完全没有的子类别），测对新内容的泛化；test-repetition（9,395 片段，12 小时），测已知动作类型的新演绎。基线对比另加 <a class="ds" href="https://github.com/davian-robotics/PHUMA">PHUMA</a>（<a href="https://arxiv.org/abs/2510.26236">论文</a>，68,326 个动作，来自不同的重定向流程）。</p>
+<p><b>判据（v4 原文）。</b>根部高度或末端高度偏离参考超过 0.25 m 算失败。作者解释，以前的工作常用全局根位置误差（比如 0.5 m），本文是局部跟踪，不跟全局轨迹，这个判据抓住跌倒这类有物理意义的失败。</p>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 成功判据：v4 正文少了一项</span>
+<p>v4 正文只写高度。其他来源都还有一项根朝向：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>来源</th><th>判据</th></tr></thead><tbody>
+<tr><td>v1、v2 正文</td><td>身体高度 &gt; 0.25 m，<b>或根朝向差 &gt; 1 rad</b></td></tr>
+<tr><td>v3 正文、项目主页 PDF</td><td>根或末端高度 &gt; 0.25 m，<b>或根朝向差 &gt; 1 rad</b></td></tr>
+<tr><td><b>v4 正文</b></td><td>根或末端高度 &gt; 0.25 m</td></tr>
+<tr><td>Data S1 说明页（Zenodo，文件日期 2026-07-09，早于 v4）</td><td>根或末端偏差 &gt; 0.25 m，<b>或根朝向误差 &gt; 1 rad</b></td></tr>
+<tr><td>官方 <code>tracking/eval.yaml</code>（1e1ec4f 和 Zenodo 的 6d8e931 相同）</td><td>根高 0.25，末端高 0.25（踝、腕），<b>exceeded_anchor_ori 阈值 1.0</b>：旋转角的平方 &gt; 1，即 57.3°</td></tr>
+<tr><td>公布配置 <code>sonic_release/config.yaml</code>，<b>训练</b>判据</td><td>根高、末端高 0.15（参考根部低于 0.5 m 时放宽到 0.75），脚位置 0.2，<b>旋转角² &gt; 0.2，即 25.6°</b></td></tr>
+<tr><td><a href="supermimic.html#apA">SuperMimic</a> 训练和评测判据</td><td>根高 &gt; 0.25，或倾斜量 \(|g_{{\rm ref},z}-g_{{\rm rob},z}|\) &gt; 0.8</td></tr>
+</tbody></table></div>
+<p>论文没有解释 v4 为什么去掉这一项。图 2 的数据来自 Data S1，而 Data S1 的定义包含朝向，所以我认为（推断）v4 正文的文字比数据实际用的判据少一项，这是文字的问题，不是换了判据。</p>
+<p><b>对 SuperMimic 附录 F 的影响。</b>它写 “SONIC 自己的判据……没有朝向项 [1]”，字面上符合 v4 正文，却不符合代码和作者的数据说明。<a href="supermimic.html#n13">那边的读者注 14</a> 担心 SONIC 被含倾斜项的判据不公平地评判，也要改过来：SONIC 的公布配置训练时就有朝向终止，而且是总旋转角，比倾斜量严。</p>
+<p><b>两种朝向项怎么比（我的计算）。</b>倾斜量是两个重力方向 z 分量的差。绕俯仰轴误差 \(\phi\)、参考俯仰 \(\alpha\) 时，它等于 \(|\cos\alpha-\cos(\alpha+\phi)|\)，所以：竖直参考时要 \(\phi=\arccos(0.2)=78.5°\) 才到 0.8；最紧的情形下限是 \(2\arcsin(0.4)=47.2°\)，出现在两个方向的中点水平时，比如空翻中段；绕竖直轴的偏航误差永远是 0。SONIC 的总旋转角不看参考姿态，评测 57.3°，训练 25.6°。所以在直立动作上，SuperMimic 的判据比 SONIC 官方评测宽松；只有躯干接近水平的那一段，它可能更严（47°–57°），而且严得不多。SuperMimic 还去掉了末端项。整体上这个判据不比 SONIC 自己的评测更苛刻，但这只是比判据的形状，<b>换判据后 179 会变成多少，只有重跑才知道，我没有跑。</b>第 11 幕可以切换参考姿态看这个计算。</p></div>
+
+<p><b>放大实验。</b>三根轴：数据 4M、10M、22M、100M 帧（对应 20k、50k、110k、317k 片段，子集按子类别均匀抽样以保持多样性）；模型 1.2M、16M、42M 参数；算力 2、4、16 个节点（16、32、128 张 GPU），都训到 5 万次迭代，约合 2k、9k、21k GPU 小时。全部在 <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a> 中评测。最大的模型在 test-content 上 99.6% 成功、23.8 mm，最小的是 98.0%、27.7 mm。作者说 OOD（未见过）上的收益最明显，说明放大提升了泛化。算力这根轴上，迭代数相同时 GPU 越多渐近性能越好，因为批量大优化更稳。</p>
+
+<figure class="pfig" id="fig2">
+<img src="sonic/fig2.webp" width="1600" height="1573" alt="图 2：放大曲线、基线对比柱状图、速度跟踪对比和仿真到真机结果" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S2.F2">看原图 ↗</a></span>四组面板。(A–C) 成功率随数据、模型、GPU 小时上升，橙色是 test-content，蓝色是 test-repetition，标注的是 MPJPE-L。(D–G) 四个跟踪器在三个测试集上的成功率和三种误差。(H–J) 对 OpenHomie 的速度跟踪：命令对实际速度、存活率、跟踪误差。(K–L) 仿真和真机的按部位误差与成功率。第 2 幕的柱子就是 (A–C) 的数值。</figcaption>
+</figure>
+
+<p class="tcap">图 2(A–C) 的数值 · 来自作者 Data S1（均值，两位小数），成功率 % / MPJPE-L mm</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>轴</th><th>档位</th><th>test-content</th><th>test-repetition</th><th>评测数</th></tr></thead><tbody>
+<tr><td rowspan="4">数据</td><td>4M 帧</td><td>98.83 / 24.37</td><td>99.58 / 22.71</td><td>6</td></tr>
+<tr><td>10M 帧</td><td>99.24 / 24.17</td><td>99.70 / 22.62</td><td>6</td></tr>
+<tr><td>22M 帧</td><td>99.38 / 23.87</td><td>99.77 / 22.37</td><td>6</td></tr>
+<tr><td>100M 帧</td><td>99.63 / 23.77</td><td>99.77 / 22.50</td><td>6</td></tr>
+<tr><td rowspan="3">模型</td><td>1.2M</td><td>98.03 / 27.70</td><td>98.65 / 26.50</td><td>6</td></tr>
+<tr><td>16M</td><td>99.15 / 24.64</td><td>99.63 / 23.63</td><td>6</td></tr>
+<tr><td>42M</td><td>99.63 / 23.77</td><td>99.77 / 22.50</td><td>6</td></tr>
+<tr><td rowspan="3">算力</td><td>约 2k GPU·h</td><td>98.90 / 26.63</td><td>99.48 / 25.29</td><td>4</td></tr>
+<tr><td>约 9k GPU·h</td><td>99.09 / 25.26</td><td>99.68 / 24.10</td><td>6</td></tr>
+<tr><td>约 21k GPU·h</td><td>99.63 / 23.77</td><td>99.77 / 22.50</td><td>6</td></tr>
+</tbody></table></div>
+
+<div class="note" id="n6"><span class="lab">读者注 6 · 算力轴的 GPU 小时对不上一个固定吞吐</span>
+<p>三档都训到 5 万次迭代，GPU 小时除以卡数得到墙钟：2000/16 = 125 h，9000/32 ≈ 281 h，21000/128 ≈ 164 h，折合每次迭代约 9.0 s、20.3 s、11.8 s。32 卡这一档每次迭代比 16 卡和 128 卡都慢。这可能来自共享集群或别的差异，论文写的是“约”，也没有解释。这说明 “GPU 小时” 这根轴其实是在同样迭代数下加批量（样本数比 1:2:8），GPU 小时比是 1:4.5:10.5，并不是同一个量的放大。v1 用的还是 8、32、128 卡。</p>
+<p>另外，每次迭代的样本数是 4096 × 128 × 24 = 12,582,912，5 万次是 6.3×10¹¹ 样本，50 Hz 下相当于约 399 年的机器人时间（我的计算）。</p></div>
+
+<div class="note" id="n7"><span class="lab">读者注 7 · n = 6 是什么</span>
+<p>图 2 图注和 §3 写 “n = 6 independent evaluations”。Data S1 说明页写明是 <b>2 个训练种子 × 3 个检查点</b>，同一种子的三个检查点并不独立。还有两个例外：约 2k GPU·h 那一点只有 4 次评测，而图注写 n = 6；全量数据点的第二个种子用的是 46k、54k、56k 迭代的检查点，不是正文说的“都到 5 万”。</p>
+<p>§3.7 的 Welch 检验（图注 “all P ≤ 0.011”）把这 6 个当独立样本。我核对了最大的 P 值 0.01086（2k 对 21k，test-repetition），确实 ≤ 0.011。但只按 2 个种子算的话自由度很小，这些 P 值偏乐观。方向和幅度看着是可信的，显著性的数字不宜当真。阴影带用的是总体标准差（ddof = 0），也比样本标准差略窄。</p></div>
+
+<div class="note" id="n8"><span class="lab">读者注 8 · 看失败率，别只看成功率</span>
+<p>99.6% 和 98.0% 看着差不多。按 test-content 的失败率算（Data S1，我的计算）：数据轴 1.17% → 0.37%（3.2 倍），模型轴 1.97% → 0.37%（5.3 倍），算力轴 1.10% → 0.37%（3.0 倍）。MPJPE-L 只变了 0.6 到 3.9 mm。</p>
+<p>三根轴共用同一个终点（三个方向的 99.63% / 23.77 mm 是同一组数据），也就是说实验是从最大配置分别往回减一根轴，<b>没有交叉实验</b>。论文标题说“一起放大”，能支持的是“每根轴单独减少都变差”。三根轴的相互替代关系，比如更多数据能不能靠更少算力，这里看不出来。这恰好是 <a href="supermimic.html">SuperMimic</a> 想打破的地方。</p>
+<p>另外 test-repetition 在数据轴上 22M 就到顶了（99.77 和 99.77），MPJPE 反而从 22.37 升到 22.50；新增数据的收益集中在 OOD。这和论文的说法一致。</p></div>
+
+<p><b>和其他跟踪器比。</b>对比 <a class="ds" href="https://arxiv.org/abs/2506.14770">GMT</a>、<a class="ds" href="https://arxiv.org/abs/2509.13833">Any2Track</a> 和 <a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a>。这些基线训练数据不同：Any2Track 和 BeyondMimic 用 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a>，GMT 用 <a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a>（<a href="https://arxiv.org/abs/1904.03278">论文</a>）。BeyondMimic 本来是单动作跟踪器，作者用公开代码重训成多动作。为了协议一致，全部在 MuJoCo 中用同一判据评测。作者自己说明，这主要反映跨数据集泛化和放大的效果，不是完全同数据的对比。</p>
+<p class="tcap">图 2(D–E) 的数值 · 来自 Data S1。论文正文只给了 SONIC、BeyondMimic、Any2Track 的成功率和两个 MPJPE</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>test-content 成功 / MPJPE-L</th><th>test-repetition</th><th>PHUMA</th></tr></thead><tbody>
+<tr><td><b>SONIC</b></td><td>98.53% / 23.74</td><td>99.22% / 22.97</td><td>97.23% / 33.82</td></tr>
+<tr><td>BeyondMimic</td><td>81.97% / 40.91</td><td>85.39% / 39.44</td><td>73.77% / 42.77</td></tr>
+<tr><td>Any2Track</td><td>61.60% / 104.39</td><td>69.41% / 97.40</td><td>78.46% / 63.96</td></tr>
+<tr><td>GMT</td><td>53.05% / 61.27</td><td>63.08% / 54.45</td><td>35.01% / 52.33</td></tr>
+</tbody></table></div>
+<p>SONIC 比 BeyondMimic 的 MPJPE-L 低 42%（23.7 对 40.9）。作者特别提到 PHUMA 上的 97.2%，因为它来自视频姿态估计加不同的重定向，比自己的留出集更偏离分布。</p>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 同一个模型两个数字；误差只算成功的动作</span>
+<p>摘要和放大曲线用 Isaac Lab：99.63%。基线对比用 MuJoCo：98.53%，失败率差 4 倍（0.37% 对 1.47%）。引用时要说明哪个仿真器。SuperMimic 的基准又是另一套（训练动作，自己的判据）。</p>
+<p>(E–G) 只在成功的动作上平均，§3.7 和 Data S1 都明说了。于是 GMT 的 52 mm 是它 35% 成功的简单动作上算的，SONIC 的 33.82 mm 是 97% 上算的。这是幸存者偏差，对基线其实有利，也说明这几列不能直接比“同样动作上的精度”。42% = (40.91 − 23.74)/40.91 算术没问题，但前提是这个分母。</p>
+<p>Data S1 说图上的 “Any2Track” 在原始文件里叫 OpenTrack。</p></div>
+
+<p><b>和专门控制器比。</b>对手是 OpenHomie（<a href="https://arxiv.org/abs/2502.13013">HOMIE</a>），上身逆运动学、下身速度跟踪。在 MuJoCo 中测 0–5 m/s 的命令：SONIC 总存活率 98.5%，OpenHomie 43.0%。后者过 2 m/s 就掉下去，过 2.5 m/s 低于 20%；SONIC 到 4 m/s 附近都接近 100%。</p>
+
+<div class="note" id="n10"><span class="lab">读者注 10 · “存活”不等于“跑到了那个速度”</span>
+<p>197/200 和 86/200 我从 Data S1 逐点加过，正确，换算是 98.5% 和 43.0%。SONIC 那 3 次失败在 4.4、4.9、5.0 m/s。“到约 4 m/s 接近 100%”也对。</p>
+<p>但图 2(H) 同一组数据显示：SONIC 命令 2、3、4、5 m/s 时，实际速度只有 1.15、1.44、1.68、2.07 m/s，全程最高就是 2.07。也就是说 SONIC 不是在跟踪 5 m/s，是没跟上但也没摔。§2.2 提到 6 m/s 是命令上限，实际被跟踪能力和弹簧滤波限制。</p>
+<p>低速时结论是反过来的：≤ 2 m/s 的 20 个点上，平均跟踪误差 SONIC 0.43 m/s，OpenHomie 0.18 m/s（我从 Data S1 算的，配对 t 检验 P = 4.2×10⁻⁷，OpenHomie 更低）。&gt; 2 m/s 时 SONIC 1.96，OpenHomie 3.03。§3.7 提到两者交叉，但 §2.1 和 §2.6 只写 98.5 对 43.0，并由此说“多样性比专门化更有益”。在 OpenHomie 设计的速度范围内，它更准。</p></div>
+
+<p><b>真机。</b>部署 124 段动作，每段一次：真机成功 99.2%（123/124），仿真 100%（124/124）；MPJPE-L 25.7 mm 对 22.3 mm。上身差距最小（22.2 对 21.8 mm），脚最大（53.7 对 29.0 mm），因为接触下的精确落脚最难。Data S1 说明真机的均值只算成功的 123 段。</p>
+
+<h3 id="s2-2"><span class="no">2.2</span>交互动作控制</h3>
+<p>规划器用自回归方式不断重新生成未来的运动学动作，条件是之前的状态和用户命令。每次生成 0.8–2.4 s，长度由规划器自己定。推理在笔记本上低于 5 ms，Jetson Orin GPU 上约 12 ms。最快每 100 ms 重规划一次，命令变化时立即重规划。</p>
+<p>支持的应用都是训练后才指定的，不重训规划器或策略：任意速度、方向和风格的导航；打拳；蹲、爬、跪这类运动技能。命令速度 0–6 m/s，方向 0–360°；6 m/s 只是上限，实际还要过弹簧模型和跟踪器能力（见读者注 <a href="#n10">10</a>）。风格有醉酒走、受伤走、开心走、潜行。蹲和跪时骨盆高度 0.3–0.8 m 连续可调；爬行靠肘和膝全向移动，0–0.5 m/s。作者说已有的打拳方案要在几个专家模型或动作标签之间切换，造成停顿，这里是连续的。</p>
+<figure class="pfig" id="fig3">
+<img src="sonic/fig3.webp" width="1600" height="1886" alt="图 3：导航、蹲跪爬和连续打拳的时间序列" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 7 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S2.F3">看原图 ↗</a></span>每行一段按时间排列的帧。(A) 不同速度、方向和风格的导航，上方是仿真的鬼影轨迹。(B) 任意骨盆高度下的蹲、跪、爬、起身。(C) 连续打拳：左右直拳、勾拳、格挡、侧步。全部由同一个策略加规划器完成。</figcaption>
+</figure>
+
+<h3 id="s2-3"><span class="no">2.3</span>视频遥操作与多模态控制</h3>
+<p>基于 GEM 的统一动作生成系统（一个既做人体动作估计也做生成的模型，参考文献 [50] 的 GENMO）接受视频、自然语言和音乐三种输入。<b>视频：</b>预录或单目摄像头，估计 ≥ 60 fps，不需要动捕设备。<b>文本：</b>任意时刻输入提示词，比如“向前走”“踢左脚”“像猴子一样跳舞”，≥ 60 fps 合成。<b>音乐：</b>按旋律、节奏和节拍生成舞蹈。三者之间能平滑切换。</p>
+<figure class="pfig" id="fig4">
+<img src="sonic/fig4.webp" width="1600" height="1846" alt="图 4：视频遥操作、文本控制、音乐控制和 VR 全身遥操作" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 8 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S2.F4">看原图 ↗</a></span>(A) 人和机器人并排，机器人在跟随单目视频估计的动作。(B) 文本命令，图中有“像猴子”“用左臂出拳”。(C) 音乐控制。(D) VR 全身遥操作：侧够、前够、单膝跪、开门、爬行、360° 旋转落地。</figcaption>
+</figure>
+
+<h3 id="s2-4"><span class="no">2.4</span>VR 遥操作</h3>
+<p>两种接口。<b>全身：</b>PICO 头显、踝部追踪器和手柄，输出 <a class="ds" href="https://smpl.is.tue.mpg.de/">SMPL</a> 格式的全身姿态，走人体编码器 \(\mathcal E^h\)。<b>三点：</b>只用头显和手柄，给头和双手的 SE(3) 位姿、手指角度、腰高和导航命令，下身由规划器生成。两者用同一个 token 空间，也用来采集 VLA 模型的训练数据。细节在 <a href="#S1-4">S1.4</a>。</p>
+
+<h3 id="s2-5"><span class="no">2.5</span>基础模型驱动的移动操作</h3>
+<p>把 <a class="ds" href="https://arxiv.org/abs/2503.14734">GR00T N1.5</a> VLA 模型接到 token 接口上做全自主控制，评测五个任务。第一个任务用三点接口，其余四个用全身接口。全身接口时 VLA 预测 78 维动作：64 维 token 加 14 维手关节。作者观察到预测 token 比预测 SMPL 姿态平滑安全，后者动作抖、方向控制差。成功是严格的二元判定。</p>
+<ul>
+<li><b>苹果到盘子（三点）：</b>走到桌边，拿苹果放盘子。300 条轨迹，20 次 90%。</li>
+<li><b>捡物（胡萝卜、刷子；全身）：</b>桌高 24–30 英寸（60.96–76.2 cm）和起点随机。3,900 条轨迹（13 种物体，每种 300 条），胡萝卜 75%，刷子 95%。</li>
+<li><b>开垃圾桶（全身）：</b>单腿平衡踩踏板。200 条轨迹，70%。</li>
+<li><b>汽水罐入桶（全身）：</b>最复杂，串起五个技能：走到桌边、单手拿罐、走到垃圾桶、踩踏板开盖、扔进去。1,000 条多物体轨迹，60%。</li>
+<li><b>电钻和箱子（全身）：</b>拿电钻放进箱子，双手搬到架子上。300 条轨迹，70%。</li>
+</ul>
+<figure class="pfig" id="fig5">
+<img src="sonic/fig5.webp" width="1600" height="1442" alt="图 5：六行时间序列，分别是苹果到盘子、胡萝卜、刷子、开垃圾桶、汽水罐入桶、电钻和箱子" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 10 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S2.F5">看原图 ↗</a></span>六行对应六种任务设置，从左到右按时间排列，可以看到 (D)(E) 里机器人单腿站立用另一只脚踩踏板。</figcaption>
+</figure>
+<p class="tcap">表 1 · VLA 通过通用 token 接口控制（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>(A) 任务</th><th>接口</th><th>训练数据</th><th>试验</th><th>成功</th></tr></thead><tbody>
+<tr><td>苹果到盘子</td><td>3-point</td><td>300 trajs（单物体）</td><td>20</td><td>90%</td></tr>
+<tr><td>捡物（胡萝卜）</td><td>whole-body</td><td>3,900 trajs（多物体）</td><td>20</td><td>75%</td></tr>
+<tr><td>捡物（刷子）</td><td>whole-body</td><td>3,900 trajs（多物体）</td><td>20</td><td>95%</td></tr>
+<tr><td>开垃圾桶（脚）</td><td>whole-body</td><td>200 trajs</td><td>10</td><td>70%</td></tr>
+<tr><td>汽水罐入桶</td><td>whole-body</td><td>1,000 trajs（多物体）</td><td>10</td><td>60%</td></tr>
+<tr><td>电钻和箱子</td><td>whole-body</td><td>300 trajs</td><td>10</td><td>70%</td></tr>
+<tr><td colspan="4"><b>平均（5 个任务）</b></td><td><b>75%</b></td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>(B) 动作空间</th><th>FSQ token</th><th>SMPL 姿态</th><th>Δ</th></tr></thead><tbody>
+<tr><td>捡胡萝卜</td><td>75%</td><td>60%</td><td>+15</td></tr>
+<tr><td>开垃圾桶（脚）</td><td>70%</td><td>20%</td><td>+50</td></tr>
+<tr><td>汽水罐入桶</td><td>60%</td><td>0%</td><td>+60</td></tr>
+<tr><td><b>平均</b></td><td><b>68%</b></td><td><b>27%</b></td><td><b>+42</b></td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 1 的算术和样本量</span>
+<p>75% = (90 + (75+95)/2 + 70 + 60 + 70)/5，两种捡取合并算一个任务，表注说了。(B) 68.3、26.7、差 41.7，四舍五入后写成 68、27、+42，都对得上。</p>
+<p>样本量很小。按 95% Wilson 区间（我的计算）：10 次成 6 次是 31%–83%，10 次成 0 次是 0%–28%，20 次成 15 次是 53%–89%。假设 SMPL 列的试验次数和 token 列相同（论文没写）：汽水罐 60 对 0 的区间不重叠，开垃圾桶 70 对 20 只小幅重叠（40–89 和 6–51），胡萝卜 75 对 60 重叠很多。第 10 幕画了这些区间。</p></div>
+
+<h3 id="s2-6"><span class="no">2.6</span>讨论</h3>
+<p><b>为什么跟踪能放大。</b>作者归因于稠密的逐帧监督：每一帧都有显式的目标姿态，学习信号不随数据量和多样性变弱。AMP、ASE 的判别器要区分整个分布上的真假动作，多样性越大信号越弱，导致模式塌缩（引用的工作如此）。为具体任务设计奖励则不通用。OpenHomie 的对比被当作具体证据；其速度跟踪超过 8 GPU 不再改善（图 S6），SONIC 随算力继续改善。这是作者的解释，没有实验在同一框架下直接分离这些因素。</p>
+<p>token 表示的是全身，所以 VLA 可以控制包括脚在内的整条运动链。</p>
+<p><b>局限。</b>没有对长期部署的安全和能效做正式处理。跟踪器靠动作命令的域随机化和弹簧模型对噪声规划输出鲁棒，但在更极端或很动态的动作下可能失衡。</p>
+
+<h2 id="s3"><span class="no">3</span>材料与方法</h2>
+<p><b>研究设计。</b>问题是物理跟踪是否随数据、模型和算力良好放大。在 Isaac Lab 中训练，在仿真和真机中测试，系统地改变三个量，用预定义的留出集评测。所有训练用同样的超参数（表 S2）和奖励（表 S3）。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>人形动作数据集</h3>
+<p>大规模动捕，男女演员均衡，覆盖运动、日常、手势和大量战斗动作，片段 1–180 秒，几千种动作，多数由多人多次演绎。源数据约 700 小时。用 <a class="ds" href="https://github.com/YanjieZe/GMR">GMR</a>（<a href="https://arxiv.org/abs/2510.02252">论文</a>）和 PyRoki 重定向到 G1，过滤掉机器人做不了的动作（爬楼、坐着），剩 <b>611 小时</b>（100M+ 帧，50 Hz）。</p>
+<p>33 个大类、8,447 个子类，每个动作有多个演员，并镜像成左右两份。test-content 的子类完全不在训练集，test-repetition 子类全部重叠但片段不重合。</p>
+<p><b>公开数据。</b>相当一部分以 <a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a> 发布：142,220 个标注序列（288 小时），522 名演员，有 SOMA 和 G1 两种格式，带自然语言描述和时间分段。</p>
+<p class="tcap">表 2 · 数据划分（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th></th><th>Train</th><th>Test-Content</th><th>Test-Rep.</th></tr></thead><tbody>
+<tr><td>片段</td><td>317,189</td><td>7,016</td><td>9,395</td></tr>
+<tr><td>时长（小时）</td><td>611</td><td>15</td><td>12</td></tr>
+<tr><td>子类</td><td>8,447</td><td>182</td><td>1,088</td></tr>
+<tr><td>子类与训练重叠</td><td>—</td><td>0%</td><td>100%</td></tr>
+<tr><td>片段与训练重叠</td><td>—</td><td>0%</td><td>0%</td></tr>
+<tr><td>运动（基础 + 高级）</td><td>53,255</td><td>2,481</td><td>2,683</td></tr>
+<tr><td>手势</td><td>37,939</td><td>1,488</td><td>1,125</td></tr>
+<tr><td>表演 / 角色扮演</td><td>68,742</td><td>—</td><td>20</td></tr>
+<tr><td>战斗（剑、武术等）</td><td>50,162</td><td>—</td><td>—</td></tr>
+<tr><td>道具 / 物体操作</td><td>14,513</td><td>701</td><td>253</td></tr>
+<tr><td>舞蹈</td><td>9,689</td><td>504</td><td>485</td></tr>
+<tr><td>受伤</td><td>9,386</td><td>1,167</td><td>528</td></tr>
+<tr><td>动作 / 工具使用</td><td>9,920</td><td>228</td><td>322</td></tr>
+<tr><td>其他（10+ 大类）</td><td>63,583</td><td>429</td><td>890</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 2 的加和，以及帧数</span>
+<p>训练列分类加起来正好 317,189。test-content 列加起来是 6,998，比 7,016 少 18。test-repetition 加起来是 6,306，比 9,395 少 3,089，约三分之一的片段不在列出的类别里（表里“战斗”是 —，表演只有 20）。论文没解释，可能是还有没列出的类别，但 “Others” 已经是兜底行。这不影响结果数字。</p>
+<p>611 h × 3600 × 50 Hz = 1.10 亿帧，所以 “100M” 是取整的说法；288 h 约 5,184 万帧。100M 对应 317k 片段，平均每段约 6.9 s。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>通用人形动作跟踪</h3>
+<figure class="pfig" id="fig6">
+<img src="sonic/fig6.webp" width="1600" height="535" alt="图 6：从任务、动作生成器、动作、编码器、量化器、通用 token 到解码器的框图" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 14 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.07820#S3.F6">看原图 ↗</a></span>从左到右五列。任务：手柄、VR 三点和全身、视频与多模态。动作生成器：运动学规划器、PICO VR 工具、GEM。动作：机器人动作、VR 关键点加机器人腿部动作、人体动作。灰色框内是通用控制策略：三个编码器汇入量化器，变成一个通用 token，再分给机器人动作解码器和机器人控制解码器。下面的动画第 1 幕是它的 3D 版本。</figcaption>
+</figure>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>核心框架拆成 11 幕：总览、三轴放大（可切换轴和档位）、PPO 跟踪训练、三个编码器、FSQ（当场量化）、四项损失、自适应采样、规划器（当场算弹簧）、遥操作、VLA、和 SuperMimic 的判据对账。可以暂停、拖进度、旋转画面。</p>
+<iframe src="../interactives/sonic/index.html?embed=1" title="SONIC 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/sonic/index.html">全屏打开，还有完整结构表 ↗</a></p>
+</div>
+
+<p><b>形式化。</b>马尔可夫决策过程 \(\mathcal M=\langle\mathcal S,\mathcal A,\mathcal T,\mathcal R,\gamma\rangle\)，用 PPO 最大化 \(\mathbb E[\sum_{t=1}^T\gamma^{t-1}r_t]\)。环境设定来自已有跟踪工作，以 <a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a> 调好的设定为放大的基础。</p>
+<p><b>状态。</b>本体感受 \(s^p_t\) 和动作命令 \(s^g_t\)。\(s^p_t=(q_t,\dot q_t,\omega_t,g_t,a_{t-1})_{t-9:t}\)：关节位置、速度、根角速度、根坐标系下的重力、上一动作，取 10 步历史。\(s^g_t\) 是三种之一：机器人动作 \(g^r\)、人体动作 \(g^h\)、混合动作 \(g^m\)（上身关键点加下身机器人动作）。全部用机器人局部坐标系，旋转用 6D 表示。</p>
+<p><b>动作和奖励。</b>策略输出目标关节位置，由 PD 控制器跟踪。\(r_t=\mathcal R(s^p_t,s^g_t)+\mathcal P(s^p_t,a_t)\)，跟踪项加惩罚项，见表 S3。<b>域随机化</b>：物理参数、周期性的根速度扰动、目标动作命令的扰动，见表 S4。</p>
+<p><b>通用控制策略。</b>专门的编码器把异构输入映射到共享潜空间，量化成 token，驱动同一个控制解码器；辅助的动作解码器帮助学特征，也充当隐式的人到机器人重定向。</p>
+<ul>
+<li><b>编码器：</b>\(\mathcal E^r\) 编码未来 \(F_r\) 帧机器人关节位置和速度（间隔 \(\Delta t_r\)）；\(\mathcal E^h\) 编码未来 \(F_h\) 帧人体关节 3D 位置（\(\Delta t_h\)）；\(\mathcal E^m\) 编码当前帧上身稀疏关键点（头和手）加未来 \(F_m\) 帧下身机器人动作（\(\Delta t_m\)）。都是 MLP。</li>
+<li><b>量化器：</b><a class="ds" href="https://arxiv.org/abs/2309.15505">FSQ</a>（有限标量量化）把潜变量量化成两个 token，每个是 \(D_z\) 维、每维 \(L_z\) 级的向量。FSQ 每一维直接四舍五入到固定的几个值，整个码本是笛卡尔积，不用学。选它而不是 <a class="ds" href="https://arxiv.org/abs/1711.00937">VQ-VAE</a>（向量量化自编码器，要学码本）是为了在和 PPO 联合优化时稳定。</li>
+<li><b>解码器：</b>控制解码器 \(a_t=\mathcal D^c(z,s^p_t)\)，训练和部署输入相同。动作解码器 \(\hat g^r=\mathcal D^r(z)\) 只看 token，重建机器人动作，提供辅助监督。</li>
+</ul>
+<p><b>训练。</b>同步准备三种命令的数据，分别编码量化成 \(z^r,z^h,z^m\)，每个都经 \(\mathcal D^c\) 和 \(\mathcal D^r\)。总损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\mathcal L_{\rm ppo}+\mathcal L_{\rm recon}+\mathcal L_{\rm token}+\mathcal L_{\rm cycle} \]</div><span class="no">(1)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm recon}=\lVert\mathcal D^r(z^r)-g^r\rVert^2+\lVert\mathcal D^r(z^h)-g^r\rVert^2+\lVert\mathcal D^r(z^m)-g^r\rVert^2 \]</div><span class="no">(2)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm token}=\lVert z^r-z^h\rVert^2+\lVert z^r-z^m\rVert^2+\lVert z^m-z^h\rVert^2 \]</div><span class="no">(3)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm cycle}=\lVert\mathcal E^r(\mathcal D^r(z^h))-z^r\rVert^2 \]</div><span class="no">(4)</span></div>
+<p>输入是人体动作时，式 (2) 就是重定向损失，这也是能用人体数据学的原因。式 (3) 让同一段动作的三种表示得到相近的 token。式 (4) 让“人到机器人再回来”保持一致。</p>
+<p>四项在一个循环里端到端优化。<b>非对称演员-评论家</b>：评论家在训练时看特权状态（基座线速度、全身部件位姿、无噪声观测），演员只看部署时能拿到的量。PPO 损失更新编码器、量化器、\(\mathcal D^c\) 和评论家；其他三项更新编码器和 \(\mathcal D^r\)。梯度通过<b>直通估计</b>（反传时把取整当恒等）穿过 FSQ。作者说，从 1.2M 到 42M 都没有观察到耦合带来的不稳定。</p>
+<p><b>自适应采样。</b>把数据切成固定时长的桶，按有上限的失败率加权，兼顾难动作和均匀覆盖。分布式训练基于 Accelerate 和 TRL，运行在 Isaac Lab 上。</p>
+<p><b>应用。</b>手柄走规划器和 \(\mathcal E^r\)；VR 全身走 \(\mathcal E^h\)，三点走 \(\mathcal E^m\)；VLA 直接预测 token；多模态走 GEM 和 \(\mathcal E^h\)。</p>
+
+<div class="note" id="n13"><span class="lab">读者注 13 · 式 (1)–(4) 和代码的差别（commit 1e1ec4f，<code>token_losses.py</code>、<code>universal_token_modules.py</code>、<code>g1_recon_and_all_latent.yaml</code>）</span>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>论文</th><th>代码</th></tr></thead><tbody>
+<tr><td>式 (1) 四项无权重</td><td>g1_recon 权重 <b>0.01</b>；g1_smpl、g1_teleop、teleop_smpl、reencoded_smpl_g1 权重 1.0。动画第 6 幕按代码写</td></tr>
+<tr><td>式 (3)(4) 写在量化后的 \(z\) 上</td><td>在<b>量化前</b>的连续潜变量上算（<code>encoded_latents</code>，<code>no_quantization=True</code>）。这样更合理，取整后的差几乎没有有用的梯度</td></tr>
+<tr><td>每种命令都编码、都解码</td><td>每个环境按 1:1:1 抽一个编码器驱动（<code>encoder_sample_probs</code>），SMPL 环境同时算 g1 和一部分 teleop 作配对。所以式 (2) 三项是在抽样子集上一个 <code>G1ReconLoss</code> 算的，PPO 只走抽到的那条路</td></tr>
+<tr><td>\(\mathcal E^r\)：关节位置和速度。\(\mathcal E^h\)：3D 关节位置</td><td>另加根朝向；\(\mathcal E^h\) 还加腕关节（公布配置）</td></tr>
+</tbody></table></div>
+<p>顺带：配置项 <code>detach_teleop_target: True</code> 写在 teleop_smpl_latent 下，但 <code>TeleopSmplLatentLoss</code> 用 <code>**kwargs</code> 吞掉了它，forward 里没有 detach。代码里的 <code>num_fsq_levels: 32</code> 实际是维数，<code>fsq_level_list: 32</code> 才是每维级数，读代码时容易看反。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>生成式运动学规划器</h3>
+<p>一个大规模潜空间生成模型，和跟踪策略用同样的数据训练。任务形式是自回归的<b>动作补间</b>：生成把当前姿态平滑接到目标关键帧的中间动作。上下文关键帧是历史状态，目标关键帧来自用户命令（速度、方向、风格）或技能（蹲、爬、打拳）。</p>
+<p><b>表示。</b>训练时抽 0.8–2.4 s 的片段，两端做关键帧。用骨盆相对的关节位置和全局关节旋转。用全局旋转而不是规范化的局部旋转，是因为蹲和爬时朝向定义不清。训练样本随机旋转以覆盖所有初始朝向。</p>
+<p><b>潜空间。</b>动作先编码成 token 序列，下采样 4 倍：</p>
+<div class="eq"><div class="m">\[ \{z_t\}_{t=1}^{T/4}=\mathrm{enc}\bigl(\{p_t,r_t\}_{t=1}^{T}\bigr) \]</div><span class="no">(5)</span></div>
+<p>\(p_t\) 是姿态，\(r_t\) 是根位置。用<b>掩码 token 预测</b>，不是一次预测全部：网络看起止关键帧和当前的 token，反复预测并定下最有把握的那部分：</p>
+<div class="eq"><div class="m">\[ h=\mathcal F\bigl(\{p_t,r_t\}_{t=1}^{4},\{p_t,r_t\}_{t=T-4}^{T},\{z_t\}_{t=1}^{T/4}\bigr) \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ \mathrm{Prob}(z_t)=\sigma(h) \]</div><span class="no">(7)</span></div>
+<p>第一轮全部 token 未知，用可学习的 \(z_{\rm masked}\) 初始化。训练时掩码比例在 100% 到 0% 间均匀抽样。推理时用余弦调度决定每轮定下的比例 \(1-\cos(\frac\pi2\cdot\frac{L}{L_{\max}})\)。全部定下后解码成运动学动作。论文没有给 \(L_{\max}\)。</p>
+<p><b>根轨迹弹簧。</b>用临界阻尼弹簧模型从命令生成关键帧的根位置和朝向，原文写作：</p>
+<div class="eq"><div class="m">\[ x(t)=\Bigl(x_T-x_0+\bigl(v_0+\tfrac{c}{2}(x_T-x_0)\bigr)t\Bigr)e^{-\frac{c}{2}t} \]</div><span class="no">(8)</span></div>
+<p>用在骨盆 x、y 位置和投影朝向上，位置阻尼 \(5\ln 2\)，朝向 \(20\ln 2\)。只给速度时，按 1.0 s 后的位置算目标，再把关键帧放在 \(x(1.0)\)。作者说规划器对阻尼不敏感，弹簧甚至常常可以去掉，但加上更可预测，也能防止不现实的命令，比如从 6 m/s 突然到 −6 m/s。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 式 (8) 照写不是从 \(x_0\) 走到 \(x_T\)</span>
+<p>把 \(t=0\) 代入式 (8) 得 \(x_T-x_0\)，不是 \(x_0\)；\(t\to\infty\) 得 0，不是 \(x_T\)。这是 v4 的 HTML 源里 alttext 也如此（<code>x(t)=\left(x_{T}-x_{0}+\left(v_{0}+\frac{c}{2}\left(x_{T}-x_{0}\right)\right)t\right)e^{-\frac{c}{2}t}</code>）。把它当“剩余误差”解释也不完全对，那样 \(v_0\) 前应该是负号。</p>
+<p>代码里（<code>motionbricks/motionbricks/motion_backbone/demo/full_agent.py</code>，<code>_generate_spring_model_position_and_heading</code>）是标准形式：\(x(t)=(j_0+j_1t)e^{-yt}+x_T\)，\(j_0=x_0-x_T\)，\(j_1=v_0+j_0y\)，满足 \(x(0)=x_0\)、\(\dot x(0)=v_0\)、\(x(\infty)=x_T\)。动画第 8 幕可以切换两种，曲线当场算。</p>
+<p>阻尼：代码位置用 \(y=4\ln2/0.8/2\)，即 \(c=2y=5\ln2\)，和论文一致。朝向代码写“半衰期 0.17”，\(y=4\ln2/0.17/2\)，\(c\approx23.5\ln2\)；论文 \(20\ln2\) 对应 0.2。差别不大。</p>
+<p>公开代码是 MotionBricks 的 demo，README 的路线图说完整训练流程还没放进 GEAR-SONIC 流水线。所以规划器的训练细节我没法对照。</p></div>
+<p><b>关键帧模块。</b>不需要足迹规划。导航：沿目标根轨迹放风格片段；打拳等：取匹配片段中最有表现力的一段；蹲跪：按高度在线检索。作者说这样每个技能只要一个片段。完整说明在 <a href="#S1-3">S1.3</a>。</p>
+
+<h3 id="s3-4"><span class="no">3.4</span>多模态动作生成</h3>
+<p>用 GEM，把估计当成带约束的生成，接受混合的时变条件（文本、音频、视频），通过扩散先验输出人体动作。用带重叠的滑动窗口和基于修补的过渡做低延迟生成，结果进 \(\mathcal E^h\)。</p>
+
+<h3 id="s3-5"><span class="no">3.5</span>部署</h3>
+<p>G1，29 个驱动关节。全部推理在 Jetson Orin GPU 上，TensorRT 配 CUDA Graph，策略一次 1–2 ms，动作生成约 12 ms。四个循环：策略 50 Hz，写命令 500 Hz，操作输入 100 Hz，运动学规划 10 Hz。切换输入（键盘、手柄、VR、网络流）只是换编码器，不用重训。所有真机实验都用最大的 42M 模型。详见 <a href="#S1-2">S1.2</a>。代码：<a href="https://github.com/NVlabs/GR00T-WholeBodyControl">GR00T-WholeBodyControl</a>。</p>
+
+<h3 id="s3-6"><span class="no">3.6</span>关键设计的验证</h3>
+<p><b>token 对显式姿态。</b>VLA 预测 FSQ token（78 维）比预测 SMPL 全身姿态和手（81 维）平均高 42 个百分点。作者解释：FSQ 空间紧凑、离散，从遥操作示教更容易学；连续的高维姿态会把小误差放大成跟踪失败。我的观察：两边维数其实差不多（78 对 81），所以“低维”这个解释站不住，能说的是“结构化和离散”。</p>
+<p><b>量化器。</b>FSQ 避免<b>码本塌缩</b>（大部分码字没人用），这在 33 大类、8,447 子类的动作分布下是大问题。公平起见用同容量的多头 VQ-VAE（4 个头，码本 512，2 个 token）。FSQ 在 test-content 上 MPJPE-L 好 8.7 mm。容量实验只在 32 卡上做（算力限制）：FSQ-16-16 表示每 token 16 级 16 维。容量越大越好；作者说维数比级数影响大，默认 FSQ-32-32。</p>
+<p><b>多编码器。</b>三个编码器都 &gt; 99.2% 成功。人体编码器只比机器人多 0.6 mm；混合编码器 26.5 mm，多 2.7 mm，因为只有上身稀疏关键点。去掉一致性损失后跨编码器偏差增大 8 倍（图 S7）。作者强调这对 VLA 重要：不同接口采集的遥操作数据要落在同一个潜空间。</p>
+<p class="tcap">表 3 · 消融（照录原文）。每格一次评测，MPJPE-L 单位 mm</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">配置</th><th colspan="4">Test-Content (OOD)</th><th colspan="4">Test-Repetition</th></tr><tr><th>SR%</th><th>MPJPE-L</th><th>Vel.</th><th>Accel.</th><th>SR%</th><th>MPJPE-L</th><th>Vel.</th><th>Accel.</th></tr></thead><tbody>
+<tr><td colspan="9"><b>(A) 量化器（128 GPU）</b></td></tr>
+<tr><td>FSQ（本文）</td><td>99.3</td><td>26.6</td><td>3.14</td><td>1.17</td><td>99.6</td><td>25.5</td><td>3.22</td><td>1.23</td></tr>
+<tr><td>VQ-VAE</td><td>98.7</td><td>35.3</td><td>3.76</td><td>1.37</td><td>99.3</td><td>32.2</td><td>3.83</td><td>1.44</td></tr>
+<tr><td colspan="9"><b>(B) FSQ 配置（32 GPU，各 2 token）</b></td></tr>
+<tr><td>FSQ-16-16</td><td>96.9</td><td>35.7</td><td>3.68</td><td>1.26</td><td>97.5</td><td>32.7</td><td>3.75</td><td>1.31</td></tr>
+<tr><td>FSQ-16-32</td><td>98.3</td><td>29.7</td><td>3.39</td><td>1.21</td><td>98.7</td><td>28.4</td><td>3.48</td><td>1.27</td></tr>
+<tr><td>FSQ-32-16</td><td>98.3</td><td>30.3</td><td>3.44</td><td>1.22</td><td>98.4</td><td>28.9</td><td>3.52</td><td>1.28</td></tr>
+<tr><td>FSQ-32-32（本文）</td><td>98.8</td><td>27.5</td><td>3.25</td><td>1.19</td><td>99.3</td><td>26.3</td><td>3.34</td><td>1.25</td></tr>
+<tr><td colspan="9"><b>(C) 编码器（128 GPU）</b></td></tr>
+<tr><td>机器人 \(\mathcal E^r\)</td><td>99.6</td><td>23.8</td><td>2.89</td><td>1.12</td><td>99.8</td><td>22.5</td><td>2.96</td><td>1.18</td></tr>
+<tr><td>人体 \(\mathcal E^h\)</td><td>99.6</td><td>24.4</td><td>3.04</td><td>1.24</td><td>99.8</td><td>23.1</td><td>3.11</td><td>1.30</td></tr>
+<tr><td>混合 \(\mathcal E^m\)</td><td>99.2</td><td>26.5</td><td>3.25</td><td>1.22</td><td>99.7</td><td>25.2</td><td>3.31</td><td>1.28</td></tr>
+</tbody></table></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 3 内外的几处对不上，以及“维数比级数重要”</span>
+<p><b>同一配置不同数字。</b>(A) “FSQ（本文）”和 (C) “机器人”按说都是 128 卡的默认配置，却差很多：99.3 / 26.6 对 99.6 / 23.8。(C) 和图 2 一致（99.63 / 23.77）。(A) 的 FSQ 反而接近 (C) 的混合编码器（99.2 / 26.5）。论文没说 (A) 用的是哪个编码器或哪次运行。如果 VQ-VAE 也是同一口径，8.7 mm 的差距成立（35.3 − 26.6，算术正确）；只是不能和别处的 23.8 混着看。</p>
+<p>(B) 的 FSQ-32-32 是 32 卡 98.8 / 27.5（repetition 99.3 / 26.3），而图 2(C) 的 32 卡点是 99.09 / 25.26（99.68 / 24.10）。表注说是单次评测，图是 6 次均值，但这个差距超过了图上的标准差（0.03）。</p>
+<p><b>按比特算（我的计算）。</b>两个 token，每个 \(D\) 维 \(L\) 级，容量 \(2D\log_2L\) 比特：16-16 是 128，16-32 是 256，32-16 是 160，32-32 是 320。从 16-16 出发，加维数多 128 比特，加级数只多 32 比特，test-content 成功率都到 98.3%，MPJPE 差 0.6 mm。所以“维数影响更大”只在同样翻倍时成立，差距也不大；按每比特算，加级数效率反而高得多。而且这些是单次评测，差距在噪声附近。论文的“表示容量比量化粒度重要”这句话，这张表支持得很有限。</p></div>
+<p><b>规划器的角色。</b>它是应用层，把用户意图变成短时参考。跟踪器不挑来源，也能接别的规划器。这个规划器用一个实时生成模型统一 25+ 种技能和风格，每种只要一个代表片段。跟踪器的验证是在预录动作上独立做的，对规划器输出的鲁棒性来自命令的域随机化和弹簧滤波。</p>
+
+<h3 id="s3-7"><span class="no">3.7</span>统计分析</h3>
+<p>都是双侧检验，P &lt; 0.001 写成 “P &lt; 0.001”。图 2(A–C) 阴影是 n = 6 个评测检查点的均值 ±1 s.d.。跟踪指标只在成功动作上算，因为提前终止时没有定义，所以不做分布检验。不配对比较用 Welch t 检验，放大效应比较每根轴的最小和最大配置；成功率按每个动作的二元结果比较，样本大时等价于双比例 z 检验。配对比较用配对 t 检验：对 OpenHomie 的速度误差按 ≤ 2 和 &gt; 2 m/s 分开报告，因为两者交叉；仿真对真机在 124 段上配对（P = 0.32，Data S1）。消融表是描述性的。见读者注 <a href="#n7">7</a>。</p>
+
+<h2 id="s4"><span class="no">4</span>致谢与可得性</h2>
+<p>研究由 NVIDIA 资助；作者现在或当时是 NVIDIA 员工，公司就相关工作提交了专利申请。代码在 <a href="https://github.com/NVlabs/GR00T-WholeBodyControl">GR00T-WholeBodyControl</a>。动捕数据的相当一部分以 BONES-SEED 公开。代码快照和 Data S1 存在 <a href="https://doi.org/10.5281/zenodo.21273312">Zenodo 10.5281/zenodo.21273312</a>。</p>
+
+<h2 id="S1"><span class="no">S1</span>补充方法</h2>
+<h3 id="S1-1"><span class="no">S1.1</span>实现细节</h3>
+<p>FSQ 的优点再说一次：不塌缩，不需要承诺损失和码本的指数滑动平均更新，直通梯度干净，适合和 PPO 联合优化。</p>
+<p class="tcap">表 S1 · 网络（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模块</th><th>结构</th><th>维度</th></tr></thead><tbody>
+<tr><td>量化器</td><td>FSQ</td><td>token 维度 \(D_z\)，级数 \(L_z\)</td></tr>
+<tr><td>编码器（g1、teleop、smpl）</td><td>MLP</td><td>hidden = [2048, 1024, 512, 512]</td></tr>
+<tr><td>解码器（动作）</td><td>MLP</td><td>hidden = [4096, 4096, 2048, 2048, 1024, 1024, 512, 512]</td></tr>
+<tr><td>解码器（参考）</td><td>MLP</td><td>hidden = [2048, 1024, 512, 512]</td></tr>
+<tr><td>动作维度</td><td>对角高斯</td><td>29</td></tr>
+<tr><td>评论家</td><td>MLP</td><td>hidden = [4096, 4096, 2048, 2048, 1024, 1024, 512, 512]</td></tr>
+<tr><td>未来帧</td><td></td><td>\(F_r=F_h=F_m=10\)</td></tr>
+<tr><td>帧间隔</td><td></td><td>\(\Delta t_r=\Delta t_m=0.1\) s，\(\Delta t_h=0.02\) s</td></tr>
+</tbody></table></div>
+<p class="tcap">表 S2 · 训练超参数（照录原文）</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>超参数</th><th>值</th></tr></thead><tbody>
+<tr><td>每 GPU 并行环境</td><td>4096</td></tr><tr><td>每环境步数</td><td>24</td></tr><tr><td>学习 epoch</td><td>5</td></tr><tr><td>小批数</td><td>4</td></tr><tr><td>折扣 \(\gamma\)</td><td>0.99</td></tr><tr><td>GAE \(\lambda\)</td><td>0.95</td></tr><tr><td>裁剪参数</td><td>0.2</td></tr><tr><td>熵系数</td><td>0.013</td></tr><tr><td>价值损失系数</td><td>1.0</td></tr><tr><td>演员学习率</td><td>2×10⁻⁵</td></tr><tr><td>评论家学习率</td><td>1×10⁻³</td></tr><tr><td>最大梯度范数</td><td>0.1</td></tr><tr><td>目标 KL</td><td>0.01</td></tr><tr><td>自适应学习率范围</td><td>[1×10⁻⁵, 2×10⁻⁴]</td></tr><tr><td>初始噪声 std</td><td>0.05</td></tr><tr><td>演员 std 钳制</td><td>[0.001, 0.5]</td></tr><tr><td>自适应采样桶</td><td>1 s</td></tr><tr><td>失败率上限</td><td>\(\beta=200\)</td></tr><tr><td>混合超参数</td><td>\(\alpha=0.1\)</td></tr>
+</tbody></table></div>
+
+<div class="note" id="n16"><span class="lab">读者注 16 · 公布的默认模型不是 42M；这对 SuperMimic 的比较意味着什么</span>
+<p><b>参数数（我的计算，只算线性层）。</b>输入 token 64 ＋ 本体 930 = 994，输出 29。表 S1 的动作解码器 37,393,949 个参数。\(\mathcal E^r\) 按 640 维输入是 4,231,232 个。两者相加 41.6M，正好对上论文的 42M。所以 “42M” 指的是推理路径：一个编码器加控制解码器。评论家和 \(\mathcal D^r\) 不计。</p>
+<p><b>公布模型的大小。</b>Hugging Face 上的文件（按 4 字节浮点换算）：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>model_decoder.onnx</th><th>配置里的解码器</th><th>last.pt</th></tr></thead><tbody>
+<tr><td>默认（sonic_release，2026-02/04）</td><td>40.9 MB，约 10.2M，和 (2048, 2048, 1024, 1024, 512, 512) 算出的 10,184,221 一致</td><td>小</td><td>469 MB</td></tr>
+<tr><td>low_latency（2026-06）</td><td>149.8 MB，约 37.4M</td><td>未核对，大小同大结构</td><td>1,125 MB</td></tr>
+<tr><td>sonic_v1_1（2026-07）</td><td>149.8 MB，约 37.4M</td><td>大（表 S1）</td><td>1,138 MB</td></tr>
+</tbody></table></div>
+<p>默认检查点的推理路径约 14.4M，三个编码器合在 12.5M 的 ONNX 里（3 × 4.2M，大体一致）。论文写“所有真机实验都用 42M”，图 2 里的 16M 点也不等于 14.4M。这个默认检查点对应论文哪个模型，论文和模型卡都没说。</p>
+<p><b>对 SuperMimic。</b>它比较的是“SONIC 公布的检查点”和“v1.1 检查点”，没写具体文件。如果前者是默认那个（文档说 <code>sonic_release</code> “matches the released checkpoint”，这是我的推断），那么 179 个失败和 0.90 回报来自一个<b>解码器只有表 S1 约 27% 大</b>的模型。而 21k GPU 小时描述的是 42M、5 万次迭代的那次训练。默认检查点的配置写 <code>num_learning_iterations: 100000</code>、<code>world_size: 128</code>，还有一个 2026-01-18 的 <code>checkpoint</code> 加载路径，motion_file 指向 BONES-SEED，实际开销和数据量没有记录。有趣的是，42M 级别的 v1.1 反而失败 239 个（不过它用了朝向归一化和腕部增强，是为遥操作调的，不能简单比）。</p>
+<p>这些不会把 1000 倍的结论翻过来，余量太大。但“用 21k GPU 小时换来 0.90 这个回报”这句话，公开材料支持不了。</p>
+<p><b>其他差异。</b>熵系数：表 S2 0.013，两个公布配置都是 0.01。迭代数：论文说 5 万次一般到平台；训练文档说 “&gt;0.98 success rate and &lt;29 mm mpjpe_l after 100K iterations”。推搡：表 S4 写 “Push duration 1–3 s”；公布配置是 <code>push_by_setting_velocity</code>，<code>interval_range_s: [4, 6]</code>，是瞬时设速度加间隔，和“持续时间”对不上。对上的：环境数、步数、epoch、小批、γ、λ、裁剪、学习率、梯度范数、KL、噪声、钳制、β、α（配置 uniform_sampling_rate = 0.1），bin_size = 50 帧 = 1 s，摩擦和恢复系数，奖励的 σ 和权重。</p></div>
+
+<p class="tcap">表 S3 · 奖励（照录原文）。上标 \(g\) 目标，\(p\) 当前；\(\mathcal B\) 跟踪的身体部件；\(\mathcal K\) 是 VR 关键点（头、双腕、双踝）；rel 相对根坐标系</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项</th><th>式子</th><th>权重</th></tr></thead><tbody>
+<tr><td>根位置</td><td>\(\exp(-\lVert p^p_{t,r}-p^g_{t,r}\rVert_2^2/0.3^2)\)</td><td>0.5</td></tr>
+<tr><td>根朝向</td><td>\(\exp(-\lVert o^p_{t,r}-o^g_{t,r}\rVert_2^2/0.4^2)\)</td><td>0.5</td></tr>
+<tr><td>部件位置（rel）</td><td>\(\exp(-\frac1{|\mathcal B|}\sum_b\lVert p^{p,\rm rel}_{t,b}-p^{g,\rm rel}_{t,b}\rVert_2^2/0.3^2)\)</td><td>1.0</td></tr>
+<tr><td>部件朝向（rel）</td><td>\(\exp(-\frac1{|\mathcal B|}\sum_b\lVert o^{p,\rm rel}_{t,b}-o^{g,\rm rel}_{t,b}\rVert_2^2/0.4^2)\)</td><td>1.0</td></tr>
+<tr><td>部件线速度</td><td>\(\exp(-\frac1{|\mathcal B|}\sum_b\lVert v^p_{t,b}-v^g_{t,b}\rVert_2^2/1.0^2)\)</td><td>1.0</td></tr>
+<tr><td>部件角速度</td><td>\(\exp(-\frac1{|\mathcal B|}\sum_b\lVert\omega^p_{t,b}-\omega^g_{t,b}\rVert_2^2/3.14^2)\)</td><td>1.0</td></tr>
+<tr><td>末端位置</td><td>\(\exp(-\frac15\sum_{k\in\mathcal K}\lVert p^p_{t,k}-p^g_{t,k}\rVert_2^2/0.1^2)\)</td><td>2.0</td></tr>
+<tr><td>动作变化</td><td>\(\lVert a_t-a_{t-1}\rVert_2^2\)</td><td>−0.1</td></tr>
+<tr><td>关节限位</td><td>\(\sum_j\mathbb 1[q_{t,j}\notin[q^{\min}_{t,j},q^{\max}_{t,j}]]\)</td><td>−10.0</td></tr>
+<tr><td>不期望接触</td><td>\(\sum_{c\notin\{\rm ankles,wrists\}}\mathbb 1[\lVert F_c\rVert&gt;1.0\,{\rm N}]\)</td><td>−0.1</td></tr>
+<tr><td>防抖（角速度）</td><td>\(\sum_{k\in\{\rm wrists,head\}}\lVert\omega_{t,k}\rVert_2^2\cdot\mathbb 1[\lVert\omega_{t,k}\rVert&gt;1.5]\)</td><td>−5e-3</td></tr>
+<tr><td>脚加速度</td><td>\(\sum_{k\in\{\rm ankles\}}\lVert\ddot q_{t,k}\rVert_2^2\)</td><td>−2.5e-6</td></tr>
+</tbody></table></div>
+<p>代码里“不期望接触”的排除列表还多了肘部（<code>left_elbow_link</code>、<code>right_elbow_link</code>）。公布配置的权重和 σ 与此表一致。</p>
+<p class="tcap">表 S4 · 域随机化（照录原文）。\(\mathcal U\) 是均匀分布</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项</th><th>分布</th></tr></thead><tbody>
+<tr><td>静摩擦</td><td>\(\mu_s\sim\mathcal U[0.3,1.6]\)</td></tr>
+<tr><td>动摩擦</td><td>\(\mu_d\sim\mathcal U[0.3,1.2]\)</td></tr>
+<tr><td>恢复系数</td><td>\(e\sim\mathcal U[0,0.5]\)</td></tr>
+<tr><td>默认关节位置</td><td>\(q_0\sim q_0+\mathcal U[-0.01,0.01]\)</td></tr>
+<tr><td>基座质心偏移</td><td>\(\Delta x\sim\mathcal U[-0.075,0.075]\)，\(\Delta y,\Delta z\sim\mathcal U[-0.1,0.1]\)</td></tr>
+<tr><td>根线速度</td><td>\(v_x,v_y\sim\mathcal U[-0.5,0.5]\)，\(v_z\sim\mathcal U[-0.2,0.2]\)</td></tr>
+<tr><td>推搡时长</td><td>\(\Delta t\sim\mathcal U[1,3]\) s</td></tr>
+<tr><td>根角速度</td><td>roll、pitch \(\sim\mathcal U[-0.52,0.52]\)，yaw \(\sim\mathcal U[-0.78,0.78]\)</td></tr>
+<tr><td>目标位置抖动</td><td>\(\Delta p^g\sim\mathcal U[-0.05,0.05]^3\)（x, y ±0.05，z ±0.01）</td></tr>
+<tr><td>目标朝向抖动</td><td>roll、pitch \(\sim\mathcal U[-0.1,0.1]\)，yaw \(\sim\mathcal U[-0.2,0.2]\)</td></tr>
+<tr><td>目标线速度抖动</td><td>\(\Delta v^g\sim\mathcal U[-0.5,0.5]^3\)（x, y ±0.5，z ±0.2）</td></tr>
+<tr><td>目标角速度抖动</td><td>roll、pitch \(\sim\mathcal U[-0.52,0.52]\)，yaw \(\sim\mathcal U[-0.78,0.78]\)</td></tr>
+<tr><td>目标关节抖动</td><td>\(\Delta q^g_t\sim\mathcal U[-0.1,0.1]\)</td></tr>
+</tbody></table></div>
+<p>原文的目标位置和线速度抖动，主表写 \(\mathcal U[\cdot]^3\) 又在括号里给各轴的不同范围，这里两者都照录。</p>
+
+<h3 id="S1-2"><span class="no">S1.2</span>部署架构</h3>
+<figure class="pfig" id="figS1">
+<img src="sonic/figS1.webp" width="1600" height="850" alt="图 S1：初始化流程、四个并行线程和安全监测" loading="lazy">
+<figcaption><span class="lab">图 S1 · 原文第 32 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=32">PDF 里看 ↗</a></span>(A) 启动线程、等待开始、控制循环启动。(B) 输入 100 Hz、规划 10 Hz、控制 50 Hz（动作管理、策略、状态记录）、状态回调、写命令 500 Hz，按“最新数据优先”通信。(C) 监测数据新鲜度、关节速度、电机错误、温度、流追赶、CRC32。</figcaption>
+</figure>
+<ul>
+<li><b>四个循环。</b>控制循环组装观测、调编码器和策略、出关节目标，50 Hz 和训练一致。写命令线程 500 Hz，不阻塞策略。输入线程 100 Hz。规划 10 Hz。读写锁保护的缓冲让消费者总读到最新数据。</li>
+<li><b>统一动作接口。</b>所有来源都填同一个 <code>MotionSequence</code>。切换是在互斥锁下原子地换指针，帧计数归零。编码器模式是序列的一个字段，换来源就自动换编码器。</li>
+<li><b>观测。</b>每拍读 IMU 和关节，写进环形缓冲（也存 CSV）。历史用带步长的回看，开机缓冲不够时补零。观测内容和顺序由 YAML 决定，同一个二进制能跑不同结构。</li>
+<li><b>GPU 推理。</b>TensorRT 加 CUDA Graph：热身时录下执行图，以后重放，方差小。</li>
+<li><b>朝向对齐。</b>新动作开始时，用 IMU 偏航把参考的朝向转到机器人当前朝向。操作员也可运行时修正。</li>
+<li><b>启动和安全。</b>三阶段：3 s 线性插值到站姿，等待信号，启动策略。关节速度看门狗触发急停。编码器所需数据缺失时自动回退到下一个可用模式。停止时全部进入纯阻尼（\(K_p=0,K_d=8\) Nm·s/rad）。电机命令带 CRC32。</li>
+<li><b>数据跟踪。</b>启动时加载 CSV，操作员选片段，50 Hz 前进，结束暂停。用于评测。</li>
+<li><b>动作规划。</b>规划线程生成 30 fps、最多 64 帧（约 2 s）的全身轨迹，最快 10 Hz，以最近 4 帧和命令为条件。初始化时上下文设为规范姿态，之后从上次生成的轨迹构造，所以在初始化时的坐标系里自回归。30 Hz 输出重采样到 50 Hz（位置线性，四元数 SLERP，速度差分）。新计划用 8 帧（160 ms）交叉淡入。间隔按模式调整（跑步每拍，走路少些）。</li>
+<li><b>动作流。</b>外部系统通过 ZMQ 或 ROS2 发送，流合并器处理变速到达和追赶。还有只发 token 的协议，绕过机载编码器，VLA 就走这里。</li>
+</ul>
+
+<h3 id="S1-3"><span class="no">S1.3</span>运动学规划器细节</h3>
+<p><b>导航：</b>从目标风格的导航片段随机选一段，放到目标根轨迹上。自回归重规划让它在到达片段末尾前就刷新，所以不依赖关键帧的具体空间细节。<b>娱乐：</b>取表现力最强的片段（比如出拳手臂最伸展的帧）。还支持动作分层：指定上身，下身由规划器生成。<b>交互操作：</b>蹲、跪时按目标高度在线检索关键帧。每种技能只要一个片段。</p>
+
+<h3 id="S1-4"><span class="no">S1.4</span>VR 遥操作和 VLA 集成细节</h3>
+<p><b>全身 VR。</b>每帧 87 维：63 维（21 × 3）全身关节位置，4 维根朝向四元数，6 维（2 × 3）腕关节，14 维（2 × 7）手关节。走 \(\mathcal E^h\)。</p>
+<p><b>三点 VR。</b>输出三个上身 SE(3) 位姿、手关节角、腰高、运动模式（慢走或快走）和导航命令。送进规划器和 \(\mathcal E^m\)。</p>
+<p><b>三点 VLA。</b>采 300 条示教，微调 GR00T N1.5，模型输出同样格式的信号，经规划器和 \(\mathcal E^m\) 执行。20 次 90%。</p>
+<p><b>全身 VLA。</b>78 维动作。汽水罐任务还用了 1,000 条多物体（汽水罐、纸杯、纸板等）和 150 条单物体数据。</p>
+
+<h2 id="S2"><span class="no">S2</span>补充讨论</h2>
+<h3 id="S2-1"><span class="no">S2.1</span>数据样本</h3>
+<figure class="pfig" id="figS2">
+<img src="sonic/figS2.webp" width="1600" height="1708" alt="图 S2：黑底网格上的大量 G1 动作样本" loading="lazy">
+<figcaption><span class="lab">图 S2 · 原文第 34 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=34">PDF 里看 ↗</a></span>随机样本，每格一个序列的一帧，已重定向到 G1。</figcaption>
+</figure>
+<h3 id="S2-2"><span class="no">S2.2</span>成功和失败的动作</h3>
+<p>test-content 中成功的例子：嘻哈舞、鞠躬、剑刺、回旋踢。失败的：僵尸爬（贴地、超出关节限位）、盘腿坐（持续接触，离训练分布远）。说明持续或复杂的地面接触仍然难。这和 SuperMimic 表 A.8 里 SONIC 失败集中的类别（侧滚、躺下起身）方向一致（我的观察，那边是训练集，判据也不同）。</p>
+<figure class="pfig" id="figS3">
+<img src="sonic/figS3.webp" width="1600" height="1158" alt="图 S3：六行未见动作，前四行成功，后两行失败" loading="lazy">
+<figcaption><span class="lab">图 S3 · 原文第 35 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=35">PDF 里看 ↗</a></span>蓝色标签四行成功（嘻哈舞、鞠躬、剑刺、回旋踢），红色标签两行失败（僵尸爬、盘腿坐）。</figcaption>
+</figure>
+<h3 id="S2-3"><span class="no">S2.3</span>真机动作</h3>
+<figure class="pfig" id="figS4">
+<img src="sonic/figS4.webp" width="1600" height="1215" alt="图 S4：六行真机评测动作" loading="lazy">
+<figcaption><span class="lab">图 S4 · 原文第 36 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=36">PDF 里看 ↗</a></span>124 段里的例子：嘻哈舞、鞠躬、高跳、踢、蹲走、匍匐。都成功了。</figcaption>
+</figure>
+<h3 id="S2-4"><span class="no">S2.4</span>抗推</h3>
+<p>把约 11 kg（25 磅）的物体从头顶以上砸到正在跟踪的机器人身上，它吸收冲击、保持平衡、继续跟踪，没有恢复模块或策略适配。这是定性演示，论文没有统计。</p>
+<figure class="pfig" id="figS5">
+<img src="sonic/figS5.webp" width="1600" height="231" alt="图 S5：重物砸中机器人的连续帧" loading="lazy">
+<figcaption><span class="lab">图 S5 · 原文第 36 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=36">PDF 里看 ↗</a></span>连续几帧：物体落下、砸中、机器人继续。</figcaption>
+</figure>
+<h3 id="S2-5"><span class="no">S2.5</span>专门控制器的放大</h3>
+<p>OpenHomie 从 1 GPU（4k 环境）到 32 GPU（4 节点），8 GPU 最好（0.18 m/s 误差，95.0% 存活），到 32 GPU 不再改善（0.29 m/s，91.2%）。作者据此说专门任务的奖励学会就饱和，而跟踪继续受益。</p>
+<figure class="pfig" id="figS6">
+<img src="sonic/figS6.webp" width="1542" height="885" alt="图 S6：OpenHomie 速度误差和存活率随算力变化" loading="lazy">
+<figcaption><span class="lab">图 S6 · 原文第 37 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=37">PDF 里看 ↗</a></span>四个配置：1 GPU（4K）、1 GPU（8K）、8 GPU、32 GPU。误差 0.290、0.338、0.180、0.288，阴影很宽。存活 93.8%、95.0%、95.0%、91.2%。</figcaption>
+</figure>
+<div class="note" id="n17"><span class="lab">读者注 17 · “饱和”的证据有多强</span>
+<p>图注说每个配置 80 次（20 个速度 × 4 方向）。存活率换算：93.75 = 75/80，95 = 76/80，91.25 = 73/80，也就是最多差 3 次。误差的阴影（±1 s.d.）在 8 GPU 是约 0.05 到 0.31，在 32 GPU 从 0 到 0.60，均值差 0.11 完全在里面。图中的 1 GPU（4K）和 32 GPU 误差几乎一样（0.290 和 0.288）。这些是一个种子还是几个，论文没写。测速范围只到 2 m/s，而图 2 的主比较到 5 m/s。</p>
+<p>所以这张图支持“OpenHomie 加 GPU 没明显变好”，不足以支持“变差”；和 SONIC 的对比也不是同一指标。作为“跟踪比专门控制器更能放大”的证据是弱的。Fig. 2H–J 用的 OpenHomie 是哪个配置，我没找到说明。</p></div>
+<h3 id="S2-6"><span class="no">S2.6</span>多编码器潜空间的对齐</h3>
+<p>在一段爬行动作上看三个编码器的 token 距离，有无一致性损失对比。</p>
+<figure class="pfig" id="figS7">
+<img src="sonic/figS7.webp" width="1600" height="1305" alt="图 S7：有无一致性损失时跨编码器距离曲线和距离矩阵" loading="lazy">
+<figcaption><span class="lab">图 S7 · 原文第 38 页 · Luo et al.，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.07820#page=38">PDF 里看 ↗</a></span>(A)(B) 三对编码器的逐帧 L2 距离，均值分别标着 0.57 和 4.23。(C)(D) 跨编码器距离矩阵，有一致性时对角线上是低值（匹配帧对齐），没有时结构乱了。</figcaption>
+</figure>
+<div class="note" id="n18"><span class="lab">读者注 18 · 7.4 倍，一段动作</span><p>4.23 / 0.57 = 7.42，§3.6 和 S2.6 写 “8×”，四舍五入得不到 8。而且只有一段爬行动作，图上的距离是在哪个量（量化前还是后）上算的也没说。方向是清楚的，具体倍数不宜引用。</p></div>
+
+<h2 id="S3"><span class="no">S3</span>补充视频</h2>
+<p>项目主页上五段：S1 总览和抗推；S2 交互控制（风格走路、打拳、蹲跪爬）；S3 视频和多模态；S4 VR；S5 VLA。论文说都是全自主，执行中没有人工干预。</p>
+
+<h2 id="S4"><span class="no">S4</span>补充数据</h2>
+<p>Data S1 是一个多表格的表格文件，每个面板一张。我从 Zenodo 取到并读了，图 2 的数值都出自这里。</p>
+
+<h2 id="notes" class="rn">读者注汇总</h2>
+<p>这些是我核对的结果，不属于论文。全部基于 arXiv v4、v1–v3、代码 1e1ec4f、Hugging Face 的配置和文件大小、Data S1。我没有运行任何代码或仿真。</p>
+<ol class="notes">
+<li><a href="#n1">许可标注的矛盾</a>：arXiv 登记 CC BY-SA 4.0，PDF 页脚写 All rights reserved。</li>
+<li><a href="#n2">SuperMimic 的说法逐条对照</a>：算力和数据对得上；L40 不在论文里；179、239、0.90 核对不了；“无朝向项”只对 v4 正文成立。</li>
+<li><a href="#n3">GPU 小时的版本史</a>：v1、v2 是 9k 和自相矛盾的 32,000，v3、v4 才是 21k。</li>
+<li><a href="#n4">14 个部件</a>：括号漏了髋和肩。</li>
+<li><a href="#n5">成功判据</a>：v4 正文少了 1 rad 朝向项，其他来源都有；公布配置训练用 25.6°；和倾斜判据的角度比较。</li>
+<li><a href="#n6">算力轴的算术</a>：125、281、164 小时，32 卡每次迭代最慢。</li>
+<li><a href="#n7">n = 6</a>：2 种子 × 3 检查点，不独立；2k 点只有 4 次；46k/54k/56k。</li>
+<li><a href="#n8">失败率</a>：三轴 3.2、5.3、3.0 倍，单轴实验，没有交叉。</li>
+<li><a href="#n9">两个仿真器、幸存者偏差</a>：99.63 对 98.53；误差只算成功动作。</li>
+<li><a href="#n10">存活不等于速度</a>：命令 5 m/s 实际 2.07；≤ 2 m/s 时 OpenHomie 更准。</li>
+<li><a href="#n11">表 1</a>：算术对；Wilson 区间很宽。</li>
+<li><a href="#n12">表 2</a>：test-repetition 分类和差 3,089；611 h 是 1.10 亿帧。</li>
+<li><a href="#n13">式 (1)–(4) 和代码</a>：0.01 权重、量化前、抽样编码器。</li>
+<li><a href="#n14">式 (8)</a>：照写不满足边界条件；代码是标准形式。</li>
+<li><a href="#n15">表 3</a>：同配置不同数；按比特算，“维数更重要”支持有限。</li>
+<li><a href="#n16">公布模型不是 42M</a>：默认解码器 1018 万参数；42M = 编码器 + 大解码器；对 SuperMimic 比较的含义。</li>
+<li><a href="#n17">OpenHomie 饱和</a>：差 3/80，阴影覆盖均值差。</li>
+<li><a href="#n18">8 倍</a>：实际 7.42，一段动作。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a></td><td>SONIC 数据的公开部分</td><td><a href="https://huggingface.co/datasets/bones-studio/seed">HF</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/davian-robotics/PHUMA">PHUMA</a></td><td>外部测试集</td><td><a href="https://github.com/davian-robotics/PHUMA">GitHub</a></td><td><a href="https://arxiv.org/abs/2510.26236">2510.26236</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a></td><td>基线的训练数据</td><td><a href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">GitHub</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a></td><td>GMT 的训练数据</td><td><a href="https://amass.is.tue.mpg.de/">主页</a></td><td><a href="https://arxiv.org/abs/1904.03278">1904.03278</a></td></tr>
+<tr><td><a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a></td><td>训练和放大评测的仿真器</td><td><a href="https://isaac-sim.github.io/IsaacLab/">主页</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org">MuJoCo</a></td><td>基线对比的仿真器</td><td><a href="https://mujoco.org">主页</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://smpl.is.tue.mpg.de/">SMPL</a></td><td>人体参数模型</td><td><a href="https://smpl.is.tue.mpg.de/">主页</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>实验平台</td><td><a href="https://www.unitree.com/g1">主页</a></td><td>–</td></tr>
+<tr><td>GMT、Any2Track、BeyondMimic、HOMIE</td><td>基线</td><td>–</td><td><a href="https://arxiv.org/abs/2506.14770">2506.14770</a>、<a href="https://arxiv.org/abs/2509.13833">2509.13833</a>、<a href="https://arxiv.org/abs/2508.08241">2508.08241</a>、<a href="https://arxiv.org/abs/2502.13013">2502.13013</a></td></tr>
+<tr><td>FSQ、VQ-VAE、PPO、GR00T N1</td><td>组件</td><td>–</td><td><a href="https://arxiv.org/abs/2309.15505">2309.15505</a>、<a href="https://arxiv.org/abs/1711.00937">1711.00937</a>、<a href="https://arxiv.org/abs/1707.06347">1707.06347</a>、<a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td></tr>
+<tr><td><a href="https://nvlabs.github.io/motionbricks/">MotionBricks</a></td><td>规划器的公开实现</td><td><a href="https://nvlabs.github.io/motionbricks/">主页</a></td><td>–</td></tr>
+</tbody></table></div>
+<p>以上 URL 我都用脚本确认过返回 200。GMR 主页同样。science.org 对脚本返回 403，所以发表版没读。</p>
+
+<footer class="foot"><p>整理：Paper Reading Lab。原论文 Luo et al., arXiv 2511.07820v4。本页文字和裁切图按 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 提供。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>

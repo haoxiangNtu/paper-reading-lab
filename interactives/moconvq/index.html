@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MoConVQ 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2310.10198 MoConVQ 的框架做成 11 幕 3D 动画：编码器的感受野、VQ 码本和承诺项、残差量化、物理解码器、穿过世界模型训练、下游任务。第 3、4、6、7、8、10 幕在浏览器里现场计算一个两关节玩具。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.cap{right:10px}
+.ctl{position:absolute;left:10px;top:96px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:calc(100% - 20px);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;pointer-events:auto}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:1px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+body.embed .ctl{top:84px;gap:2px;font-size:11.5px}
+body.embed .ctl button{padding:0 6px}
+.live{border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin:4px 0 10px;background:var(--panel)}
+.live:empty{display:none}
+.live .lt{font-family:var(--font-mono);font-size:11.5px;color:var(--accent);margin:2px 0}
+.live dl{margin:2px 0 4px}
+.info .toy{border-left-color:var(--accent)}
+.info .toy b{color:var(--accent)}
+.minibox{margin:6px 0 10px}
+.minibox[hidden]{display:none}
+#mini{display:block;width:100%;height:150px;touch-action:none}
+.minileg{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px!important;font-family:var(--font-mono);margin:2px 0;color:var(--fg)}
+.minileg i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:5px}
+.minileg .mx{color:var(--muted)}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="moconvq.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/moconvq.html">返回精读</a><a href="../../papers/moconvq.html#s3">原文第 3 节</a><a href="https://arxiv.org/abs/2310.10198">arXiv</a><a href="https://github.com/heyuanYao-pku/MoConVQ">官方代码</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2310.10198 · MOCONVQ</p>
+<h1>动作怎样变成一串索引，又怎样解码回物理</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览，第 2 到 5 幕讲编码器、码本、残差量化和解码器，第 6、7 幕讲怎样穿过世界模型训练，第 8 幕是消融，第 9 到 11 幕是下游任务。</p>
+<p class="howto">第 3、4、6、7、8、10 幕不是预先画好的：页面用固定种子在浏览器里真的训练一个<b>两关节的玩具 MoConVQ</b>（编码器、残差码本、策略、世界模型都有）。第 3 幕拖一个点看最近的码和承诺项，可以改码本大小。第 2、5 幕的感受野按网络结构逐层现算。玩具的结果不等于论文的结果，每一幕都标了。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：论文、官方代码和这个玩具</h2>
+<p class="sub">“代码”指 heyuanYao-pku/MoConVQ 提交 a9c6914（2024-10-29）。README 把训练代码列为未发布，仓库里的 <code>train_policy</code> 等函数因此只算旁证。我读了代码，没有运行，也没有下载权重。写“没写”的地方是论文或代码确实没给。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>部件</th><th>论文</th><th>官方代码</th><th>玩具</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">角色和表示</td></tr>
+<tr><td>状态 s</td><td>每个刚体的旋转、位置、速度、角速度、高度，加根的上方向（局部系）</td><td>16×20+3 = 323 维（6D 旋转）</td><td>4 维：两个关节的 θ、ω/4</td></tr>
+<tr><td>动作 a</td><td>所有关节的 PD 目标（式 7）</td><td>19×3 = 57 维，轴角</td><td>2 维：两个 PD 目标</td></tr>
+<tr><td>角色</td><td>19 关节 20 刚体，1.6 m，49.5 kg</td><td>Kp：400，趾 10，腕 5；Kd：50，趾和腕 1</td><td>两关节，PD (400, 50)，再加重力、摩擦和耦合（我写的）</td></tr>
+<tr><td>频率</td><td>控制 20 Hz，仿真 120 Hz</td><td>每次动作 6 个仿真步</td><td>相同</td></tr>
+<tr class="grp"><td colspan="4">VQ</td></tr>
+<tr><td>窗口</td><td>\(T=24\) 帧（1.2 秒）→ \(K=6\) 个码</td><td>相同；<code>rollout_length: 24</code></td><td>24 帧 → 6 个码（外加 1 个供末尾插值）</td></tr>
+<tr><td>码向量</td><td>768 维；每个码本 512 个</td><td>256×3 = 768；512 个</td><td>2 维；每层 K = 4（可切）</td></tr>
+<tr><td>层数</td><td>\(N=8\)；算法 1 从 0 到 N（9 层？见读者注 4）</td><td><code>self.num = 8</code>，共 8 层</td><td>4 层</td></tr>
+<tr><td>码本更新</td><td>式 10，\(\gamma=0.99\)（见读者注 8）</td><td>EMA：保留 0.99 旧值，只读 buffer，无梯度</td><td>同代码的公式；衰减 0.95，因为批量小</td></tr>
+<tr><td>死码重置</td><td>有，没写规则</td><td><code>ema_count &lt; 0.5</code> 时换成批内随机向量加 0.01 噪声</td><td>相同形式，阈值 0.05</td></tr>
+<tr><td>量化器 dropout</td><td>层数从 1 到 N 随机</td><td><code>randint(1, 8)</code> 且多算一层，实际 2 到 8 层</td><td>1 到 L 随机</td></tr>
+<tr><td>承诺权重 \(\beta_1\)</td><td>没写</td><td>0.05；平方范数；上限 10</td><td>0.05（可切）</td></tr>
+<tr><td>VQ 目标 \(\beta_2\)</td><td>式 6 第三项，权重没写</td><td>不存在：码本不用梯度更新</td><td>不存在</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>编码器</td><td>表 5：Conv(3)、2×{Conv(4,2,1)、3 残差块}、Conv(3)，通道 768</td><td>少第一个 Conv，通道 512</td><td>两个关节各 12 帧窗口，一层 MLP，32 单元</td></tr>
+<tr><td>Deconv</td><td>表 5，通道 768</td><td>通道 512；有 dynamic 和 kinematic 两个头；\(u_t\) 256 维</td><td>固定线性插值，没有参数</td></tr>
+<tr><td>策略 π</td><td>MoE：6 专家，每个 4 层 256；门控 2 层 64</td><td>6 专家，4 个隐层，<b>1024</b>；门控 64</td><td>一层 48，ELU，无 MoE</td></tr>
+<tr><td>世界模型</td><td>4 层 512</td><td>相同；ELU；动作转 6D；预测速度增量再积分</td><td>一层 48；预测速度增量再积分</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>缓存</td><td>50000 帧，每轮换 1024 帧</td><td>相同；另有 <code>train_transition</code>（读者注 6）</td><td>100 段，每轮 6 段</td></tr>
+<tr><td>世界模型更新</td><td>式 5；次数和窗口没写</td><td>每轮 8 次；批 512；8 帧；lr 1e-3；L1</td><td>每轮 8 次；批 4；8 帧；3e-3；L1</td></tr>
+<tr><td>主模型更新</td><td>式 6；RAdam；1e-5</td><td>每轮 8 + 4 次；批 512；24 帧；1e-5；折扣 0.95</td><td>每轮 8 次；批 5；24 帧；Adam 3e-3；折扣 0.95</td></tr>
+<tr><td>动作正则</td><td>EMA 软约束（式 8、9），\(\beta=0.8\)</td><td>只有 L1 + L2，没有 EMA 项</td><td>只有 L2</td></tr>
+<tr><td>总量</td><td>40k 轮，约 6 天</td><td><code>max_iteration</code> 40001</td><td>150 轮，约 1 秒</td></tr>
+<tr class="grp"><td colspan="4">下游</td></tr>
+<tr><td>转向</td><td>MoE 4 专家 4×256，门控 2×64；lr 2e-4；\(\tau=[1/3,2/3,1]\)</td><td>仓库里没有</td><td>第 9 幕只算式 14</td></tr>
+<tr><td>GPT</td><td>\(N_T=12\)，\(N_D=5\)，\(K\le 50\)，T5；lr 2e-4，150k 步</td><td>文本：12、4+1；<code>max_depth = 4</code>。无条件：8、2+2，<code>max_depth = 4</code></td><td>计数表，没有变换器</td></tr>
+<tr><td>LLM</td><td>Claude-2，1600 例，平均 167 字符；只用第 0 层</td><td>有 <code>decode_token.py</code>；示例文件没有</td><td>不跑，只列原文数字</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、11 幕：</b>方块大小、摆放和小球的流动是我画的，表示数据流方向，不代表耗时或维度。连线来自原文图 2、图 4。</li>
+<li><b>第 2、5 幕：</b>感受野是按结构算的，不是画的。这只说明“依赖”的范围，是上界，不代表权重大小。第 5 幕六个专家方块的亮度是示意。</li>
+<li><b>第 3、4、6、7、8、10 幕的数字：</b>都是玩具现算，不是论文数据。玩具的仿真器是我写的两个关节，学习器看不到公式，只看到转移。第 3、4 幕切码本大小时只重跑 k-means，不重训网络。</li>
+<li><b>玩具省掉的：</b>接触、摔倒、MoE、卷积编码器（换成窗口 MLP）、Deconv（换成线性插值）、RAdam（用 Adam）、动作 EMA 正则、VQ 目标项。</li>
+<li><b>第 8 幕：</b>蓝线是玩具仿真器的真实输出，不是角色动作，也不是原文图 18 的数据。原图见<a href="../../papers/moconvq.html#fig18">精读页的图 18</a>。</li>
+<li><b>第 9 幕：</b>灰色的 \(g^\pi\) 是手写的弧线，白色小方块只是角色位置的记号；两者都不是网络输出。金色是式 14 现算。</li>
+<li><b>第 10 幕：</b>计数表不是变换器。网格的摆放是我画的，式 16 只规定条件关系。规模估算 5700 对 160000 是我按论文“平方增长”算的，不是论文的数。</li>
+<li><b>第 11 幕：</b>数字抄自原文，每段标题是我按原文的说明缩写的。没有实际解码。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2310.10198 和官方代码后的理解，不是作者的官方图。原文图的文字描述和核算都在<a href="../../papers/moconvq.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MoConVQ 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2310.10198 MoConVQ 的中文精读：按原文章节整理，含全部 17 个编号公式、算法 1、表 1 到 5、18 张图的文字描述、和官方代码的对照、11 幕 3D 框架动画（可拖动的码本和残差量化，浏览器里现场训练一个玩具）和 18 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-a{min-width:560px}.t-b{min-width:680px}.t-c{min-width:480px}.t-links{min-width:640px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.algo{font-family:var(--font-mono);font-size:13px;line-height:1.75;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;overflow-x:auto}
+.algo .h{color:var(--accent);font-weight:600}
+.algo .c{color:var(--muted)}
+.algo div{white-space:nowrap}
+.i1{padding-left:1.5em}.i2{padding-left:3em}.i3{padding-left:4.5em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/moconvq/index.html">3D 框架动画</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2310.10198 · cs.CV · ACM TOG 43(4)，SIGGRAPH 2024 · 中文精读</p>
+<h1>MoConVQ：把几十小时动作压成一串索引，再用物理解码回来</h1>
+<p class="orig">MoConVQ: Unified Physics-Based Motion Control via Scalable Discrete Representations</p>
+<p>作者 Heyuan Yao、Zhenhua Song、Yuyang Zhou、Tenglong Ao、Baoquan Chen、Libin Liu，北京大学。通讯作者 Libin Liu。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2310.10198">arXiv 原文</a><a href="https://arxiv.org/html/2310.10198">网页版</a><a href="https://arxiv.org/pdf/2310.10198">PDF</a><a href="https://moconvq.github.io/">项目主页</a><a href="https://github.com/heyuanYao-pku/MoConVQ">官方代码</a><span>19 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，所以这里不放任何原图，也不做逐字翻译，用自己的话按原文顺序覆盖全部章节和附录。每张图写了文字描述，“看原图”打开 arXiv 网页版的对应位置。读的是 v3（2023-12-19）。</p>
+<p>公式按原文编号给出，表 1 到 4 的数字照录。论文的曲线和直方图都是位图，没有矢量数据可读，所以这页没有重画任何图；写“目测”的读数是我放大位图后读的，有误差。标成“读者注”的框是我核算或对照代码后写的，不属于论文，页尾有汇总。</p>
+<p>代码读的是官方仓库 <a href="https://github.com/heyuanYao-pku/MoConVQ/tree/a9c6914b2467c7b2a7429a158bce50fa63a39e6a">heyuanYao-pku/MoConVQ 提交 a9c6914</a>（2024-10-29），只读没跑，也没下载权重。项目主页指向的 github.com/MoConVQ/MoConVQ 重定向到同一个仓库，HEAD 相同。仓库根目录没有 LICENSE 文件，GitHub 也没有识别出许可，所以这页只引用函数名和数值，不搬代码。README 把“MoConVQ 训练代码”列为未完成，但仓库里确实有 <code>train_policy</code> 等函数，它们是否就是论文用的版本我无法确认，下面都当旁证。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#cvae">和 ControlVAE 的差别</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 离散动作表示</a><a href="#i3d">3D 框架动画</a><a href="#s3-1">3.1 框架</a><a href="#s3-2">3.2 残差 VQ</a><a href="#s3-3">3.3 基于模型的学习</a><a href="#s3-4">3.4 实现</a><a href="#s4">4 应用</a><a href="#s4-1">4.1 跟踪</a><a href="#s4-2">4.2 交互</a><a href="#s4-3">4.3 GPT</a><a href="#s4-4">4.4 大语言模型</a><a href="#s5">5 实验</a><a href="#s5-1">5.1 设置</a><a href="#s5-2">5.2 跟踪</a><a href="#s5-3">5.3 交互</a><a href="#s5-4">5.4 MoConGPT</a><a href="#s5-5">5.5 LLM</a><a href="#s5-6">5.6 消融</a><a href="#s6">6 结论</a><a href="#appA">附录 A</a><a href="#appB">附录 B</a><a href="#toy">玩具上算出来的</a><a class="rn" href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>物理角色控制里的生成模型（把动作技能学进隐空间，再让高层策略去选）此前都只训过几分钟到几十分钟的数据，隐变量也没有明确含义。MoConVQ 把 VQ-VAE（向量量化变分自编码器，隐变量只能取码本里的向量）和基于模型的强化学习接起来，在 23.2 小时动作数据上训练，把动作表示成一串离散索引。</p>
+<ul>
+<li><b>结构：</b>1D 卷积编码器，加 8 层残差量化，每层 512 个 768 维码。解码器是反卷积、策略和仿真器。解码器不可导，所以训练时用学到的世界模型替换仿真器。</li>
+<li><b>规模：</b>一块 RTX 3090 加 5 个 CPU 核，40k 轮，约 6 天。</li>
+<li><b>下游任务：</b>通用跟踪（没见过的 <a class="ds" href="https://resources.mpi-inf.mpg.de/HDM05/">HDM05</a> 片段，平均每刚体位置误差 6.3 cm）；监督学习的转向控制；索引上的 GPT，包括第一个物理的通用文本到动作；把索引当文字喂给 Claude-2，不微调就能让它组合动作。</li>
+<li><b>消融：</b>干净数据上连续 VAE 比 VQ 准，加噪声后连续 VAE 变差、VQ 基本不变；残差层把精度补回来。</li>
+</ul>
+<p>读完我认为最值得记住三点：残差量化把 \(512^8\) 的组合数放进 4096 个码向量，这是离散表示能接下游的关键；式 6 的 VQ 目标在代码里并不存在，码本完全靠 EMA 更新（<a href="#n5">读者注 5</a>）；表 1 加起来是 21.5 小时，不是正文的 23.2 小时（<a href="#n12">读者注 12</a>）。</p>
+
+<div class="i3d" id="i3d0">
+<p class="lab">自己画的 · 想直接看结构</p>
+<p>完整的 11 幕动画放在第 3 节开头，<a href="#i3d">点这里跳过去</a>，或者<a href="../interactives/moconvq/index.html">全屏打开</a>。第 3 幕可以拖一个点，看最近的码和承诺项，还能改码本大小；第 6 到 8 幕是浏览器里现场训练的两关节玩具。</p>
+</div>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://arxiv.org/html/2310.10198#S0.F1">看原图 ↗</a></span><p>四格横幅：(a) 动作跟踪，左边是视频里的真人，右边是模拟人形；(b) 交互控制，人形和一条橙色的方向箭头；(c) 文本到动作，一串“a man is boxing and jumping”的叠影；(d) 大语言模型，人形走出一条绿色的闭合轨迹。</p></div>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 只在 §2 相关工作里提到 MoConVQ 一次（它的文献 [13]）：和 SuperTrack、ControlVAE、SuperDyno 列在“学到的可微动力学用于动作控制”，说它把基于学习模型的训练扩展到离散动作表示，数据量几十小时（<a href="supermimic.html#s2">我的整理</a>）。</p>
+<p>它的表 1（各方法训练策略对比）里没有 MoConVQ 这一行。SuperMimic 没有说自己从 MoConVQ 继承任何设计，全文也没有量化、码本这些词（我在它的文字版里搜过）。下面的对照是我读两篇后整理的，不是作者的说法：</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>MoConVQ</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>共同点</td><td colspan="2">穿过学到的世界模型反传，训练一个数据量很大的动作控制器；世界模型用当前策略的数据在线拟合；窗口都是 8 步（MoConVQ 的 8 只在代码里）</td></tr>
+<tr><td>隐变量</td><td>离散，8 层，每层 512 个 768 维码，5 Hz</td><td>连续，32 维，tanh 限幅（它的附录 C）</td></tr>
+<tr><td>对象</td><td>模拟角色，不上真机</td><td>Unitree G1，上真机</td></tr>
+<tr><td>数据量</td><td>23.2 小时（表 1 加起来 21.5）</td><td>1 到 264 小时做了缩放实验</td></tr>
+<tr><td>算力</td><td>一块 RTX 3090，约 6 天</td><td>一块 GPU 3 小时超过基线（它的摘要）。任务和角色都不同，不能直接比</td></tr>
+<tr><td>下游</td><td>冻结解码器后另训（转向、GPT）或接 LLM</td><td>目标编码器和共享解码器一起训（它的 §3 和附录 B）</td></tr>
+</tbody></table></div>
+
+<h2 id="cvae">和 ControlVAE 的差别</h2>
+<p><a href="controlvae.html">ControlVAE</a> 是同一组作者的前作，MoConVQ 明说训练流程和它相似（§3.3）。世界模型那一半几乎相同，差别都在表示和下游。下面数字来自两篇原文，代码列的差别在各自的读者注里。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th><a href="controlvae.html">ControlVAE</a></th><th>MoConVQ</th></tr></thead><tbody>
+<tr><td>隐变量</td><td>连续，64 维高斯，每个控制步一个（20 Hz）</td><td>离散，5 Hz，每个码 8 层索引</td></tr>
+<tr><td>正则</td><td>KL，状态条件先验 \(p(z|s)\)</td><td>承诺项；没有先验，先验事后用 GPT 学</td></tr>
+<tr><td>编码器</td><td>后验 \(q(z|s_t,s_{t+1})\)，看当前仿真状态，一步</td><td>1D 卷积，只看参考动作，一次看一段（<a href="#n3">读者注 3</a>）</td></tr>
+<tr><td>采样</td><td>从先验直接采样就能走</td><td>需要 MoConGPT 才能采样</td></tr>
+<tr><td>下游训练</td><td>任务策略穿过世界模型反传（基于模型）</td><td>转向是纯监督回归，不经过世界模型；GPT 是最大似然；LLM 不训练</td></tr>
+<tr><td>数据</td><td>LaFAN 4 段，约 30 分钟</td><td>LaFAN + AMASS 子集，23.2 小时</td></tr>
+<tr><td>训练</td><td>20000 轮，约 50 小时</td><td>40000 轮，约 6 天</td></tr>
+<tr><td>策略</td><td>MoE，6 专家，每个 3 层 512</td><td>MoE，6 专家，每个 4 层 256（代码 1024，<a href="#n7">读者注 7</a>）</td></tr>
+</tbody></table></div>
+<p>一句话：ControlVAE 让隐变量服从一个跟着状态走的高斯，靠它直接采样；MoConVQ 放弃先验，把隐变量变成符号，好处是下游可以用语言模型的那一套。代价是编码器和解码器都要看未来（§6），不再是一步一步的。</p>
+
+<h2 id="s1">1 引言</h2>
+<p>物理动作控制让角色和模拟环境交互，能对扰动有自然反应，但全身动力学复杂，控制多样而灵活的动作一直困难。近年的做法把生成模型和深度强化学习结合，训出“生成式、基于物理”的动作表示，下游任务在隐空间上完成。</p>
+<p>作者指出三点不足：数据集通常只有几分钟到几十分钟；把强化学习框架扩展到几小时并不简单；隐变量没有明确含义，要某个动作通常还得写专门的奖励、再训一个策略。</p>
+<p>由此提出两个问题：什么表示适合控制多样动作？怎样从大量数据高效学到它？第一个的答案是向量量化的隐表示，图像（<a href="https://arxiv.org/abs/2112.10752">Rombach 2022</a>）、音乐（<a href="https://arxiv.org/abs/2005.00341">Jukebox</a>）、动作（Ao 2023、Jiang 2023）上都有成功例子。第二个的答案是基于模型的强化学习：学一个世界模型近似黑盒的刚体动力学，给出可导路径，让目标的梯度直接更新控制模型（<a href="supertrack.html">SuperTrack</a>、<a href="controlvae.html">ControlVAE</a>）。作者认为这一点让它适合训练大而复杂的生成网络。</p>
+<p>论文展示四类用途：通用跟踪控制器；能用监督学习训高层策略的隐空间；接 GPT 的生成式先验，支持文本生成；接大语言模型（LLM），靠上下文学习（in-context learning，不微调，只在提示里给例子）使用动作。贡献声明三条：统一的可扩展框架，并说据他们所知这是第一个在这种规模和多样性上训练的物理生成式动作控制模型；T2M-MoConGPT 是第一个做通用文本到动作的物理方法；一种和 LLM 集成的新方式。</p>
+
+<h2 id="s2">2 相关工作</h2>
+<h3 id="s2-1">2.1 物理动作控制器</h3>
+<p>早期靠领域知识：用抽象模型维持平衡、稳定行走和上台阶（Coros、Yin、Lee 等）。之后用时空优化和强化学习做更复杂的动作，但依赖精心设计的目标函数和手调参数。数据驱动方法改为模仿动捕（<a href="deepmimic.html">DeepMimic</a> 等），统一用模仿误差作目标；加扰动、改目标后能适应外力、目标变化和体型变化。也有工作用物理跟踪运动学生成器的结果，可运动学结果带物理错误，会拖累跟踪，所以原生的物理生成模型更可取。</p>
+<h3 id="s2-2">2.2 物理控制里的生成模型</h3>
+<p>运动学合成里好用的生成模型不能直接搬过来，因为物理通常是不可导的黑盒。绕法之一是学动作基元，或蒸馏进一个大策略（行为克隆，有分布漂移）。另一条线借鉴 GAIL，用判别器当动作先验（AMP 一系），能完成和场景、物体、其他角色交互的任务，但模式坍缩让它难处理大数据集。</p>
+<p>和本文最接近的是 Won 2022 和 ControlVAE：都用世界模型当可微仿真器，把问题化成训练 VAE，但只有几分钟数据，选风格还要在选定片段上另训高层策略。Juravsky 2022 也接了语言，但数据集小，要细分成短片段，语言模型主要用来选下一个片段。本文要的是大的无结构数据集上和任务无关的编码。</p>
+<h3 id="s2-3">2.3 动作生成任务和表示</h3>
+<p>运动学领域（音乐生舞、文本生成、手势）没有物理约束，容易接新的生成模型。先是直接在动作空间上做（VAE、GAN、流、扩散）；动作空间冗余而且有噪声，所以后来转成两阶段：先编码到隐空间，再学隐空间上的概率模型。VQ-VAE 被证明是紧凑有效的表示，它的离散性又能接 GPT。作者受这条线启发，把表示接上 GPT，并展示和 LLM 的集成。</p>
+
+<h2 id="s3">3 离散动作表示</h2>
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 框架动画</p>
+<p>按结构走 11 幕，可拖动旋转。第 2、5 幕的感受野按结构现算；第 3 幕拖 v 看最近的码、承诺项，切码本大小；第 4 幕看残差怎样逐层变小；第 6 到 8、10 幕是浏览器里现场训练的两关节玩具，不是论文数据。</p>
+<iframe src="../interactives/moconvq/index.html?embed=1" title="MoConVQ 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/moconvq/index.html">全屏打开 ↗</a>（带结构表和“哪些是示意”）</p>
+</div>
+
+<h3 id="s3-1">3.1 MoConVQ 框架</h3>
+<p>目标是一个紧凑的表示，抓住动作的本质，并让角色能在仿真里复现它。模型由编码器 \(\mathcal E\)、解码器 \(\mathcal D\) 和码本 \(\mathcal B=\{z_i\}_{i=1}^{N_{\mathcal B}}\)（可学习的向量表）组成：</p>
+<div class="eq"><div class="m">\[ V=\mathcal E(M),\qquad Z=\mathcal B(V),\qquad \tilde M=\mathcal D(Z) \]</div><span class="no">(1)</span></div>
+<p>\(M=[s_t]\) 是姿态序列，\(V=[v_k]\) 是隐向量序列，\(Z=[z_k]\) 是量化后的版本。量化就是找最近邻：</p>
+<div class="eq"><div class="m">\[ z_k,\ I_k=\arg\min_{z_i\in\mathcal B}\ \|z_i-v_k\|_2^2 \]</div><span class="no">(2)</span></div>
+<p>\(I_k\) 是下标，所以整段动作等价于一串整数 \(S=[I_k]\)。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 3 页 · <a href="https://arxiv.org/html/2310.10198#S3.F2">看原图 ↗</a></span><p>框架总览。左边动作 \(M\) 进编码器（梯形），得到 \(V\)，中间竖着一个 VQ 模块和码本。下方是串起来的 RVQ 1 到 n，每层减去上层结果，再相加成 \(Z\)。右边“Decoder”框里，Upsample 把 \(z^k\) 变成每帧的码，然后是一串交替的 \(\pi\) 和 Sim/\(\mathcal W\)，输出 \(\tilde M\)。右下角的表格“Quantized Tokens”列出 VQ、RVQ 1 到 n 每层在各时刻的整数索引，例如 122、45、…、509。</p></div>
+<p>编码器是 1D 卷积，以固定比例把 \(T\) 帧下采样成 \(K\) 个向量。解码器包含 1D 反卷积、策略和仿真模块。反卷积 \([u_t]={\rm Deconv}([z_k])\) 把码上采样到动作帧率，然后：</p>
+<div class="eq"><div class="m">\[ a_t=\pi(s_t,u_t),\qquad s_{t+1}={\rm Sim}(s_t,a_t) \]</div><span class="no">(3)</span></div>
+<p>这是自回归的，下一步用仿真得到的状态。作者特别说这两个结构都能流式处理：运行时可以不断喂新姿态；高层策略也可以实时生成或修改 \(v_k\)、\(z_k\) 或 \(I_k\)。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 时间尺度核对（都对得上）</span><p>§5.1：\(T=24\) 帧，20 FPS，是 1.2 秒；\(K=6\)，所以 4 帧一个码，5 Hz。§5.4：\(K=50\) 个码 = 200 帧 = 10 秒。§5.1：仿真 120 Hz、策略 20 Hz，每次动作走 6 步，<code>text2motion_generation.py</code> 里也是循环 6 次。一个索引 9 比特，第 0 层 45 比特每秒，8 层 360 比特每秒（我算的，论文没写比特率）。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 感受野比窗口长（我算的）</span><p>我把 <code>convvq.py</code> 和表 5 的结构逐层推了一遍依赖关系（第 2、5 幕现算的就是它）。<b>编码器：</b>无限长输入时一个码依赖 54 帧（2.7 秒，表 5 的结构多一层卷积，是 56 帧），码中心之后还要看 27 帧。\(T=24\) 训练时每个码都看到整段。<b>解码器：</b>第 t 帧的 \(u_t\) 依赖 16 或 17 个码，其中 7 或 8 个在未来，约 1.4 到 1.6 秒。两者加起来，一帧的动作最多依赖约 2.8 到 3 秒之后的参考。</p><p>这是依赖范围的上界，不代表权重大小，真实影响可能短得多。§6 只说“需要几个未来的码”，没有给数。流式这个说法也要这样读：能流式，但有延迟。官方脚本 <code>text2motion_generation.py</code> 和 <code>decode_token.py</code> 都是把整段索引一次解成 \(u_t\) 再走仿真，没有流式。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 编码器不看仿真状态</span><p>式 1 写的是 \(\mathcal E(M)\)，代码也如此：<code>RVQSeqEncoder.forward(begin_obs, target)</code> 里 <code>begin_obs</code> 完全没用到（我搜过），只有 <code>target</code> 进编码器。所以闭环反馈只发生在 \(\pi(s_t,u_t)\) 这一层。ControlVAE 的后验 \(q(z|s_t,s_{t+1})\) 直接看仿真状态，所以码本身就带反馈。这是我认为两者最大的结构差别，论文没有这样对比过。</p></div>
+
+<h3 id="s3-2">3.2 残差 VQ-VAE</h3>
+<p>VQ-VAE 的容量受码本大小限制。数据越多越杂，每一小段的变化也越多，要分辨就要更多比特，码本大小指数增长，既低效，又因码坍缩（只有少数码被用到）导致训练不稳。残差 VQ-VAE（Zeghidour 2021、Lee 2022）用多层量化解决：RVQ-1 量化 \(r_1=v-z\)，RVQ-\(d\) 量化 \(r_d=v-\sum_{j&lt;d}z_j\)。把普通 VQ 看成第 0 层，就是算法 1：</p>
+<div class="algo"><div class="h">算法 1 · 残差向量量化（\(v\in V\) 来自式 1）</div>
+<div>\(z\leftarrow 0\)；\(r\leftarrow v\)</div>
+<div><b>for</b> \(d\leftarrow 0\) <b>to</b> \(N\) <b>do</b></div>
+<div class="i1">\(z_d, I_d\leftarrow\arg\min_{z_i\in\mathcal B_d}\|r-z_i\|_2^2\)</div>
+<div class="i1">\(r\mathrel{-}=z_d\)；\(z\mathrel{+}=z_d\)</div>
+<div><b>end</b></div>
+<div>\(I\leftarrow(I_0,I_1,\dots,I_N)\)；<b>return</b> \(z,I\)</div></div>
+<p>容量随层数指数增长；同时形成由粗到细的表示：粗层抓主要成分，细层补细节（见 §5.6）。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 是 8 层还是 9 层</span><p>算法 1 从 0 到 \(N\)，§5.1 说 \(N=8\) 个 RVQ 层，字面是 9 个码本。图 17 的图注说“8 个 VQ 层”，图 18 画的是 layer 0、2、4、6，代码 <code>self.num = 8</code> 且 <code>tokenize_motion.py</code> 的 <code>--output-level</code> 取 1 到 8。所以我认为实际是<b>共 8 层</b>（第 0 层加 7 个 RVQ），论文的 \(N\) 差一。按这个算，组合数 \(512^8=2^{72}\approx4.7\times10^{21}\)，4096 个码向量。</p></div>
+
+<h3 id="s3-3">3.3 基于模型的学习</h3>
+<p>作者把仿真当黑盒：好处是不绑定物理引擎，坏处是解码器不可导，标准的 VQ-VAE 训练走不通。所以联合训练一个世界模型 \(\mathcal W\) 近似仿真器，式 3 变成：</p>
+<div class="eq"><div class="m">\[ \hat a_t=\pi(\hat s_t,u_t),\qquad \hat s_{t+1}=\mathcal W(\hat s_t,\hat a_t) \]</div><span class="no">(4)</span></div>
+<p>帽子表示世界模型合成的量。每轮交替更新两边，流程和 ControlVAE 相似。</p>
+<p><b>更新世界模型：</b>让角色跟踪一段随机参考，真仿真得到 \(\tilde M_{\rm sim}\)，用 \(\mathcal D_{\mathcal W}\) 重放得到 \(\tilde M_{\mathcal W}\)，优化：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\mathcal W}=\|\tilde M_{\rm sim}-\tilde M_{\mathcal W}\| \]</div><span class="no">(5)</span></div>
+<p><b>更新主模型：</b>\(\mathcal E\)、\(\mathcal B\)、\(\pi\) 同时更新。跟踪新的动作 \(M\)，在世界模型里得到 \(\tilde M_{\mathcal W}\)，优化：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\|M-\tilde M_{\mathcal W}\|+\beta_1\|\mathcal E(M)-{\rm sg}(Z)\|+\beta_2\|{\rm sg}(\mathcal E(M))-Z\|+\beta_3\mathcal L_{\rm reg} \]</div><span class="no">(6)</span></div>
+<p>前三项是标准 VQ-VAE 损失：重建、承诺（把编码器拉向码）、VQ 目标（把码拉向编码器）。\({\rm sg}\) 是停止梯度。第四项限制动作幅度，防止不自然和训练不稳。\(\beta\) 的值论文没给。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 6 和代码的差别（代码是旁证）</span>
+<p><b>第三项不存在。</b><code>VQEmbeddingMovingAverage</code> 的码本是 <code>register_buffer</code>，不走优化器，只有 EMA。§3.4 也说用 EMA，所以式 6 第三项和式 10 的关系论文没讲清：写的是标准形式，实现只有其中之一。</p>
+<p><b>承诺项：</b>权重 0.05，平方范数（式 6 没有平方），按批和长度归一，整体 <code>clamp(max=10)</code>。每层一项：\(\|r_d-{\rm sg}(z_d)\|^2\) 求和。</p>
+<p><b>重建项：</b>L1，<code>pose_err</code> 里权重 pos 0.2、rot 0.1、vel 0.8、avel 0.8、height 1.2、up_dir 3（vel、avel 再乘 dt），每步乘 \(0.95^i\) 再除以长度。论文这些都没写。</p>
+<p><b>多一项运动学头：</b><code>ConvDecoder</code> 除了给策略的 dynamic 头，还有一个 kinematic 头直接预测每帧观测，损失权重 0.05。论文没提。另外隐向量和动作各加 0.05 的高斯噪声。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 代码里有第三个训练步骤</span><p><code>train_one_step</code> 依次做：世界模型 8 次、策略 8 次、<code>train_transition</code> 4 次（<code>sub_iter//2</code>）。第三步用缓存里的仿真状态当起点，目标却从数据集另外随机取一段，所以起点和目标不对齐。我推断这是在教策略从任意状态过渡到任意目标，论文没有提这一步，§5.2 说的“随机跳转也能平滑”可能和它有关。这是我的推断，没有实验支持。</p></div>
+
+<h3 id="s3-4">3.4 实现</h3>
+<p><b>状态。</b>角色是带浮动基的铰接刚体。状态含每个刚体的旋转 \(r\)、位置 \(p\)、速度 \(v\)、角速度 \(\omega\)、高度 \(h\)，加根关节（骨盆）的上方向 \(y_0\)。前四项在根的局部系。</p>
+<p><b>编码器和解码器。</b>\(\mathcal E\) 和 Deconv 组成对称的全卷积网络，结构参考 Jukebox 和 Ao 2023。细节在<a href="#appA">附录 A</a>。</p>
+<p><b>策略和动作。</b>\(\pi\) 用逐层专家混合（MoE，Xie 2022）：6 个专家，每个 4 层 256 单元的 MLP，门控网络 2 层 64 单元。动作是所有关节的目标旋转，力矩用 PD 算：</p>
+<div class="eq"><div class="m">\[ \tau=k_p(\bar\theta-\theta)-k_d\dot\theta \]</div><span class="no">(7)</span></div>
+<p><b>动作正则。</b>量化对小扰动有鲁棒性，但数据里的缺陷还是有害：高频噪声会被当成细节，造成抖动；跑步机动作会被模型利用接触模型的缺陷“滑步”来模仿。Bergamin 2019 用大平滑因子的 EMA 硬约束，作者发现这样抹掉细节，所以改成优化里的软约束。生成时计算：</p>
+<div class="eq"><div class="m">\[ \bar a_t=(1-\beta)\bar a_{t-1}+\beta\hat a_t \]</div><span class="no">(8)</span></div>
+<p>经验上 \(\beta=0.8\)。正则项：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm reg}=\sum_t w_1\|\hat a_t-\bar a_t\|+w_2\|\hat a_t\| \]</div><span class="no">(9)</span></div>
+<p>第一项要动作平滑，第二项压幅度以稳定训练。</p>
+<p><b>世界模型。</b>4 层 512 单元的 MLP。用先进先出缓存存 \(\tilde M_{\rm sim}\)，从中取批算式 5。论文说这对成功很关键：缓存 50000，每轮换 1024 帧。</p>
+<p><b>残差 VQ 的训练技巧。</b></p>
+<ul>
+<li><b>EMA 更新：</b></li>
+</ul>
+<div class="eq"><div class="m">\[ \mathcal B\leftarrow(1-\gamma)\mathcal B+\gamma\hat{\mathcal B} \]</div><span class="no">(10)</span></div>
+<ul>
+<li><b>码重置：</b>把训练中不活跃的码重置，缓解坍缩。</li>
+<li><b>量化器 dropout：</b>每轮从 \([1,2,\dots,N]\) 随机选层数，只用前几层重建。这样任何前缀都能表示动作，不重训就能在复杂度和质量间取舍。</li>
+</ul>
+<div class="note" id="n7"><span class="lab">读者注 7 · 网络宽度：论文和代码差很多</span>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>部件</th><th>论文</th><th>代码</th></tr></thead><tbody>
+<tr><td>编码器</td><td>通道 768，开头有一个 Conv(k=3)</td><td>通道 512，没有开头这层（<code>ConvEncoder(obs, 512, 768)</code>）</td></tr>
+<tr><td>Deconv</td><td>通道 768</td><td>通道 512，输出 256 维 \(u_t\)，外加 kinematic 头</td></tr>
+<tr><td>策略</td><td>6 专家，4 层 256</td><td>6 专家，4 隐层 <b>1024</b>（<code>bigdata.yml</code>）；门控 64 相同</td></tr>
+<tr><td>世界模型</td><td>4 层 512</td><td>相同</td></tr>
+</tbody></table></div>
+<p>脚本都用 <code>simple_load(..., strict=True)</code> 按这个 yml 建模型再加载权重，所以我推断发布的权重就是这些宽度。我没有下载权重确认。其余对得上：状态 16×20+3 = 323 维，动作 19×3 = 57 维，缓存 50000、每轮 1024、40001 轮、lr 1e-5。<code>world.json</code> 的 Kp 是 400，趾 10，腕 5，Kd 是 50 和 1，和 §5.1 相同。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 式 10 和 \(\gamma=0.99\) 放一起方向反了；代码没有式 8、9</span>
+<p>§5.1 给 \(\gamma=0.99\)。代入式 10：旧码本只留 1%，新值占 99%，几乎不平滑。代码 <code>update_decay = 0.99</code>，是<b>保留 99% 旧值</b>：<code>ema_w = 0.99*ema_w + 0.01*dw</code>，再除以计数的 EMA。所以式 10 的 \(\gamma\) 按字面应该是 0.01，或者权重该对调。代码的形式也不是式 10 的直接混合：是按簇累计和计数，这是 van den Oord 2017 附录的做法。\(\hat{\mathcal B}\) 论文称“优化后的码本”，没有定义。</p>
+<p>式 8 的 \(\beta=0.8\) 按字面也是新值占 80%。这一处没有对照，因为代码里<b>没有</b>这个 EMA 正则：<code>train_policy</code> 的动作项只有 L1 和 L2（权重 0.05、0.005），三个相关文件里搜 EMA 和 smooth 都没有。README 说训练代码未发布，所以不能断言论文没用它，只能说发布的代码里没有。</p>
+<p>码重置规则代码里有：<code>ema_count &lt; 0.5</code> 的码换成当前批里随机一个向量加 0.01 噪声；首次用 k-means 初始化。论文没写。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 量化器 dropout：论文 1 到 N，代码 2 到 8</span><p>代码 <code>limit_number = np.random.randint(1, self.num)</code> 取 1 到 7（上界不含），循环在 <code>i == limit_number</code> 时才 break，这时已经用了 \(i+1\) 层。所以实际层数是 2 到 8，<b>从不只用第 0 层</b>。而第 0 层单独用是 §4.4 的 LLM 配置。如果论文也是这样训的，LLM 用的前缀在训练时没有被单独优化过；图 17 里“只有 VQ 层”的模型是前缀还是单独训练，论文没说。</p></div>
+
+<h2 id="s4">4 应用和任务</h2>
+<p>分两组：<b>编码器加解码器</b>（也叫跟踪控制），隐表示由预训练编码器算；<b>只用解码器</b>，另训高层策略算码。后者也能直接接 LLM。</p>
+<h3 id="s4-1">4.1 通用跟踪控制</h3>
+<p>输入动作经编码、量化、物理解码。量化嵌入能消除原始动作里的干扰，模仿没见过甚至有噪声的动作，得到物理正确的结果。测三种来源：没见过的数据集片段；运动学合成的动作（可能滑步、穿透）；视频姿态估计的结果（有噪声、物理不准）。结果在 §5.2。</p>
+<h3 id="s4-2">4.2 交互控制</h3>
+<p>只用解码器。作者说量化表示的鲁棒性让高层策略可以用更高效的<b>监督学习</b>，而不是通常的强化学习。以转向为例，用类似 PFNN（Holden 2017）的自回归模型：</p>
+<div class="eq"><div class="m">\[ v_k,\ g^\pi_{k+1}=\pi_{\rm steering}(z_{k-1},g_k),\qquad z_k=\mathcal B(v_k) \]</div><span class="no">(11)</span></div>
+<p>\(g_k\) 是任务参数，由当前状态和期望方向、速度之差算出；\(g^\pi_{k+1}\) 是策略对未来任务参数的预测，用于辅助训练和推断。训练时把一批行走动作编码成 \([(z^*_k,g^*_k)]\)，展开式 11 后回归：</p>
+<div class="eq"><div class="m">\[ \mathcal L_\pi=\sum_{k=0}^{K}\bigl\|(z^*_k,g^*_{k+1})-\pi_{\rm steering}(z_{k-1},g^*_k)\bigr\| \]</div><span class="no">(12)</span></div>
+<p>为了让网络响应控制信号，联合训练一个投影网络 \(P\)，从合成的序列 \([z_k]\) 预测初始信号：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm steering}=w_1\mathcal L_\pi+w_2\bigl\|P([z_k]_{k=0}^{K})-g^*_0\bigr\| \]</div><span class="no">(13)</span></div>
+<p>训练用计划采样（scheduled sampling，Ling 2020）：式 11 的输入以概率 \(p\) 取参考码 \(z^*_{k-1}\)，否则取生成的，\(p\) 从 0.8 逐渐降到 0。任务参数是接下来 0.9 秒的位置和朝向，每 0.3 秒一个，都相对第 \(k\) 帧。运行时用户输入算出 \(g_u\)，和预测混合：</p>
+<div class="eq"><div class="m">\[ g=(1-\tau^\gamma)\odot g_\pi+\tau^\gamma\odot g_u \]</div><span class="no">(14)</span></div>
+<p>\(\tau=[1/3,2/3,1]\)，\(\odot\) 是逐元素乘。\(\gamma\) 调混合速度：位置 0.5，旋转 2。代入得位置权重 0.577、0.816、1，旋转权重 0.111、0.444、1（我算的，第 9 幕现算）。</p>
+<h3 id="s4-3">4.3 用 GPT 做生成式先验</h3>
+<p>生成式先验建模 \(p(M)\) 或等价的 \(p(s_t|s_{&lt;t})\)。简化的 \(p(s_t|s_{t-1})\) 在小数据上用前馈网络或 MoE 就够，更广的动作需要更强的模型。流行的做法是 VQ-VAE 加 GPT。这里叫 MoConGPT，只用解码器，并且用索引表示（作者称 index-decoder-only）。变换器预测给定前文的下一个索引：</p>
+<div class="eq"><div class="m">\[ p(S)=p(I^0)\prod_{k=1}^{K}p(I^k|I^{&lt;k}) \]</div><span class="no">(15)</span></div>
+<p>每个 \(I^k\) 是一组 RVQ 索引 \([I^k_d]_{d=0}^N\)。摊平成一条长序列用单个大变换器是可以的，但没用上层次结构，而且计算量随序列长度平方增长。所以参考 Lee 2022 用两个变换器：</p>
+<div class="eq"><div class="m">\[ p(I^k|I^{&lt;k})=\prod_{d=0}^{N}p\bigl(I^k_d\,\big|\,f(I^{&lt;k}),\,I^k_{&lt;d}\bigr) \]</div><span class="no">(16)</span></div>
+<p>\(f\) 是时间变换器（temporal），聚合过去的码；每个因子由深度变换器（depth）给出，看聚合特征和同一时刻前面的层。为了紧凑，把 \(I^{&lt;k}\) 换成对应的 \(z^{&lt;k}\) 再输入。用负对数似然训练：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm GPT}=\mathbb E_S\Bigl[\sum_{k=1}^{K}\sum_{d=0}^{N}-\log p\bigl(I^k_d\,\big|\,f(I^{&lt;k}),\,I^k_{&lt;d}\bigr)\Bigr] \]</div><span class="no">(17)</span></div>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 7 页 · <a href="https://arxiv.org/html/2310.10198#S4.F3">看原图 ↗</a></span><p>上方是 Temporal Transformer，由 Multi-Head Causal Attention、FFN、Add &amp; Norm 重复 \(N_T\) 次，每块里还有一个绿色虚线框：Language Encoder 的特征作为 K、V，查询是 Q，这是文本条件的交叉注意力。下方是 Depth Transformer，重复 \(N_D\) 次。最下方是索引表格，按 VQ、RVQ 1、RVQ 2 分行，列是时间，已知的索引进入网络，最右一列是要预测的 509、7 等。</p></div>
+<p><b>无条件生成：</b>从随机初始索引开始，反复按式 16 采样，流式送入解码器。物理控制自动保证对环境变化和扰动有自然反应。<b>文本到动作：</b>在时间变换器里加一层交叉注意力接文本特征，文本用预训练的 T5（Raffel 2020）编码，叫 T2M-MoConGPT。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 发布的 GPT 只预测前 4 层；无条件模型的规模也不同</span>
+<p>式 16 是 \(d=0\) 到 \(N\)。代码 <code>rq_trans_fixsum.py</code> 和 <code>cross_trans_ori_fixsum.py</code> 都写死 <code>self.max_depth = 4</code>，生成时只循环这 4 层，剩下的码不用。所以发布的版本是 8 层的 VQ 模型上，只用前 4 层的索引生成。</p>
+<p>§5.4 说 \(N_T=12\)、\(N_D=5\)。文本模型是时间 12、深度 4+1，符合。无条件模型是时间 8、深度 2+2，配置里的 <code>num_layers = 9</code> 没有传到这两个数上。§5.4 把这组参数写在 MoConGPT 下面，没有分开说两种模型。文本编码器确实是 <code>t5-large</code>。</p>
+<p>规模粗算（我的）：\(K=50,N=8\)，摊平长度 400，平方 160000；分开是 \(50^2+50\times8^2=5700\)，差约 28 倍。这只是按论文“平方增长”的说法算的。</p></div>
+
+<h3 id="s4-4">4.4 和大语言模型集成</h3>
+<p>用只含解码器的索引配置，而且<b>只用 VQ 索引</b>，省去 RVQ 层。用上下文学习：给 LLM 几千行文本，每行是动作描述加编码器得到的索引序列，然后提问，让它回答数字序列，再由物理解码器解码。作者说不用微调，它就能适应这种表示，理解序列的含义，重组动作片段生成新动作。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 8 页 · <a href="https://arxiv.org/html/2310.10198#S4.F4">看原图 ↗</a></span><p>流程图：左上是例子文字（“A person is taking a long jump. [39, 762, 4, 483, …]”等），中间是 LLM，下面是问题 “A person walks forward and sits down.”，右上是输出索引，再进“Physics-based Decoder”，最右是角色动作。</p></div>
+<p>图 4 的例子，问题是“a person walks forward and sits down”，Claude-2 回答（数字照录）：</p>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>索引</th><th>模型的说明</th></tr></thead><tbody>
+<tr><td>297, 471, 246, 463, 463</td><td>向前走</td></tr><tr><td>511, 456</td><td>屈膝准备坐</td></tr><tr><td>206, 274, 370</td><td>坐在地上</td></tr><tr><td>41, 41, 370, 370</td><td>站起</td></tr>
+</tbody></table></div>
+<p>作者强调这句话不在例子里，这种组合也不在 MoConVQ 的训练数据里，是 LLM 自己解读并重组的。他们的比喻：LLM 是大脑，MoConVQ 是小脑。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · “几千行”和 1600；上下文够不够</span><p>§4.4 说“several thousand lines”，§5.5 说 1600 条。图 4 例子里出现 762（“[39, 762, 4, 483, …]”），但 §5.1 的码本只有 512 个，下标不可能到 762。可能只是示意的数字，也可能是别的版本的码本，论文没解释。这条是我在图上读到的。</p><p>1600 条，平均 167 字符，是 267200 字符。Claude-2 上下文是 100k token，要放下需要平均每 token 至少约 2.7 字符，这一点我无法验证。那个文件没有公开，我没找到。<code>decode_token.py</code> 对一维输入只查第 0 个码本（<code>bottle_neck_list[0]</code>），和“只用 VQ 索引”一致，LLM 用的提示和例子仓库里没有。</p></div>
+
+<h2 id="s5">5 实验和结果</h2>
+<h3 id="s5-1">5.1 系统设置</h3>
+<p><b>角色：</b>19 关节 20 刚体，身高 1.6 m，49.5 kg。定制的 ODE，加隐式阻尼（Liu 2013、Tan 2011），120 Hz。PD 参数 \((k_p,k_d)=(400,50)\)，趾关节 (10, 1)，腕关节 (5, 1)。策略 20 Hz，算出的 PD 目标保持到下一次。</p>
+<p><b>数据集：</b>23.2 小时，从基本行走到舞蹈、拳击、功夫。来自 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a>（除物体交互外全部）和 <a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a> 中规模大、质量高的子集。降采样到 20 FPS，靠复制对应关节旋转重定向到模拟角色。</p>
+<div class="tablewrap"><table class="t-c"><caption>表 1 · 数字照录</caption><thead><tr><th>数据集</th><th>长度（分钟）</th><th>动作</th></tr></thead><tbody>
+<tr><td>SFU</td><td>10.90</td><td>Balance, Dance, Kendo, Skip, …</td></tr>
+<tr><td>ACCAD</td><td>14.61</td><td>Run, Swagger, Punch, Turn, …</td></tr>
+<tr><td>BMLmovi</td><td>103.32</td><td>Walk, Stretch, Throw, Catch, …</td></tr>
+<tr><td>BMLrub</td><td>180.52</td><td>Lift, Sit, Kick, Throw, …</td></tr>
+<tr><td>CMU</td><td>375.24</td><td>Sports, Dance, Pantomime, …</td></tr>
+<tr><td>KIT</td><td>392.29</td><td>Wipe, Bend, Parkour, Drink, …</td></tr>
+<tr><td>LaFAN</td><td>213.14</td><td>Walk, Dance, Aiming, Fight, …</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 1 加起来不是 23.2 小时</span><p>七行相加 1290.02 分钟 = 21.50 小时。正文写 23.2 小时（1392 分钟），差 1.7 小时。论文没有解释差额，可能有表外的子集，也可能其中一个数是旧版本。§6 说“超过 20 小时”，两者都满足。这页引用时写 23.2 小时，但你要知道这个差。</p></div>
+<p><b>设置：</b>一块 RTX 3090，5 核 Xeon E5-2678 v3 @ 2.50GHz。\(T=24\) 帧（1.2 秒），\(K=6\)，码 768 维，\(N=8\)，每个码本 \(|\mathcal B|=512\)，\(\gamma=0.99\)。RAdam，学习率 \(1\times10^{-5}\)。40k 轮，约 6 天。论文说继续训练还能提升。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 9 页 · <a href="https://arxiv.org/html/2310.10198#S5.F5">看原图 ↗</a></span><p>“典型学习曲线”，横轴是小时（0 到约 137，目测），纵轴 loss。开头尖峰约 11，几小时内掉到 4 附近，约 30 到 40 小时略回升，然后在约 3.5 附近宽幅振荡直到结束。有两个小尖峰，约在 15 和 68 小时（目测）。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 训练规模（我算的）</span><p>图 5 横轴约 137 小时，约 5.7 天，和“约六天”一致。按每轮 1024 帧，40000 轮，一共仿真 4096 万帧，20 Hz 下约 569 小时，是数据集的约 25 倍。平均每轮 \(6\times86400/40000\approx13\) 秒。缓存 50000 帧相当于约 42 分钟动作，约 49 轮换一遍。ControlVAE 是 20000 轮 50 小时，每轮 9 秒。这篇每轮慢约 1.4 倍，而数据量约是它的 46 倍（23.2 小时对 30 分钟）；每轮收集的帧数反而是一半（1024 对 2048）。</p></div>
+
+<h3 id="s5-2">5.2 通用跟踪控制</h3>
+<p><b>没见过的动作：</b>从 <a class="ds" href="https://resources.mpi-inf.mpg.de/HDM05/">HDM05</a> 取 2 小时。指标是平均每刚体位置误差 MPBPE：<b>6.3 cm</b>。动作很接近输入，重定向带来的滑步、穿地被自动修掉。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 6.3 cm 和图 17 的橙色直方图（目测）</span><p>图 17(a) 橙色是“带残差层的 MoConVQ”，测试集相同（§5.6 说同一个 2 小时）。我按格子目测高度，约 208 个样本，算均值约 <b>4.7 cm</b>，而不是 6.3。图的横轴在 0.175 截断，超出部分看不到，少数大误差可以把均值拉上去；要补上差额，大约要 5 个样本在 0.7 m 左右。均值的计算方式（按段还是按帧）论文也没说。所以这只是提醒，不能算矛盾。横轴也没写单位，我当成米。</p></div>
+<p><b>运动学动作：</b>两种。<i>隐空间动作匹配：</i>依次播放一段动作的量化码，监控当前码和其他帧码的 \(l_2\) 距离，低于阈值就跳到随机一个合格的帧。一段舞就能跳出多样不重复的动作。和 DReCon 这类常见实现不同，不需要在姿态空间混合，解码器自己处理跳转。<i>隐空间生成模型：</i>用 MLD（Xin 2023）文本生成，重定向后跟踪，原来的抖动和漂浮被消除。</p>
+<p><b>视频姿态估计：</b>用 HybrIK（Li 2021）估计，在 <a class="ds" href="http://vision.imar.ro/human3.6m/">Human3.6M</a> 测试集上跟踪。基线是在它训练集上训的，本文的模型没见过这个数据集。以前的物理方法常用根上的残差力保持平衡，物理上不合理；本文不用。为公平，把模拟动作按被试 S9、S11 的身高缩放。</p>
+<div class="tablewrap"><table class="t-a"><caption>表 2 · 数字照录，越小越好</caption><thead><tr><th>方法</th><th>物理</th><th>MPJPE (mm)</th><th>PA-MPJPE (mm)</th></tr></thead><tbody>
+<tr><td>HybrIK</td><td>none</td><td>54.4</td><td>34.5</td></tr>
+<tr><td>PhysCap</td><td>approx</td><td>97.4</td><td>65.1</td></tr>
+<tr><td>SimPoE</td><td>approx</td><td>56.7</td><td>41.6</td></tr>
+<tr><td>SimPoE (w/o root force)</td><td>full</td><td>115.2</td><td>65.1</td></tr>
+<tr><td>Ours</td><td>full</td><td>125.6</td><td>69.3</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-a"><caption>表 3 · 数字照录，越小越好</caption><thead><tr><th>方法</th><th>\(e_{\rm smooth}\)</th><th>\(\sigma_{\rm smooth}\)</th><th>Accel</th></tr></thead><tbody>
+<tr><td>HybrIK</td><td>5.9</td><td>3.1</td><td>10.9</td></tr>
+<tr><td>PhysCap</td><td>7.2</td><td>6.9</td><td>-</td></tr>
+<tr><td>SimPoE</td><td>-</td><td>-</td><td>6.7</td></tr>
+<tr><td>SimPoE (w/o root force)</td><td>-</td><td>-</td><td>23.5</td></tr>
+<tr><td>Ours</td><td>3.4</td><td>2.9</td><td>5.1</td></tr>
+</tbody></table></div>
+<p>论文的解读：在 PA-MPJPE（普氏对齐后的关节误差）上和物理基线相当，而且没有针对这个数据集训练；这个测试没有做全局位置和朝向控制，所以不对齐的 MPJPE 偏高，但和全物理的 SimPoE 相当。质量上 HybrIK 最准但噪声大，本文相当于后处理，结果干净。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 原文第 10 页 · <a href="https://arxiv.org/html/2310.10198#S5.F6">看原图 ↗</a></span><p>六组对照：左边是 Human3.6M 的视频帧（穿红衣的被试），右边是模拟人形做相同姿势，包括双臂交叉这种容易自穿透的动作。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 2、表 3 算一下</span><p>和它跟踪的输入 HybrIK 比，MPJPE 增加 71.2 mm（54.4 → 125.6），PA-MPJPE 增加 34.8 mm（34.5 → 69.3），翻了一倍。全物理这一档比 SimPoE 差 10.4 mm 和 4.2 mm。所以“相当”的范围是和全物理、无残差力的方法比，不是和准确率最高的比。质量上比 HybrIK 改善：Accel 少 53%，\(e_{\rm smooth}\) 少 42%，\(\sigma_{\rm smooth}\) 只少 6%。</p><p>两处小笔误：正文说表 2 是“qualitative”比较，其实是定量的。正文说“Figure 18 shows several snapshots of our tracking results”，这些快照是图 6；图 18 是残差层的曲线。PhysCap 和 SimPoE (w/o root force) 的 PA-MPJPE 都是 65.1，这个巧合我没法核对，它们是引自别的论文。</p></div>
+
+<h3 id="s5-3">5.3 交互控制</h3>
+<p>从 LaFAN 取 8 分钟走和跑。MoE：4 个专家，每个 4 层 256 单元，门控 2 层 64。RAdam，学习率 \(2\times10^{-4}\)。运行时键盘或手柄输入映射成期望轨迹（当前速度和输入速度用惯性化混合，Bollo 2016），再按式 14 和网络输出混合。角色能走、跑、平滑切换，响应方向变化。被箱子砸中会调整姿态保持平衡，摔倒能自己站起来继续跑。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 原文第 11 页 · <a href="https://arxiv.org/html/2310.10198#S5.F7">看原图 ↗</a></span><p>一长串叠影，人形在灰格地面上跑出一个大弯。</p></div>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 11 页 · <a href="https://arxiv.org/html/2310.10198#S5.F8">看原图 ↗</a></span><p>四格：一个橙色箱子飞向奔跑的人形，撞上，人形调整，继续。</p></div>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 11 页 · <a href="https://arxiv.org/html/2310.10198#S5.F9">看原图 ↗</a></span><p>两条曲线。上：目标速度在约 1.5 和 3.5 m/s 之间方波切换，角色速度跟随，上升下降都有约 1 秒的滞后，并有步态带来的约 ±0.3 m/s 波动（目测）。下：目标方向阶跃变化，角色方向跟随，大转向时要几秒才追上（目测）。</p></div>
+
+<h3 id="s5-4">5.4 用 MoConGPT 做生成式先验</h3>
+<p>在 <a class="ds" href="https://github.com/EricGuo5513/HumanML3D">HumanML3D</a> 上训练，过滤和镜像增强后约 2 万对文本和动作。\(N_T=12\)，\(N_D=5\)，最长 \(K=50\)（10 秒）。RAdam，\(2\times10^{-4}\)，15 万次迭代。</p>
+<p><b>无条件：</b>去掉文本和交叉注意力，用随机高斯向量当起始码，自回归采样。生成的动作从走、跑到跳舞、坐椅子、单腿平衡。用滑动窗口可以生成任意长：取上一段最后 \(k=5\) 个码当下一段开头，边界平滑。</p>
+<div class="fig" id="fig10"><span class="lab">图 10 · 原文第 11 页 · <a href="https://arxiv.org/html/2310.10198#S5.F10">看原图 ↗</a></span><p>同一初始位置和状态出发的多个人形，彩色线是根的轨迹，向各方向散开，姿势各异（踢腿、下蹲等）。</p></div>
+<p><b>文本到动作：</b>能按描述完成动作序列，即使这种组合不在训练集里。指标用 FID 和 R-precision，用和前人相同的预训练特征提取器。它基于 SMPL 骨架，所以要把模拟角色重定向到 SMPL。作者说简单的“复制关节旋转”明显影响指标，这解释了 R-precision 偏低，为此给出把真值来回重定向后的 R-precision。</p>
+<div class="tablewrap"><table class="t-a"><caption>表 4 · 数字照录。R-precision 越大越好，FID 越小越好</caption><thead><tr><th>模型</th><th>Top 1</th><th>Top 2</th><th>Top 3</th><th>FID</th><th>物理准确</th></tr></thead><tbody>
+<tr><td>Hier</td><td>0.301</td><td>0.425</td><td>0.552</td><td>6.532</td><td>✗</td></tr>
+<tr><td>MDM</td><td>0.320</td><td>0.498</td><td>0.611</td><td>0.544</td><td>✗</td></tr>
+<tr><td>TM2T</td><td>0.424</td><td>0.618</td><td>0.729</td><td>1.501</td><td>✗</td></tr>
+<tr><td>T2MGPT</td><td>0.491</td><td>0.680</td><td>0.775</td><td>0.116</td><td>✗</td></tr>
+<tr><td>Ours</td><td>0.367</td><td>0.561</td><td>0.678</td><td>0.254</td><td>✓</td></tr>
+<tr><td>GT (Original)</td><td>0.511</td><td>0.703</td><td>0.797</td><td>-</td><td>-</td></tr>
+<tr><td>GT (Retargeted)</td><td>0.440</td><td>0.639</td><td>0.753</td><td>-</td><td>-</td></tr>
+</tbody></table></div>
+<div class="fig" id="fig11"><span class="lab">图 11 · 原文第 12 页 · <a href="https://arxiv.org/html/2310.10198#S5.F11">看原图 ↗</a></span><p>四条文本和叠影：(a) “a man walks forward and jumps and walks forward”；(b) “a person is boxing and jumping”；(c) “a person slightly crouches down and walks forward, then he stands still”；(d) “a man is kicking with right leg”。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 重定向能解释多少</span><p>Top 1：GT 重定向后是原来的 86.1%（0.440 / 0.511）。本文是原始 GT 的 71.8%，是重定向 GT 的 83.4%。T2MGPT 是原始 GT 的 96.1%。所以重定向解释了一部分，但扣掉之后本文还低约 17%。</p><p>另外 GT (Retargeted) 是来回各重定向一次，本文的输出只走一次（角色到 SMPL），所以这个参照也不完全等价（我的看法）。FID 没有给重定向 GT 的数，FID 的损失分不出来。Hier、MDM、TM2T、T2MGPT 的数字是引自各自论文，论文这样说明了。</p></div>
+
+<h3 id="s5-5">5.5 和大语言模型集成</h3>
+<p>上下文学习要把例子写成文字，LLM 的 token 上限就很关键。ChatGPT-4 是 8k 或 32k，Claude-2 是 100k，所以选了 Claude-2。例子是 1600 条，从 HumanML3D 随机选，平均每条 167 字符，放在文件里上传。</p>
+<div class="fig" id="fig12"><span class="lab">图 12 · 原文第 13 页 · <a href="https://arxiv.org/html/2310.10198#S5.F12">看原图 ↗</a></span><p>提示词的文字框。先说这是一种动作表示，文件里每条是描述加方括号内的离散表示；要求学习后，遇到动作描述就回答索引序列，并举一个例子（把东西从左边拿起放到右边，回答 [503,503,416,…,386]）。</p></div>
+<p><b>文本到动作：</b>图 14 的“走很久、踢一下、再跳舞”。LLM 自己提取走、踢、跳舞的索引，“很久”就重复走的索引；从“踢右脚两次”的例子里找重复元素，分离出一次踢。问它怎么选的，它还能解释（图 13）。</p>
+<div class="fig" id="fig13"><span class="lab">图 13 · 原文第 13 页 · <a href="https://arxiv.org/html/2310.10198#S5.F13">看原图 ↗</a></span><p>对话。问题“a person walks backwards and kicks”。它把踢写成 110 273 67 178 299 56 419 504 386 110 437，追问后解释：110 是准备，299 和 56 是踢出去，419 和 504 是收势，110 和 437 是复位；并举了例子文件里用到 299、56 的句子。</p></div>
+<div class="fig" id="fig14"><span class="lab">图 14 · 原文第 14 页 · <a href="https://arxiv.org/html/2310.10198#S5.F14">看原图 ↗</a></span><p>横幅叠影：人形走一段、踢腿，再做几个舞蹈姿势。完整回答在<a href="#appB">附录 B.1</a>。</p></div>
+<p>LLM 也会出错：把例子切得过碎，把单个索引当动作；被不完美的描述误导；或者“作弊”，直接找语义相近的例子原样输出。这时作者再加提示纠正，比如告诉它动作片段不能用单个数字表示，描述不完美，不要不加分析就用整段。</p>
+<p><b>抽象任务：</b>“怎样控制角色走一个正方形”。LLM 明白要重复前进和转弯四次。T2M-MoConGPT 做不到，因为训练集没有这种例子。结果角色走了四段转了四次，但轨迹更像三角形，因为例子的描述里没有转弯角度（图 15）。另一个例子有门、钥匙、椅子（图 16）：LLM 指挥角色走向钥匙、捡起、站起、开锁开门、坐下。例子里没有“开门”，它从“用刀切牛肉”外推。完整回答在<a href="#appB">附录 B.2</a>。</p>
+<div class="fig" id="fig15"><span class="lab">图 15 · 原文第 14 页 · <a href="https://arxiv.org/html/2310.10198#S5.F15">看原图 ↗</a></span><p>地面上一条绿色粗线是根的轨迹，闭合但角不是直角，形状介于三角形和不规则四边形之间；人形站在线旁。</p></div>
+<div class="fig" id="fig16"><span class="lab">图 16 · 原文第 14 页 · <a href="https://arxiv.org/html/2310.10198#S5.F16">看原图 ↗</a></span><p>一串叠影：人形走路、弯腰、站起、伸手、坐下。</p></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 模型的解释不能当证据</span><p>论文把图 13 当作 LLM“能说明自己如何解读”的例子。可是它举的证据之一：“a person turns a half circle counter clockwise and moves arms in a sweep motion … while crouching” 用了 299 和 56，这句和踢没有关系。例子文件没有公开（我没找到），所以它引的句子是否真的含这些索引无法核对。</p><p>附录 B.2 里也有小问题：说“把走的序列倒过来走回去”，给的是 [463, 297, 471, 246]，而走是 [297, 471, 246, 463, 463]，这是循环移位再截断，不是倒序。正文说开门是从“切牛肉”外推，附录写的是插钥匙转动 [129, 129, 433] 引“a person uses knife to cut object”，推门另引“pushes something”。句子也不完全相同。</p><p>时长（我算的）：B.1 一共 71 个索引，14.2 秒，其中“走很久”是 4 秒；B.2 一共 30 个索引，6 秒。全部索引都小于 512，和码本大小相符。</p></div>
+
+<h3 id="s5-6">5.6 消融</h3>
+<p>用只含编码和解码的配置，测试集是 §5.2 的 2 小时 HDM05。</p>
+<p><b>向量量化：</b>基线是同结构的连续 VAE，去掉量化，承诺项和 VQ 目标换成 KL。干净动作上连续 VAE 更准，符合预期，因为约束少。给关节旋转加噪声 \(\epsilon\sim\mathcal N(0,0.1)\) 后，连续 VAE 大幅下降，MoConVQ 基本不变。作者认为这说明量化能对抗扰动。</p>
+<p><b>残差：</b>残差层明显提升跟踪精度，同时保留鲁棒性。图 18 里一段没见过的有噪声舞蹈，VQ 层抓住总体走势，后面的层补细节。</p>
+<div class="fig" id="fig17"><span class="lab">图 17 · 原文第 15 页 · <a href="https://arxiv.org/html/2310.10198#S5.F17">看原图 ↗</a></span><p>两张叠加的直方图加核密度曲线，横轴 Mean Per Body Position Error（0.02 到 0.17），纵轴 Count。蓝是连续 VAE，橙是带残差层的 MoConVQ（8 层），绿是只有 VQ 层的。(a) 干净数据：蓝的峰最高，约 0.03；橙略靠右；绿明显靠右，约 0.06 且拖尾到 0.1。(b) 加噪声：蓝的峰移到约 0.048，橙约 0.04，绿约 0.07。</p></div>
+<div class="fig" id="fig18"><span class="lab">图 18 · 原文第 15 页 · <a href="https://arxiv.org/html/2310.10198#S5.F18">看原图 ↗</a></span><p>左肘绕 y 轴的旋转（弧度，约 −2 到 0.4），横轴是帧（0 到约 680）。红色是真值，有高频噪声。四条蓝色是 layer 0、2、4、6：layer 0 最平，幅度最小；层数越多越贴近红线的大幅摆动，但都没有跟红线的高频抖动。</p></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 图 17 的“大幅下降”有多大（目测）</span><div class="tablewrap"><table class="t-c"><thead><tr><th>模型</th><th>干净峰值</th><th>噪声峰值</th><th>移动</th></tr></thead><tbody>
+<tr><td>连续 VAE</td><td>约 0.028</td><td>约 0.048</td><td>+2.0 cm</td></tr>
+<tr><td>VQ + 残差</td><td>约 0.034</td><td>约 0.041</td><td>+0.7 cm</td></tr>
+<tr><td>只有 VQ</td><td>约 0.063</td><td>约 0.069</td><td>+0.6 cm</td></tr>
+</tbody></table></div>
+<p>这些是核密度曲线的峰，读自位图。方向和论文一致，带残差的模型在噪声下超过连续 VAE。但论文只测了一个噪声水平，也没说 \(\mathcal N(0,0.1)\) 里的 0.1 是方差还是标准差，以及是否带单位。我也没找到更高噪声下的曲线，所以交叉点在哪里不知道。</p><p>第 0 层单独用的误差约是 8 层的 2 倍。§4.4 和 §5.5 的 LLM 都走这条路，所以 LLM 例子里看到的动作质量是这一档。</p></div>
+
+<h2 id="s6">6 结论</h2>
+<p>作者总结：VQ-VAE 的离散表示能容纳多样动作，残差结构补上量化损失的细节，基于模型的方法能处理二十多小时的数据，这个表示是多种下游任务的统一接口。</p>
+<p>四个限制：稀疏而孤立的动作（后空翻、某些功夫）难学，可能要用渐进式方法；卷积解码器需要几个未来的码，实时应用有延迟，可能要改因果卷积；表示不区分身体部位，难以单独控制四肢；只支持单人，和环境、多智能体的交互是未来方向。</p>
+<p>未来工作还包括用多模态信息生成舞蹈和手势，以及把动作的环境反馈传回 LLM，形成闭环。</p>
+
+<h2 id="appA">附录 A 网络结构</h2>
+<div class="algo"><div class="h">表 5 · Encoder</div>
+<div>(1) Conv1D(input_dim, 768, kernel=3, stride=1, padding=1)</div>
+<div>(2) 2 × Sequential(</div>
+<div class="i1">(a) Conv1D(768, 768, kernel=4, stride=2, padding=1)</div>
+<div class="i1">(b) Resnet1D(3 × ResConv1DBlock(ReLU, Conv1D(768, 768, k=3, s=1, p=1, dilation=1), ReLU, Conv1D(768, 768, k=1, s=1)))</div>
+<div>)</div>
+<div>(3) Conv1D(768, output_dim, kernel=3, stride=1, padding=1)</div>
+<div class="h" style="margin-top:8px">表 5 · Deconv</div>
+<div>(1) Conv1D(input_dim, 768, kernel=3, stride=1, padding=1)</div>
+<div>(2) 2 × Sequential(</div>
+<div class="i1">(a) Resnet1D(3 × ResConv1DBlock，同上)</div>
+<div class="i1">(b) ConvTranspose1D(768, 768, kernel=4, stride=2, padding=1)</div>
+<div>)</div>
+<div>(3) Conv1D(768, 768, kernel=3, stride=1, padding=1)</div>
+<div>(4) OutputHead1D(3 × ResConv1DBlock，同上)</div>
+<div>(5) Conv1D(768, output_dim, kernel=3, stride=1, padding=1)</div></div>
+<p>代码和它的差别在<a href="#n7">读者注 7</a>。两个步长 2 正好是读者注 1 的 4 倍下采样。</p>
+
+<h2 id="appB">附录 B Claude-2 的回答</h2>
+<h3 id="appB1">B.1 文本到动作</h3>
+<p>问题：a person walks forward for a long time and kicks, then he begins to dance。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>段落</th><th>索引（照录）</th></tr></thead><tbody>
+<tr><td>走很久（4 遍）</td><td>297, 471, 246, 463, 463, 297, 471, 246, 463, 463, 297, 471, 246, 463, 463, 297, 471, 246, 463, 463</td></tr>
+<tr><td>踢</td><td>145, 160, 223, 117, 424, 299, 178, 166, 330, 391</td></tr>
+<tr><td>跳舞</td><td>472, 133, 132, 357, 492, 435, 217, 322, 106, 88, 279, 217, 387, 274, 134, 470, 175, 466, 252, 156, 134, 352, 436, 394, 77, 379, 297, 315, 185, 112, 428, 206, 98, 14, 390, 390, 390, 14, 196, 395, 334</td></tr>
+</tbody></table></div>
+<p>它给的完整序列就是这三段的拼接，我逐个比对过。最后它问这是否符合描述，欢迎纠正。</p>
+<h3 id="appB2">B.2 抽象任务</h3>
+<p>问题：面前有门，地上有钥匙，要开门再坐到椅子上，怎么做，每个动作的索引怎么来。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>步骤</th><th>索引（照录）</th><th>它说的来源（缩写）</th></tr></thead><tbody>
+<tr><td>走到钥匙</td><td>297, 471, 246, 463, 463</td><td>a person walks forward</td></tr>
+<tr><td>弯腰捡</td><td>246, 192, 408, 205, 205</td><td>a person bends down to pick something up</td></tr>
+<tr><td>站直</td><td>205, 198, 408</td><td>同上</td></tr>
+<tr><td>转身走回门</td><td>463, 297, 471, 246</td><td>走，“倒过来”（见读者注 17）</td></tr>
+<tr><td>插钥匙转动</td><td>129, 129, 433</td><td>a person uses knife to cut object</td></tr>
+<tr><td>推门</td><td>179, 179, 179</td><td>a person pushes something with their right hand</td></tr>
+<tr><td>过门</td><td>297, 471, 246, 463</td><td>走</td></tr>
+<tr><td>坐椅子</td><td>241, 241, 241</td><td>a person sits down and crosses their legs</td></tr>
+</tbody></table></div>
+
+<h2 id="toy">玩具上算出来的</h2>
+<p>下面都是我自己的小实验，不是论文数据。玩具是一个两关节臂（PD 增益和频率同论文，加我写的重力、摩擦、耦合），数据是随机正弦拼接，隐空间 2 维，代码就在 <a href="../interactives/moconvq/moconvq.js">moconvq.js</a> 的 TOY 段。反传和有限差分在 12 个参数上核对过，小数点后 5 位相同。下表 6 个种子，每个 150 轮；误差是 60 段没见过的 96 帧片段上的 \(|\theta|\) 均值（弧度），真仿真器走出来的。</p>
+<div class="tablewrap"><table class="t-a"><thead><tr><th>模型</th><th>干净</th><th>噪声 σ = 0.1</th><th>噪声 σ = 0.3</th></tr></thead><tbody>
+<tr><td>K = 4，用 1 层</td><td>0.223 ± 0.003</td><td>0.230 ± 0.004</td><td>0.248 ± 0.002</td></tr>
+<tr><td>K = 4，用 2 层</td><td>0.132 ± 0.003</td><td>0.140 ± 0.004</td><td>0.167 ± 0.003</td></tr>
+<tr><td>K = 4，用 3 层</td><td>0.092 ± 0.004</td><td>0.101 ± 0.004</td><td>0.139 ± 0.003</td></tr>
+<tr><td>K = 4，用 4 层</td><td>0.077 ± 0.006</td><td>0.087 ± 0.005</td><td>0.129 ± 0.004</td></tr>
+<tr><td>连续 VAE（KL 权重 0.002）</td><td>0.046 ± 0.007</td><td>0.059 ± 0.006</td><td>0.115 ± 0.003</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>和图 18 方向相同：</b>层数越多越准，同一个模型靠前缀切换。</li>
+<li><b>和图 17(a) 方向相同：</b>干净数据上连续 VAE 最准。</li>
+<li><b>没有复现图 17(b) 的交叉：</b>噪声下连续 VAE 依然最准。噪声带来的增量倒是一层 VQ 最小（σ = 0.3 时 +0.025，连续 +0.069，4 层 +0.052）。玩具的编码器看 12 帧，本身平滑，所以这不能用来否定原文。</li>
+<li><b>直通必不可少：</b>关掉后 4 层误差 0.482 ± 0.023，模型什么都没学到。</li>
+<li><b>承诺项在玩具里有用：</b>\(\beta_1=0\) 时 4 层误差 0.137 ± 0.029，种子间差别也大；0.05 是 0.077；1 是 0.080 ± 0.010。玩具的尺度和真实模型不同，权重不能直接搬。</li>
+<li><b>同比特下单层反而更准：</b>第 4 幕，二维里 256 个码的单层 VQ 误差约是 4 层 K = 4 的 1/9。残差结构换来的是码向量从 256 个降到 16 个。论文说的码坍缩和高维问题，这个玩具看不到。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">时间尺度</a>：1.2 秒、5 Hz、10 秒、6 个仿真步都对得上。</li>
+<li><a href="#n2">感受野</a>：编码器 54 帧，解码器 7 到 8 个未来的码，约 3 秒上界（我算的）。</li>
+<li><a href="#n3">编码器不看仿真状态</a>：<code>begin_obs</code> 没用，和 ControlVAE 的最大结构差别。</li>
+<li><a href="#n4">8 层还是 9 层</a>：算法 1 字面 9 层，其他地方和代码都是 8 层。</li>
+<li><a href="#n5">式 6 和代码</a>：VQ 目标项不存在，承诺权重 0.05，多一个运动学头。</li>
+<li><a href="#n6">第三个训练步骤</a>：<code>train_transition</code>，论文没提。</li>
+<li><a href="#n7">网络宽度</a>：策略 256 对 1024，卷积 768 对 512；其余对得上。</li>
+<li><a href="#n8">式 10 方向</a>：\(\gamma=0.99\) 按字面只留 1% 旧值，代码留 99%；代码里没有式 8、9。</li>
+<li><a href="#n9">量化器 dropout</a>：论文 1 到 N，代码 2 到 8，从不只用第 0 层。</li>
+<li><a href="#n10">GPT 的深度</a>：发布代码只预测前 4 层；无条件模型规模不同。</li>
+<li><a href="#n11">LLM 的数字</a>：几千行对 1600；图 4 出现 762；267200 字符。</li>
+<li><a href="#n12">表 1</a>：加起来 21.50 小时，正文 23.2 小时。</li>
+<li><a href="#n13">训练规模</a>：约 4096 万帧，每轮约 13 秒。</li>
+<li><a href="#n14">6.3 cm</a>：图 17 目测均值约 4.7 cm，可能因截断，不算矛盾。</li>
+<li><a href="#n15">表 2、3</a>：比输入 HybrIK 差一倍；两处笔误（图 18 应为图 6）。</li>
+<li><a href="#n16">表 4</a>：扣掉重定向后 Top 1 还低约 17%。</li>
+<li><a href="#n17">LLM 的解释</a>：不能当证据；“倒序”其实是移位；B.1 只有 14.2 秒。</li>
+<li><a href="#n18">图 17 的变化量</a>：蓝 +2.0 cm，橙 +0.7 cm（目测）；只测了一个噪声水平。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>在这篇里的角色</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a></td><td>训练数据；转向数据</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset</td><td>Harvey et al. 2020，Robust Motion In-Betweening</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a></td><td>训练数据的其余六个子集</td><td>amass.is.tue.mpg.de</td><td><a href="https://arxiv.org/abs/1904.03278">1904.03278</a></td></tr>
+<tr><td><a class="ds" href="https://resources.mpi-inf.mpg.de/HDM05/">HDM05</a></td><td>跟踪和消融的测试集</td><td>resources.mpi-inf.mpg.de/HDM05（脚本访问返回 403，未验证）</td><td>Müller et al. 2007</td></tr>
+<tr><td><a class="ds" href="http://vision.imar.ro/human3.6m/">Human3.6M</a></td><td>视频姿态估计的测试</td><td>vision.imar.ro/human3.6m</td><td>Ionescu et al. 2014</td></tr>
+<tr><td><a class="ds" href="https://github.com/EricGuo5513/HumanML3D">HumanML3D</a></td><td>GPT 训练；LLM 例子</td><td>github.com/EricGuo5513/HumanML3D</td><td>Guo et al. 2022，<a href="https://arxiv.org/abs/2204.14109">2204.14109</a></td></tr>
+<tr><td>VQ-VAE</td><td>量化和直通估计的来源</td><td>–</td><td><a href="https://arxiv.org/abs/1711.00937">1711.00937</a></td></tr>
+<tr><td>SoundStream</td><td>残差 VQ、量化器 dropout</td><td>–</td><td><a href="https://arxiv.org/abs/2107.03312">2107.03312</a></td></tr>
+<tr><td>RQ-VAE</td><td>残差 VQ；两个变换器的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2203.01941">2203.01941</a></td></tr>
+<tr><td>Jukebox</td><td>卷积结构；码坍缩</td><td>–</td><td><a href="https://arxiv.org/abs/2005.00341">2005.00341</a></td></tr>
+<tr><td><a href="controlvae.html">ControlVAE</a></td><td>前作，训练流程相同</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2210.06063">2210.06063</a></td></tr>
+<tr><td><a href="supertrack.html">SuperTrack</a></td><td>世界模型流程的来源</td><td>本站精读</td><td>Fussell et al. 2021</td></tr>
+<tr><td><a href="supermimic.html">SuperMimic</a></td><td>引用本文的后续工作</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td>版本记录</td><td>ACM 正式版，TOG 43(4)（据 SuperMimic 的文献表）</td><td>–</td><td><a href="https://doi.org/10.1145/3658137">10.1145/3658137</a>（脚本访问返回 403，未验证；这页读的是 arXiv v3，正式版可能有差别）</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2310.10198 和官方代码后的整理，不是作者的官方内容；原文和原图版权归作者和 ACM 所有，这页没有放原图。玩具的数字来自我自己的小实验，不是论文数据。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

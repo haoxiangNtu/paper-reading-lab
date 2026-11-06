@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SONIC 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.07820 SONIC 的核心框架做成 11 幕 3D 动画：通用策略总览、数据容量算力三轴放大、PPO 跟踪训练、三个编码器、FSQ 通用 token、四项损失、自适应采样、运动学规划器、遥操作、VLA 下游、和 SuperMimic 的判据对账。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:96px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+body.embed .ctl{top:auto;bottom:52px}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="sonic.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/sonic.html">返回精读</a><a href="../../papers/sonic.html#s3-2">原文 3.2 节</a><a href="../../papers/supermimic.html">SuperMimic 精读</a><a href="https://arxiv.org/abs/2511.07820">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2511.07820 · SONIC</p>
+<h1>一个跟踪策略，怎样放大，怎样接上所有输入</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览。第 2 幕是论文的核心主张：<b>数据、容量、算力</b>三根轴放大。第 3 到 7 幕是训练：PPO 跟踪、三个编码器、FSQ 通用 token、四项损失、自适应采样。第 8 到 10 幕是下游：规划器、遥操作、VLA。第 11 幕和 SuperMimic 对账。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。左上角的按钮切换这一幕的参数，第 1 幕可以点方块跳转。第 2 幕的柱子是作者 Data S1 的原始数值；第 5、10 幕的数字来自表 3、表 1。第 3、5、6、7、8、10、11 幕有当场算的部分（奖励、FSQ、梯度下降、采样概率、弹簧、Wilson 区间、判据），输入是玩具，公式是真的。官方代码读的是 1e1ec4f，没有运行。小人是手工做的示意，不是 G1 模型，也不是网络输出。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构（论文表 S1、S2，公布配置 sonic_release 和 sonic_v1_1）</h2>
+<p class="sub">“论文”是 arXiv v4 的表。“默认配置”是 Hugging Face 上 <code>sonic_release/config.yaml</code>。两者不同的地方并列写出，动画按论文画。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">编码器（3 个）</td></tr>
+<tr><td>E1</td><td>机器人 ℰr（g1）</td><td>未来 10 帧，Δt = 0.1 s → 2 × 32</td><td>MLP (2048, 1024, 512, 512)，SiLU。论文：关节位置和速度。代码另加根朝向</td></tr>
+<tr><td>E2</td><td>人体 ℰh（smpl）</td><td>未来 10 帧，Δt = 0.02 s → 2 × 32</td><td>同上。论文：3D 人体关节位置。代码另加根朝向和腕关节</td></tr>
+<tr><td>E3</td><td>混合 ℰm（teleop）</td><td>当前帧头和双手 ＋ 未来 10 帧下身，Δt = 0.1 s → 2 × 32</td><td>同上</td></tr>
+<tr class="grp"><td colspan="4">量化器</td></tr>
+<tr><td>Q</td><td>FSQ</td><td>2 × 32 连续 → 2 × 32 离散</td><td>L_z = 32 级，D_z = 32 维，2 个 token，共 64 维，320 比特（我的计算）。代码 num_fsq_levels: 32 其实是维数，fsq_level_list: 32 才是级数</td></tr>
+<tr class="grp"><td colspan="4">解码器</td></tr>
+<tr><td>D1</td><td>控制 𝒟c（g1_dyn）</td><td>token 64 ＋ 本体 930 → 动作 29</td><td><b>论文和 v1.1：</b>(4096, 4096, 2048, 2048, 1024, 1024, 512, 512)，约 3739 万参数。<b>默认配置：</b>(2048, 2048, 1024, 1024, 512, 512)，约 1018 万参数</td></tr>
+<tr><td>D2</td><td>动作 𝒟r（g1_kin）</td><td>token → 机器人动作</td><td>MLP (2048, 1024, 512, 512)</td></tr>
+<tr><td>C</td><td>评论家</td><td>特权状态 → 标量</td><td>论文和 v1.1：同 D1 大结构。默认配置：同 D1 小结构</td></tr>
+<tr class="grp"><td colspan="4">PPO（表 S2）</td></tr>
+<tr><td>P1</td><td>采样</td><td></td><td>每 GPU 4096 环境，每环境 24 步，5 个 epoch，4 个小批，γ = 0.99，λ = 0.95，裁剪 0.2</td></tr>
+<tr><td>P2</td><td>优化</td><td></td><td>演员 2×10⁻⁵，评论家 1×10⁻³，梯度范数 0.1，目标 KL 0.01，自适应 [1×10⁻⁵, 2×10⁻⁴]；熵系数论文 0.013，公布配置 0.01</td></tr>
+<tr><td>P3</td><td>动作分布</td><td></td><td>对角高斯，初始 σ = 0.05，钳在 [0.001, 0.5]</td></tr>
+<tr><td>P4</td><td>自适应采样</td><td></td><td>1 s 一桶，失败率上限 β = 200，均匀占比 α = 0.1</td></tr>
+<tr><td>P5</td><td>迭代数</td><td></td><td>论文：5 万（缩放实验）。公布配置：num_learning_iterations = 100000，world_size = 128</td></tr>
+<tr class="grp"><td colspan="4">损失（代码权重）</td></tr>
+<tr><td>L1</td><td>ℒrecon</td><td></td><td>g1_recon = 0.01（论文式 (1) 没有权重）</td></tr>
+<tr><td>L2</td><td>ℒtoken</td><td></td><td>g1_smpl、g1_teleop、teleop_smpl 各 1.0，量化前潜变量上的 MSE</td></tr>
+<tr><td>L3</td><td>ℒcycle</td><td></td><td>reencoded_smpl_g1 = 1.0</td></tr>
+<tr class="grp"><td colspan="4">规划器与部署</td></tr>
+<tr><td>K1</td><td>规划器</td><td>关键帧 → 0.8–2.4 s 动作</td><td>下采样 4 倍，掩码 token，余弦调度；30 fps，最多 64 帧；Jetson 约 12 ms；ONNX 文件 774 MB</td></tr>
+<tr><td>K2</td><td>弹簧</td><td>命令 → 关键帧位置和朝向</td><td>位置 c = 5 ln 2，朝向 c = 20 ln 2（代码朝向半衰期 0.17 s，换算 c ≈ 23.5 ln 2）</td></tr>
+<tr><td>K3</td><td>循环</td><td></td><td>控制 50 Hz，写电机 500 Hz，输入 100 Hz，规划 10 Hz；交叉淡入 8 帧 160 ms</td></tr>
+<tr><td>K4</td><td>VLA</td><td>图像、指令 → 78 维</td><td>GR00T N1.5；64 维 token ＋ 14 维手。对照：SMPL 81 维</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的正弦，只为看出“哪个姿态对应哪一步”。不是 G1 模型，也不是策略输出。第 3 幕红白两个小人的差距是我写的。</li>
+<li><b>第 2 幕左边的方块。</b>只表示相对大小。1.2M 和 16M 的结构论文没写，宽度按比例缩小，不是真实结构。右边的柱子是真实数据。</li>
+<li><b>第 3 幕的误差。</b>是一条正弦。奖励柱子用的 σ 和权重是表 S3 的，公式是真的，所以只有“每项怎样随误差变化”有意义，具体数值没有意义。</li>
+<li><b>第 5 幕的输入向量。</b>是种子固定的随机数，FSQ 公式来自 vector_quantize_pytorch 的实现。</li>
+<li><b>第 6 幕的三个点。</b>二维玩具，对 ℒtoken 的形式做真的梯度下降。不是真实潜空间。</li>
+<li><b>第 7 幕的失败率。</b>是假数据和假设的学习过程，采样公式是代码里的。β = 2 只是为了看到上限起作用。</li>
+<li><b>第 8 幕。</b>L_max = 8、16 个 token、v₀ = 0.6 是我选的。两条弹簧曲线是公式算的。</li>
+<li><b>第 10 幕的 Wilson 区间。</b>是我算的。SMPL 那一列的试验次数论文没写，我按同任务 token 的次数假设。</li>
+<li><b>第 11 幕。</b>单自由度几何，只比较判据本身的角度，没有高度项，不代表任何真实轨迹。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2511.07820v4 和官方代码（commit 1e1ec4f）后的理解，不是作者的官方图。原图见<a href="../../papers/sonic.html#fig6">精读页图 6</a>，以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 转载。这份图解同样按 CC BY-SA 4.0 提供。逐节内容和核算见<a href="../../papers/sonic.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>
