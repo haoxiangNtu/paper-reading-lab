@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GraspGen 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2507.13097 GraspGen 的框架做成 11 幕 3D 动画：分割后的部分点云、PTv3、噪声头、两个调度器、当场训练的玩具去噪、判别器、On-Generator 与离线训练的对比、EMD、和 GAN 的区别、规划器筛选与论文结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:100px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap;pointer-events:auto}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+#hud{position:absolute;right:10px;top:100px;background:color-mix(in srgb,var(--bg2) 90%,transparent);border:1px solid var(--line);border-radius:8px;pointer-events:none}
+#hud[hidden]{display:none}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+body.embed .ctl{top:82px;font-size:11.5px}
+body.embed #hud{top:82px}
+body.embed .ae .cap,body.embed .cap{font-size:13px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="graspgen.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/graspgen.html">返回精读</a><a href="../../papers/graspgen.html#s3-1">原文 3.1 节</a><a href="../../papers/graspgen.html#s3-2">原文 3.2 节</a><a href="https://arxiv.org/abs/2507.13097">arXiv</a><a href="https://github.com/NVlabs/GraspGen">代码</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2507.13097 · GRASPGEN</p>
+<h1>一个生成器，加一个见过它犯错的判别器</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览，第 2 到 6 幕走生成：输入和分割、PTv3、噪声头、两个调度器、去噪。第 7 到 9 幕走判别：打分、On-Generator 训练、分布偏移。第 10 幕讲为什么不是 GAN，第 11 幕是下游筛选和论文结果。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。第 1 幕的方块可以点。第 2 到 8、10、11 幕左上角有切换。张量形状读自官方代码（提交 2dd8852）。第 6 到 11 幕的抓取来自页面里<b>当场训练</b>的小网络，判别器和分布距离也是当场算的，这是平面上的玩具，不是 GraspGen 的权重；柱子上标明论文原数的那些才是论文的数。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <canvas id="hud" hidden></canvas>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步</h2>
+<p class="sub">形状读自官方代码提交 <code>2dd8852</code>（当前 HEAD）和 Franka 脚本 <code>runs/train_graspgen_franka_panda_*.sh</code>，发布配置读自 HuggingFace 上的 <code>graspgen_*.yml</code>。B 是该物体的抓取候选总数，#obj 是批内物体数。代码没有运行过。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和归一化</td></tr>
+<tr><td>I1</td><td>点云</td><td>[#obj, N, 3]</td><td>Franka 生成器训练 N = 3500，判别器训练 N = 2048；Robotiq 两者都是 2048；发布 yml 的推理 N = 2048</td></tr>
+<tr><td>I2</td><td>中心化</td><td>xyz, 抓取 → 减点云均值</td><td>训练时 T_move_to_pc_mean；推理默认先去离群点再减均值（grasp_server）</td></tr>
+<tr><td>I3</td><td>κ</td><td>x → κ·x，t → κ·t</td><td>κ = 1 / 平均每轴范围（calculate_dataset_kappa）。Franka 3.27，Robotiq 2.02217，吸盘 3.764。代码把点云也乘 κ</td></tr>
+<tr><td>I4</td><td>旋转</td><td>R → so3_log / π</td><td><code>r3_so3</code>：3 维轴角，除以 π。平移 3 维 ＋ 旋转 3 维 = 6 维；<code>r3_6d</code> 时 9 维</td></tr>
+<tr class="grp"><td colspan="4">PTv3 编码器（obs_backbone = ptv3，cls_mode = True）</td></tr>
+<tr><td>E1</td><td>输入字典</td><td>coord, feat = [#obj·N, 3]；offset</td><td>grid_size 0.01（κ 尺度）；序 z, z-trans, hilbert, hilbert-trans，shuffle_orders</td></tr>
+<tr><td>E2</td><td>茎</td><td>[ΣN, 3] → [ΣN, 32]</td><td>SubMConv3d，k = 5，padding 1，BatchNorm，GELU</td></tr>
+<tr><td>E3</td><td>5 个编码阶段</td><td>32 → 64 → 128 → 256 → 512</td><td>block 2, 2, 2, 6, 2；头 2, 4, 8, 16, 32；patch 上限 1024；mlp_ratio 4；drop_path 0.3；阶段间 SerializedPooling stride 2；enable_flash False；无解码器</td></tr>
+<tr><td>E4</td><td>池化</td><td>[ΣN₅, 512] → [#obj, 512]</td><td>segment_csr 按物体求均值，再按 mask_batch 复制到 [B, 512]</td></tr>
+<tr><td>E5</td><td>Robotiq 的例外</td><td></td><td>runs 脚本和发布 yml 的 Robotiq 都是 obs_backbone = pointnet（PointNet++）</td></tr>
+<tr class="grp"><td colspan="4">噪声头 DiffusionNoisePredictionNet（attention = cat_attn，pose_repr = mlp）</td></tr>
+<tr><td>G1</td><td>抓取编码</td><td>[B, 6] → [B, 512]</td><td>Linear 512 → ReLU → Linear 512</td></tr>
+<tr><td>G2</td><td>时间编码</td><td>[B] → [B, 512]</td><td>SinusoidalPosEmb 512 → Linear 2048 → Mish → Linear 512</td></tr>
+<tr><td>G3</td><td>拼接</td><td>[B, 1536] → [1, B, 1536]</td><td>样本、时间、物体沿特征维拼接；序列长 1，批在第 1 维</td></tr>
+<tr><td>G4</td><td>3 个块</td><td>[1, B, 1536] → 同形状</td><td>MultiheadAttention(1536, 8)（每头 192）＋ LayerNorm；FFN 1536 → 512 → GELU → 1536 ＋ LayerNorm；可学 query 位置编码 1 × 1536</td></tr>
+<tr><td>G5</td><td>输出头</td><td>[B, 1536] → [B, 6]</td><td>1536 → 768 → ReLU → 384 → ReLU → 6</td></tr>
+<tr><td>G6</td><td>参数量</td><td></td><td>约 3690 万（不含 PTv3；三块 3306 万，时间编码 210 万，输出头 148 万，抓取编码 27 万；我按层算的，没有加载权重）</td></tr>
+<tr class="grp"><td colspan="4">扩散过程（compositional_schedular = True）</td></tr>
+<tr><td>D1</td><td>调度器</td><td>平移 3 维，旋转 3 维</td><td>两个 DDPMScheduler：scaled_linear 和 squaredcos_cap_v2；训练和推理 T = 10；clip_sample = True；ε 预测；diffusers 0.11.1</td></tr>
+<tr><td>D2</td><td>实际 ᾱ</td><td>t = 9</td><td>平移 0.9274，旋转 2.4×10⁻⁵（我按库默认 β 1e-4 到 0.02 算的）</td></tr>
+<tr><td>D3</td><td>损失</td><td>ε, ε̂</td><td>脚本：loss_l1_pos、loss_l1_rot 打开，实际是平移和旋转各一个未平方的 L2 范数，均值后相加，权重 1:1。论文写的是平方 L2</td></tr>
+<tr><td>D4</td><td>训练</td><td></td><td>ADAMW，lr 1e-5，weight_decay 0.05，5000 epoch，BATCH 8，每物体 500 个抓取，50% 部分点云（prob_point_cloud 0.5），redundancy 7，rotation_augmentation</td></tr>
+<tr class="grp"><td colspan="4">判别器 GraspGenDiscriminator</td></tr>
+<tr><td>H1</td><td>物体</td><td>PTv3 → [B, 512]</td><td>有 checkpoint_object_encoder_pretrained 才加载并冻结。runs 脚本没传；发布 yml：Franka 指向生成器权重，Robotiq 和吸盘是 null</td></tr>
+<tr><td>H2</td><td>抓取</td><td>[B, 6] → [B, 512]</td><td>Linear 512 → ReLU → Linear 512</td></tr>
+<tr><td>H3</td><td>输出头</td><td>[B, 1024] → [B, 1]</td><td>1024 → 512 → ReLU → 256 → ReLU → 1（logit），sigmoid 后 [#obj, B, 1]。这部分约 92 万参数（含 H2）</td></tr>
+<tr><td>H4</td><td>损失</td><td>BCE with logits</td><td>topk_ratio 0.75：批内损失最大的 75% 求均值</td></tr>
+<tr><td>H5</td><td>采样比例</td><td>7 类</td><td>[0.25, 0.24, 0, 0.01, 0, 0.25, 0.25] = 离线正、离线负、碰撞难例、自由空间、回撤难例、on-policy 正、on-policy 负。没有 on-policy 数据时，后两份并回离线</td></tr>
+<tr class="grp"><td colspan="4">算法 1 与部署</td></tr>
+<tr><td>A1</td><td>On-Generator 数据</td><td>约 7K 物体 × 2K</td><td>论文：与离线数据量接近，用同一套仿真流程标注。公开脚本没有这一步，配置项 onpolicy_dataset_dir 默认 null</td></tr>
+<tr><td>A2</td><td>组合模型</td><td>G.infer → D.infer</td><td>GraspGen 类里两个模型各有一个编码器实例，点云各算一次</td></tr>
+<tr><td>A3</td><td>部署默认</td><td>采 200 → top-100</td><td>grasp_server 的默认值：num_grasps 200，threshold −1 时取 100。论文真机把 top-100 交给 cuRobo</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2、3 幕的杯子和点云。</b>我造的几何。点数、均值偏移和阶段点数是对这个几何真算的，换物体会变；不是任何真实传感器的数据。</li>
+<li><b>第 3、4 幕的方块。</b>大小按维度粗略缩放，亮度只表示动画走到哪一步，不是激活值。PTv3 和噪声头都没有运行。</li>
+<li><b>第 4 幕的注意力权重。</b>softmax 公式是真的，向量是随机数。序列长 1 时结果恒为 1 与向量无关；序列长 3 的情形代码不走，只是对照。</li>
+<li><b>第 5 幕。</b>ᾱ 是用库的公式真算的。下方的点是玩具数据加噪。</li>
+<li><b>第 6 到 10 幕的玩具。</b>物体是一个二维胶囊，抓取是 (x, y, 朝向)，“仿真器”是我写的几条规则（站距区间、对准容差、三段可抓圆弧）。去噪网络和判别器确实在浏览器里用反向传播训练，所以错误是训练出来的，不是手工放的。但模型只有几千个参数，不能外推到 GraspGen。</li>
+<li><b>第 8 幕的离线负样本。</b>按论文对 ACRONYM 的描述（负样本不碰撞）构造。这一条假设决定了结果的方向，所以它演示的是论文的<em>解释</em>，不是对解释的独立验证。</li>
+<li><b>第 11 幕的墙和“窄候选”。</b>我设的。规划器是一条几何规则，不是 cuRobo。柱状图是论文原数。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2507.13097 和官方代码后的理解，不是作者的官方图。论文以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布；代码是 NVIDIA 非商业许可，这里没有复制代码。逐节内容和核算见<a href="../../papers/graspgen.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>
