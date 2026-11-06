@@ -1,0 +1,63 @@
+'use strict';
+/* Small line charts on the SuperMimic reading page. Every point was read from the paper's own vector figures
+   (pdftocairo -svg, axes calibrated on the tick marks). The charts are redrawn here, they are not the paper's figures.
+   Palette: validated with the dataviz check on the site's light and dark surfaces. */
+(function () {
+  const DATA = {"failures":{"id":"c-fail","x":{"label":"训练时间（小时，实际墙钟）"},"y":{"label":"失败动作数（共 129,514 个）","max":200,"min":0},"series":[{"name":"SuperMimic，1 张 H100","short":"1 卡","dy":-12,"slot":1,"pts":[[0.12,1555.0],[0.24,646.0],[0.36,455.0],[0.47,393.0],[0.59,216.0],[0.71,172.0],[0.82,159.0],[0.94,148.0],[1.06,105.0],[1.18,88.0],[1.29,103.0],[1.41,83.0],[1.53,61.0],[1.64,89.0],[1.76,75.0],[1.88,49.0],[2.0,49.0],[2.11,48.0],[2.23,47.0],[2.35,68.0],[2.46,30.0],[2.58,37.0],[2.7,28.0],[2.81,28.0],[2.93,27.0],[3.05,31.0],[3.16,30.0],[3.28,24.0],[3.4,24.0],[3.51,16.0],[3.63,18.0],[3.75,28.0],[3.87,21.0],[3.98,23.0],[4.1,18.0],[4.22,14.0],[4.33,14.0],[4.45,12.0],[4.57,15.0],[4.68,22.0],[4.8,14.0],[4.92,9.0],[5.04,13.0],[5.15,10.0],[5.27,7.0],[5.39,8.0],[5.5,6.0],[5.62,13.0],[5.74,7.0],[5.85,9.0],[5.97,8.0],[6.09,5.0],[6.21,9.0],[6.67,9.0],[6.79,11.0],[6.91,6.0],[7.02,9.0],[7.14,7.0],[7.26,8.0],[7.38,7.0],[7.49,2.0],[7.73,8.0],[7.84,7.0],[7.96,8.0],[8.08,4.0],[8.2,4.0],[8.31,8.0],[8.43,4.0],[8.55,4.0],[8.66,5.0],[8.9,5.0],[9.02,3.0],[9.13,7.0],[9.25,3.0],[9.37,6.0]]},{"name":"SuperMimic，2 张 H100","short":"2 卡","dy":-8,"slot":3,"pts":[[0.13,900.0],[0.25,273.0],[0.37,143.0],[0.49,162.0],[0.61,93.0],[0.74,84.0],[0.86,55.0],[0.98,74.0],[1.1,46.0],[1.23,55.0],[1.35,45.0],[1.47,48.0],[1.59,59.0],[1.72,51.0],[1.84,42.0],[1.96,42.0],[2.08,25.0],[2.21,28.0],[2.33,25.0],[2.45,26.0],[2.57,33.0],[2.69,29.0],[2.82,28.0],[2.94,21.0],[3.06,18.0],[3.18,16.0],[3.31,14.0],[3.43,11.0],[3.55,14.0],[3.67,14.0],[3.79,8.0],[4.04,8.0],[4.16,5.0],[4.28,6.0],[4.41,8.0],[4.53,5.0],[4.65,2.0],[4.77,4.0],[4.9,3.0],[5.02,6.0],[5.14,2.0],[5.26,4.0],[5.39,1.0],[5.51,2.0],[5.63,2.0],[5.75,1.0],[5.87,4.0],[6.0,1.0],[6.12,-0.0],[6.24,-0.0],[6.36,1.0],[6.49,-0.0],[7.47,-0.0],[7.59,1.0],[7.71,-0.0],[7.96,-0.0],[8.08,1.0],[8.2,-0.0],[9.79,-0.0]]}],"refs":[{"y":179,"label":"SONIC 公布的检查点：179"}],"marks":[{"x":3,"label":"3 小时"}],"yfmt":0,"xfmt":2},"ret3a":{"id":"c-ret","x":{"label":"GPU 小时（对数轴）","log":true,"min":0.05,"max":100},"y":{"label":"归一化回报","min":0.6,"max":1.0},"series":[{"name":"SuperMimic，1 张 H100","short":"1 卡","dy":-14,"slot":1,"pts":[[0.061,0.703],[0.091,0.757],[0.12,0.804],[0.149,0.827],[0.208,0.849],[0.237,0.857],[0.326,0.866],[0.384,0.882],[0.503,0.897],[0.62,0.907],[0.796,0.915],[1.002,0.924],[1.266,0.931],[1.588,0.932],[1.997,0.934],[2.524,0.942],[3.168,0.936],[3.986,0.95],[5.012,0.95],[6.331,0.96],[7.942,0.961],[9.38,0.96]]},{"name":"SuperMimic，2 张 H100","short":"2 卡","dy":-10,"slot":3,"pts":[[0.066,0.634],[0.128,0.74],[0.189,0.819],[0.25,0.844],[0.372,0.861],[0.496,0.882],[0.618,0.893],[0.741,0.906],[0.986,0.912],[1.232,0.922],[1.6,0.929],[1.967,0.935],[2.457,0.936],[3.191,0.943],[3.926,0.945],[5.028,0.944],[6.376,0.949],[7.965,0.956],[10.048,0.96],[12.623,0.961],[15.806,0.963],[19.606,0.964]]}],"refs":[{"y":0.9,"label":"SONIC 公布的检查点：0.90（21,000 GPU 小时）"}],"yfmt":3,"xfmt":2},"lafan":{"id":"c-lafan","x":{"label":"训练时间（小时，实际墙钟）","min":0,"max":19},"y":{"label":"归一化回报（40 个片段）","min":0,"max":1.0},"series":[{"name":"SuperMimic，1 卡","short":"SuperMimic 1 卡","dy":-10,"slot":1,"pts":[[0.0,0.002],[0.08,0.524],[0.15,0.617],[0.23,0.668],[0.3,0.67],[0.37,0.696],[0.45,0.766],[0.52,0.757],[0.6,0.778],[0.67,0.779],[0.74,0.791],[0.89,0.79],[1.04,0.811],[1.19,0.834],[1.34,0.831],[1.49,0.849],[1.79,0.829],[2.09,0.852],[2.39,0.851],[2.69,0.862],[2.99,0.867]]},{"name":"PPO-Sim，8 卡","short":"PPO 8 卡","dy":-9,"slot":2,"pts":[[0.0,0.002],[0.19,0.375],[0.38,0.4],[0.56,0.388],[0.75,0.445],[0.93,0.489],[1.12,0.513],[1.31,0.509],[1.49,0.544],[1.68,0.554],[1.86,0.542],[2.04,0.555],[2.23,0.578],[2.41,0.589],[2.6,0.591],[2.78,0.603],[2.96,0.604],[3.15,0.605],[3.33,0.619],[3.52,0.623],[3.7,0.611],[3.88,0.611],[4.07,0.621],[4.25,0.61],[4.43,0.632],[4.62,0.636],[5.53,0.645],[6.45,0.675],[7.36,0.669],[9.19,0.695],[11.02,0.702],[14.44,0.719],[18.04,0.722]]},{"name":"PPO-Sim，4 卡","short":"PPO 4 卡","dy":17,"slot":3,"pts":[[0.0,0.002],[0.18,0.327],[0.36,0.349],[0.54,0.379],[0.72,0.403],[0.9,0.441],[1.08,0.471],[1.26,0.469],[1.44,0.478],[1.62,0.508],[1.8,0.502],[1.98,0.541],[2.15,0.548],[2.33,0.558],[2.51,0.555],[2.69,0.569],[2.87,0.581],[3.05,0.556],[3.22,0.611],[3.4,0.592],[3.58,0.6],[3.76,0.619],[3.94,0.599],[4.12,0.613],[4.29,0.606],[4.47,0.623],[5.36,0.636],[6.25,0.64],[7.13,0.64],[8.89,0.668],[10.65,0.683],[14.13,0.687],[17.75,0.703]]},{"name":"PPO-Sim，1 卡","short":"PPO 1 卡","dy":17,"slot":4,"pts":[[0.0,0.002],[0.24,0.026],[0.48,0.211],[0.72,0.226],[0.96,0.236],[1.2,0.265],[1.44,0.303],[1.68,0.33],[1.92,0.367],[2.16,0.374],[2.41,0.407],[2.65,0.405],[2.89,0.395],[3.13,0.43],[3.37,0.42],[3.61,0.449],[3.85,0.448],[4.09,0.488],[4.33,0.462],[4.57,0.473],[4.81,0.48],[5.05,0.471],[5.28,0.534],[5.52,0.524],[5.76,0.499],[6.0,0.535],[7.19,0.542],[8.39,0.545],[9.63,0.55],[12.0,0.589],[14.03,0.617],[18.7,0.602]]}],"refs":[{"y":0.82,"label":"目标 0.82"}],"yfmt":3,"xfmt":2},"speed":{"id":"c-speed","x":{"label":"并行环境数（对数轴）","log":true,"min":400,"max":80000},"y":{"label":"每秒步数（对数轴）","log":true,"min":10000.0,"max":30000000.0},"series":[{"name":"世界模型","short":"世界模型","dy":-10,"slot":1,"pts":[[512,215000],[1024,421000],[2048,841000],[4096,1680000],[8192,3350000],[16384,6710000],[32768,13400000],[65536,20000000]]},{"name":"MuJoCo Warp","short":"MuJoCo Warp","dy":-10,"slot":2,"pts":[[512,23200],[1024,43800],[2048,78000],[4096,131000],[8192,196000],[16384,260000],[32768,304000],[65536,321000]]}],"marks":[{"x":4096,"label":"论文实际用的 4096"}],"yfmt":"e","xfmt":0}};
+  const NS = 'http://www.w3.org/2000/svg', W = 780, H = 360, M = { l: 62, r: 22, t: 16, b: 50 };
+  const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const fmt = (v, f) => f === 'e' ? (v >= 1e6 ? (v / 1e6).toFixed(2) + ' M' : (v / 1e3).toFixed(0) + ' k') : Number(v).toFixed(f).replace(/\.0+$/, m => (f ? m : ''));
+  const logTicks = (a, b) => { const o = []; for (let e = Math.floor(Math.log10(a)); e <= Math.ceil(Math.log10(b)); e++) { const v = 10 ** e; if (v >= a && v <= b) o.push(v); } return o; };
+  const niceTicks = (a, b) => { const s = (b - a) / 5, m = 10 ** Math.floor(Math.log10(s)), n = s / m, st = (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * m, o = []; for (let v = Math.ceil(a / st) * st; v <= b + 1e-9; v += st) o.push(+v.toFixed(6)); return o; };
+  const tickLabel = v => v >= 1e6 ? (v / 1e6) + 'M' : v >= 1e3 ? (v / 1e3) + 'k' : String(v);
+
+  function draw(c) {
+    const host = document.getElementById(c.id); if (!host) return;
+    const all = c.series.flatMap(s => s.pts);
+    const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+    const x0 = c.x.min ?? Math.min(...xs), x1 = c.x.max ?? Math.max(...xs), y0 = c.y.min ?? Math.min(...ys), y1 = c.y.max ?? Math.max(...ys);
+    const sx = v => M.l + (W - M.l - M.r) * (c.x.log ? (Math.log10(v) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0)) : (v - x0) / (x1 - x0));
+    const sy = v => H - M.b - (H - M.t - M.b) * (c.y.log ? (Math.log10(v) - Math.log10(y0)) / (Math.log10(y1) - Math.log10(y0)) : (Math.min(v, y1) - y0) / (y1 - y0));
+    const legend = document.createElement('div'); legend.className = 'viz-legend';
+    c.series.forEach(s => { const i = document.createElement('span'); i.innerHTML = `<i style="background:var(--series-${s.slot})"></i>${s.name}`; legend.appendChild(i); });
+    host.appendChild(legend);
+    const box = document.createElement('div'); box.className = 'viz-box'; host.appendChild(box);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': c.y.label + ' 对 ' + c.x.label }, box);
+    const xT = c.x.log ? logTicks(x0, x1) : niceTicks(x0, x1), yT = c.y.log ? logTicks(y0, y1) : niceTicks(y0, y1);
+    yT.forEach(v => { el('line', { x1: M.l, x2: W - M.r, y1: sy(v), y2: sy(v), class: 'viz-grid' }, svg); const t = el('text', { x: M.l - 8, y: sy(v) + 4, 'text-anchor': 'end', class: 'viz-tick' }, svg); t.textContent = tickLabel(v); });
+    xT.forEach(v => { const t = el('text', { x: sx(v), y: H - M.b + 18, 'text-anchor': 'middle', class: 'viz-tick' }, svg); t.textContent = tickLabel(v); });
+    el('line', { x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b, class: 'viz-axis' }, svg);
+    let t = el('text', { x: (M.l + W - M.r) / 2, y: H - 10, 'text-anchor': 'middle', class: 'viz-lab' }, svg); t.textContent = c.x.label;
+    t = el('text', { x: 14, y: (M.t + H - M.b) / 2, 'text-anchor': 'middle', class: 'viz-lab', transform: `rotate(-90 14 ${(M.t + H - M.b) / 2})` }, svg); t.textContent = c.y.label;
+    (c.refs || []).forEach(r => { el('line', { x1: M.l, x2: W - M.r, y1: sy(r.y), y2: sy(r.y), class: 'viz-ref' }, svg); const q = el('text', { x: W - M.r - 4, y: sy(r.y) - 6, 'text-anchor': 'end', class: 'viz-lab' }, svg); q.textContent = r.label; });
+    (c.marks || []).forEach(r => { el('line', { x1: sx(r.x), x2: sx(r.x), y1: M.t, y2: H - M.b, class: 'viz-ref' }, svg); const q = el('text', { x: sx(r.x) + 5, y: M.t + 12, class: 'viz-lab' }, svg); q.textContent = r.label; });
+    /* clip so curves that start above the axis (1555 failed motions) leave through the top */
+    const cid = c.id + '-clip'; const dfs = el('defs', {}, svg), cp = el('clipPath', { id: cid }, dfs); el('rect', { x: M.l, y: M.t, width: W - M.l - M.r, height: H - M.t - M.b }, cp);
+    c.series.forEach(s => {
+      const d = s.pts.map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)} ${(c.y.log ? sy(p[1]) : H - M.b - (H - M.t - M.b) * (p[1] - y0) / (y1 - y0)).toFixed(1)}`).join('');
+      el('path', { d, fill: 'none', stroke: `var(--series-${s.slot})`, 'stroke-width': 2, 'stroke-linejoin': 'round', 'clip-path': `url(#${cid})` }, svg);
+      const lp = s.pts[s.pts.length - 1];
+      const n = el('circle', { cx: sx(lp[0]), cy: sy(lp[1]), r: 4, fill: `var(--series-${s.slot})`, stroke: 'var(--viz-surface)', 'stroke-width': 2 }, svg); n.dataset.end = 1;
+      if (s.short) { const q = el('text', { x: sx(lp[0]) - 2, y: sy(lp[1]) + (s.dy ?? -9), 'text-anchor': 'end', class: 'viz-lab' }, svg); q.textContent = s.short; }
+    });
+    const cross = el('line', { y1: M.t, y2: H - M.b, class: 'viz-cross', visibility: 'hidden' }, svg);
+    const dots = c.series.map(s => el('circle', { r: 4.5, fill: `var(--series-${s.slot})`, stroke: 'var(--viz-surface)', 'stroke-width': 2, visibility: 'hidden' }, svg));
+    const tip = document.createElement('div'); tip.className = 'viz-tip'; tip.hidden = true; box.appendChild(tip);
+    const invX = px => { const f = (px - M.l) / (W - M.l - M.r); return c.x.log ? 10 ** (Math.log10(x0) + f * (Math.log10(x1) - Math.log10(x0))) : x0 + f * (x1 - x0); };
+    const nearest = (pts, v) => { let b = null, d = 1e18; for (const p of pts) { const q = Math.abs(sx(p[0]) - sx(v)); if (q < d) { d = q; b = p; } } return [b, d]; };
+    function move(e) {
+      const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W; if (px < M.l || px > W - M.r) return leave();
+      const v = invX(px); cross.setAttribute('x1', px); cross.setAttribute('x2', px); cross.setAttribute('visibility', 'visible');
+      let rows = '';
+      c.series.forEach((s, i) => { const [p, d] = nearest(s.pts, v), ok = d < 26; dots[i].setAttribute('visibility', ok ? 'visible' : 'hidden'); if (ok) { dots[i].setAttribute('cx', sx(p[0])); dots[i].setAttribute('cy', sy(p[1])); rows += `<div><i style="background:var(--series-${s.slot})"></i>${s.name}：<b>${fmt(p[1], c.yfmt)}</b>（x = ${c.xfmt === 0 ? tickLabel(p[0]) : fmt(p[0], c.xfmt)}）</div>`; } });
+      tip.innerHTML = rows; tip.hidden = !rows;
+      const bw = box.clientWidth, tx = (px / W) * bw; tip.style.left = (tx > bw * 0.55 ? tx - tip.offsetWidth - 12 : tx + 12) + 'px'; tip.style.top = '20px';
+    }
+    function leave() { cross.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); tip.hidden = true; }
+    svg.addEventListener('pointermove', move); svg.addEventListener('pointerleave', leave);
+    const det = document.createElement('details'); det.className = 'viz-table';
+    det.innerHTML = '<summary>看读出来的数据表</summary>' + c.series.map(s => `<p><b>${s.name}</b>：${s.pts.map(p => `(${c.xfmt === 0 ? tickLabel(p[0]) : fmt(p[0], c.xfmt)}, ${fmt(p[1], c.yfmt)})`).join(' ')}</p>`).join('');
+    host.appendChild(det);
+  }
+  Object.values(DATA).forEach(draw);
+})();
