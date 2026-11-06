@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperMimic 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.28480 SuperMimic 的核心框架做成 11 幕 3D 动画：三步训练循环、回放缓存、可微世界模型、8 步自回归拟合、32 步想象与 BPTT、BPTT 和 PPO 的梯度对比、评论家与想象长度、多接口策略网络、一个模型摊销全部动作、算力对账、部署。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:96px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.ctl[hidden]{display:none}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="sm.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/supermimic.html">返回精读</a><a href="../../papers/supermimic.html#s3">原文第 3 节</a><a href="../../papers/supermimic.html#apC">附录 C 网络</a><a href="https://arxiv.org/abs/2610.28480">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2610.28480 · SUPERMIMIC</p>
+<h1>一个世界模型，怎样把算力省掉三个数量级</h1>
+<p class="lead">一共 11 幕。第 1 幕是总循环，第 2 到 5 幕逐个拆开：<b>收集数据、拟合世界模型、想象并反传</b>。第 6、7 幕回答两个“为什么”：解析梯度为什么好过 PPO 的估计，评论家为什么让想象可以这么短。第 8 幕是策略网络，第 9、10 幕是结果，第 11 幕是上真机时留下什么。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。第 1 幕可以直接点三个站跳过去，第 7 幕可以切换想象长度 H。网络宽度和超参数出自论文表 A.4、A.5；第 7、9、10 幕的柱子是从原文矢量图读出来的真实数值。作者没有公开代码，机器人和它的动作都是我手工做的示意，不是 G1 模型，也不是网络算出来的。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步（论文表 A.4、A.5，算法 A.1）</h2>
+<p class="sub">MLP 按隐藏层宽度写。写着“没写”的地方，论文确实没给，这一页不替它补。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">世界模型（ω，每次更新都训练；只在策略反传那一步里冻结）</td></tr>
+<tr><td>W1</td><td>动力学 \(f_\omega\)</td><td>ŝ<sub>t</sub>, a<sub>t</sub>, ξ → ŝ<sub>t+1</sub></td><td>MLP (2048, 2048, 2048)。状态 s 的内容和维度论文没写</td></tr>
+<tr><td>W2</td><td>奖励、观测、终止头</td><td>→ r̂<sub>t+1</sub>, ō̂<sub>t</sub>, d̂<sub>t</sub></td><td>每个头“要么学，要么解析计算”，论文没写哪个是哪种</td></tr>
+<tr><td>W3</td><td>拟合</td><td>回放窗口 → \(\mathcal L_{\rm WM}\)</td><td>k = 8 步自回归；每次更新 10 批、每批 2048 个窗口；Adam，学习率 2×10⁻⁴，梯度范数裁到 1.0</td></tr>
+<tr class="grp"><td colspan="4">策略（θ）</td></tr>
+<tr><td>P1</td><td>动作编码器</td><td>未来 K = 10 帧参考 → z</td><td>MLP (2048, 1024, 512, 256)。每帧参考含哪些量论文没写</td></tr>
+<tr><td>P2</td><td>速度编码器</td><td>(v<sub>x</sub>, v<sub>y</sub>, ω<sub>z</sub>) ＋ 观测历史的特征 → z</td><td>MLP (256, 256)，附带一项权重 0.1 的潜变量对齐损失</td></tr>
+<tr><td>P3</td><td>潜变量 z</td><td></td><td>32 维，tanh 限幅</td></tr>
+<tr><td>P4</td><td>共享解码器</td><td>z, 最近 10 帧观测 → a<sub>t</sub></td><td>MLP (2048, 1024, 512, 256)。观测每帧 93 维，10 帧 930 维；动作 29 维</td></tr>
+<tr><td>P5</td><td>想象</td><td>回放状态 s₀, ξ → H 步</td><td>H = 32；每次更新 4096 条；Adam β = (0.9, 0.95)；梯度先裁全局范数 1.0，再逐元素裁 0.1；γ = 0.99</td></tr>
+<tr class="grp"><td colspan="4">评论家（ψ，每个接口一个）</td></tr>
+<tr><td>C1</td><td>\(V_\psi\)</td><td>ŝ<sub>t</sub>, g<sub>t</sub>, ξ → 标量</td><td>MLP (256, 128)；λ = 0.95；每次更新 5 轮、每轮 4 个小批；没有 EMA 目标网络</td></tr>
+<tr class="grp"><td colspan="4">收集与调度</td></tr>
+<tr><td>S1</td><td>仿真器</td><td>a<sub>t</sub> + ε<sub>t</sub> → 下一状态</td><td>MuJoCo Warp，每 GPU 4096 个环境，50 Hz 控制（每步 4 个 5 ms 子步），ε ~ N(0, 0.1²)</td></tr>
+<tr><td>S2</td><td>回放缓存</td><td></td><td>每个环境 1000 步，新的覆盖最旧的</td></tr>
+<tr><td>S3</td><td>重置采样</td><td>1 秒一个区间</td><td>50% 均匀 ＋ 40% softmax(−25 G<sub>b</sub>/G<sub>max</sub>) ＋ 10% 按历史权重</td></tr>
+<tr><td>S4</td><td>调度</td><td></td><td>更新数据比 0.4；共 320,000 次迭代；学习率余弦衰减到 0.03 倍（到 250,000 次），之后不变</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>机器人。</b>圆柱拼的小人，动作是手写的正弦和抛物线，只为看出“哪个姿态对应哪一步”。不是 G1 模型，也不是策略的输出。</li>
+<li><b>第 4 幕的误差。</b>误差怎样随步数变大是我设的曲线，只表示趋势。论文只给了 8 步误差的一个总数，见第 9 幕。</li>
+<li><b>第 6 幕的曲面。</b>是我写的一个二维函数，不是真实的回报。但上面的梯度估计是页面当场算的：PPO 用论文所说的似然比公式，BPTT 用解析导数，夹角也是算出来的。</li>
+<li><b>第 2 幕的区间回报。</b>是假数据，但 softmax 和 50/40/10 的混合是按论文公式算的。历史权重用当前权重代替。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2610.28480 后的理解，不是作者的官方图。原文版权保留，原图见<a href="https://arxiv.org/pdf/2610.28480#page=4">论文第 4 页图 2</a>。逐节内容和核算见<a href="../../papers/supermimic.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperMimic 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.28480 SuperMimic 的中文精读：按原文章节逐节整理，含全部编号公式、结果表、图的文字描述、从矢量图读出的数据、11 幕 3D 框架动画和 18 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:660px}.t-net{min-width:660px}.t-rew{min-width:640px}.t-hp{min-width:560px}.t-links{min-width:640px}.t-fail{min-width:520px}.t-read{min-width:520px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+/* charts: palette validated on the site's surfaces; every value is read from the paper's vector figures */
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-axis{stroke:var(--muted);stroke-width:1}
+.viz-ref{stroke:var(--muted);stroke-width:1;stroke-dasharray:5 4}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:12.5px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.viz-table p{max-width:none;font-family:var(--font-mono);font-size:11.5px;overflow-wrap:anywhere;margin:4px 0}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/supermimic/index.html">3D 框架动画</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2610.28480 · cs.RO · 2026 年 10 月 20 日 · CoRL 2026 · 中文精读</p>
+<h1>SuperMimic：用一个可微世界模型，把人形全身控制的训练算力降下来</h1>
+<p class="orig">SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model</p>
+<p>作者 Qiayuan Liao、Yiyang Shao、Junfeng Long、Kevin Zakka、Roberto Horowitz、Pieter Abbeel、Koushil Sreenath，均来自 UC Berkeley。Yiyang Shao 和 Junfeng Long 贡献相同，Pieter Abbeel 和 Koushil Sreenath 共同指导。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2610.28480">arXiv 原文</a><a href="https://arxiv.org/pdf/2610.28480">PDF</a><a href="https://supermimic.github.io">项目主页</a><span>正文 9 页，参考文献与附录到第 19 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，没有授权翻译或转载，所以这里不做逐字翻译，用自己的话按原文顺序覆盖正文六节和附录 A 到 G。</p>
+<p>公式按原文编号给出，表格数字照录原文。原图版权归作者所有，本站不转载：每个图框用文字描述那张图，点“看原图”打开 PDF 的对应页（这篇 arXiv 没有网页版）。标着“重画”的折线图是我从原文矢量图读出数据点后用自己的样式画的，不是原图。标成“读者注”的框是整理时核算或对照发现的问题，不属于论文内容，页尾有汇总。</p>
+<p>作者没有公开训练代码。项目主页上的网页 demo 自带专有许可，禁止脚本访问和推导模型结构，所以这里没有用 demo 里的任何东西。论文没写的地方就写“没写”。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3-2">3.2 世界模型</a><a href="#s3-3">3.3 策略学习</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 对比 SONIC</a><a href="#s4-2">4.2 世界模型的性质</a><a href="#s4-3">4.3 评论家</a><a href="#s4-4">4.4 真机</a><a href="#s4-5">4.5 下游任务</a><a href="#s5">5 结论</a><a href="#s6">6 局限</a><a href="#apA">附录 A 观测与奖励</a><a href="#apB">附录 B 多接口</a><a href="#apC">附录 C 网络</a><a href="#apD">附录 D 超参数</a><a href="#apE">附录 E 数据过滤</a><a href="#apF">附录 F 评测</a><a href="#apG">附录 G 速度任务</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>让人形机器人动作多样，目前最主流的办法是跟踪大量人体动作。问题是动作一多，训练就贵：要么分别训练专家再蒸馏（有损失），要么靠集群硬堆单一策略。这些流程都用无模型强化学习。</p>
+<p>SuperMimic 的想法是，所有动作都是同一个身体做的，动力学是共享的，那就用<b>一个可微世界模型</b>把它学下来。世界模型从普通刚体仿真器记录的转移中拟合，和策略放在一个循环里一起训练；策略的梯度通过短的想象轨迹反传得到（BPTT），是解析的，不是采样估计的。</p>
+<ul>
+<li><b>算力：</b>1 张 GPU 跑 3 小时，超过 <a class="ds" href="https://arxiv.org/abs/2511.07820">SONIC</a> 在 128 张 GPU 上训练 7 天的回报，GPU 小时少 1000 倍以上。</li>
+<li><b>覆盖：</b>129,514 个动作的基准上，3 小时版失败 25 个，SONIC 失败 179 个；2 张 GPU 跑 9.8 小时后失败 0 个。</li>
+<li><b>可扩展：</b>动作从 1 小时加到 264 小时，世界模型预测误差保持稳定，到目标回报所需的 GPU 小时增长很慢。</li>
+<li><b>真机：</b>策略迁移到实体 <a class="ds" href="https://www.unitree.com/g1">Unitree G1</a>，能做翻滚和空翻。</li>
+</ul>
+<p>读完我认为最值得记住的三点：算力差距主要靠“解析梯度 + 快速想象 + 一个模型覆盖全部动作”三者一起得到；32 步的短窗口之所以够用，靠的是评论家；最干净的算力对比其实是受控实验里的“至少 120 倍”，7000 多倍那个数还混着其他差异（<a href="#n2">读者注 4</a>）。</p>
+
+<div class="fig"><span class="lab">图 1 · 原文第 1 页 · <a href="https://arxiv.org/pdf/2610.28480#page=1">看原图 ↗</a></span><p>左边一组人形机器人的渲染图，标题是“世界模型滚动”，表示策略在世界模型的想象轨迹里变好。右边两段比例悬殊的时间条：SONIC 是 128 张 L40 跑 168 小时，本文是 1 张 H100 跑 3 小时，上方标注 GPU 小时少 1000 倍以上。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>背景。</b>靠物理仿真的动作模仿，是用强化学习让策略跟踪参考动作，动作来自大规模动捕数据。动作库越丰富，控制器越能干。现有系统有两条路：把针对单个片段的专家蒸馏成一个控制器，或者直接在整个动作库上训练一个通才。两条路都随动作覆盖变贵。SONIC 是当前最好的跟踪器之一，要 128 张 GPU 跑约 168 小时，约 21,000 GPU 小时。</p>
+<p><b>症结。</b>动作虽然不同，身体的混合刚体动力学是同一套。无模型方法不显式利用这一点，只能反复从带噪声的仿真轨迹里估计动作的后果。所以想多覆盖动作，就只能多加算力。</p>
+<p><b>做法。</b>学一个可微世界模型，用仿真器记录的转移来拟合，再通过短想象轨迹做 BPTT。一个动力学模型就把学习成本“摊销”到整个动作库上。因为梯度来自学到的模型，不是对仿真器求导，所以仿真器的接触可以不光滑，代码也可以不可微。</p>
+<p><b>四项贡献。</b></p>
+<ol>
+<li><b>可部署的基于模型 RL。</b>这个方向长期由 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 主导，本文证明穿过学到的可微世界模型做 BPTT 也能训练全身跟踪策略，并迁移到真机。</li>
+<li><b>算力不再是瓶颈。</b>单 GPU 超过集群 PPO，GPU 小时少 1000 倍以上，而且随动作库增长缓慢。</li>
+<li><b>拆解增益来源。</b>三个性质：误差在 264 倍数据增长下保持稳定；想象比仿真快 10 倍以上；有了解析梯度，达到同样回报所需的想象步数少约 64 倍。</li>
+<li><b>下游任务不止蒸馏。</b>初步实验里，用世界模型按接口自己的奖励训练速度编码器，跟踪得比蒸馏基线更准。</li>
+</ol>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>大规模动作跟踪。</b><a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a> 用无模型 RL 做出了生动的角色技能，PHC 把它推到大动作集并能恢复，SONIC 证明数据、策略容量和算力一起放大就能得到可上真机的通才。瓶颈就是算力，这正是本文要解决的。</p>
+<p><b>学到的可微动力学。</b>SuperTrack 通过学到的可微代理优化动作控制策略；ControlVAE 联合学动力学、潜在技能和控制器；MoConVQ 用离散表示扩到几十小时数据；SuperDyno 扩到几万个片段。这些主要用于仿真角色。本文把这条线推到单 GPU 的大规模人形跟踪和真机部署：世界模型能看到仿真上下文，部署的策略只有带噪声的本体感觉和目标。</p>
+<p><b>基于模型的策略优化与部署。</b>Dreamer 系列学潜变量动力学并在想象中做演员-评论家；TD-MPC 把短视野规划和终端价值结合；DayDreamer 直接在真机上学世界模型。<a class="ds" href="https://arxiv.org/abs/2204.07137">SHAC</a> 在可微仿真上做短视野演员-评论家，启发了本文带评论家的目标函数。<a class="ds" href="https://arxiv.org/abs/2501.10100">RWM</a> 和 RWM-U 证明学到的神经仿真器里训练的策略能上真机，但它们在想象轨迹上用 PPO，而且世界模型是用其他策略的数据预先训好的。本文对回报直接求导，世界模型在训练中用自己策略收集的数据拟合。</p>
+<p><b>可复用的动作表示与下游控制。</b>下表是原文表 1 的内容，比较各方法在三个阶段怎样训练。</p>
+<p class="tcap">表 1 · 各方法三个阶段的训练方式（照录原文；SuperMimic 和 SONIC 的三阶段是联合训练的）</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>方法</th><th>模仿</th><th>潜变量</th><th>下游</th><th>任务信号</th><th>真机</th></tr></thead><tbody>
+<tr><td>NPMP</td><td>SVG(0)</td><td>BC</td><td>SVG(0)</td><td>RL</td><td>✗</td></tr>
+<tr><td>ControlVAE</td><td colspan="2">MBRL（联合）</td><td>MBRL</td><td>RL</td><td>✗</td></tr>
+<tr><td>PhysicsVAE</td><td>PPO</td><td>BC（带一步一致性项）</td><td>PPO</td><td>RL</td><td>✗</td></tr>
+<tr><td>PULSE</td><td>PPO</td><td>DAgger</td><td>PPO</td><td>RL</td><td>✗</td></tr>
+<tr><td>MaskedMimic</td><td>A2C</td><td colspan="2">DAgger（联合）</td><td>蒸馏</td><td>✗</td></tr>
+<tr><td>BeyondMimic</td><td>PPO</td><td>DAgger</td><td>分类器引导扩散</td><td>蒸馏</td><td>✓</td></tr>
+<tr><td>SONIC</td><td colspan="3">PPO（联合）</td><td>蒸馏（跟踪奖励和潜变量对齐）</td><td>✓</td></tr>
+<tr><td>LATENT</td><td>PPO</td><td>DAgger</td><td>PPO</td><td>RL</td><td>✓</td></tr>
+<tr><td><b>SuperMimic</b></td><td colspan="3"><b>MBRL（联合）</b></td><td><b>蒸馏或 RL</b></td><td><b>✓</b></td></tr>
+</tbody></table></div>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<h3 id="s3-1"><span class="no">3.1</span>训练循环</h3>
+<p>目标是一个带目标条件的全身控制器，覆盖多技能动作库，并能接多种目标接口。训练是一个循环里的三步交替：</p>
+<ol>
+<li><b>收集。</b>当前策略在仿真器里跑，转移进回放缓存，新的覆盖最旧的。</li>
+<li><b>拟合。</b>从缓存取短窗口，训练世界模型。</li>
+<li><b>改进。</b>冻结世界模型，从缓存里的状态出发（Dyna 风格）做想象，把回报反传给策略，同时训练评论家。</li>
+</ol>
+<p>三者一直一起更新，不分阶段。旧策略收集的转移对拟合模型依然有效，因为动力学不取决于收集它的策略。</p>
+<p><b>符号。</b>问题是目标条件的部分可观测马尔可夫决策过程。状态 \(s_t\) 决定本体观测 \(o_t\) 和终止标志 \(d_t\)；动作 \(a_t\) 产生奖励 \(r_{t+1}\) 和下一状态。策略是确定性的，\(a_t=\pi_\theta(o_t,g_t)\)，动作是归一化的关节设定点，跟踪任务里目标 \(g_t\) 来自参考动作。</p>
+<p><b>动作噪声。</b>收集时仿真器执行 \(a_t+\epsilon_t\)，缓存存的也是加噪后的动作。这个噪声只是为了拓宽模型见到的动作范围，而且是可选的。</p>
+<p><b>软存活权重。</b>回报用 \(c_0=1,\ c_{t+1}=c_t(1-d_{t+1})\) 加权，\(J(\theta)=\mathbb E[\sum_{t\ge0}\gamma^t c_t r_{t+1}]\)。仿真器记录硬终止，世界模型预测终止概率 \(\hat d_t\in[0,1]\)，这样想象里的存活权重才可导。帽子表示世界模型对应的量。</p>
+<p><b>观测分解。</b>\(o_t=\bar o_t+\eta_t\)，\(\bar o_t\) 是干净观测，噪声 \(\eta_t\sim\rho_\eta\) 的分布已知，在世界模型外采样。</p>
+<div class="fig"><span class="lab">图 2 · 原文第 4 页 · <a href="https://arxiv.org/pdf/2610.28480#page=4">看原图 ↗</a></span><p>三个并排的框，下方横着一条回放缓存，上方一条“下一轮”的箭头从右回到左。(1) 收集：冻结的策略和仿真器组成闭环，转移 \((s_t,a_t+\epsilon_t,\xi)\) 往下写入缓存。(2) 拟合：缓存给出窗口，世界模型 \(f_\omega\) 带火焰标记（训练中），虚线梯度从损失指向它。(3) 改进：策略带火焰标记，世界模型带雪花标记（冻结），噪声 \(\eta_t\) 从外面加入，虚线梯度从回报穿过 \(f_\omega\) 回到 \(\pi_\theta\)。本页下面的第 1 幕是它的 3D 版本。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>核心框架拆成 11 幕：总循环、4096 个环境和回放缓存、世界模型内部、8 步自回归拟合、32 步想象和反传、BPTT 对 PPO、评论家和 H（可切换）、多接口策略网络、摊销、算力对账、部署。可以暂停、拖进度、旋转画面。</p>
+<iframe src="../interactives/supermimic/index.html?embed=1" title="SuperMimic 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/supermimic/index.html">全屏打开，还有完整结构表 ↗</a></p>
+</div>
+
+<h3 id="s3-2"><span class="no">3.2</span>学一个可微世界模型</h3>
+<p>仿真器的多刚体动力学是已知的，但它不一定给梯度，所以学一个可微代理，让它提供 BPTT 需要的预测和雅可比。这个解析梯度，严格说是“仿真中期望回报的一个代理”的梯度。</p>
+<p><b>为什么可以是确定性的。</b>仿真器的随机性来源都已知：物理参数放进逐回合的仿真上下文 \(\xi\)（摩擦、标定偏移、躯干质心），动作噪声已记录在动作里，传感器噪声在模型外。所以模型不用学分布。它包含动力学和三个头，每个头可以学习，也可以解析计算：</p>
+<div class="eq"><div class="m">\[ \hat s_{t+1}=f_\omega(\hat s_t,a_t,\xi),\quad \hat r_{t+1}=r_\omega(\hat s_t,a_t,g_t),\quad \hat{\bar o}_t=g_\omega(\hat s_t,\xi),\quad \hat d_t=d_\omega(\hat s_t,g_t) \]</div><span class="no"></span></div>
+<p><b>拟合。</b>取缓存里 \(k=8\) 步的窗口，从记录的状态 \(\hat s_0=s_0\) 出发，用记录的动作自回归地往前滚，最小化：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm WM}(\omega)=\mathbb E_{\mathcal B}\sum_{j=1}^{k}\Bigl[\lVert\hat s_j-s_j\rVert^2+(\hat r_j-r_j)^2+\lVert\hat{\bar o}_j-\bar o_j\rVert^2+\mathrm{BCE}(\hat d_j,d_j)\Bigr] \]</div><span class="no">(1)</span></div>
+<p>解析计算的头没有对应的损失项。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 哪些没写</span><p>状态 \(s\) 里有什么、多少维，论文全文没说，只有观测表 A.1。四个头哪些是学的、哪些是解析的也没说。每帧参考动作含哪些量、动作缩放 \(\alpha\) 的值、状态损失各维的权重同样没给。没有这些就不能按论文直接复现。第三方复现要自己决定：<a class="ds" href="https://github.com/CuboiLeo/SuperMimic-Reproduced">SuperMimic-Reproduced</a> 选了奖励和观测头解析算、终止头学习，并把这类缺口整理成了清单，那是复现者的决定，不是作者的。顺带，论文同一个字母 \(g\) 既表示目标 \(g_t\) 又表示观测头 \(g_\omega\)，读公式时要留意。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>穿过世界模型学策略</h3>
+<p>每次策略更新时，固定 \(\omega\)，在 \(H=32\) 步的想象轨迹上优化 \(\pi_\theta\) 和 \(V_\psi\)。超出窗口的回报由评论家估计，模型只需要在这 32 步内准确。</p>
+<p>每条想象轨迹从缓存里的状态 \(s_0\sim\rho_0\) 和它的 \(\xi\) 出发。第 \(t\) 步模型给出干净观测，重新加上传感器噪声后交给策略：\(a_t=\pi_\theta(\hat{\bar o}_t+\eta_t,g_t)\)。目标函数是：</p>
+<div class="eq"><div class="m">\[ \hat J(\theta)=\mathbb E_{s_0\sim\rho_0,\pi_\theta}\Bigl[\sum_{t=0}^{H-1}\gamma^t\hat c_t\hat r_{t+1}+\gamma^H\hat c_H V_\psi(\hat s_H,g_H,\xi)\Bigr] \]</div><span class="no">(2)</span></div>
+<p><b>和 PPO 的区别。</b>世界模型可微，BPTT 经 \(\hat s_t\) 和 \(a_t\) 的雅可比算出一阶梯度 \(\nabla_\theta\hat J\)。PPO 把动力学当黑箱，用优势加权随机策略的得分函数，是似然比估计。作者的说法是，BPTT 直接对每个动作求回报的导数，短视野内方差低得多。动画第 6 幕用玩具曲面演示了这个差别。</p>
+<p><b>评论家。</b>只在想象转移上，用 GAE 目标反向递推拟合：</p>
+<div class="eq"><div class="m">\[ \mathcal L_V(\psi)=\mathbb E\sum_{t=0}^{H-1}\bigl(V_t-\hat R_t\bigr)^2,\qquad \hat R_t=\hat r_{t+1}+\gamma(1-\hat d_{t+1})\bigl[(1-\lambda)V_{t+1}+\lambda\hat R_{t+1}\bigr] \]</div><span class="no">(3)</span></div>
+<p>其中 \(V_t=V_\psi(\hat s_t,g_t,\xi)\)，递推从 \(\hat R_H=V_H\) 开始。目标每条轨迹算一次，拟合 \(\psi\) 时固定。</p>
+<p><b>和 SHAC 的差别。</b>结构上是 SHAC 式的短视野演员-评论家，但 SHAC 反传的是可微仿真器。本文把硬终止换成存活权重 \(\hat c_t\)，评论家也没有 EMA 目标网络。之前用解析梯度的跟踪控制器常常不要评论家，只优化 H 步奖励和；名义跟踪回报也能差不多，但更短视，受扰动后的恢复就成了问题（§4.3）。</p>
+
+<div class="note" id="n2b"><span class="lab">读者注 2 · 窗口只占回报的一小部分</span><p>按表 A.5，\(\gamma=0.99\)，控制频率 50 Hz，有效视野约 100 步，也就是 2 秒。想象窗口 32 步只有 0.64 秒，拟合窗口 8 步只有 0.16 秒。\(\gamma^{32}=0.725\)，所以奖励恒定时，<b>折扣回报约 72.5% 在窗口之外</b>，全靠评论家估计。这是“评论家只是补一补”和实际比重之间的差距，也解释了为什么去掉评论家后 H 短了就训不动。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 32 步的误差没有数据</span><p>模型只在 8 步窗口上训练，却要想象 32 步。论文说实践中无限长地滚也稳，原因是 8 步自回归让模型学会纠正自己的误差。但论文里唯一的误差数字是图 3(c) 的 8 步误差，没有 32 步或更长的曲线。这个说法目前只是文字。项目主页有模型和仿真器并排的视频，可以看定性效果。</p></div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>仿真器是 <a class="ds" href="https://github.com/google-deepmind/mujoco_warp">MuJoCo Warp</a>。成本都在 Lambda 按需实例的 NVIDIA H100（80 GB SXM5）上测得。作者说跑过几个随机种子，训练非常稳定，他们归因于跟踪任务每步都有稠密奖励，所以图里不报种子差异。</p>
+<p><b>归一化回报</b>（下文简称回报）是整段回合每步奖励的不打折和，除以这个和能取到的最大值。提前终止的策略得分就低。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>用少得多的 GPU 小时达到 SONIC 水平</h3>
+<p><b>对比对象。</b>SONIC 是已发表的 PPO 流程，在 128 张 GPU 的集群上训练。两者都基于 <a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a> 的跟踪设定，所以是能找到的最接近的对比。</p>
+<p><b>结果。</b>1 张 GPU 3 小时内超过 SONIC 公布检查点的回报。在 129,514 个动作的共同基准上，失败数 25（3 小时，1 卡）和 0（9.8 小时，2 卡），SONIC 是 179。作者说 3 小时是保守的：从那以后每个检查点领先 SONIC 的幅度，至少是 SONIC 到 SuperMimic 最好结果差距的一半，回报和失败数都如此。</p>
+<div class="fig"><span class="lab">图 3 · 原文第 7 页 · <a href="https://arxiv.org/pdf/2610.28480#page=7">看原图 ↗</a></span><p>(a) 横轴是对数的 GPU 小时，纵轴是回报 0.60 到 0.92 以上，两条蓝线（1 卡和 2 卡）很快升过虚线（SONIC 0.90），下方用两条灰色横条标出 3 小时对 168 小时（&gt;50×）和 3 GPU 小时对 21k GPU 小时（&gt;1000×）。(b) 数据长度对到目标回报的 GPU 小时，蓝线在 2 以下走平，虚线是按数据成正比的情况。(c) 同一组数据长度上的 8 步预测误差。</p></div>
+<div class="viz"><p class="cap">重画 · 图 3(a) 的数据 · 矢量图读数 · 悬停看数值</p><div id="c-ret"></div></div>
+<p><b>算力对账。</b>比较的是 SONIC 报告的 128 张 L40 跑 7 天，和 1 张 H100 跑 3 小时。作者列出了两边的差异：SuperMimic 用 264.56 小时 <a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a>（SONIC 数据的公开子集），SONIC 用 611 小时，差 2.3 倍；GPU 型号不同，H100 峰值 fp32 是 L40 的 0.74 倍，张量核心是 5.5 倍，两边实际用到多少峰值不知道。3 小时包括整个训练循环，不含事后评测。作者的结论是 2.3 倍和最多 5.5 倍解释不了 1000 倍。</p>
+<div class="note" id="n2"><span class="lab">读者注 4 · 7000 倍和 120 倍</span><p>算术没问题：128 × 168 = 21,504，除以 3 是 7168（论文写约 7200），墙钟 168 / 3 = 56，611 / 264.56 = 2.31。但这个比值比的是“SONIC 训完的总开销”和“SuperMimic 超过它最终回报的时刻”，SONIC 何时第一次到 0.90 是不知道的。受控实验更干净：PPO-Sim 8 卡跑 18 小时（144 GPU 小时）到 0.72，还没到目标；SuperMimic 1.19 GPU 小时到 0.834。可得出的是 <b>GPU 小时至少 121 倍，墙钟至少 15 倍</b>（“至少”是因为 PPO 没到）。这个数更能代表方法本身的差距，它比 7168 小很多，也还是很大。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 5 · 3 小时确实保守</span><p>从图 3(a) 的点读：1 卡版在 0.62 GPU 小时就到 0.907，已超过 0.90。从图 A.1 读：失败数在 0.71 小时降到 179 以下。按作者自己“领先一半差距”的标准，我算下来回报门槛约 0.93、失败数门槛约 90，大约 2 小时就都满足了。说 3 小时确实留了余量，不过图 3(a) 只画了部分检查点，这个 2 小时是粗略的。</p></div>
+
+<p><b>受控对比（图 4a）。</b><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LAFAN1</a> 上的基线 PPO-Sim 和 SuperMimic 共用动作、观测、奖励、终止、域随机化、演员和评论家的网络大小和评测方法。它用 BeyondMimic 的 PPO 超参数，每卡 8192 个环境，是 SuperMimic 的 2 倍。结果：SuperMimic 1 卡 1.2 小时到 0.82；PPO-Sim 在 18 小时预算内都没到，最终 1 卡 0.60、4 卡 0.70、8 卡 0.72，4 卡加到 8 卡几乎没帮助。</p>
+<div class="fig"><span class="lab">图 4 · 原文第 7 页 · <a href="https://arxiv.org/pdf/2610.28480#page=7">看原图 ↗</a></span><p>(a) 横轴训练时间 0 到 18 小时，蓝线（SuperMimic）很快越过 0.82 的虚线，三条橙线（PPO-Sim 1、4、8 卡）缓慢爬到 0.6 到 0.72。(b) 想象长度 H = 8、16、32、64、128 的最终训练回报，实心带评论家，空心不带，阴影标出默认的 32。(c) 到 0.82 的小时数，到不了的用叉号标出。</p></div>
+<div class="viz"><p class="cap">重画 · 图 4(a) 的数据 · 矢量图读数 · 悬停看数值</p><div id="c-lafan"></div></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>世界模型的三个性质</h3>
+<p><b>一个模型摊销整个动作库。</b>数据从 1 小时到 264 小时，8 步误差保持在 0.007 到 0.011。所有动作都是同一个身体做的，新片段提供的是更多关于同一动力学的证据，不要求更多容量。这和图 3(b) 算力增长缓慢是一致的。</p>
+<p class="tcap">图 3(b)(c) 读数（矢量图，四舍五入）</p>
+<div class="tablewrap"><table class="t-read"><thead><tr><th>数据长度</th><th>1 h</th><th>7 h</th><th>40 h</th><th>264 h</th></tr></thead><tbody>
+<tr><td>到目标回报 GPU 小时</td><td>0.54</td><td>1.35</td><td>1.91</td><td>1.89</td></tr>
+<tr><td>若和数据成正比</td><td>0.54</td><td>3.8</td><td>21.5</td><td>142</td></tr>
+<tr><td>8 步误差（×10⁻³）</td><td>6.8</td><td>7.4</td><td>11.0</td><td>9.9</td></tr>
+</tbody></table></div>
+<div class="note" id="n5"><span class="lab">读者注 6 · “稳定”和“目标回报”</span><p>264 倍的数据只要 3.5 倍算力，趋势很明显。但有三点要注意。第一，图 3(b) 的“目标回报”是多少，全文没说；0.82 是图 4 在 LAFAN1 上的目标，不是这里的。第二，误差从 6.8 到 9.9 涨了 46%，相对于 264 倍数据算稳定，严格说不是不变，而且 40 小时的 11.0 比 264 小时还高。第三，这个误差只算状态，用一个“预定义的名义误差”归一化，名义误差的定义没给，所以 0.01 到底对应多少米、多少弧度看不出来。子集怎样抽取也没说，整张图只有 4 个数据长度。</p></div>
+
+<p><b>想象加速滚动。</b>策略优化时，滚动速度决定更新成本。实际使用的批量上，世界模型比 MuJoCo Warp 快 10 倍以上，64k 环境时到 62 倍。一步是 1 个 50 Hz 控制步，仿真器算 4 个 5 ms 子步。</p>
+<div class="fig"><span class="lab">图 5 · 原文第 8 页 · <a href="https://arxiv.org/pdf/2610.28480#page=8">看原图 ↗</a></span><p>(a) 双对数图，横轴并行环境数 512 到 64k，蓝线世界模型几乎一路线性往上，橙线 MuJoCo Warp 到 32k 后走平；灰色阴影标出实际使用的 2k 到 16k，并标注 11×、26×、62×。(b) 横轴想象步数 10⁷ 到 10¹⁰ 以上，SuperMimic 一条蓝线明显在左，四条棕色线是不同批量的 PPO-WM，上方一条横线标出 64×。</p></div>
+<div class="viz"><p class="cap">重画 · 图 5(a) 的数据 · 矢量图读数 · 悬停看数值</p><div id="c-speed"></div></div>
+<div class="note" id="n6"><span class="lab">读者注 7 · 实际用的是 12.8 倍</span><p>读出来各批量的比值：512 为 9.3、1k 为 9.6、2k 为 10.8、4k 为 12.8、8k 为 17.1、16k 为 25.8、32k 为 44.1、64k 为 62.4，和图上标注一致。但表 A.5 写的是每 GPU 4096 个环境、每次 4096 条想象，所以论文这个配置对应的是约 <b>12.8 倍</b>，62 倍不是它实际跑的工况。另外这张图只比前向速度，没算反向传播的成本，而世界模型跑的是 TF32 精度，这也是快的原因之一。</p></div>
+
+<p><b>一阶梯度只要更少的想象步。</b>这是一个机制消融：图 5(b) 在 LAFAN1 的走、跑、冲刺动作上，比较 SuperMimic 和“在世界模型轨迹上跑 PPO”（PPO-WM），两边都用世界模型，排除了仿真速度。SuperMimic 用约 1/64 的想象步数到达 PPO-WM 的最好回报，所以增益不只是滚动快。</p>
+<div class="note" id="n7"><span class="lab">读者注 8 · 三个倍数不能相乘</span><p>图 5(b) 上那条横线的两端读出来是 10<sup>8.98</sup> 和 10<sup>10.77</sup>，比值约 62，回报约 0.84，和“约 64 倍”相符。PPO-WM 只有 16k×32 这组到了 0.84，其他三组最高 0.76 到 0.77。不过这是走跑冲刺的小子集和训练回报，而且比的是步数，不是时间。把 12.8 倍和 64 倍相乘是 820，离 7168 还差很多，但这样乘本来就不成立：两个数来自不同任务，BPTT 每步还多一次反传。论文列了三个来源，并没有把 7168 倍拆开记账。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>评论家让短视野和抗推成为可能</h3>
+<p>不带评论家时，H ≤ 16 训练失败。带评论家时，H = 16 和不带评论家的 H = 32 一样好，H = 32 到 0.82 最快。H 从 64 加到 128，时间几乎变成 3 倍，最终回报还下降；128 也是 H100 显存能放下的最长 H。</p>
+<p class="tcap">图 4(b)(c) 读数（矢量图）。“—”表示没到 0.82</p>
+<div class="tablewrap"><table class="t-read"><thead><tr><th>H</th><th>8</th><th>16</th><th>32</th><th>64</th><th>128</th></tr></thead><tbody>
+<tr><td>最终回报，不带评论家</td><td>0.09</td><td>0.25</td><td>0.84</td><td>0.86</td><td>0.83</td></tr>
+<tr><td>最终回报，带评论家</td><td>0.39</td><td>0.84</td><td>0.87</td><td>0.86</td><td>0.82</td></tr>
+<tr><td>到 0.82 的小时，不带</td><td>—</td><td>—</td><td>1.38</td><td>1.35</td><td>3.81</td></tr>
+<tr><td>到 0.82 的小时，带</td><td>—</td><td>1.20</td><td>0.89</td><td>1.71</td><td>4.63</td></tr>
+</tbody></table></div>
+<p>回报差不多时，评论家还改变行为。在模拟中保持 T 字站姿，受 0.5 到 4 m/s 的速度推力：带评论家的策略 0.5 到 2.4 秒内站稳；不带的永远站不稳，0.5 m/s 就踉跄，4 m/s 会摔倒。</p>
+<div class="note" id="n8"><span class="lab">读者注 9 · 这几句都核对得上</span><p>读数和正文一致：64 到 128 的时间比，带评论家 2.7 倍，不带 2.8 倍。图 4(c) 里 H = 32 是 0.89 小时，图 4(a) 里 SuperMimic 第一次过 0.82 是 1.19 小时，这不矛盾：前者是训练回报，后者是评测回报，图注说明了。还有一个小观察：只看到 0.82 的时间和最终回报，H = 32 带不带评论家差别不大（0.89 对 1.38 小时，0.87 对 0.84），评论家的主要价值在 H 更短时和受扰时。</p></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>上真机</h3>
+<p>一个通用跟踪器部署到实体 Unitree G1，不按动作调参。四种动作：跳跃跨步（移动）、侧滚（躯干和四肢都接触地面）、90° 空翻和原地 360° 空翻（杂技）。</p>
+<div class="fig"><span class="lab">图 6 · 原文第 9 页 · <a href="https://arxiv.org/pdf/2610.28480#page=9">看原图 ↗</a></span><p>四行连续帧照片，真实 G1 分别做这四种动作，帧间隔 0.2 或 0.3 秒。视频在<a href="https://supermimic.github.io">项目主页</a>。</p></div>
+
+<h3 id="s4-5"><span class="no">4.5</span>下游任务：RL 编码器对蒸馏基线</h3>
+<p>下游目标编码器和跟踪接口一起训练，共享解码器和世界模型。这部分是初步研究：一个速度编码器按速度跟踪奖励穿过世界模型训练；基线也是速度编码器，但用跟踪奖励，命令从参考动作读（蒸馏）。在 672 次阶跃响应上，RL 编码器稳态误差更低的有 650 次，蒸馏更低的 15 次。只有蒸馏会摔，都是动作库几乎没有数据的快速转弯。</p>
+<div class="fig"><span class="lab">图 7 · 原文第 9 页 · <a href="https://arxiv.org/pdf/2610.28480#page=9">看原图 ↗</a></span><p>三个面板是命令空间的三个平面（\(v_y\) 对 \(v_x\)、\(\omega_z\) 对 \(v_x\)、\(\omega_z\) 对 \(v_y\)）。每个圆环是一条命令，外圆面积代表两个策略较大的相对误差，内孔面积代表较小的那个，颜色标出谁更好，背景深浅是这个区域有多少参考动作数据。</p></div>
+
+<h2 id="s5"><span class="no">5</span>结论</h2>
+<p>作者的结论是，算力不再是人形全身控制扩展的瓶颈。一个可微世界模型抓住所有动作共享的动力学，穿过它做 BPTT 就能把整个数据集摊销进一个策略。单 GPU 超过集群，能上真机，成本随数据增长缓慢，同一个模型也能直接按接口自己的奖励训练下游接口。作者认为，现在每次实验只要一张 GPU，研究动作跟踪的扩展规律终于负担得起了。</p>
+
+<h2 id="s6"><span class="no">6</span>局限与后续工作</h2>
+<ul>
+<li><b>多接口训练研究不足。</b>速度奖励只更新速度编码器，不更新共享解码器，所以“同时训练”其实等价于训好跟踪器再训编码器，未必有必要。让速度奖励也更新解码器是否有帮助，没有试过。</li>
+<li><b>只用仿真动力学。</b>世界模型只从仿真器学。真机数据可以用来修正它，它的可微性也可以用于系统辨识。</li>
+<li><b>没有地形和物体交互。</b>只在平地上训练，扩展到地形和物体还在进行中。</li>
+</ul>
+
+<h2 id="apA"><span class="no">A</span>观测、动作、奖励和仿真上下文</h2>
+<p class="tcap">表 A.1 · 本体观测 \(o_t\)。策略接收最近 10 帧</p>
+<div class="tablewrap"><table class="t-hp"><thead><tr><th>项</th><th>维度</th><th>噪声 \(\eta_t\)</th><th>单位</th></tr></thead><tbody>
+<tr><td>关节位置 \(q-q^0\)</td><td>29</td><td>U[−0.01, 0.01]</td><td>rad</td></tr>
+<tr><td>关节速度 \(\dot q\)</td><td>29</td><td>U[−0.5, 0.5]</td><td>rad/s</td></tr>
+<tr><td>基座角速度（IMU）</td><td>3</td><td>U[−0.2, 0.2]</td><td>rad/s</td></tr>
+<tr><td>投影重力</td><td>3</td><td>U[−0.05, 0.05]</td><td>–</td></tr>
+<tr><td>上一动作 \(a_{t-1}\)</td><td>29</td><td>–</td><td>–</td></tr>
+</tbody></table></div>
+<p><b>目标。</b>跟踪接口的目标来自参考动作。相比 BeyondMimic 的单帧目标，这里给编码器未来 \(K=10\) 帧。</p>
+<p><b>动作。</b>关节设定点 \(q^{sp}=\alpha a_t+q^0\)。沿用 BeyondMimic，PD 增益很低，设定点实际上相当于力矩的代理，不是期望位置。</p>
+<p><b>奖励。</b>沿用 BeyondMimic，有两处改动。去掉自碰撞惩罚：它防的是随机策略钻空子（参考动作让两个部位靠近时，把它们压在一起能压住动作噪声，提高速度跟踪奖励），确定性策略在想象里没有这个漏洞。关节限位权重从 −10 降到 −2。</p>
+<p class="tcap">表 A.2 · 动作跟踪奖励。\(\mathcal T\) 是被跟踪的刚体集合。每项再乘控制周期 \(\Delta t=0.02\) 秒</p>
+<div class="tablewrap"><table class="t-rew"><thead><tr><th>项</th><th>公式</th><th>权重</th></tr></thead><tbody>
+<tr><td>刚体位置</td><td>\(\exp(-\frac1{|\mathcal T|}\sum_b\lVert p_b^{des}-p_b\rVert^2/0.3^2)\)</td><td>1.0</td></tr>
+<tr><td>刚体朝向</td><td>\(\exp(-\frac1{|\mathcal T|}\sum_b\lVert\log(R_b^{des}R_b^\top)\rVert^2/0.4^2)\)</td><td>1.0</td></tr>
+<tr><td>刚体线速度</td><td>\(\exp(-\frac1{|\mathcal T|}\sum_b\lVert v_b^{des}-v_b\rVert^2/1.0^2)\)</td><td>1.0</td></tr>
+<tr><td>刚体角速度</td><td>\(\exp(-\frac1{|\mathcal T|}\sum_b\lVert\omega_b^{des}-\omega_b\rVert^2/3.14^2)\)</td><td>1.0</td></tr>
+<tr><td>根部位置</td><td>\(\exp(-\lVert p_{root}^{des}-p_{root}\rVert^2/0.3^2)\)</td><td>0.5</td></tr>
+<tr><td>根部朝向</td><td>\(\exp(-\lVert\log(R_{root}^{des}R_{root}^\top)\rVert^2/0.4^2)\)</td><td>0.5</td></tr>
+<tr><td>动作平滑</td><td>\(\lVert a_t-a_{t-1}\rVert^2\)</td><td>−0.1</td></tr>
+<tr><td>关节限位</td><td>\(\sum_j\max(0,q_j-q_j^{max})+\max(0,q_j^{min}-q_j)\)</td><td>−2</td></tr>
+</tbody></table></div>
+<p><b>终止。</b>根部高度偏差 \(|e_{p,z}|&gt;0.25\) 米，或倾斜误差 \(e_{tilt}&gt;0.8\)。\(e_{tilt}\) 是重力方向在参考和机器人根部（骨盆）坐标系里的 z 分量之差的绝对值。和 BeyondMimic 不同，末端偏差不算终止。</p>
+<p class="tcap">表 A.3 · 组成仿真上下文 \(\xi\) 的域随机化参数</p>
+<div class="tablewrap"><table class="t-hp"><thead><tr><th>参数</th><th>分布</th></tr></thead><tbody>
+<tr><td>摩擦系数</td><td>\(\mu\sim U[0.3,1.2]\)</td></tr>
+<tr><td>关节标定偏移（rad）</td><td>\(\Delta q_j^0\sim U[-0.01,0.01]\)</td></tr>
+<tr><td>躯干质心偏移（m）</td><td>\(\Delta x\sim U[-0.025,0.025],\ \Delta y,\Delta z\sim U[-0.05,0.05]\)</td></tr>
+</tbody></table></div>
+<p>去掉了 BeyondMimic 的根部速度扰动，因为状态突变是确定性模型抓不住的。作者发现只随机化物理参数就足以迁移到真机。</p>
+<div class="note" id="n9"><span class="lab">读者注 10 · 观测里没有位置和线速度</span><p>观测表没有基座线速度，也没有相对参考的位姿，策略靠本体感觉和未来参考帧来跟踪。论文没有讨论长时间下的累积漂移。第三方的 SuperMimic-Reproduced 报告：按论文观测在 100 到 300 秒的整段 LAFAN1 片段上，偏航误差约 9 秒就超过 15°，回报只有 0.56 到 0.59（论文 0.82），加上相对锚点的观测后到 0.904；另一个复现 <a class="ds" href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a> 则报告 0.829。两者设置不同，我没有跑过，也没有核实，不能据此判断对错，但这可能是复现时最先遇到的差距。</p></div>
+
+<h2 id="apB"><span class="no">B</span>跨目标接口联合训练</h2>
+<p>身体的物理是共享的，所以同一个动力学模型能训练多种目标接口（完整参考、速度命令、末端位姿、SMPL 姿态）。每个接口有自己的目标空间、奖励、终止和评论家 \(V_{\psi_i}\)。同一个策略网络由各接口的编码器和一个共享解码器组成：</p>
+<div class="eq"><div class="m">\[ z=\mathrm{enc}_{\theta,i}(g)\in\mathcal Z,\qquad a=\mathrm{dec}_\theta(z,o),\qquad g\in\mathcal G_i \]</div><span class="no">(A.1)</span></div>
+<p>优化目标是 \(\max_\theta\mathbb E_{i\sim p(\mathcal I)}[\hat J_i(\theta)]\)。每个 \(\hat J_i\) 都是式 (2)，只换策略、奖励、终止和评论家。动力学模型不按接口重训。</p>
+<p><b>蒸馏还是 RL，取决于用什么奖励。</b>蒸馏用跟踪奖励，命令从参考动作读，让接口学会“从这个命令复现参考动作”。RL 用接口自己的任务奖励，穿过世界模型直接优化。在下游接口的轨迹上，回报梯度穿过共享解码器到达编码器，但解码器的权重有 stop-gradient，它仍由跟踪目标训练。速度编码器另有一项朝向动作潜变量的对齐损失（附录 G）。</p>
+
+<h2 id="apC"><span class="no">C</span>网络结构</h2>
+<p class="tcap">表 A.4 · 世界模型、策略和评论家（MLP 按隐藏层宽度写）。潜变量 z 为 32 维，tanh 限幅</p>
+<div class="tablewrap"><table class="t-net"><thead><tr><th>网络</th><th>输入</th><th>输出</th><th>结构</th></tr></thead><tbody>
+<tr><td>动力学 \(f_\omega\)</td><td>\(\hat s_t,a_t,\xi\)</td><td>\(\hat s_{t+1}\)</td><td>MLP (2048, 2048, 2048)</td></tr>
+<tr><td>动作编码器</td><td>未来 10 帧参考</td><td>z</td><td>MLP (2048, 1024, 512, 256)</td></tr>
+<tr><td>速度编码器</td><td>归一化命令 \((v_x,v_y,\omega_z)\)，最近 10 帧 o 的特征</td><td>z</td><td>MLP (256, 256)</td></tr>
+<tr><td>共享解码器</td><td>z，最近 10 帧 o</td><td>\(a_t\)</td><td>MLP (2048, 1024, 512, 256)</td></tr>
+<tr><td>评论家 \(V_{\psi_i}\)</td><td>\(\hat s_t,g_t,\xi\)</td><td>标量</td><td>MLP (256, 128)，每接口一个</td></tr>
+</tbody></table></div>
+<p>按表 A.1，一帧观测是 29 + 29 + 3 + 3 + 29 = 93 维，10 帧 930 维，加上 32 维 z，解码器输入 962 维，输出 29 维。只算线性层，解码器约 473 万个参数（我的计算）。激活函数、归一化和初始化论文没写。</p>
+<p class="tcap">算法 A.1 · 训练循环（用自己的话）</p>
+<ol>
+<li><b>收集：</b>带动作噪声在仿真器里滚动策略，转移推入缓存，覆盖最旧的；重置点按回报抽样（D.1）。</li>
+<li><b>拟合：</b>取 k 步窗口，用记录的动作自回归滚动 \(f_\omega\)，按式 (1) 更新 \(\omega\)。</li>
+<li><b>改进：</b>抽一个接口 \(i\) 和一个起始状态，穿过固定的 \(f_\omega\) 想象 H 步，按式 (2) 更新 \(\theta\)，再按式 (3) 拟合评论家。下游接口只更新自己的编码器。</li>
+</ol>
+
+<h2 id="apD"><span class="no">D</span>训练循环和超参数</h2>
+<p><b>D.1 按回报重置。</b>动作时间轴切成 1 秒一个区间，每个区间 \(b\) 记一个折扣回报的滑动估计 \(G_b\)，用策略自己的轨迹更新。重置点混合三种分布：50% 均匀；40% 按 \(\mathrm{softmax}_b(-25G_b/G_{max})\)；10% 按每个区间过去的 softmax 权重，让学会了的难动作还能继续练。</p>
+<p class="tcap">表 A.5 · 超参数</p>
+<div class="tablewrap"><table class="t-hp"><thead><tr><th>超参数</th><th>值</th></tr></thead><tbody>
+<tr><td colspan="2"><b>世界模型</b></td></tr>
+<tr><td>窗口长度 k</td><td>8</td></tr>
+<tr><td>优化器、学习率</td><td>Adam；1 卡 2×10⁻⁴，2 卡 √2 × 2×10⁻⁴</td></tr>
+<tr><td>批量</td><td>每次更新 10 批，每批 2048 个窗口</td></tr>
+<tr><td>梯度裁剪</td><td>全局范数 1.0</td></tr>
+<tr><td colspan="2"><b>想象和策略</b></td></tr>
+<tr><td>想象长度 H</td><td>32</td></tr>
+<tr><td>优化器、学习率</td><td>Adam β = (0.9, 0.95)，学习率同上</td></tr>
+<tr><td>批量</td><td>每次更新 4096 条想象轨迹</td></tr>
+<tr><td>梯度裁剪</td><td>全局范数 1.0，再逐元素 0.1</td></tr>
+<tr><td>折扣 γ</td><td>0.99</td></tr>
+<tr><td colspan="2"><b>评论家</b></td></tr>
+<tr><td>GAE λ</td><td>0.95</td></tr>
+<tr><td>优化器、学习率、裁剪</td><td>Adam，同上，全局范数 1.0</td></tr>
+<tr><td>每次更新</td><td>5 轮，每轮 4 个打乱的小批</td></tr>
+<tr><td colspan="2"><b>数据收集</b></td></tr>
+<tr><td>环境数</td><td>每 GPU 4096</td></tr>
+<tr><td>动作噪声 ε</td><td>N(0, 0.1²)，每个动作维度</td></tr>
+<tr><td>缓存大小</td><td>每个环境 1000 步</td></tr>
+<tr><td colspan="2"><b>调度</b></td></tr>
+<tr><td>更新数据比</td><td>0.4</td></tr>
+<tr><td>每次世界模型更新的策略更新数</td><td>1</td></tr>
+<tr><td>学习率</td><td>余弦衰减到 0.03 倍（250,000 次迭代），之后不变</td></tr>
+<tr><td>训练长度</td><td>320,000 次迭代</td></tr>
+<tr><td>多 GPU</td><td>数据并行，跨 GPU 平均梯度</td></tr>
+</tbody></table></div>
+<div class="note" id="n10"><span class="lab">读者注 11 · “一次迭代”到底做了什么</span><p>图 A.1 每 4000 次迭代评测一次，点距可以反推时间：1 卡版末点 9.37 小时、2 卡版 9.79 小时，除以 80 个检查点，正好对应 320,000 次迭代，也说明“9.8 小时”就是跑完整个训练长度。于是 1 卡每次迭代约 <b>105 毫秒</b>，3 小时约 10 万次迭代。</p>
+<p>问题在“更新数据比 0.4”。算法 A.1 的说明写“每次迭代 ω 和 θ 都更新”。把它和图 5(a) 的速度放在一起看（4096 环境时仿真 1.31×10⁵ 步/秒，世界模型 1.68×10⁶ 步/秒）：仿真一个向量步要 31 毫秒，想象 32 步光前向就要 78 毫秒，加起来已经超过 105 毫秒，还没算反向和世界模型拟合。如果每次迭代都做一次完整更新，这笔账对不上。如果一次迭代是一个仿真向量步、平均做 0.4 次更新，那么 31 + 0.4 × 约 185 毫秒正好是 105 毫秒，说得通。第三方复现 SuperMimic-Reproduced 也按这样理解，但它同样注明论文无法确定。这是我的推算，用的是图上的前向速度，真实吞吐可能更好。</p>
+<p>如果这个理解是对的，整个训练大约 1.3×10⁹ 个仿真步（约 7,300 小时仿真时间）、1.7×10¹⁰ 个想象步，缓存每 1000 次迭代（不到 2 分钟）整体刷新一遍。</p></div>
+
+<h2 id="apE"><span class="no">E</span>动作数据过滤</h2>
+<p>训练用公开的 G1 重定向版 BONES-SEED。原始 142,220 个片段里，很多涉及机器人用不了的地形或物体（楼梯、箱子、梯子、椅子），或者带重定向瑕疵，平地上站不住。分两轮过滤，留下 129,514 个。</p>
+<ul>
+<li><b>名字过滤。</b>片段名含这些词就丢（stair、ladder、box、chair、sit、climb 等），词表改自 SONIC 公开的数据处理代码，再补几个。去掉 12,553 个，剩 129,667 个。</li>
+<li><b>可行性过滤。</b>用 MuJoCo 正运动学算出身体和脚的轨迹，判三种情况：<b>架空支撑</b>（最低部位持续高于 0.20 米至少 0.6 秒）；<b>穿地</b>（最低部位低于 −0.12 米，或超过 80% 的时间低于 −0.08 米）；<b>脚浮空</b>（骨盆直立在站立高度、身体几乎静止时，双脚离地超过 0.02 米至少 0.5 秒，跳跃被“几乎静止”这一条排除）。再去掉 153 个。</li>
+</ul>
+
+<h2 id="apF"><span class="no">F</span>评测</h2>
+<p><b>F.1 基准。</b>SONIC 和 SuperMimic 用同一个过滤后的基准，SONIC 评测公布的检查点和 v1.1 检查点。每个动作从第一帧放一次，同样的仿真：脚摩擦 1.0，无域随机化，无观测噪声，确定性物理。各策略用自己的执行器增益和动作缩放，观测按各自训练环境的方式构造。触发 SuperMimic 训练时的终止条件，就算这个动作失败。</p>
+<p class="tcap">表 A.8 · 每组失败数（照录原文）</p>
+<div class="tablewrap"><table class="t-fail"><thead><tr><th>动作组（动作数）</th><th>SONIC</th><th>SuperMimic 1 卡 × 3 h</th><th>2 卡 × 9.8 h</th></tr></thead><tbody>
+<tr><td>侧滚（22）</td><td><b>22</b></td><td>2</td><td>0</td></tr>
+<tr><td>空翻 360°、180°、90°（44）</td><td><b>44</b></td><td>1</td><td>0</td></tr>
+<tr><td>fire-in-the-hole 转身（20）</td><td>3</td><td>3</td><td>0</td></tr>
+<tr><td>腿交叉（10）</td><td>9</td><td>0</td><td>0</td></tr>
+<tr><td>躺下、休息、站起（99）</td><td>28</td><td>8</td><td>0</td></tr>
+<tr><td>远跳（24）</td><td>15</td><td>0</td><td>0</td></tr>
+<tr><td>舞蹈组合（8）</td><td><b>8</b></td><td>0</td><td>0</td></tr>
+<tr><td>其他所有动作（129,287）</td><td>50</td><td>11</td><td>0</td></tr>
+<tr><td><b>总计（129,514）</b></td><td><b>179</b></td><td><b>25</b></td><td><b>0</b></td></tr>
+</tbody></table></div>
+<p>粗体表示这一组全部失败。SONIC 的 v1.1 检查点失败 239 个，包括同样的空翻和舞蹈，以及 22 个侧滚中的 19 个。SuperMimic 3 小时版的失败集中在少数难的小组：前五组 195 个动作占了它 25 个失败里的 14 个。作者明确说，基准动作对两者都是训练动作，所以数字衡量的是对训练动作的覆盖，不是泛化。</p>
+<div class="viz"><p class="cap">重画 · 图 A.1 的数据 · 矢量图读数（纵轴截到 200，第一个点是 1555）· 悬停看数值</p><div id="c-fail"></div></div>
+<div class="note" id="n11"><span class="lab">读者注 12 · “25”在图上读不到</span><p>图 A.1 的矢量坐标很干净：读出来的值都接近整数，SONIC 虚线读到 178.99。1 卡版在 3 小时附近依次是 28（2.81 h）、27（2.93 h）、31（3.05 h）、30（3.16 h）、24（3.28 h）、24（3.40 h）。<b>没有 25，整条 1 卡曲线上都没有 25</b>，而表 A.8 和摘要写的是 25。论文没说 25 来自哪次评测，可能是单独评了 3 小时那个时刻，也可能是别的取法。差别不大，但这也说明相邻检查点本身会抖 ±几个，“25 对 179”的差距显著，“25”这个精确数字不必当真。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 13 · “0 失败”是怎么来的</span><p>2 卡版在 6.12 小时第一次到 0，然后在 0 和 1 之间跳，8.08 小时之后保持 0，直到训练结束的 9.79 小时。所以“9.8 小时后 0 失败”写得保守，实际上 6 小时就基本到了。1 卡版跑满 320,000 次迭代（9.37 小时）时是 6 个，最低到过 2 个，始终没到 0。回报上两者几乎一样（0.964 对 0.960），多一张卡主要体现在失败数。这些都是一次运行的结果，图里没有多种子的范围。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 14 · 用谁的判据</span><p>失败用的是 SuperMimic 的终止条件，含倾斜项，不含末端。SONIC 自己的判据是根部和末端高度偏差超过 0.25 米，没有朝向项，论文也写明了这一点。于是 SONIC 被一个它训练时没针对的判据评判。空翻、侧滚这类大幅旋转的动作，倾斜判据可能特别敏感，而这些正是 SONIC 全军覆没的组。论文没有报告换用 SONIC 自己判据时的失败数，所以这一差异究竟影响多少不知道。归一化回报同样受这个判据影响，因为提前终止就得低分。项目主页“翻转”片段可以看直观差别，但那也是作者挑的片段。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 15 · 数字都加得上</span><p>过滤：142,220 − 12,553 = 129,667，− 153 = 129,514。表 A.8 的组大小加起来 129,514；各列加起来 179、25。前五组 22 + 44 + 20 + 10 + 99 = 195，1 卡失败 2 + 1 + 3 + 0 + 8 = 14，都对。倾斜阈值：\(\arccos(0.2)=78.5°\)（附录写约 78°），\(\arccos(0.3)=72.5°\)（附录写约 73°）。项目主页的表没有单列 fire-in-the-hole 转身，把它并进了“其他”，所以那里写 129,307、53、14，和这里的 129,287 + 20、50 + 3、11 + 3 一致。</p></div>
+<p><b>F.3 实验设置。</b>图 3 用过滤后的 BONES-SEED 训练。数据长度扫描用 1、7、40、264 小时的子集。</p>
+
+<h2 id="apG"><span class="no">G</span>速度命令任务</h2>
+<p><b>训练。</b>每个编码器各自从零开始，和跟踪接口一起训练 100,000 次迭代，动作库是从 LAFAN1 和 BONES-SEED 里筛的走跑片段。4096 个环境和每批想象都有一半走速度接口（这和算法 A.1“每次抽一个接口”不同）。</p>
+<p><b>命令。</b>\(g_t=(v_x,v_y,\omega_z)\)，平面速度在只含偏航的朝向系里，偏航率在世界系。RL 编码器每次重置和每 250 步（5 秒）重抽来源：一半概率每步从参考读（居中 25 帧的均值），一半概率保持一条均匀抽的命令：\(v_x\in[-1.5,2]\) m/s，\(v_y\in[-1.32,1.32]\) m/s，\(\omega_z\in[-3.35,3.35]\) rad/s，并有 10% 概率置零（站立）。</p>
+<p><b>编码器。</b>走参考命令的轨迹上，用权重 0.1 的均方损失把速度潜变量拉向同一步的动作潜变量，后者 stop-gradient。</p>
+<p class="tcap">表 A.6 · 训练 RL 编码器的速度跟踪奖励（每项乘 \(\Delta t=0.02\) 秒）</p>
+<div class="tablewrap"><table class="t-rew"><thead><tr><th>项</th><th>公式</th><th>权重</th></tr></thead><tbody>
+<tr><td>线速度</td><td>\(\exp(-\lVert v_{xy}-v_{xy}^{cmd}\rVert^2/0.5^2)\)</td><td>2.0</td></tr>
+<tr><td>偏航率</td><td>\(\exp(-(\omega_z-\omega_z^{cmd})^2/0.5)\)</td><td>2.0</td></tr>
+<tr><td>动作平滑</td><td>\(\lVert a_t-a_{t-1}\rVert^2\)</td><td>−0.3</td></tr>
+<tr><td>关节限位</td><td>同表 A.2</td><td>−2</td></tr>
+<tr><td>躯干侧倾</td><td>\(\sin^2\phi_{torso}\)</td><td>−4</td></tr>
+<tr><td>躯干滚转、俯仰角速度</td><td>\(\omega_{roll}^2+\omega_{pitch}^2\)</td><td>−0.05</td></tr>
+</tbody></table></div>
+<p>终止只看摔倒：根部高度低于 0.35 米，或 \(1+u_z&gt;0.7\)（约 73° 倾斜）。</p>
+<p><b>G.2 阶跃测试。</b>从站立开始给一条固定命令 5 秒，每条 4 次。相对稳态误差是最后 2 秒平均速度误差的范数除以命令范数。每条命令取没摔的试验的中位数。三个平面各 15 × 15 的网格，去掉站立命令，共 672 条。</p>
+<p><b>结果。</b>RL 编码器更低的 650 条，蒸馏更低的 15 条。中位相对误差 0.16 对 0.49。蒸馏在 7 条命令上每次都摔，都是平移加至少 2.8 rad/s 的转弯。每个策略只有一个训练种子。</p>
+<div class="note" id="n15"><span class="lab">读者注 16 · 这个对比能说明什么</span><p>15 × 15 × 3 − 3 = 672，650 + 15 + 7 = 672，都对得上：摔倒的 7 条单独算。结论方向很清楚，但每边只有一个种子。而且基线的蒸馏用的是从参考动作读的命令，动作库没有的区域它自然没见过；RL 编码器则有一半时间在整个命令范围里均匀采样。所以这个差距有一部分来自训练时覆盖的命令分布，不全来自“RL 对蒸馏”这个信号本身。论文也说这是初步研究。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 17 · 对比方法的一点疑问</span><p>PPO-Sim 用的是 BeyondMimic 的超参数和每卡 8192 个环境。论文没说有没有为 40 个片段的多动作任务再调参。4 卡到 8 卡几乎不再提升，可能是因为 PPO 本身到了平台，也可能是超参数不适合，这张图分不清。作为“开箱即用的 PPO”这个对比很公平；作为“PPO 能做到的最好”就不一定了。</p></div>
+<div class="note" id="n17"><span class="lab">读者注 18 · 没有的东西</span><p>写这页时（2026 年 11 月 6 日）作者没有公开训练代码。网上已有几十个社区复现，其中几个的结果和论文接近或有差距（见读者注 10），都不是官方的，我也没有逐个核实。项目主页的网页 demo 可以在浏览器里手动试，它的许可证禁止脚本访问和推导模型，所以本页没有从中取任何东西。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">哪些没写</a>：状态内容和维度、头的类型、\(\alpha\) 都没给；\(g\) 一个字母两用。</li>
+<li><a href="#n2b">窗口只占回报的一小部分</a>：\(\gamma^{32}=0.725\)，约 72.5% 的折扣回报在窗口外。</li>
+<li><a href="#n3">32 步的误差没有数据</a>：只有 8 步误差的数字，“无限长也稳”只是文字。</li>
+<li><a href="#n2">7000 倍和 120 倍</a>：算术对，但受控实验给出的是至少 121 倍。</li>
+<li><a href="#n4">3 小时确实保守</a>：0.62 小时回报就超过 SONIC，约 2 小时满足“领先一半差距”。</li>
+<li><a href="#n5">“稳定”和“目标回报”</a>：误差涨 46%；目标回报和名义误差都没定义。</li>
+<li><a href="#n6">实际用的是 12.8 倍</a>：4096 环境下约 12.8 倍，图只比前向。</li>
+<li><a href="#n7">三个倍数不能相乘</a>：读到约 62 倍；7168 倍没有被拆开记账。</li>
+<li><a href="#n8">这几句都核对得上</a>：图 4(b)(c) 读数和正文一致。</li>
+<li><a href="#n9">观测里没有位置和线速度</a>：第三方报告了漂移和回报差距，未核实。</li>
+<li><a href="#n10">“一次迭代”到底做了什么</a>：每次约 105 毫秒，和“每次迭代都更新”对不上，更可能是 0.4 次更新。</li>
+<li><a href="#n11">“25”在图上读不到</a>：3 小时附近是 27、31、30、24。</li>
+<li><a href="#n12">“0 失败”是怎么来的</a>：6.12 小时第一次到 0，8.08 小时后保持 0。</li>
+<li><a href="#n13">用谁的判据</a>：SONIC 被含倾斜项的判据评判，影响多大不知道。</li>
+<li><a href="#n14">数字都加得上</a>：过滤数、表 A.8、倾斜阈值都核对过。</li>
+<li><a href="#n15">这个对比能说明什么</a>：672 条对得上；一个种子，命令分布也不同。</li>
+<li><a href="#n16">对比方法的一点疑问</a>：PPO-Sim 没说调过参。</li>
+<li><a href="#n17">没有的东西</a>：没有官方代码；demo 不可用于提取。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、引擎、方法和复现。链接在 2026 年 11 月 6 日核对过可以打开。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://supermimic.github.io">SuperMimic</a></td><td>本文</td><td>supermimic.github.io</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a></td><td>大规模动作数据集，本文的 264 小时</td><td>huggingface.co/datasets/bones-studio/seed</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LAFAN1</a></td><td>动捕数据集，受控对比用</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/mujoco_warp">MuJoCo Warp</a></td><td>MuJoCo 的 GPU 实现，本文的仿真器</td><td>github.com/google-deepmind/mujoco_warp</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>人形机器人，29 自由度版本</td><td>unitree.com/g1</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2511.07820">SONIC</a></td><td>集群规模 PPO 跟踪器，对比基线</td><td>–</td><td><a href="https://arxiv.org/abs/2511.07820">2511.07820</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a></td><td>跟踪任务的设定和奖励来源</td><td>–</td><td><a href="https://arxiv.org/abs/2508.08241">2508.08241</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a></td><td>动作模仿的开创工作</td><td>–</td><td><a href="https://arxiv.org/abs/1804.02717">1804.02717</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>无模型 RL 基线</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2204.07137">SHAC</a></td><td>可微仿真上的短视野演员-评论家</td><td>–</td><td><a href="https://arxiv.org/abs/2204.07137">2204.07137</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2501.10100">RWM</a></td><td>学到的神经仿真器 + PPO</td><td>–</td><td><a href="https://arxiv.org/abs/2501.10100">2501.10100</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1506.02438">GAE</a></td><td>评论家目标的来源</td><td>–</td><td><a href="https://arxiv.org/abs/1506.02438">1506.02438</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/CuboiLeo/SuperMimic-Reproduced">SuperMimic-Reproduced</a></td><td>第三方复现，未核实</td><td>github.com/CuboiLeo/SuperMimic-Reproduced</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a></td><td>第三方复现，未核实</td><td>github.com/zita-ch/supermimic_vibed</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2610.28480 后的整理，不是作者的官方内容；原文和原图版权归作者所有。“重画”的折线图只用了从原文矢量图读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="supermimic/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

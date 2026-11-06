@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model（[arXiv 2610.28480](https://arxiv.org/abs/2610.28480)，2026-10，CoRL 2026） | [SuperMimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/supermimic.html) | 一个可微世界模型加短视野 BPTT，把人形全身跟踪的训练算力降到单 GPU，含 [11 幕 3D 框架动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/supermimic/) | 18 条 |
 | Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation（[arXiv 2611.04492](https://arxiv.org/abs/2611.04492)，2026-11，CC BY 4.0） | [3D World Simulator 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/3dws.html) | 粒子-体素混合的 3D 动作条件世界模型，同时预测外观、几何和触觉，含原文插图和 [3D 架构图](https://haoxiangntu.github.io/paper-reading-lab/interactives/3dws/)、[自编码器分步动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/3dws/ae.html) | 12 条 |
 | Evaluating Real-World Robot Manipulation Policies in Simulation（[arXiv 2405.05941](https://arxiv.org/abs/2405.05941)，2024-05，CC BY 4.0） | [SIMPLER 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/simpler.html) | 用仿真代替真机评测机器人操作策略，含原文插图 | 15 条 |
 | GAUGE: A Measurement-Grounded Benchmark for Physical Fidelity in Simulation Engines and Video World Models（[arXiv 2608.05948](https://arxiv.org/abs/2608.05948)，2026-08） | [GAUGE 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gauge.html) | 用真实测量评测物理引擎和视频世界模型的物理保真度 | 15 条 |
@@ -25,6 +26,22 @@
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
 | [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
+
+## SuperMimic 读后要点
+
+SuperMimic 只学一个可微世界模型，从仿真器记录的转移拟合，和策略放在一个循环里一起训练，再穿过它做 32 步的 BPTT，梯度不经过仿真器。论文的结论：
+
+- 1 张 H100 跑 3 小时超过 SONIC 在 128 张 L40 上训练 7 天的回报，GPU 小时少 1000 倍以上；129,514 个动作的基准上失败 25 个，SONIC 失败 179 个；2 张 GPU 跑 9.8 小时后 0 失败。
+- 动作从 1 小时加到 264 小时，8 步误差保持在 0.007 到 0.011，到目标回报的算力增长很慢。
+- 同一个策略不按动作调参，迁移到真实 Unitree G1，能做侧滚和空翻。
+
+精读时核算出的问题，挑最重要的几条，全部 18 条见精读页末尾：
+
+- **最干净的算力比值是至少 121 倍。**7168 倍的算术没错，但混着数据量和 GPU 型号的差异，也不知道 SONIC 何时第一次到 0.90。同任务的受控对比是 144 对 1.19 GPU 小时。
+- **“25”在图 A.1 上读不到。**矢量图读数都是整数，3 小时附近是 27、31、30、24，整条曲线没有 25。
+- **“一次迭代”的含义对不上。**点距反推每次迭代约 105 毫秒，和图 5(a) 的速度放在一起，更像每次迭代 0.4 次更新，而不是“每次迭代都更新”。
+- **窗口外才是大头。**γ³² = 0.725，折扣回报约 73% 在 32 步之外，全靠评论家；但 32 步的误差数据论文一个也没给。
+- **判据不对称。**SONIC 被含倾斜项的判据评判，它自己的判据没有朝向项，影响多大论文没报告。
 
 ## 3D World Simulator 读后要点
 
@@ -86,6 +103,9 @@ GAUGE 用 22 个任务族、约 1,560 次动捕试验做真实基准，覆盖刚
 
 ```
 index.html          论文列表与写法约定
+papers/supermimic.html       SuperMimic 精读
+papers/supermimic/charts.js  精读页的折线图，数据从原文矢量图读出，是重画的
+interactives/supermimic/     SuperMimic 的 11 幕 3D 框架动画（精读页内嵌）
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切
 interactives/3dws/ 3D World Simulator 的 3D 可交互架构图 index.html 和自编码器 9 幕分步动画 ae.html（都在精读页内嵌）

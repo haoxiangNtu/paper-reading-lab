@@ -20,6 +20,19 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/supermimic.html">SuperMimic：用一个可微世界模型，把人形全身控制的训练算力降下来</a></p>
+<p class="en">SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model</p>
+<div class="meta"><span>arXiv 2610.28480</span><span>2026-10-20</span><span>CoRL 2026</span><span>UC Berkeley</span><span>2026-11-06 读</span></div>
+<p class="d">所有动作都是同一个身体做的，所以只学一个可微世界模型，和策略放在一个循环里一起训练，再穿过它做短视野 BPTT。1 张 GPU 跑 3 小时就超过集群规模的 PPO 跟踪器 SONIC，并迁移到真实 Unitree G1。</p>
+<ul class="d">
+<li>129,514 个动作的基准上失败 25 个，SONIC 失败 179 个；2 张 GPU 跑 9.8 小时后 0 失败。</li>
+<li>动作从 1 小时加到 264 小时，算力只多约 3.5 倍，预测误差保持在 0.007 到 0.011。</li>
+<li>评论家让 32 步的短窗口够用：按折扣算，约 73% 的回报其实在窗口之外。</li>
+</ul>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">BPTT</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/supermimic.html">读精读 →</a><a href="interactives/supermimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2610.28480">arXiv 原文</a><a href="https://supermimic.github.io">项目主页</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/3dws.html">3D World Simulator：用粒子-体素混合动力学做多模态 3D 世界模拟</a></p>
 <p class="en">Hybrid Particle-Voxel Dynamics for Multimodal 3D World Simulation</p>
 <div class="meta"><span>arXiv 2611.04492</span><span>2026-11-03</span><span>Columbia、UC Berkeley、密歇根大学、NVIDIA、Analog Devices</span><span>2026-11-05 读</span></div>
@@ -91,6 +104,9 @@
 <thead><tr><th>路径</th><th>内容</th></tr></thead>
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
+<tr><td><code>papers/supermimic.html</code></td><td>SuperMimic 精读</td></tr>
+<tr><td><code>papers/supermimic/charts.js</code></td><td>SuperMimic 精读页的折线图，数据点从原文矢量图读出，是重画的，不是原图</td></tr>
+<tr><td><code>interactives/supermimic/</code></td><td>SuperMimic 的 11 幕 3D 框架动画（<code>index.html</code>，精读页 §3.1 内嵌），three.js</td></tr>
 <tr><td><code>papers/3dws.html</code></td><td>3D World Simulator 精读</td></tr>
 <tr><td><code>papers/3dws/</code></td><td>3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切</td></tr>
 <tr><td><code>interactives/3dws/</code></td><td>3D World Simulator 的 3D 可交互架构图（<code>index.html</code>，精读页 §3.1 内嵌）和自编码器 9 幕分步动画（<code>ae.html</code>，§3.2 内嵌），three.js</td></tr>
