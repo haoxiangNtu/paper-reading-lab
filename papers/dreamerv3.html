@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DreamerV3 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2301.04104 DreamerV3（Nature 2025）的中文精读：按原文顺序逐节整理，含全部编号公式、结果表、18 张原图、官方代码对照、arXiv v1、v2 和 Nature 版的差异、10 幕 3D 框架动画和 17 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:720px}.t-code{min-width:680px}.t-num{min-width:560px}.t-num td:not(:first-child),.t-num th:not(:first-child){text-align:right;font-family:var(--font-mono);font-size:12.5px}.t-links{min-width:600px}.t-wide{min-width:760px}
+.t-num tr.sum td{background:var(--panel);font-weight:600}
+.t-num td.best{color:var(--accent);font-weight:600}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:530px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/dreamerv3/index.html">3D 框架动画</a><a href="dreamer.html">Dreamer V1</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2301.04104 · cs.AI · v2 2024 年 4 月 17 日 · Nature 640, 647–653（2025）· 中文精读</p>
+<h1>DreamerV3：同一套超参数跑所有领域的世界模型智能体</h1>
+<p class="orig">Mastering Diverse Domains through World Models（arXiv）；Mastering diverse control tasks through world models（Nature）</p>
+<p>作者 Danijar Hafner（Google DeepMind，多伦多大学）、Jurgis Pasukonis（Google DeepMind）、Jimmy Ba（多伦多大学）、Timothy Lillicrap（Google DeepMind）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2301.04104">arXiv 原文</a><a href="https://arxiv.org/html/2301.04104">网页版</a><a href="https://arxiv.org/pdf/2301.04104">PDF</a><a href="https://www.nature.com/articles/s41586-025-08744-2">Nature 版</a><a href="https://danijar.com/dreamerv3">项目主页</a><a href="https://github.com/danijar/dreamerv3">代码</a><span>v2 共 40 页：正文 11 页，方法到第 22 页，其余是补充材料</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>主要读的是 <b>arXiv v2</b>（2024-04-17，40 页），公式和表号都按它。SuperMimic 引的是 Nature 版，所以我也读了 Nature 网页全文、7 张扩展数据表和补充材料 PDF，还读了 arXiv v1 做对照。三版的差别在<a href="#ver">下面一节</a>。</p>
+<p>arXiv 这篇用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 授权，所以页里放了原图。所有图都裁自 arXiv v2 的 PDF，作者是 Hafner、Pasukonis、Ba、Lillicrap，只做了裁剪和格式转换，没有改内容。正文是我用自己的话写的，不是逐字翻译。原文的节没有编号，这里用原文的节名。公式按原文编号，表格数字照录。</p>
+<p>标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。代码读的是 <a href="https://github.com/danijar/dreamerv3/tree/e01491fad6434b2245a3b8ca201dd7faedcc458c">danijar/dreamerv3</a> 提交 e01491f（2026-10-04），MIT 许可，只读没有运行。V1 的内容在<a href="dreamer.html">姐妹页</a>，这里不重复，只讲改了什么。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#ver">三个版本</a><a href="#delta">相对 V1 改了什么</a><a href="#intro">引言</a><a href="#algo">学习算法</a><a href="#i3d">3D 框架动画</a><a href="#results">结果</a><a href="#prev">既往工作</a><a href="#concl">结论</a><a href="#methods">方法</a><a href="#supp">补充材料</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>把强化学习算法搬到新领域，通常要专家花力气重新调参。DreamerV3 用一个世界模型加一对演员和评论家，在 8 个领域、超过 150 个任务上用同一套超参数，成绩超过为这些领域专门调过的方法，并且第一次在没有人类数据和课程学习的情况下，从零在 <a class="ds" href="https://github.com/minerllabs/minerl">Minecraft</a> 里拿到钻石。</p>
+<ul>
+<li><b>解决什么：</b>不同领域的奖励、观测和回报的尺度相差几个数量级。超参数一换领域就失效。</li>
+<li><b>怎么做：</b>四类尺度技巧。观测用 symlog 压缩，奖励和价值用 two-hot 分类回归，KL 拆成两半加 free bits，回报用百分位范围归一化。还有 1% 均匀混合、分块 GRU、RMSNorm、LaProp 和自适应梯度裁剪。</li>
+<li><b>结果：</b>Atari 200M 步玩家中位分 830%（玩家分：把随机策略记 0、人类玩家记 100 后的分数），MuZero 693%。DMLab 100M 步 71.4，IMPALA 在 1B 步 66.3。Minecraft 每个 Dreamer 训练都拿到过钻石，基线一个都没有。</li>
+<li><b>算力：</b>每个智能体一块 A100。Minecraft 8.9 GPU 天，Atari 7.7 GPU 天。</li>
+<li><b>消融：</b>去掉重建梯度掉到 26%，去掉奖励和价值梯度只掉到 94%（<a href="#n15">读者注 15</a>）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，<b>V3 的演员不穿过世界模型反传</b>，连续动作也用 Reinforce，这和 v1 的写法不同，也和 SuperMimic 走的路相反（<a href="#n8">读者注 8</a>）。第二，世界模型基本靠无监督重建，任务信号贡献很小。第三，数字要读细：v2 表 11、12 的“均值”和“中位数”两行写反了，v1、v2、Nature 的控制基准是不同的实验（<a href="#n12">读者注 12</a>，<a href="#n2">读者注 2</a>）。</p>
+<figure class="pfig" id="fig1">
+<img src="dreamerv3/fig1.webp" width="1600" height="605" alt="图 1：八个基准的柱状图和 Minecraft 钻石任务的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · CC BY 4.0，只裁剪</span>a 是八个基准的柱状图：灰色是调过的专家方法，绿色是固定超参数的 PPO，蓝色是 Dreamer。b 是 Minecraft 钻石任务，横轴是对数环境步，黑线是所有运行里见过的最大回报，灰线是平均回报，途中标了工具和物品的图标。回报 12 代表拿到钻石。</figcaption>
+</figure>
+<div class="note" id="n1"><span class="lab">读者注 1 · 图 1 的柱子读出来了</span>
+<p>我把第 1 页转成 SVG（<code>pdftocairo -svg</code>），按坐标轴高度标定柱子。能和表对上的都对上：Atari 中位 180、693、830，ProcGen 42.9、64.9、66.0，DMLab 36.0、66.0，Minecraft 5.09、6.29、7.1，BSuite 49、54、60、66。</p>
+<p>有两个数只在图里有，表里没有：Rainbow 在 Atari 的中位约 223，R2D2+ 在 DMLab 1B 步约 65.0（表 8 只有 R2D2+ 的 10B 步 85.4）。Nature 扩展数据表 1 给出了 223 和 65，和我读的一致。Minecraft 和 DMLab 的 Dreamer 柱子被坐标轴顶截断了：轴顶是 9 和 70，实际是 9.1 和 71.4。</p></div>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 的<a href="supermimic.html#s2">相关工作</a>只有一句提到本文：Dreamer 和 DreamerV3 学隐空间动力学，用于基于想象的演员-评论家学习。参考文献引的是 Nature 版。它没有说从 V3 拿了什么，也没有提到 symlog、two-hot、KL 平衡或回报归一化，我在它的全文里搜过这些词。所以下面的比较是我逐项对两篇原文得出的，不是 SuperMimic 的自述。</p>
+<p><b>相同的地方：</b>都是收集、拟合模型、在模型里改进行为三段轮换。评论家目标的递推形式相同，SuperMimic 式 (3) 写的 \(\hat R_t=\hat r_{t+1}+\gamma(1-\hat d_{t+1})[(1-\lambda)V_{t+1}+\lambda\hat R_{t+1}]\)，和 V3 代码 <code>lambda_return</code> 的下标一致，反而比 V3 论文式 (5) 的写法准确（<a href="#n6">读者注 6</a>）。都用累积存活概率给想象步加权：SuperMimic 的 \(\hat c_t\) 写在目标里，V3 只写在代码的 <code>weight</code> 里。</p>
+<p><b>最大的不同是策略梯度。</b>SuperMimic 的核心主张是穿过世界模型做 BPTT，它批评 PPO 把动力学当黑箱，用似然比估计。V3（v2、Nature 和代码）的演员恰恰是似然比估计：式 (6) 对连续和离散动作都用 Reinforce，代码把想象状态全部 stop_gradient。所以 SuperMimic 把 Dreamer 和 DreamerV3 放在一句话里，这两者在这一点上其实相反：V1 穿过动力学反传，这和 SuperMimic 同路；V3 不反传，在估计量这一项上和 RWM 用 PPO 更接近。这是我的判断，SuperMimic 原文没有这么说。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>DreamerV3</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>模型状态</td><td>学到的 \(h\)（8d 维）和离散 \(z\)（32 个分类），没有物理含义</td><td>仿真器状态 ŝ，可以逐维监督</td></tr>
+<tr><td>随机性</td><td>每步采样分类分布，1% 均匀混合</td><td>确定性 MLP；物理参数写进 ξ，传感器噪声加在模型外</td></tr>
+<tr><td>模型损失</td><td>式 (2)(3)：单步重建加 KL。先验只被要求走一步</td><td>SuperMimic 式 (1)：k = 8 步自回归平方误差，加终止 BCE</td></tr>
+<tr><td>策略梯度</td><td>Reinforce，不穿过模型</td><td>BPTT，穿过模型的雅可比</td></tr>
+<tr><td>策略</td><td>随机。离散 categorical；连续 Normal，σ ∈ [0.1, 1]（代码）</td><td>确定性，输入带噪观测和目标</td></tr>
+<tr><td>评论家</td><td>255 桶 two-hot 分布，EMA 正则，回放损失 0.3</td><td>平方误差回归，没有 EMA</td></tr>
+<tr><td>想象长度 H</td><td>15</td><td>32</td></tr>
+<tr><td>γ，γ<sup>H</sup></td><td>0.997，0.956（我的计算）</td><td>0.99，0.725（我的计算）</td></tr>
+<tr><td>尺度处理</td><td>symlog，two-hot，百分位回报归一化，熵系数 3×10⁻⁴</td><td>原文没有提到这些</td></tr>
+<tr><td>目标</td><td>跨领域通用，超参数不变</td><td>一个人形跟踪任务族，单 GPU</td></tr>
+</tbody></table></div>
+<p>差别的来源可以这样理解：V3 要面对任意未知环境，包括离散动作和不连续的游戏，模型的雅可比不一定可靠，所以选了不依赖雅可比的估计量，代价是方差。SuperMimic 面对的是光滑的刚体仿真，确定性模型的雅可比能用，H 也短，所以选了低方差的反传。动画<a href="../interactives/dreamerv3/index.html?scene=8&amp;p=0.5">第 8 幕</a>可以当场比较这两种估计，<a href="../interactives/dreamerv3/index.html?scene=10&amp;p=0.6">第 10 幕</a>把四个系统放在一起。这一段“来源”是我的解读，V3 原文没有解释为什么从反传改成 Reinforce。</p>
+
+<h2 id="ver">我读的版本，以及三个版本的差别</h2>
+<p>同一个工作有三个公开版本：arXiv v1（2023-01-10，38 页）、arXiv v2（2024-04-17，40 页）和 Nature 版（2025-04-02 发表，CC BY 4.0，附补充材料 PDF 18 页）。Nature 用了新标题。下表里每一项我都打开原文核对过。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>项目</th><th>arXiv v1</th><th>arXiv v2（本页主要依据）</th><th>Nature</th></tr></thead><tbody>
+<tr><td>演员的第一项梯度</td><td>连续：随机反传；离散：Reinforce（式 11 后）</td><td>都用 Reinforce（式 6）</td><td>都用 Reinforce</td></tr>
+<tr><td>β<sub>dyn</sub></td><td>0.5</td><td>1</td><td>1（扩展数据表 5）</td></tr>
+<tr><td>λ 回报的 bootstrap</td><td>\(v_\psi(s_{t+1})\)（式 7）</td><td>\(v_t\)（式 5）</td><td>\(v_t\)</td></tr>
+<tr><td>two-hot 的空间</td><td>symlog 空间等距的 255 桶，读数后 symexp（式 8 附近）</td><td>桶位于 symexp(−20…20)，按原值加权（式 10、12）</td><td>同 v2</td></tr>
+<tr><td>学习率、优化器</td><td>模型 10⁻⁴，演员评论家 3×10⁻⁵，Adam，裁剪 1000 和 100</td><td>统一 4×10⁻⁵，LaProp，AGC 0.3</td><td>同 v2</td></tr>
+<tr><td>激活、回放容量</td><td>LayerNorm + SiLU，10⁶</td><td>RMSNorm + SiLU，5×10⁶</td><td>同 v2</td></tr>
+<tr><td>模型大小</td><td>XS 到 XL（8M 到 200M），类数 32 固定</td><td>12M 到 400M，类数 d/16</td><td>再加 1M</td></tr>
+<tr><td>Proprio 控制</td><td>18 任务，500K 步</td><td>18 任务，500K 步，12M 模型，回放 512，动作重复 2</td><td>20 任务，1M 步，1M 模型，回放 1024，动作重复 1</td></tr>
+<tr><td>Visual 控制</td><td>20 任务，1M 步</td><td>20 任务，1M 步，12M 模型，回放 512，动作重复 2，Dreamer 861（该行实为中位数）</td><td>20 任务，1M 步，200M 模型，回放 256，动作重复 1，Dreamer 802（均值）</td></tr>
+<tr><td>控制基准的对手</td><td>D4PG、DMPO、DrQ-v2、CURL 等</td><td>同左</td><td>加 TD-MPC2，说明了它的代码用了论文没写的数据增强和帧堆叠</td></tr>
+<tr><td>ProcGen</td><td>没有这个基准</td><td>Dreamer 66.01，回放 64，1 个种子，16.1 GPU 天，“matches PPG”</td><td>Dreamer 72（补充表 71.6），回放 32，5 个种子，8.3 GPU 天，“outperforms PPG”</td></tr>
+<tr><td>Minecraft 说法</td><td>第一个</td><td>第一个</td><td>加了“to our knowledge”。方法里多了动作空间表、“Break speed”和“Other environments”两节</td></tr>
+<tr><td>表 11、12 的均值和中位数</td><td>没有查</td><td>两行写反（<a href="#n12">读者注 12</a>）</td><td>补充表 5、6 写对了</td></tr>
+<tr><td>12M 的循环单元</td><td>不适用</td><td>表 3 写 1024</td><td>2048（<a href="#n17">读者注 17</a>）</td></tr>
+</tbody></table></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 引用时要说清哪一版</span>
+<p>上表说明版本不只是措辞差别。如果拿“V3 连续动作穿过动力学反传”来讨论，那是 v1 的说法，现行代码和两个后续版本都不是。DMC 的数字更不能混用：v2 的 871 和 861 是 18 或 20 个任务的中位数，Nature 的 843 和 802 是不同实验的均值。SuperMimic 引的 Nature 版没有这些旧数字。</p>
+<p>代码的配置（<code>dmc_proprio</code> 用 <code>size1m</code>、回放 1024；<code>dmc_vision</code> 回放 256；<code>dmc.repeat: 1</code>）和 Nature 一致，和 v2 不一致。ProcGen 的 <code>train_ratio: 64</code> 却和 v2 一致。</p>
+<p>我没有对 Nature 全文和 v2 做逐句比对，只比对了公式、表、超参数和结果段。Nature 的扩展数据表是图片，表 1、2、4、5 我是看图读的，表 3、6、7 只读了标题。</p></div>
+
+<h2 id="delta">相对 V1 改了什么</h2>
+<p><a href="dreamer.html">V1</a> 的框架这里不重复：世界模型 RSSM、在隐空间里想象、λ 回报训练评论家。下表按 Methods 里“Previous generations”一节和我对 V1、V2 原文的核对，列出到 V3 为止的变化。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th><a href="dreamer.html">V1</a>（ICLR 2020）</th><th>DreamerV2（ICLR 2021）</th><th>V3（本文）</th></tr></thead><tbody>
+<tr><td>随机状态</td><td>30 维对角高斯</td><td>32 个分类 × 32 类</td><td>32 个分类 × d/16 类，1% 均匀混合</td></tr>
+<tr><td>循环状态</td><td>GRU 200</td><td>GRU 600</td><td>分块 GRU，8 块，8d 维</td></tr>
+<tr><td>KL</td><td>β = 1，free nats 3</td><td>平衡 α = 0.8，β = 0.1 或 1（按领域）</td><td>β 1 和 0.1，各自 free 1 nat</td></tr>
+<tr><td>观测尺度</td><td>图像，方差固定 1</td><td>图像，方差固定 1</td><td>向量先 symlog，图像 sigmoid 输出</td></tr>
+<tr><td>奖励</td><td>高斯，离散任务 tanh</td><td>高斯，Atari tanh</td><td>255 桶 two-hot</td></tr>
+<tr><td>评论家</td><td>高斯回归，无目标网络</td><td>高斯回归，目标网络（100 次更新一次）</td><td>255 桶 two-hot，当前网络算回报，EMA 正则，回放损失</td></tr>
+<tr><td>演员梯度</td><td>穿过动力学</td><td>Atari：Reinforce；连续：穿过动力学</td><td>都用 Reinforce</td></tr>
+<tr><td>回报归一化</td><td>无</td><td>无（η 按领域选）</td><td>百分位范围，下限 1，η 固定</td></tr>
+<tr><td>H，γ</td><td>15，0.99</td><td>15，0.995（Atari）</td><td>15，0.997</td></tr>
+<tr><td>优化</td><td>Adam，两个学习率</td><td>Adam，三个学习率</td><td>LaProp，一个学习率，AGC</td></tr>
+<tr><td>超参数</td><td>连续一套，离散要改</td><td>Atari 和连续两套</td><td>所有基准一套</td></tr>
+</tbody></table></div>
+
+<h2 id="intro">引言</h2>
+<p>强化学习已经能下围棋、打 Dota，也是改进大语言模型的手段之一。PPO 是常用的标准算法，但追求更高成绩时，大家通常换更专门的算法，每种针对一类难点：连续控制、离散动作、稀疏奖励、图像输入、空间环境、棋类。把算法搬到足够新的任务，比如从游戏到机器人，要花很多功夫和算力调超参数。这使得调参代价高的问题很难用上强化学习。</p>
+<figure class="pfig" id="fig2">
+<img src="dreamerv3/fig2.webp" width="1588" height="353" alt="图 2：五个视觉领域的画面：Control Suite、Atari、ProcGen、DMLab、Minecraft" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 2 页 · CC BY 4.0，只裁剪</span>五张拼图：<a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a> 的机器人任务，<a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari</a> 的游戏，<a class="ds" href="https://github.com/openai/procgen">ProcGen</a> 的程序生成关卡，<a class="ds" href="https://github.com/google-deepmind/lab">DMLab</a> 的 3D 迷宫，Minecraft 的开放世界。还有不靠图像的基准，比如 <a class="ds" href="https://github.com/google-deepmind/bsuite">BSuite</a>。</figcaption>
+</figure>
+<p>作者提出的 Dreamer 用固定超参数，超过一系列专门调过的算法。思路是学一个世界模型，让智能体有丰富的感知，并且能想象未来。世界模型预测动作的后果，评论家判断结果的价值，演员选能到达最好结果的动作。想法直观，但稳健地学和用世界模型一直没解决好。Dreamer 靠归一化、平衡和变换三类稳健技巧跨过去，并且模型越大，分数越高，需要的交互也越少。</p>
+<p>挑战任务是 Minecraft。2019 到 2021 年的 MineRL 比赛提供人类专家数据，因为稀疏奖励、探索难、时间跨度长、世界程序生成，从零拿钻石被视为难题，之前的方法都用了人类数据或者课程学习。论文说 Dreamer 是第一个开箱就从零拿到钻石的算法。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · “超过 150 个任务”怎么数</span>
+<p>表 2 按基准加起来是 1 + 30 + 16 + 57 + 26 + 23 + 18 + 20 = 191。但 Atari100k 的 26 个游戏全部在 Atari 57 里，Proprio 的 18 个任务全部在 Visual 的 20 个里，这两项我用脚本比对过名字。去掉重复是 147。再加图 6 消融用到而基准里没有的 <a class="ds" href="https://github.com/danijar/crafter">Crafter</a>、PinPad 等（图 17），才超过 150。BSuite 的 23 个环境实际有 468 个配置，换一种数法也能超过。这不算错，只是“150”取决于数法。</p></div>
+
+<h2 id="algo">学习算法</h2>
+<p>这是 Dreamer 第三代。三个网络从回放经验里同时训练，并且智能体一边和环境交互。要跨领域，三个部件都得适应信号尺度的差异，并且稳健地平衡目标里的各项。</p>
+<figure class="pfig narrow" id="fig3">
+<img src="dreamerv3/fig3.webp" width="1586" height="644" alt="图 3：世界模型学习和演员评论家学习的计算图" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 3 页 · CC BY 4.0，只裁剪</span>(a) 世界模型：输入 \(x_t\) 编码成离散 \(z_t\)（棋盘格），序列模型的循环状态 \(h_t\) 根据动作预测下一个 \(z\)，并且由 \(h_t,z_t\) 重建输入。(b) 演员评论家：只有第一个输入被编码，之后在隐空间走，每个状态输出价值、动作和奖励。</figcaption>
+</figure>
+
+<h3 id="wm">世界模型学习</h3>
+<p>世界模型用自编码学紧凑表征，并且通过预测未来的表征和奖励支持规划。实现是 RSSM（循环状态空间模型）：编码器把输入 \(x_t\) 变成随机表征 \(z_t\)，序列模型用循环状态 \(h_t\) 和动作预测下一个表征。\(h_t\) 和 \(z_t\) 拼接是模型状态，用来预测奖励 \(r_t\)、继续标志 \(c_t\in\{0,1\}\)，并重建输入：</p>
+<div class="eq"><div class="m">\[\begin{aligned}\text{RSSM}\ \begin{cases}\text{序列模型：}& h_t=f_\phi(h_{t-1},z_{t-1},a_{t-1})\\ \text{编码器：}& z_t\sim q_\phi(z_t\mid h_t,x_t)\\ \text{动力学预测器：}& \hat z_t\sim p_\phi(\hat z_t\mid h_t)\end{cases}\\ \text{奖励预测器：}\quad \hat r_t\sim p_\phi(\hat r_t\mid h_t,z_t)\\ \text{继续预测器：}\quad \hat c_t\sim p_\phi(\hat c_t\mid h_t,z_t)\\ \text{解码器：}\quad \hat x_t\sim p_\phi(\hat x_t\mid h_t,z_t)\end{aligned}\]</div><span class="no">(1)</span></div>
+<figure class="pfig" id="fig4">
+<img src="dreamerv3/fig4.webp" width="1585" height="700" alt="图 4：DMLab 迷宫和四足机器人的多步视频预测" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 4 页 · CC BY 4.0，只裁剪</span>上半是 DMLab 迷宫，下半是四足机器人。每组两行：真实和模型。给 5 帧上下文和全部动作，模型往后预测 45 帧，看不到中间的图。</figcaption>
+</figure>
+<p>图像用卷积网络编解码，向量用 MLP，动力学、奖励、继续预测器也是 MLP。表征从一组 softmax 分布采样，采样步用直通梯度（straight-through：前向是采样结果，反向按概率求导）。给一批序列，端到端最小化：</p>
+<div class="eq"><div class="m">\[\mathcal L(\phi)\doteq\mathrm E_{q_\phi}\Big[\sum_{t=1}^T\big(\beta_\mathrm{pred}\mathcal L_\mathrm{pred}(\phi)+\beta_\mathrm{dyn}\mathcal L_\mathrm{dyn}(\phi)+\beta_\mathrm{rep}\mathcal L_\mathrm{rep}(\phi)\big)\Big],\quad \beta_\mathrm{pred}=1,\ \beta_\mathrm{dyn}=1,\ \beta_\mathrm{rep}=0.1\]</div><span class="no">(2)</span></div>
+<p>预测损失用 symlog 平方误差训练解码器和奖励预测器（奖励后来换成 two-hot，见<a href="#robust">稳健预测</a>），用逻辑回归训练继续预测器。动力学损失让序列模型去逼近下一个随机表征。表征损失反过来让表征更容易预测，这样想象时可以用因子化的动力学预测器快速采样。两者差别只在 stop-gradient 算符 sg(·) 和权重。为防止出现“动力学容易预测，但表征不含信息”的退化解，用 free bits：两项都被截到 1 nat 以下不再优化：</p>
+<div class="eq"><div class="m">\[\begin{aligned}\mathcal L_\mathrm{pred}(\phi)&\doteq-\ln p_\phi(x_t\mid z_t,h_t)-\ln p_\phi(r_t\mid z_t,h_t)-\ln p_\phi(c_t\mid z_t,h_t)\\ \mathcal L_\mathrm{dyn}(\phi)&\doteq\max\big(1,\mathrm{KL}[\mathrm{sg}(q_\phi(z_t\mid h_t,x_t))\ \|\ p_\phi(z_t\mid h_t)]\big)\\ \mathcal L_\mathrm{rep}(\phi)&\doteq\max\big(1,\mathrm{KL}[q_\phi(z_t\mid h_t,x_t)\ \|\ \mathrm{sg}(p_\phi(z_t\mid h_t))]\big)\end{aligned}\]</div><span class="no">(3)</span></div>
+<p>以前的世界模型要按环境的视觉复杂度调表征损失的权重：3D 环境细节多，需要强约束；背景固定、单个像素可能要紧的游戏需要弱约束。作者说 free bits 加一个小的表征权重解决了这个两难。向量观测再过 symlog，防止大输入和大重建梯度破坏这个平衡。</p>
+<p>早期实验里 KL 偶尔出现尖峰，深层 VAE 也有这种报告。于是把编码器和动力学预测器的分类分布都做成 1% 均匀加 99% 网络输出，让它们不可能变成确定性分布。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · free bits 的额度是整个 z 的</span>
+<p>“1 nat ≈ 1.44 bits”：\(1/\ln 2=1.4427\)，对。</p>
+<p>式 (3) 看不出 KL 是怎么汇总的。代码 <code>rssm.py</code> 里 <code>_dist</code> 用 <code>Agg(out, 1, jnp.sum)</code> 把 32 个分类的 KL 加起来，再 <code>jnp.maximum(dyn, free_nats)</code>。所以 1 nat 是整个 \(z\) 的额度。200M 模型的 \(z\) 能表达 32 × 6 = 192 比特，1 nat 只是很小的一部分。</p>
+<p>v2 正文和表 4 都没写分类的个数，只说“number of latents is fixed”。32 这个数我在 v1 的表 W.1 和代码 <code>rssm.stoch: 32</code> 里找到。</p>
+<p>式 (2) 的 β<sub>dyn</sub> = 1 在 v1 里是 0.5（v1 式 4），代码是 <code>dyn: 1.0</code>。式 (3) 的比例由此从 5:1 变成 10:1。</p>
+<p>有 1% 混合时，两个完全错开的分类之间 KL 不超过 \(\ln(K/0.01)\)，64 类时是 8.76 nat。动画<a href="../interactives/dreamerv3/index.html?scene=2&amp;p=0.8&amp;conc=40">第 2 幕</a>当场算：混合时 8.667，关掉后尖锐度 40 时是 40，继续调尖还会涨。这是我的推导和数值验证，论文只说“well-behaved”。</p></div>
+
+<h3 id="critic">评论家学习</h3>
+<p>演员和评论家只从世界模型预测出来的抽象轨迹学行为。和环境交互时直接从演员采样，不做前瞻规划。它们的输入是模型状态 \(s_t\doteq\{h_t,z_t\}\)。演员最大化回报 \(R_t\doteq\sum_{\tau=0}^\infty\gamma^\tau r_{t+\tau}\)，γ = 0.997。为了顾及预测窗口 T = 16 之外的奖励，评论家学的是当前演员下回报的分布：</p>
+<div class="eq"><div class="m">\[\text{演员：}\ a_t\sim\pi_\theta(a_t\mid s_t)\qquad\text{评论家：}\ v_\psi(R_t\mid s_t)\]</div><span class="no">(4)</span></div>
+<p>从回放输入的表征出发，世界模型和演员生成一条想象轨迹 \(s_{1:T},a_{1:T},r_{1:T},c_{1:T}\)。评论家读数是分布的期望 \(v_t\doteq\mathrm E[v_\psi(\cdot\mid s_t)]\)。自举的 λ 回报（不同步数回报的指数加权平均，见 <a href="dreamer.html#s3">V1 式 (6)</a>）把预测奖励和价值合在一起，评论家用最大似然学它的分布：</p>
+<div class="eq"><div class="m">\[\mathcal L(\psi)\doteq-\sum_{t=1}^T\ln p_\psi(R^\lambda_t\mid s_t)\qquad R^\lambda_t\doteq r_t+\gamma c_t\big((1-\lambda)v_t+\lambda R^\lambda_{t+1}\big)\qquad R^\lambda_T\doteq v_T\]</div><span class="no">(5)</span></div>
+<p>回报分布可能多峰，而且跨环境相差几个数量级，所以评论家不用正态分布，用指数间隔桶上的分类分布，把梯度大小和目标大小解开。奖励难预测时，评论家损失同时用在想象轨迹（β<sub>val</sub> = 1）和回放轨迹（β<sub>repval</sub> = 0.3）上：回放轨迹的末端价值取想象回报在起点的 \(R^\lambda\)，再在回放奖励上算 λ 回报。</p>
+<p>评论家的目标依赖它自己的预测，所以把它往自身参数 EMA（指数滑动平均）的输出上正则。这和目标网络类似，但回报用当前网络算。另外，随机初始化的奖励预测器和评论家一开始可能预测出很大的奖励，拖慢学习，所以把它们的输出权重初始化为 0。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · T = 16 和 H = 15</span>
+<p>正文写“prediction horizon T = 16”，表 4 写 H = 15，同一页的表 4 还有 Batch length T = 64。同一个字母 T 指了两件事。代码是 <code>imag_length: 15</code>，想象 15 步，加上起点，每条 16 个状态：<code>assert ... == (B * K, H + 1)</code>。于是 16 个状态、15 个回报和 15 项演员损失，两个数都对得上。</p>
+<p>起点数论文没写。代码 <code>imag_last: 0</code> 表示 <code>K = min(imag_last or T, T)</code> = 64，所以每批 16 × 64 = 1024 条想象。</p>
+<p>γ<sup>15</sup> = 0.956，λ<sup>14</sup> = 0.488，加权平均前看 \((1-\lambda^{15})/(1-\lambda)=10.73\) 步。γ 比 V1 的 0.99 大，窗口外份额从 86% 变成 95.6%（恒定奖励），评论家更重要。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 (5) 的 \(v_t\) 字面上不对</span>
+<p>式 (5) 是 \(r_t+\gamma c_t((1-\lambda)v_t+\lambda R^\lambda_{t+1})\)，用了当前状态的价值 \(v_t\)。这一步应该自举下一状态。v1 式 (7) 写的是 \(v_\psi(s_{t+1})\)。代码 <code>lambda_return</code> 写的是 \(R_t=r_{t+1}+\gamma c_{t+1}((1-\lambda)v_{t+1}+\lambda R_{t+1})\)，也是下一状态，并且奖励的下标同样后移。Nature 版的公式和 v2 相同（我比对了网页的 LaTeX）。</p>
+<p>字面照 v2 算会怎样？一条 40 个状态的链，第 20 个状态奖励 1，表格型评论家迭代到收敛，γ = 0.997，λ = 0.95，H = 15。v1 和代码的写法收敛到真值，奖励状态是 1.000。v2 字面写法是 1.052，前面的状态都抬高约 5%（第 10 个状态 1.020，真值 0.970）。这个倍数正好是 \(1/(1-\gamma(1-\lambda))=1.0525\)。动画<a href="../interactives/dreamerv3/index.html?scene=6&amp;p=0.8&amp;rec=1">第 6 幕</a>可以切换三种写法。</p>
+<p>我认为这是排版错误，或者作者心里有另一套下标约定，论文没说明。画动画我用的是代码的写法。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 继续头和两处没写的权重</span>
+<p>式 (5) 的 γ 是显式乘的，\(c_t\in\{0,1\}\)。代码 <code>contdisc: True</code> 的做法不同：继续头的目标是 \(c\times(1-1/333)\)，回报里 <code>disc = 1</code>，γ 通过预测的继续概率进入。期望上等价，论文没提。回放损失里则显式用 <code>disc = 1 - 1/horizon</code>。</p>
+<p>演员和评论家的想象损失都乘累积继续权重 <code>weight = cumprod(disc * con) / disc</code>，式 (5)(6) 没有这一项。SuperMimic 把这个权重写进了目标。</p>
+<p>EMA 正则的具体形式也没写：<code>slowreg * value.loss(sg(slowvalue.pred()))</code>，取慢网络的<b>期望</b>，再编码成 two-hot 去训练快网络，而不是匹配慢网络的整个分布。</p></div>
+
+<h3 id="actor">演员学习</h3>
+<p>演员选最大化回报的动作，同时用熵正则探索。合适的正则系数既取决于奖励的尺度，也取决于奖励的频率。希望的行为是：奖励稀疏时多探索，奖励密集或就在眼前时多利用，并且不受奖励任意缩放的影响。这要求把回报尺度归一化，同时保留奖励频率的信息。</p>
+<p>为了跨领域用固定的 η = 3×10⁻⁴，把回报归一化到约 [0, 1]。回报减去常数不改变演员梯度，所以只除以范围 S。为了避免稀疏奖励下放大函数逼近的噪声，只缩小大回报，小于 L = 1 的不动。两种动作都用 Reinforce 估计量，代理损失是：</p>
+<div class="eq"><div class="m">\[\mathcal L(\theta)\doteq-\sum_{t=1}^T\mathrm{sg}\big((R^\lambda_t-v_\psi(s_t))/\max(1,S)\big)\log\pi_\theta(a_t\mid s_t)+\eta\,\mathrm H[\pi_\theta(a_t\mid s_t)]\]</div><span class="no">(6)</span></div>
+<p>回报分布可能多峰、有离群值。用最小和最大值归一化会缩得过头。所以 S 取批内第 95 和第 5 百分位之差，再做滑动平均：</p>
+<div class="eq"><div class="m">\[S\doteq\mathrm{EMA}\big(\mathrm{Per}(R^\lambda_t,95)-\mathrm{Per}(R^\lambda_t,5),\ 0.99\big)\]</div><span class="no">(7)</span></div>
+<p>作者比较了其他做法。归一化优势（advantage，回报减基线）不管奖励够不够得着，都给回报固定的权重，稀疏奖励下放大噪声，压过熵正则，探索停滞。按标准差归一化奖励或回报，在稀疏奖励下标准差接近 0，奖励被大幅放大。约束优化（如 SAC 的目标熵）按状态平均追固定的熵，稳健，但稀疏时探索慢，密集时收敛低。这些做法作者都没找到跨领域稳定的超参数。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 演员：版本之间的反转，和式 (6) 的符号</span>
+<p><b>反转。</b>v1 式 (11) 后面写的是：按 DreamerV2 的做法，连续动作用随机反传，离散动作用 Reinforce。v2 这一节写的是“use the Reinforce estimator for both discrete and continuous actions”，Nature 同。这个改动论文没有解释，“Previous generations”一节列的改动也没有包括它。</p>
+<p><b>代码。</b><code>agent.py</code> 的 <code>imag_loss</code> 里 <code>logpi = v.logp(sg(act[k]))</code>，<code>policy_loss = sg(weight) * -(logpi * sg(adv_normed) + actent * ents)</code>。<code>imgfeat</code> 过 <code>sg</code>，<code>rssm.imagine</code> 里 <code>policy(sg(carry))</code>，默认 <code>ac_grads: False</code>。所以回报对动作没有路径，世界模型的雅可比确实不进入演员更新。和 v2 一致。</p>
+<p><b>符号。</b>式 (6) 没有括号，字面上 \(+\eta\mathrm H\) 在求和号外面，而且是加在一个要最小化的损失上，那就是在<b>压低</b>熵。代码是 \(-(\log\pi\cdot\mathrm{adv}+\eta\mathrm H)\)，熵被提高。v2 PDF 和 Nature 的 LaTeX 都没有括号，所以 Nature 版也是这样。这应该是排版问题，意思看上下文没有疑问。</p>
+<p><b>论文没写的。</b>连续动作的分布：<code>bounded_normal</code>，均值过 tanh，标准差在 [0.1, 1]，采样不压缩。输入端 <code>action /= sg(max(1, |action|))</code>。输出层缩放 0.01。“Actor unimix 1%”只对离散起作用。我在 v2 全文里没搜到这些。</p>
+<p>动画<a href="../interactives/dreamerv3/index.html?scene=8&amp;p=0.5">第 8 幕</a>在玩具上当场估计两种梯度。默认 H = 15、c = 0.15、64 条一批时，Reinforce 的标准差 3.44，穿过动力学 3.65，差不多；c = 0 时穿过动力学 0.62，Reinforce 1.44，反传更稳；c = 0.3 时穿过动力学 14.6，Reinforce 3.99，反传的方差炸了。这和“为什么换”可能有关，但只是玩具，不是作者给的理由。离散动作时直通梯度有偏：c = 0.15、H = 10 的真值 4.71，直通 4.41，Reinforce 4.65。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 回报归一化的实现细节</span>
+<p>式 (7) 是差的 EMA。代码 <code>Normalize</code> 分别对第 95 和第 5 百分位做 EMA 再相减。两者衰减相同，是线性的，结果一样。<code>debias: False</code>，初值 0，所以前面几百次更新 S 偏小，要 298 次更新才到 95%（\(\ln 0.05/\ln 0.99\)）。这段时间 \(\max(1,S)\) 让回报基本不缩放。</p>
+<p><code>adv = (ret - tarval[:, :-1]) / rscale</code>，只除不减，和“减常数不改变梯度”一致。<code>advnorm</code> 和 <code>valnorm</code> 都是 <code>none</code>。</p>
+<p>动画<a href="../interactives/dreamerv3/index.html?scene=7&amp;p=0.8">第 7 幕</a>的玩具：造的 1024 个回报，百分位范围 0.59，最大减最小 1.11；加 2% 离群值后，百分位范围只到 0.64，最大减最小到 11.8。三臂赌博机（奖励 0、1、0.2 乘尺度）跑 6000 步：尺度 0.001 时 max(1, S) 的熵 1.098（还在探索），归一化优势的熵 2.5×10⁻⁴（已经收敛）；尺度 1000 时不归一的熵 1.4×10⁻⁵，max(1, S) 的熵 0.018，和尺度 1 的 0.020 接近。只有噪声没有奖励差时（σ = 0.001），max(1, S) 的熵 1.099，归一化优势的熵 0.746，噪声被放大了。这和正文的论述方向一致，但玩具不是论文的实验。</p></div>
+
+<h3 id="robust">稳健预测</h3>
+<p>重建输入、预测奖励和回报都面临尺度跨领域变化的问题。大目标配平方损失可能发散；绝对损失和 Huber 损失学得慢；按滑动统计量归一化目标又引入非平稳。作者的办法是 symlog 平方误差：网络预测变换后的目标，读数时反变换：</p>
+<div class="eq"><div class="m">\[\mathcal L(\theta)\doteq\tfrac12\big(f(x,\theta)-\mathrm{symlog}(y)\big)^2\qquad\hat y\doteq\mathrm{symexp}\big(f(x,\theta)\big)\]</div><span class="no">(8)</span></div>
+<p>对数不能处理负目标，所以取双对称对数族里的一个函数，命名为 symlog：</p>
+<div class="eq"><div class="m">\[\mathrm{symlog}(x)\doteq\mathrm{sign}(x)\ln(|x|+1)\qquad\mathrm{symexp}(x)\doteq\mathrm{sign}(x)(\exp(|x|)-1)\]</div><span class="no">(9)</span></div>
+<p>它压缩大的正负数，关于原点对称，原点附近接近恒等，所以已经够小的目标不受影响。</p>
+<p>对可能随机的目标（奖励、回报），用 symexp two-hot 损失。网络输出指数间隔桶上的 softmax，读数是桶位置的加权平均，可以落在桶之间：</p>
+<div class="eq"><div class="m">\[\hat y\doteq\mathrm{softmax}(f(x))^{\mathsf T}B\qquad B\doteq\mathrm{symexp}\big([-20\ \dots\ +20]\big)\]</div><span class="no">(10)</span></div>
+<p>two-hot 编码是 one-hot 向连续值的推广：只有最靠近目标的两个桶非零，两者和为 1，离得近的权重线性地更大。损失是软标签的交叉熵。它只取决于各桶的概率，和桶代表的数值无关，所以梯度大小和目标大小解开了：</p>
+<div class="eq"><div class="m">\[\mathcal L(\theta)\doteq-\mathrm{twohot}(y)^{\mathsf T}\log\mathrm{softmax}(f(x,\theta))\]</div><span class="no">(11)</span></div>
+<p>于是向量观测的编码器输入和解码目标用 symlog，奖励预测器和评论家用 symexp two-hot。评论家还有一种不对称变换（R2D2 的），作者说平均效果差一些。symlog 不截断大目标、不引入归一化的非平稳，也不用在发现新极值时调整网络权重（PopArt 的做法）。</p>
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 10 幕 · 可拖动、可调参数</p>
+<p>第 3 到 8 幕当场计算：拖目标看 symlog 和 two-hot，换 β 和 free nats 看 KL，换递推写法看 λ 回报，调奖励尺度看归一化，切版本和动作类型估两种梯度。玩具和论文的数都有标注。</p>
+<iframe src="../interactives/dreamerv3/index.html?embed=1&amp;scene=4" title="DreamerV3 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/dreamerv3/index.html">新窗口打开，看结构表和“哪些是示意”↗</a></p>
+</div>
+<div class="note" id="n10"><span class="lab">读者注 10 · two-hot 的几个没写明的地方</span>
+<p><b>桶数。</b>v2 式 (10) 没写桶数，“−20…+20”也没写步长。255 来自 v1 正文和代码 <code>bins: 255</code>。于是 symlog 空间的步长是 40/254 = 0.1575，最大的桶是 symexp(20) = 4.85×10⁸。</p>
+<p><b>空间。</b>v1 式 (8) 是先把目标 symlog，在 symlog 空间做 two-hot，再 symexp 读数。v2 式 (10)(12) 和代码是另一种：桶位于 symexp 后的原值，权重按原值线性分配，期望也在原值上算（<code>TwoHot</code> 不传 squash）。比如 y = 3，桶 135 = 2.525，桶 136 = 3.126，权重 0.210 和 0.790。</p>
+<p><b>式 (12) 的 k。</b>\(k=\sum_j\delta(b_j&lt;x)\)，\(j\) 从 1 数，所以 \(b_k&lt;x\le b_{k+1}\)。代码用 <code>bins &lt;= target</code>，只在正好落在桶上时有差别，此时代码给那个桶权重 1。</p>
+<p><b>求和顺序。</b>原文说要分正负从小到大求和。我用 Math.fround 模拟 32 位浮点：均匀分布从左到右加得 0.625，代码的对称加法得 0。这个 0.625 就是“初始化时幻想出奖励”的来源之一。</p>
+<p><b>梯度。</b>均匀初值下，目标 1、10³、10⁶ 的 two-hot 对 logits 的梯度范数是 0.72、0.87、0.77；平方误差是 1、10³、10⁶；symlog 平方误差是 0.69、6.9、13.8。动画<a href="../interactives/dreamerv3/index.html?scene=4&amp;p=0.5">第 4 幕</a>当场显示。</p></div>
+
+<h2 id="results">结果</h2>
+<p>在 8 个领域、超过 150 个任务上用固定超参数评测，和文献里的最好方法比（它们通常是为基准专门设计和调参的），也和一个高质量的 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 实现比。每个 Dreamer 智能体都在一块 A100 上训练。代码公开。</p>
+<h3 id="bench">基准</h3>
+<ul>
+<li><b>Atari：</b>57 个游戏，2 亿帧，粘性动作。超过 <a class="ds" href="https://arxiv.org/abs/1911.08265">MuZero</a>，算力只用一小部分；也超过 Rainbow 和 IQN。</li>
+<li><b>ProcGen：</b>16 个游戏，随机关卡和视觉干扰，5000 万帧。和调过的 PPG 持平，超过 Rainbow。作者的固定超参 PPO 达到官方调优 PPO 的分数。</li>
+<li><b>DMLab：</b>30 个 3D 任务，1 亿帧。超过 <a class="ds" href="https://arxiv.org/abs/1802.01561">IMPALA</a> 和 R2D2+ 在 10 亿步的成绩，作者说数据效率提升超过 1000%。这些基线不是为数据效率设计的。</li>
+<li><b>Atari100k：</b>26 个游戏，40 万帧（约 2 小时游戏时间）。EfficientZero 最高，但它用在线树搜索、优先回放、超参数调度，还提前重置关卡，难以直接比。除此之外 Dreamer 超过 <a class="ds" href="https://github.com/eloialonso/iris">IRIS</a>、<a class="ds" href="https://github.com/jrobine/twm">TWM</a>、<a class="ds" href="https://github.com/mila-iqia/spr">SPR</a>、SimPLe。</li>
+<li><b>Proprio Control：</b>18 个连续控制任务，50 万步。超过 D4PG、DMPO、MPO。</li>
+<li><b>Visual Control：</b>20 个图像控制任务，100 万步。超过 DrQ-v2 和 CURL。</li>
+<li><b>BSuite：</b>23 个环境，468 个配置。超过 Boot DQN，尤其在尺度稳健性上。</li>
+</ul>
+<div class="note" id="n11"><span class="lab">读者注 11 · 把表重算一遍</span>
+<p>用表里的 Random、Gamer、Record 列重算聚合行（玩家归一化分 = (分数 − 随机) / (玩家 − 随机)）：</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>Atari 表 6</th><th>PPO</th><th>MuZero</th><th>Dreamer</th></tr></thead><tbody>
+<tr><td>玩家中位：表 / 重算</td><td>180 / 180.3</td><td>693 / 680.0</td><td>830 / 833.3</td></tr>
+<tr><td>玩家均值：表 / 重算</td><td>892 / 885.2</td><td>3054 / 3046.4</td><td>3381 / 3372.7</td></tr>
+<tr><td>纪录均值：表 / 重算</td><td>21 / 21.3</td><td>66 / 66.4</td><td>74 / 74.2</td></tr>
+<tr><td>纪录封顶：表 / 重算</td><td>21 / 21.3</td><td>34 / 33.5</td><td>38 / 38.0</td></tr>
+</tbody></table></div>
+<p>差别应该来自表里分数四舍五入，有些游戏分母很小（Double Dunk 只有 3），我没有证明这一点。Atari100k、BSuite 的聚合行重算后都对上（125 对 124.7，66 对 65.6，63 对 62.9）。</p>
+<p><b>“超过 MuZero”要读细。</b>聚合上是超过。逐游戏看，57 个里 Dreamer 高的 32 个，相同 4 个，低的 21 个。</p>
+<p><b>DMLab。</b>Dreamer 71.4，IMPALA 1B 步 66.3。表 8 的 R2D2+ 只有 10B 步 85.4，比 Dreamer 高，那个 1B 步的 65 只在图 1 里（读者注 1）。逐任务，Dreamer 高于 IMPALA 1B 的有 16 / 30 个。“超过 1000%”就是 10 倍数据的说法，严格说是省了 90%，提升 900%。</p>
+<p><b>ProcGen。</b>v2 是 66.01 对 PPG 64.89，v2 用“matches”；Nature 的补充表是 71.6 和 64.9，用“outperforms”。逐任务 v2 里 Dreamer 高于 PPG 的是 9 / 16。Bigfish 8.62 对 31.26、Fruitbot 11.04 对 24.32 输得不少。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 11 和表 12 的“均值”“中位数”写反了</span>
+<p>重算（v2，用表里的 18 或 20 个任务）：</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th></th><th>表写的“Task mean”</th><th>重算中位数</th><th>表写的“Task median”</th><th>重算均值</th></tr></thead><tbody>
+<tr><td>表 11 Dreamer</td><td>871</td><td>870.5</td><td>754</td><td>753.6</td></tr>
+<tr><td>表 11 DMPO</td><td>801</td><td>801.5</td><td>705</td><td>705.1</td></tr>
+<tr><td>表 11 PPO</td><td>94</td><td>94.0</td><td>215</td><td>214.7</td></tr>
+<tr><td>表 12 Dreamer</td><td>861</td><td>861.5</td><td>786</td><td>786.0</td></tr>
+<tr><td>表 12 DrQ-v2</td><td>770</td><td>770.5</td><td>705</td><td>705.0</td></tr>
+<tr><td>表 12 PPO</td><td>94</td><td>94.5</td><td>206</td><td>206.4</td></tr>
+</tbody></table></div>
+<p>每一列都是这样：写着均值的那行其实是中位数。图 1 这两个面板的柱高我读出来是 870、861、801、770、94，用的就是这一行，而图 1 的说明没写指标。所以 v2 拿 871 和 801 比，比的是中位数。按真均值是 753.6 对 705.1 和 D4PG 的 733.4。Nature 补充表 5、6 里 mean 和 median 是对的（Visual Dreamer 802 均值，900 中位数）。</p></div>
+<h3 id="mc">Minecraft</h3>
+<p>每个回合是一个随机生成的无限 3D 世界。回合到死亡或 36000 步（30 分钟），要从稀疏奖励里依次拿到 12 种物品。熟练玩家大约 20 分钟拿到钻石。沿用既有工作的快速破坏方块设定，因为随机策略很难长时间按住一个键。不调参，默认超参数开箱用。Dreamer 是第一个不用人类数据（VPT 用了）或自适应课程的。训练的所有 Dreamer 智能体都在 1 亿步内发现钻石；基线能到铁镐，但都没有钻石。</p>
+<figure class="pfig narrow" id="fig5">
+<img src="dreamerv3/fig5.webp" width="1587" height="360" alt="图 5：拿到铁锭、铁镐、钻石的智能体比例" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 8 页 · CC BY 4.0，只裁剪</span>三个面板：铁锭、铁镐、钻石。纵轴是拿到过该物品的智能体比例。钻石面板只有 Dreamer 从 0 上升到 100%。</figcaption>
+</figure>
+<div class="note" id="n13"><span class="lab">读者注 13 · “100 天游戏时间”算不出来</span>
+<p>方法节写 1 亿环境步“about 100 days of in-game time”。控制频率是 20 Hz，动作重复 1（表 2），所以 \(10^8/20=5\times10^6\) 秒，是 57.9 天。Nature 同样写 100 天。其他几个对得上：36000 / 20 Hz = 30 分钟，40 万帧 / 60 Hz = 1.85 小时（原文“2 小时”），Nature 的 \(25^{-400}\approx10^{-559}\)（原文 \(10^{-560}\)）。</p>
+<p>快速破坏方块是这个结果的前提之一。Nature 专门加了“Break speed”一节解释：按原速度，要按住几百步，25 个动作的均匀策略几乎不可能做到。“1 块 GPU 对 720 块”这个比较两边设定不同：Dreamer 用快速破坏和比赛动作空间，VPT 用键鼠动作和人类数据。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 代码库里的 Minecraft 分数和文字</span>
+<p>仓库的 <code>scores/minecraft_diamond-dreamerv3.json.gz</code> 有 <b>20</b> 条运行，正文说 10 个种子。我统计了回报 ≥ 11.5（拿到第 12 个里程碑）：20 条里 19 条到过，最早 30.9M 步，最晚 73.2M 步；第 3 条最高 11，且只跑到 70.4M 步。有 7 条在 99M 步之前就结束了。</p>
+<p>所有运行最后 5M 步的回合平均回报 8.92（表 5 是 9.1），其中拿到钻石的回合 0.45%（图 9 说明是 0.4%）。这些大致吻合。</p>
+<p>我不知道论文用的是哪 10 条，所以这不构成矛盾，只说明“全部”依赖选哪些运行。这个文件是 2024-04-15 那个提交（2411f7d）加入的。</p></div>
+<h3 id="abl">消融</h3>
+<p>在 14 个任务上去掉稳健技巧和学习信号。作者观察到每个技巧都有贡献，最明显的是世界模型的 KL 目标，其次是回报归一化和 symexp two-hot。每个技巧对部分任务关键，对其他任务没影响。去掉任务相关的奖励和价值梯度，或者任务无关的重建梯度：Dreamer 主要靠无监督的世界模型目标，这意味着未来可能用无标注数据预训练。</p>
+<figure class="pfig" id="fig6">
+<img src="dreamerv3/fig6.webp" width="1586" height="860" alt="图 6：消融和缩放实验" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 9 页 · CC BY 4.0，只裁剪</span>a 稳健技巧消融，b 学习信号消融，纵轴都是 14 个任务的平均回报百分比。c 模型大小从 12M 到 400M，d 回放比例从 1 到 64，都在 <a class="ds" href="https://github.com/danijar/crafter">Crafter</a> 和 DMLab Goals 上。</figcaption>
+</figure>
+<div class="note" id="n15"><span class="lab">读者注 15 · 从矢量路径读图 6a、6b</span>
+<p>第 9 页转 SVG，按刻度标定，每条曲线 40 个点。</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>条件</th><th>终点</th><th>最后 5 点平均</th><th>全程平均</th></tr></thead><tbody>
+<tr><td>Dreamer</td><td>100.0</td><td>101.2</td><td>68.8</td></tr>
+<tr><td>无观测 symlog</td><td>93.0</td><td>92.2</td><td>64.2</td></tr>
+<tr><td>无回报归一（用优势归一）</td><td>87.0</td><td>84.4</td><td>58.2</td></tr>
+<tr><td>无 two-hot（Huber）</td><td>84.6</td><td>84.9</td><td>57.0</td></tr>
+<tr><td>无 KL 平衡和 free bits</td><td>75.4</td><td>73.7</td><td>48.0</td></tr>
+<tr><td>全部去掉</td><td>54.4</td><td>51.4</td><td>33.8</td></tr>
+</tbody></table></div>
+<p>“最明显的是 KL”，读数支持。“其次是回报归一化和 two-hot”这个顺序，两条曲线几乎重合，最后 5 点平均甚至反过来，当成并列更稳。图 6b：去掉重建梯度终点 26.2，去掉奖励和价值梯度终点 93.6。</p>
+<p>“无 KL 平衡和 free bits”在 v2 没有定义具体做法。v1 的附录分别定义过：NoFreeBits 把常数 1 改成 0，NoKLBalance 让两个 β 都等于 0.5。v2 这条曲线把两者合在一起，没法从图里分开。</p></div>
+<h3 id="scale">缩放性质</h3>
+<p>6 种模型大小（12M 到 400M 参数），不同回放比例（决定梯度更新次数），在 Crafter 和一个 DMLab 任务上。固定超参数下都稳健。模型越大，分数越高，所需数据越少。更多梯度步进一步减少所需交互。</p>
+
+<h2 id="prev">既往工作</h2>
+<p>通用算法是长期目标。PPO 用得最广，相对稳健，但要很多经验，成绩常低于专门算法。SAC 是连续控制的常用选择，用经验回放省数据，但实践中要调熵系数，高维输入也吃力。MuZero 用价值预测模型规划，用于棋类和 Atari，但没有公开实现，部件复杂，难复现。Gato 用一个大模型拟合多任务专家示范，只能在有专家数据时用。</p>
+<p>Minecraft 方面：MALMO 是微软发布的研究版。作者的实验基于 <a class="ds" href="https://github.com/minerllabs/minerl">MineRL</a> 比赛环境。Voyager 通过语言模型调 API，物品深度和 Dreamer 类似，但运行在 MineFlayer 脚本层上，有高层动作。<a class="ds" href="https://arxiv.org/abs/2206.11795">VPT</a> 用外包人员的键鼠数据做行为克隆，再用强化学习微调，720 块 GPU 跑 9 天拿到钻石。Dreamer 用 MineRL 比赛动作空间，从稀疏奖励自主学习，1 块 GPU 跑 9 天，不用人类数据。</p>
+<p class="sub">Nature 版这一节多了一段世界模型的脉络：PILCO、E2C、Visual Foresight、PlaNet、IRIS、TWM、R2I、TD-MPC2，并且说 TD-MPC2 用了 Dreamer 的百分位回报归一化。</p>
+
+<h2 id="concl">结论</h2>
+<p>第三代 Dreamer 用固定超参数跨领域工作，跨数据和算力预算也稳健。第一个从零拿到 Minecraft 钻石。未来方向是从互联网视频教智能体世界知识，以及跨领域学一个世界模型。</p>
+
+<h2 id="methods">方法</h2>
+<h3 id="base">基线</h3>
+<p>PPO 用 Acme 框架里的实现（公开实现差别很大，所以选质量高的），按建议设超参，另外调了 epoch 批量、学习率和熵系数。折扣和 Dreamer 对齐。网络用 IMPALA 结构。在 ProcGen 上验证能达到或略超 PPO 作者的高调优结果。</p>
+<div class="tablewrap"><table class="t-num" style="min-width:320px"><thead><tr><th>表 1 · PPO 超参数</th><th>值</th></tr></thead><tbody>
+<tr><td>观测归一化</td><td>是</td></tr><tr><td>奖励归一化</td><td>是</td></tr><tr><td>奖励裁剪（标准差）</td><td>10</td></tr><tr><td>Epoch 批量</td><td>64 × 256</td></tr><tr><td>Epoch 数</td><td>3</td></tr><tr><td>小批量大小</td><td>8</td></tr><tr><td>小批量长度</td><td>256</td></tr><tr><td>策略信赖域</td><td>0.2</td></tr><tr><td>价值信赖域</td><td>否</td></tr><tr><td>优势归一化</td><td>是</td></tr><tr><td>熵惩罚系数</td><td>0.01</td></tr><tr><td>折扣</td><td>0.997</td></tr><tr><td>GAE λ</td><td>0.95</td></tr><tr><td>学习率</td><td>3×10⁻⁴</td></tr><tr><td>梯度裁剪</td><td>0.5</td></tr><tr><td>Adam ε</td><td>10⁻⁵</td></tr>
+</tbody></table></div>
+<p>Minecraft 另外调并跑了 IMPALA 和 Rainbow，也是 Acme 实现，因为文献里没有从零端到端成功的报告。其他基准的专家方法成绩来自文献。</p>
+<h3 id="impl">实现</h3>
+<p><b>经验回放。</b>均匀回放加在线队列（online queue）：每个小批量先取尚未用过的新轨迹，再用回放的均匀采样补齐。采集时把隐状态存进缓存，用于在回放轨迹上初始化世界模型，训练后把新的隐状态写回去。优先回放也有提升，但为了实现简单没有用。</p>
+<p><b>回放比例（replay ratio）。</b>每收集一个时间步训练多少个时间步，不计动作重复。除以小批量的时间步数和动作重复，得到梯度步和环境步的比。例子：比例 32，Atari 动作重复 4，批量 16 × 64，每 128 个环境步一个梯度步，2 亿步共 150 万个梯度步。</p>
+<p><b>优化器。</b>自适应梯度裁剪（AGC）：逐张量，梯度超过权重 L2 范数的 30% 就裁，默认 ε = 10⁻³。它让裁剪阈值和损失尺度解耦。然后用 LaProp，ε = 10⁻²⁰，β₁ = 0.9，β₂ = 0.99。LaProp 先做 RMSProp 归一化，再做动量，而 Adam 是两者都用原始梯度。这样 ε 可以更小，也避免了 Adam 偶尔的不稳定。</p>
+<p><b>分布。</b>编码器、动力学预测器和演员都是 99% softmax 加 1% 均匀。奖励和评论家输出指数间隔桶上的 softmax，目标是 two-hot：</p>
+<div class="eq"><div class="m">\[\mathrm{twohot}(x)_i\doteq\begin{cases}|b_{k+1}-x|/|b_{k+1}-b_k| & i=k\\ |b_k-x|/|b_{k+1}-b_k| & i=k+1\\ 0 & \text{其他}\end{cases}\qquad k\doteq\sum_{j=1}^{|B|}\delta(b_j&lt;x)\]</div><span class="no">(12)</span></div>
+<p>输出权重初始化为 0。跨多个量级的桶求期望时，求和顺序要紧：正负分开，从小到大。</p>
+<p><b>网络。</b>图像用步长 2 的卷积压到 6×6 或 4×4，展平，再用反卷积解码，输出过 sigmoid。向量先 symlog，再用 3 层 MLP 编解码。演员和评论家是 3 层 MLP，奖励和继续预测器是 1 层。序列模型是分块 GRU：循环权重分成 8 块对角，这样记忆单元可以很多而参数量和算量不按平方涨。GRU 每步的输入是 \(z_t\)、\(a_t\) 和循环状态的线性嵌入，用于块间混合。表 4 的 RMSNorm 是按均方根归一化的层归一化变体，SiLU 是平滑版的 ReLU 类激活。</p>
+<h3 id="bench-m">基准协议</h3>
+<p>Atari 的随机和人类参考分在文献里不统一，作者取最常见的值（表 6）。DMLab 用固定动作空间，评测在 1 亿步，因为跑不到有些工作的 100 亿步；基线在 1 亿步很差，所以和它们的 10 亿步比。ProcGen 用困难难度和无限关卡。Minecraft 在 1 亿步报告回合回报。Atari100k 是 40 万环境步（动作重复后 10 万）。Visual Control 动作重复 2，Proprio Control 同协议，去掉两个四足任务，因为基线没有。</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>表 2 · 基准</th><th>任务</th><th>环境步</th><th>动作重复</th><th>环境实例</th><th>回放比例</th><th>GPU 天</th><th>模型</th></tr></thead><tbody>
+<tr><td>Minecraft</td><td>1</td><td>100M</td><td>1</td><td>64</td><td>32</td><td>8.9</td><td>200M</td></tr>
+<tr><td>DMLab</td><td>30</td><td>100M</td><td>4</td><td>16</td><td>32</td><td>2.9</td><td>200M</td></tr>
+<tr><td>ProcGen</td><td>16</td><td>50M</td><td>1</td><td>16</td><td>64</td><td>16.1</td><td>200M</td></tr>
+<tr><td>Atari</td><td>57</td><td>200M</td><td>4</td><td>16</td><td>32</td><td>7.7</td><td>200M</td></tr>
+<tr><td>Atari100K</td><td>26</td><td>400K</td><td>4</td><td>1</td><td>128</td><td>0.1</td><td>200M</td></tr>
+<tr><td>BSuite</td><td>23</td><td>—</td><td>1</td><td>1</td><td>1024</td><td>0.5</td><td>200M</td></tr>
+<tr><td>Proprio Control</td><td>18</td><td>500K</td><td>2</td><td>16</td><td>512</td><td>0.3</td><td>12M</td></tr>
+<tr><td>Visual Control</td><td>20</td><td>1M</td><td>2</td><td>16</td><td>512</td><td>0.1</td><td>12M</td></tr>
+</tbody></table></div>
+<p><b>环境实例。</b>Dreamer 和 PPO 对实例数都稳健，默认 16 个。BSuite 要求 1 个。Atari100k 也用 1 个，因为预算 40 万步，而 Atari 回合最长理论上有 43.2 万步。Minecraft 用 64 个，环境慢，用远程 CPU。</p>
+<p><b>种子和误差条。</b>每个基准 5 个种子，ProcGen 1 个（算力限制），BSuite 10 个（基准要求），Minecraft 10 个。曲线是种子均值，阴影是一个标准差。</p>
+<p><b>算力选择。</b>都在单块 A100 上。默认 200M 模型。两个控制基准用 12M 模型，成绩相同。回放比例按预算选。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 回放比例：算术对，配置和代码有出入</span>
+<p>算术：\(32/(16\times64)/4=1/128\)，对。\(2\times10^8/128=1.5625\times10^6\)，原文“1.5M”是取整。代码 <code>elements.when.Ratio(train_ratio / batch_steps)</code> 和定义一致。</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>基准</th><th>v2 表 2</th><th>Nature 扩展数据表 2</th><th>代码 configs.yaml</th></tr></thead><tbody>
+<tr><td>Atari</td><td>32</td><td>32</td><td>32</td></tr>
+<tr><td>DMLab</td><td>32</td><td>32</td><td>32</td></tr>
+<tr><td>ProcGen</td><td>64</td><td>32</td><td>64</td></tr>
+<tr><td>Atari100k</td><td>128</td><td>128</td><td>256</td></tr>
+<tr><td>BSuite</td><td>1024</td><td>1024</td><td>1024</td></tr>
+<tr><td>Visual</td><td>512</td><td>256</td><td>256</td></tr>
+<tr><td>Proprio</td><td>512</td><td>1024</td><td>1024</td></tr>
+</tbody></table></div>
+<p>Atari100k 的 256 和两版论文的 128 都不一样。我没有查仓库历史里这个值何时改的。<code>train_ratio</code> 的默认是 32，复现别的基准时要带上对应的 config 块。</p></div>
+<h3 id="sizes">模型大小</h3>
+<p>大小由模型维度 d 决定，d 大约按 1.5 倍增长，在 2 的幂和 2 的幂乘 1.5 之间交替，这样张量形状是 8 的倍数。MLP 隐藏单元数是 d，序列模型单元数是 8d，分成 8 块；靠近数据的卷积层通道数是 d/16；每个隐变量的类数是 d/16。层数和隐变量个数固定。所有超参数（包括学习率和批量）跨模型大小不变。</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>表 3 · 参数量</th><th>12M</th><th>25M</th><th>50M</th><th>100M</th><th>200M</th><th>400M</th></tr></thead><tbody>
+<tr><td>隐藏单元 d</td><td>256</td><td>384</td><td>512</td><td>768</td><td>1024</td><td>1536</td></tr>
+<tr><td>循环单元 8d</td><td>1024</td><td>3072</td><td>4096</td><td>6144</td><td>8192</td><td>12288</td></tr>
+<tr><td>基础卷积通道 d/16</td><td>16</td><td>24</td><td>32</td><td>48</td><td>64</td><td>96</td></tr>
+<tr><td>每隐变量类数 d/16</td><td>16</td><td>24</td><td>32</td><td>48</td><td>64</td><td>96</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 网络部分的表、正文和代码</span>
+<p><b>表 3 的 12M。</b>8 × 256 = 2048，表写 1024，其他列都等于 8d。代码 <code>size12m: deter 2048</code>，Nature 扩展数据表 4 也是 2048。v2 这一格是错的。</p>
+<p><b>Nature 表 4 的 1M。</b>新增的一列 d = 64，写基础卷积通道 16，表头又说 d/16，那应是 4。代码 <code>size1m: depth 4</code>。Proprio 没有图像，这个数在那里用不上。</p>
+<p><b>卷积通道。</b>正文说靠近数据的层是 d/16。代码 <code>depth: 64, mults: [2, 3, 4, 4]</code>，第一层是 128，也就是 d/8。</p>
+<p><b>卷积结构。</b>正文说步长 2 和反卷积。代码默认 <code>strided: False</code>：核 5 的卷积加 2×2 最大池化，解码是重复上采样加卷积。</p>
+<p><b>β₂。</b>正文 0.99，代码 <code>beta2: 0.999</code>。LaProp 论文的默认值我没有去查。</p>
+<p><b>预热。</b>表 4 下说不用退火，代码 <code>warmup: 1000</code> 让学习率在前 1000 步线性爬升。这不算退火，但文字没提。</p>
+<p><b>说明。</b>仓库 README 称自己是“A reimplementation of DreamerV3”。所以和论文实验所用代码之间可能还有差别，我无法核实。正文说“reproduces all results”。</p></div>
+<h3 id="gens">前几代</h3>
+<p>DreamerV1 只限连续控制，DreamerV2 在 Atari 上超过人类，DreamerV3 跨基准开箱可用。V3 引入的变化：稳健技巧（观测 symlog、KL 平衡加 free bits、所有分类分布 1% unimix、百分位回报归一化、奖励头和评论家的 symexp two-hot）；网络结构（分块 GRU、RMSNorm、SiLU）；优化器（AGC、LaProp）；回放缓存（更大、在线队列、存和更新隐状态）。</p>
+<h3 id="hp">超参数</h3>
+<div class="tablewrap"><table class="t-num" style="min-width:420px"><thead><tr><th>表 4 · 名称</th><th>符号</th><th>值</th></tr></thead><tbody>
+<tr class="sum"><td colspan="3" style="text-align:left">通用</td></tr>
+<tr><td>回放容量</td><td>—</td><td>5×10⁶</td></tr><tr><td>批量大小</td><td>B</td><td>16</td></tr><tr><td>批量长度</td><td>T</td><td>64</td></tr><tr><td>激活</td><td>—</td><td>RMSNorm + SiLU</td></tr><tr><td>学习率</td><td>—</td><td>4×10⁻⁵</td></tr><tr><td>梯度裁剪</td><td>—</td><td>AGC(0.3)</td></tr><tr><td>优化器</td><td>—</td><td>LaProp(ε = 10⁻²⁰)</td></tr>
+<tr class="sum"><td colspan="3" style="text-align:left">世界模型</td></tr>
+<tr><td>重建损失系数</td><td>β<sub>pred</sub></td><td>1</td></tr><tr><td>动力学损失系数</td><td>β<sub>dyn</sub></td><td>1</td></tr><tr><td>表征损失系数</td><td>β<sub>rep</sub></td><td>0.1</td></tr><tr><td>隐变量 unimix</td><td>—</td><td>1%</td></tr><tr><td>Free nats</td><td>—</td><td>1</td></tr>
+<tr class="sum"><td colspan="3" style="text-align:left">演员评论家</td></tr>
+<tr><td>想象长度</td><td>H</td><td>15</td></tr><tr><td>折扣长度</td><td>1/(1−γ)</td><td>333</td></tr><tr><td>回报 λ</td><td>λ</td><td>0.95</td></tr><tr><td>评论家损失系数</td><td>β<sub>val</sub></td><td>1</td></tr><tr><td>评论家回放损失系数</td><td>β<sub>repval</sub></td><td>0.3</td></tr><tr><td>评论家 EMA 正则</td><td>—</td><td>1</td></tr><tr><td>评论家 EMA 衰减</td><td>—</td><td>0.98</td></tr><tr><td>演员损失系数</td><td>β<sub>pol</sub></td><td>1</td></tr><tr><td>演员熵正则</td><td>η</td><td>3×10⁻⁴</td></tr><tr><td>演员 unimix</td><td>—</td><td>1%</td></tr><tr><td>回报归一范围</td><td>S</td><td>Per(R, 95) − Per(R, 5)</td></tr><tr><td>回报归一下限</td><td>L</td><td>1</td></tr><tr><td>回报归一衰减</td><td>—</td><td>0.99</td></tr>
+</tbody></table></div>
+<p>所有基准用同一组值，不用超参数退火、优先回放、权重衰减或 dropout。</p>
+<h3 id="mine">Minecraft</h3>
+<p><b>游戏。</b>月活 1 亿的游戏。程序生成的 3D 世界，包括多种地貌，1 米见方的方块可破坏和放置，约 30 种生物，超过 350 种合成配方。研究界的第一步目标是拿钻石，它位于地下深处，需要沿科技树一路推进。</p>
+<p><b>学习环境。</b>基于 MineRL v0.4.4（Minecraft 1.11.2）定义扁平分类动作空间，并修了通过人工试玩发现的问题。比如破坏钻石矿时物品有时直接进背包，有时掉在地上，而原环境破坏后就结束回合，很多成功回合没拿到奖励。改成死亡或 36000 步结束。跳跃键要按住超过一个控制步才生效，改成后台按住 200 毫秒。</p>
+<p><b>观测和奖励。</b>64 × 64 × 3 第一人称图像；400 多种物品的背包计数；回合以来的最大背包计数，告诉智能体已完成的里程碑；当前装备的 one-hot；生命、饥饿、氧气。奖励沿用 MineRL 比赛的 12 个里程碑：原木、木板、木棍、工作台、木镐、圆石、石镐、铁矿、熔炉、铁锭、铁镐、钻石。每种每回合只奖励一次，并且每个里程碑一律 +1，方便读回报。另外每失去一颗心 −0.01，每恢复一颗 +0.01，作者说没研究这是否有用。</p>
+
+<h2 id="supp">补充材料</h2>
+<h3 id="s-mc">Minecraft 视频预测和结果</h3>
+<figure class="pfig narrow" id="fig7">
+<img src="dreamerv3/fig7.webp" width="1585" height="1677" alt="图 7：Minecraft 中的多步预测" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 23 页 · CC BY 4.0，只裁剪</span>几组真实和模型的对比。给 5 帧上下文和动作序列，往后预测 45 步，看不到中间的图。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-num" style="min-width:260px"><thead><tr><th>表 5 · 方法</th><th>回报</th></tr></thead><tbody><tr><td>Dreamer</td><td>9.1</td></tr><tr><td>IMPALA</td><td>7.1</td></tr><tr><td>Rainbow</td><td>6.3</td></tr><tr><td>PPO</td><td>5.1</td></tr></tbody></table></div>
+<figure class="pfig narrow" id="fig8" style="max-width:420px">
+<img src="dreamerv3/fig8.webp" width="739" height="422" alt="图 8：Minecraft 学习曲线" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 24 页 · CC BY 4.0，只裁剪</span>回报随环境步变化。Dreamer 最高，其次 IMPALA、Rainbow、PPO。</figcaption>
+</figure>
+<figure class="pfig" id="fig9">
+<img src="dreamerv3/fig9.webp" width="1585" height="1096" alt="图 9：12 种物品的回合成功率" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 24 页 · CC BY 4.0，只裁剪</span>12 个面板，纵轴是拿到该物品的回合百分比。作者写明：到预算时 Dreamer 只有 0.4% 的回合拿到钻石，这和图 5 不同，图 5 是“智能体训练过程中是否拿到过”。</figcaption>
+</figure>
+<h3 id="s-atari">Atari</h3>
+<figure class="pfig" id="fig10">
+<img src="dreamerv3/fig10.webp" width="1600" height="2019" alt="图 10：Atari 学习曲线" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 25 页 · CC BY 4.0，只裁剪</span>57 个游戏的学习曲线和聚合曲线，Dreamer、MuZero、PPO。</figcaption>
+</figure>
+<details class="tbl" open><summary>表 6 · Atari 分数（第 26 页）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>Random</th><th>Gamer</th><th>Record</th><th>PPO</th><th>MuZero</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>—</td><td>—</td><td>—</td><td>200M</td><td>200M</td><td>200M</td></tr>
+<tr><td>Alien</td><td>228</td><td>7128</td><td>251916</td><td>5476</td><td>56835</td><td>10977</td></tr>
+<tr><td>Amidar</td><td>6</td><td>1720</td><td>104159</td><td>817</td><td>1517</td><td>3612</td></tr>
+<tr><td>Assault</td><td>222</td><td>742</td><td>8647</td><td>6673</td><td>42742</td><td>26010</td></tr>
+<tr><td>Asterix</td><td>210</td><td>8503</td><td>1000000</td><td>47190</td><td>879375</td><td>441763</td></tr>
+<tr><td>Asteroids</td><td>719</td><td>47389</td><td>10506650</td><td>2479</td><td>374146</td><td>348684</td></tr>
+<tr><td>Atlantis</td><td>12850</td><td>29028</td><td>10604840</td><td>539721</td><td>1353617</td><td>1553222</td></tr>
+<tr><td>Bank Heist</td><td>14</td><td>753</td><td>82058</td><td>946</td><td>1077</td><td>1083</td></tr>
+<tr><td>Battle Zone</td><td>2360</td><td>37188</td><td>801000</td><td>27816</td><td>167412</td><td>419653</td></tr>
+<tr><td>Beam Rider</td><td>364</td><td>16926</td><td>999999</td><td>7973</td><td>201154</td><td>37073</td></tr>
+<tr><td>Berzerk</td><td>124</td><td>2630</td><td>1057940</td><td>1186</td><td>1698</td><td>10557</td></tr>
+<tr><td>Bowling</td><td>23</td><td>161</td><td>300</td><td>118</td><td>133</td><td>250</td></tr>
+<tr><td>Boxing</td><td>0</td><td>12</td><td>100</td><td>98</td><td>100</td><td>100</td></tr>
+<tr><td>Breakout</td><td>2</td><td>30</td><td>864</td><td>299</td><td>799</td><td>384</td></tr>
+<tr><td>Centipede</td><td>2091</td><td>12017</td><td>1301709</td><td>51833</td><td>774421</td><td>554553</td></tr>
+<tr><td>Chopper Command</td><td>811</td><td>7388</td><td>999999</td><td>12667</td><td>8945</td><td>802698</td></tr>
+<tr><td>Crazy Climber</td><td>10780</td><td>35829</td><td>219900</td><td>93176</td><td>184394</td><td>193204</td></tr>
+<tr><td>Defender</td><td>2874</td><td>18689</td><td>6010500</td><td>38270</td><td>554492</td><td>579875</td></tr>
+<tr><td>Demon Attack</td><td>152</td><td>1971</td><td>1556345</td><td>8229</td><td>142509</td><td>142109</td></tr>
+<tr><td>Double Dunk</td><td>–19</td><td>–16</td><td>22</td><td>16</td><td>23</td><td>24</td></tr>
+<tr><td>Enduro</td><td>0</td><td>860</td><td>9500</td><td>1887</td><td>2369</td><td>2166</td></tr>
+<tr><td>Fishing Derby</td><td>–92</td><td>–39</td><td>71</td><td>43</td><td>58</td><td>82</td></tr>
+<tr><td>Freeway</td><td>0</td><td>30</td><td>38</td><td>33</td><td>0</td><td>34</td></tr>
+<tr><td>Frostbite</td><td>65</td><td>4335</td><td>454830</td><td>1123</td><td>17087</td><td>41888</td></tr>
+<tr><td>Gopher</td><td>258</td><td>2412</td><td>355040</td><td>24792</td><td>122025</td><td>87600</td></tr>
+<tr><td>Gravitar</td><td>173</td><td>3351</td><td>162850</td><td>3436</td><td>10301</td><td>12570</td></tr>
+<tr><td>Hero</td><td>1027</td><td>30826</td><td>1000000</td><td>31967</td><td>36063</td><td>40677</td></tr>
+<tr><td>Ice Hockey</td><td>–11</td><td>1</td><td>36</td><td>12</td><td>26</td><td>57</td></tr>
+<tr><td>Jamesbond</td><td>29</td><td>303</td><td>45550</td><td>1019</td><td>14872</td><td>24010</td></tr>
+<tr><td>Kangaroo</td><td>52</td><td>3035</td><td>1424600</td><td>7769</td><td>14380</td><td>12229</td></tr>
+<tr><td>Krull</td><td>1598</td><td>2666</td><td>104100</td><td>9193</td><td>11476</td><td>69858</td></tr>
+<tr><td>Kung Fu Master</td><td>258</td><td>22736</td><td>1000000</td><td>32335</td><td>148936</td><td>154893</td></tr>
+<tr><td>Montezuma Revenge</td><td>0</td><td>4753</td><td>1219200</td><td>2368</td><td>0</td><td>1852</td></tr>
+<tr><td>Ms Pacman</td><td>307</td><td>6952</td><td>290090</td><td>7041</td><td>51310</td><td>24079</td></tr>
+<tr><td>Name This Game</td><td>2292</td><td>8049</td><td>25220</td><td>19441</td><td>85331</td><td>77809</td></tr>
+<tr><td>Phoenix</td><td>761</td><td>7243</td><td>4014440</td><td>31412</td><td>105593</td><td>316606</td></tr>
+<tr><td>Pitfall</td><td>–229</td><td>6464</td><td>114000</td><td>–2</td><td>0</td><td>0</td></tr>
+<tr><td>Pong</td><td>–21</td><td>15</td><td>21</td><td>19</td><td>21</td><td>20</td></tr>
+<tr><td>Private Eye</td><td>25</td><td>69571</td><td>101800</td><td>73</td><td>100</td><td>26432</td></tr>
+<tr><td>Qbert</td><td>164</td><td>13455</td><td>2400000</td><td>14554</td><td>102129</td><td>201084</td></tr>
+<tr><td>Riverraid</td><td>1338</td><td>17118</td><td>1000000</td><td>14860</td><td>137983</td><td>48080</td></tr>
+<tr><td>Road Runner</td><td>12</td><td>7845</td><td>2038100</td><td>423995</td><td>604083</td><td>150402</td></tr>
+<tr><td>Robotank</td><td>2</td><td>12</td><td>76</td><td>63</td><td>70</td><td>132</td></tr>
+<tr><td>Seaquest</td><td>68</td><td>42055</td><td>999999</td><td>1927</td><td>399764</td><td>356584</td></tr>
+<tr><td>Skiing</td><td>–17098</td><td>–4337</td><td>–3272</td><td>–29926</td><td>–30000</td><td>–29965</td></tr>
+<tr><td>Solaris</td><td>1236</td><td>12327</td><td>111420</td><td>2368</td><td>5860</td><td>5851</td></tr>
+<tr><td>Space Invaders</td><td>148</td><td>1669</td><td>621535</td><td>3489</td><td>3639</td><td>15005</td></tr>
+<tr><td>Star Gunner</td><td>664</td><td>10250</td><td>77400</td><td>53439</td><td>127417</td><td>408961</td></tr>
+<tr><td>Surround</td><td>–10</td><td>6</td><td>6</td><td>6</td><td>9</td><td>9</td></tr>
+<tr><td>Tennis</td><td>–24</td><td>–8</td><td>21</td><td>–1</td><td>0</td><td>–3</td></tr>
+<tr><td>Time Pilot</td><td>3568</td><td>5229</td><td>65300</td><td>17250</td><td>427209</td><td>314947</td></tr>
+<tr><td>Tutankham</td><td>11</td><td>168</td><td>5384</td><td>225</td><td>235</td><td>395</td></tr>
+<tr><td>Up N Down</td><td>533</td><td>11693</td><td>82840</td><td>83743</td><td>522962</td><td>614065</td></tr>
+<tr><td>Venture</td><td>0</td><td>1188</td><td>38900</td><td>953</td><td>0</td><td>0</td></tr>
+<tr><td>Video Pinball</td><td>16257</td><td>17668</td><td>89218328</td><td>382306</td><td>775304</td><td>940631</td></tr>
+<tr><td>Wizard Of Wor</td><td>564</td><td>4756</td><td>395300</td><td>10910</td><td>0</td><td>99136</td></tr>
+<tr><td>Yars Revenge</td><td>3093</td><td>54577</td><td>15000105</td><td>137164</td><td>846061</td><td>675774</td></tr>
+<tr><td>Zaxxon</td><td>32</td><td>9173</td><td>83700</td><td>13599</td><td>58115</td><td>78443</td></tr>
+<tr class="sum"><td>Gamer median (%)</td><td>0</td><td>100</td><td>3716</td><td>180</td><td>693</td><td>830</td></tr>
+<tr class="sum"><td>Gamer mean (%)</td><td>0</td><td>100</td><td>123001</td><td>892</td><td>3054</td><td>3381</td></tr>
+<tr class="sum"><td>Record mean (%)</td><td>0</td><td>13</td><td>100</td><td>21</td><td>66</td><td>74</td></tr>
+<tr class="sum"><td>Record mean capped (%)</td><td>0</td><td>13</td><td>100</td><td>21</td><td>34</td><td>38</td></tr>
+</tbody></table></div></details>
+<h3 id="s-procgen">ProcGen</h3>
+<figure class="pfig narrow" id="fig11">
+<img src="dreamerv3/fig11.webp" width="1584" height="1687" alt="图 11：ProcGen 学习曲线" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 27 页 · CC BY 4.0，只裁剪</span>16 个游戏和归一化均值，Dreamer、PPG、PPO。</figcaption>
+</figure>
+<details class="tbl"><summary>表 7 · ProcGen 分数（第 28 页）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>原版 PPO</th><th>PPO</th><th>PPG</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>50M</td><td>50M</td><td>50M</td><td>50M</td></tr>
+<tr><td>Bigfish</td><td>10.92</td><td>12.72</td><td>31.26</td><td>8.62</td></tr>
+<tr><td>Bossfight</td><td>10.47</td><td>9.36</td><td>11.46</td><td>11.61</td></tr>
+<tr><td>Caveflyer</td><td>6.03</td><td>6.71</td><td>10.02</td><td>9.42</td></tr>
+<tr><td>Chaser</td><td>4.48</td><td>3.54</td><td>8.57</td><td>5.49</td></tr>
+<tr><td>Climber</td><td>7.59</td><td>9.04</td><td>10.24</td><td>11.43</td></tr>
+<tr><td>Coinrun</td><td>7.93</td><td>6.71</td><td>8.98</td><td>9.86</td></tr>
+<tr><td>Dodgeball</td><td>4.80</td><td>3.44</td><td>10.31</td><td>10.93</td></tr>
+<tr><td>Fruitbot</td><td>20.28</td><td>21.69</td><td>24.32</td><td>11.04</td></tr>
+<tr><td>Heist</td><td>2.25</td><td>6.87</td><td>3.77</td><td>8.51</td></tr>
+<tr><td>Jumper</td><td>5.09</td><td>6.13</td><td>5.84</td><td>9.17</td></tr>
+<tr><td>Leaper</td><td>5.90</td><td>4.07</td><td>8.76</td><td>7.05</td></tr>
+<tr><td>Maze</td><td>4.97</td><td>7.86</td><td>7.06</td><td>6.85</td></tr>
+<tr><td>Miner</td><td>7.56</td><td>12.97</td><td>9.08</td><td>5.71</td></tr>
+<tr><td>Ninja</td><td>6.16</td><td>3.62</td><td>9.38</td><td>9.82</td></tr>
+<tr><td>Plunder</td><td>11.16</td><td>3.99</td><td>13.44</td><td>23.81</td></tr>
+<tr><td>Starpilot</td><td>17.00</td><td>10.13</td><td>21.57</td><td>28.00</td></tr>
+<tr class="sum"><td>Normalized mean</td><td>41.16</td><td>42.80</td><td>64.89</td><td>66.01</td></tr>
+</tbody></table></div></details>
+<h3 id="s-dmlab">DMLab</h3>
+<figure class="pfig narrow" id="fig12">
+<img src="dreamerv3/fig12.webp" width="1587" height="2010" alt="图 12：DMLab 学习曲线" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 29 页 · CC BY 4.0，只裁剪</span>30 个任务和人类封顶均值。</figcaption>
+</figure>
+<details class="tbl"><summary>表 8 · DMLab 分数（第 30 页）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>R2D2+</th><th>IMPALA</th><th>IMPALA</th><th>IMPALA</th><th>PPO</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>10B</td><td>10B</td><td>1B</td><td>100M</td><td>100M</td><td>100M</td></tr>
+<tr><td>Explore Goal Locations Large</td><td>174.7</td><td>316.0</td><td>137.8</td><td>64.2</td><td>21.2</td><td>116.7</td></tr>
+<tr><td>Explore Goal Locations Small</td><td>460.7</td><td>482.0</td><td>302.8</td><td>196.1</td><td>115.1</td><td>372.8</td></tr>
+<tr><td>Explore Object Locations Large</td><td>60.6</td><td>91.0</td><td>55.1</td><td>34.3</td><td>22.5</td><td>63.9</td></tr>
+<tr><td>Explore Object Locations Small</td><td>83.7</td><td>100.4</td><td>75.9</td><td>50.6</td><td>38.9</td><td>93.5</td></tr>
+<tr><td>Explore Object Rewards Few</td><td>80.7</td><td>92.6</td><td>46.9</td><td>34.6</td><td>19.0</td><td>40.0</td></tr>
+<tr><td>Explore Object Rewards Many</td><td>75.8</td><td>89.4</td><td>68.5</td><td>53.3</td><td>25.5</td><td>58.1</td></tr>
+<tr><td>Explore Obstructed Goals Large</td><td>95.5</td><td>102.0</td><td>57.9</td><td>23.7</td><td>12.9</td><td>52.8</td></tr>
+<tr><td>Explore Obstructed Goals Small</td><td>311.9</td><td>372.0</td><td>214.9</td><td>118.0</td><td>70.4</td><td>224.6</td></tr>
+<tr><td>Language Answer Quantitative Question</td><td>344.4</td><td>362.0</td><td>304.7</td><td>1.0</td><td>0.3</td><td>266.0</td></tr>
+<tr><td>Language Execute Random Task</td><td>497.4</td><td>465.4</td><td>140.8</td><td>–44.4</td><td>–2.5</td><td>223.7</td></tr>
+<tr><td>Language Select Described Object</td><td>617.6</td><td>664.0</td><td>618.4</td><td>0.2</td><td>526.9</td><td>665.5</td></tr>
+<tr><td>Language Select Located Object</td><td>772.8</td><td>731.4</td><td>413.0</td><td>38.2</td><td>397.5</td><td>679.5</td></tr>
+<tr><td>Lasertag One Opponent Large</td><td>0.0</td><td>0.0</td><td>0.0</td><td>–0.1</td><td>0.0</td><td>–0.1</td></tr>
+<tr><td>Lasertag One Opponent Small</td><td>31.8</td><td>0.0</td><td>0.0</td><td>–0.1</td><td>0.0</td><td>0.0</td></tr>
+<tr><td>Lasertag Three Opponents Large</td><td>28.6</td><td>32.2</td><td>10.4</td><td>–0.1</td><td>0.0</td><td>9.0</td></tr>
+<tr><td>Lasertag Three Opponents Small</td><td>49.0</td><td>57.2</td><td>37.1</td><td>12.1</td><td>0.4</td><td>18.8</td></tr>
+<tr><td>Natlab Fixed Large Map</td><td>60.6</td><td>63.4</td><td>53.8</td><td>13.0</td><td>15.8</td><td>50.5</td></tr>
+<tr><td>Natlab Varying Map Randomized</td><td>42.4</td><td>47.0</td><td>40.5</td><td>35.3</td><td>29.6</td><td>31.2</td></tr>
+<tr><td>Natlab Varying Map Regrowth</td><td>24.6</td><td>34.0</td><td>25.5</td><td>15.3</td><td>16.3</td><td>16.7</td></tr>
+<tr><td>Psychlab Arbitrary Visuomotor Mapping</td><td>33.1</td><td>38.4</td><td>16.5</td><td>11.9</td><td>16.0</td><td>30.7</td></tr>
+<tr><td>Psychlab Continuous Recognition</td><td>30.0</td><td>28.6</td><td>30.0</td><td>30.1</td><td>30.5</td><td>33.8</td></tr>
+<tr><td>Psychlab Sequential Comparison</td><td>30.0</td><td>29.6</td><td>0.0</td><td>0.0</td><td>30.0</td><td>44.3</td></tr>
+<tr><td>Psychlab Visual Search</td><td>79.9</td><td>80.0</td><td>0.0</td><td>0.0</td><td>76.6</td><td>40.1</td></tr>
+<tr><td>Rooms Collect Good Objects Test</td><td>9.9</td><td>10.0</td><td>9.9</td><td>9.3</td><td>9.7</td><td>9.9</td></tr>
+<tr><td>Rooms Exploit Deferred Effects Test</td><td>38.1</td><td>62.2</td><td>37.6</td><td>34.5</td><td>39.0</td><td>40.4</td></tr>
+<tr><td>Rooms Keys Doors Puzzle</td><td>46.2</td><td>54.6</td><td>36.9</td><td>24.2</td><td>26.0</td><td>42.4</td></tr>
+<tr><td>Rooms Select Nonmatching Object</td><td>63.6</td><td>39.0</td><td>63.2</td><td>4.0</td><td>2.7</td><td>73.1</td></tr>
+<tr><td>Rooms Watermaze</td><td>49.0</td><td>47.0</td><td>50.1</td><td>23.6</td><td>21.2</td><td>26.1</td></tr>
+<tr><td>Skymaze Irreversible Path Hard</td><td>76.0</td><td>80.0</td><td>46.4</td><td>7.7</td><td>0.0</td><td>80.9</td></tr>
+<tr><td>Skymaze Irreversible Path Varied</td><td>76.0</td><td>100.0</td><td>69.8</td><td>32.7</td><td>31.3</td><td>87.7</td></tr>
+<tr class="sum"><td>Human mean capped (%)</td><td>85.4</td><td>85.1</td><td>66.3</td><td>31.0</td><td>35.9</td><td>71.4</td></tr>
+</tbody></table></div></details>
+<h3 id="s-a100k">Atari100k</h3>
+<figure class="pfig narrow" id="fig13">
+<img src="dreamerv3/fig13.webp" width="1587" height="1997" alt="图 13：Atari100k 学习曲线" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 31 页 · CC BY 4.0，只裁剪</span>26 个游戏，Dreamer 和 PPO。</figcaption>
+</figure>
+<details class="tbl"><summary>表 9 · Atari100k 分数（第 32 页）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>Random</th><th>Human</th><th>PPO</th><th>SimPLe</th><th>SPR</th><th>TWM</th><th>IRIS</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>—</td><td>—</td><td>400K</td><td>400K</td><td>400K</td><td>400K</td><td>400K</td><td>400K</td></tr>
+<tr><td>Alien</td><td>228</td><td>7128</td><td>276</td><td>617</td><td>842</td><td>675</td><td>420</td><td>1118</td></tr>
+<tr><td>Amidar</td><td>6</td><td>1720</td><td>26</td><td>74</td><td>180</td><td>122</td><td>143</td><td>97</td></tr>
+<tr><td>Assault</td><td>222</td><td>742</td><td>327</td><td>527</td><td>566</td><td>683</td><td>1524</td><td>683</td></tr>
+<tr><td>Asterix</td><td>210</td><td>8503</td><td>292</td><td>1128</td><td>962</td><td>1117</td><td>854</td><td>1062</td></tr>
+<tr><td>Bank Heist</td><td>14</td><td>753</td><td>14</td><td>34</td><td>345</td><td>467</td><td>53</td><td>398</td></tr>
+<tr><td>Battle Zone</td><td>2360</td><td>37188</td><td>2233</td><td>4031</td><td>14834</td><td>5068</td><td>13074</td><td>20300</td></tr>
+<tr><td>Boxing</td><td>0</td><td>12</td><td>3</td><td>8</td><td>36</td><td>78</td><td>70</td><td>82</td></tr>
+<tr><td>Breakout</td><td>2</td><td>30</td><td>3</td><td>16</td><td>20</td><td>20</td><td>84</td><td>10</td></tr>
+<tr><td>Chopper Command</td><td>811</td><td>7388</td><td>1005</td><td>979</td><td>946</td><td>1697</td><td>1565</td><td>2222</td></tr>
+<tr><td>Crazy Climber</td><td>10780</td><td>35829</td><td>14675</td><td>62584</td><td>36700</td><td>71820</td><td>59324</td><td>86225</td></tr>
+<tr><td>Demon Attack</td><td>152</td><td>1971</td><td>160</td><td>208</td><td>518</td><td>350</td><td>2034</td><td>577</td></tr>
+<tr><td>Freeway</td><td>0</td><td>30</td><td>2</td><td>17</td><td>19</td><td>24</td><td>31</td><td>0</td></tr>
+<tr><td>Frostbite</td><td>65</td><td>4335</td><td>127</td><td>237</td><td>1171</td><td>1476</td><td>259</td><td>3377</td></tr>
+<tr><td>Gopher</td><td>258</td><td>2412</td><td>368</td><td>597</td><td>661</td><td>1675</td><td>2236</td><td>2160</td></tr>
+<tr><td>Hero</td><td>1027</td><td>30826</td><td>2596</td><td>2657</td><td>5859</td><td>7254</td><td>7037</td><td>13354</td></tr>
+<tr><td>Jamesbond</td><td>29</td><td>303</td><td>41</td><td>100</td><td>366</td><td>362</td><td>463</td><td>540</td></tr>
+<tr><td>Kangaroo</td><td>52</td><td>3035</td><td>55</td><td>51</td><td>3617</td><td>1240</td><td>838</td><td>2643</td></tr>
+<tr><td>Krull</td><td>1598</td><td>2666</td><td>3222</td><td>2205</td><td>3682</td><td>6349</td><td>6616</td><td>8171</td></tr>
+<tr><td>Kung Fu Master</td><td>258</td><td>22736</td><td>2090</td><td>14862</td><td>14783</td><td>24555</td><td>21760</td><td>25900</td></tr>
+<tr><td>Ms Pacman</td><td>307</td><td>6952</td><td>366</td><td>1480</td><td>1318</td><td>1588</td><td>999</td><td>1521</td></tr>
+<tr><td>Pong</td><td>–21</td><td>15</td><td>–20</td><td>13</td><td>–5</td><td>19</td><td>15</td><td>–4</td></tr>
+<tr><td>Private Eye</td><td>25</td><td>69571</td><td>100</td><td>35</td><td>86</td><td>87</td><td>100</td><td>3238</td></tr>
+<tr><td>Qbert</td><td>164</td><td>13455</td><td>317</td><td>1289</td><td>866</td><td>3331</td><td>746</td><td>2921</td></tr>
+<tr><td>Road Runner</td><td>12</td><td>7845</td><td>602</td><td>5641</td><td>12213</td><td>9109</td><td>9615</td><td>19230</td></tr>
+<tr><td>Seaquest</td><td>68</td><td>42055</td><td>305</td><td>683</td><td>558</td><td>774</td><td>661</td><td>962</td></tr>
+<tr><td>Up N Down</td><td>533</td><td>11693</td><td>1502</td><td>3350</td><td>10859</td><td>15982</td><td>3546</td><td>46910</td></tr>
+<tr class="sum"><td>Gamer mean (%)</td><td>0</td><td>100</td><td>11</td><td>33</td><td>62</td><td>96</td><td>105</td><td>125</td></tr>
+<tr class="sum"><td>Gamer median (%)</td><td>0</td><td>100</td><td>2</td><td>13</td><td>40</td><td>51</td><td>29</td><td>49</td></tr>
+</tbody></table></div></details>
+<p>表 10 对比各方法对 Atari100k 协议的偏离（第 32 页）。作者说 EfficientMuZero 最高，但改了环境配置；IRIS 在 Freeway 上用了单独的探索超参数。</p>
+<div class="tablewrap"><table class="t-num"><thead><tr><th>设定</th><th>SimPLe</th><th>EffMuZero</th><th>SPR</th><th>IRIS</th><th>TWM</th><th>Dreamer</th></tr></thead><tbody>
+<tr><td>玩家分 (%)</td><td>33</td><td>190</td><td>62</td><td>105</td><td>96</td><td>125</td></tr>
+<tr><td>玩家中位 (%)</td><td>13</td><td>109</td><td>40</td><td>29</td><td>51</td><td>49</td></tr>
+<tr><td>GPU 天</td><td>5.0</td><td>0.6</td><td>0.1</td><td>3.5</td><td>0.4</td><td>0.1</td></tr>
+<tr><td>在线规划</td><td>—</td><td>X</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>数据增强</td><td>—</td><td>—</td><td>X</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>非均匀回放</td><td>—</td><td>X</td><td>X</td><td>—</td><td>X</td><td>—</td></tr>
+<tr><td>单独超参数</td><td>—</td><td>—</td><td>—</td><td>X</td><td>—</td><td>—</td></tr>
+<tr><td>提高分辨率</td><td>—</td><td>X</td><td>X</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>用生命信息</td><td>—</td><td>X</td><td>X</td><td>X</td><td>X</td><td>—</td></tr>
+<tr><td>提前重置</td><td>—</td><td>X</td><td>—</td><td>X</td><td>—</td><td>—</td></tr>
+<tr><td>单独评测回合</td><td>X</td><td>X</td><td>X</td><td>X</td><td>X</td><td>—</td></tr>
+</tbody></table></div>
+<h3 id="s-dmc">控制基准（v2）</h3>
+<figure class="pfig narrow" id="fig14">
+<img src="dreamerv3/fig14.webp" width="1586" height="1800" alt="图 14：本体输入控制任务的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 33 页 · CC BY 4.0，只裁剪</span>18 个任务和两条聚合曲线。</figcaption>
+</figure>
+<details class="tbl"><summary>表 11 · Proprio 控制分数（第 34 页，均值和中位数两行写反，见读者注 12）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>PPO</th><th>DDPG</th><th>DMPO</th><th>D4PG</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>500K</td><td>500K</td><td>500K</td><td>500K</td><td>500K</td></tr>
+<tr><td>Acrobot Swingup</td><td>6</td><td>100</td><td>103</td><td>124</td><td>134</td></tr>
+<tr><td>Ball In Cup Catch</td><td>632</td><td>917</td><td>968</td><td>968</td><td>962</td></tr>
+<tr><td>Cartpole Balance</td><td>523</td><td>997</td><td>999</td><td>999</td><td>990</td></tr>
+<tr><td>Cartpole Balance Sparse</td><td>930</td><td>992</td><td>999</td><td>974</td><td>990</td></tr>
+<tr><td>Cartpole Swingup</td><td>240</td><td>864</td><td>860</td><td>875</td><td>852</td></tr>
+<tr><td>Cartpole Swingup Sparse</td><td>7</td><td>703</td><td>438</td><td>752</td><td>491</td></tr>
+<tr><td>Cheetah Run</td><td>82</td><td>596</td><td>650</td><td>624</td><td>614</td></tr>
+<tr><td>Finger Spin</td><td>18</td><td>775</td><td>769</td><td>823</td><td>931</td></tr>
+<tr><td>Finger Turn Easy</td><td>281</td><td>499</td><td>620</td><td>612</td><td>793</td></tr>
+<tr><td>Finger Turn Hard</td><td>106</td><td>313</td><td>495</td><td>421</td><td>889</td></tr>
+<tr><td>Hopper Hop</td><td>0</td><td>36</td><td>68</td><td>80</td><td>113</td></tr>
+<tr><td>Hopper Stand</td><td>3</td><td>484</td><td>549</td><td>762</td><td>576</td></tr>
+<tr><td>Pendulum Swingup</td><td>1</td><td>767</td><td>834</td><td>759</td><td>788</td></tr>
+<tr><td>Reacher Easy</td><td>494</td><td>934</td><td>961</td><td>960</td><td>954</td></tr>
+<tr><td>Reacher Hard</td><td>288</td><td>949</td><td>968</td><td>937</td><td>938</td></tr>
+<tr><td>Walker Run</td><td>31</td><td>561</td><td>493</td><td>616</td><td>649</td></tr>
+<tr><td>Walker Stand</td><td>159</td><td>965</td><td>975</td><td>947</td><td>964</td></tr>
+<tr><td>Walker Walk</td><td>64</td><td>952</td><td>942</td><td>969</td><td>936</td></tr>
+<tr class="sum"><td>Task mean</td><td>94</td><td>771</td><td>801</td><td>792</td><td>871</td></tr>
+<tr class="sum"><td>Task median</td><td>215</td><td>689</td><td>705</td><td>733</td><td>754</td></tr>
+</tbody></table></div></details>
+<figure class="pfig narrow" id="fig15">
+<img src="dreamerv3/fig15.webp" width="1586" height="2040" alt="图 15：视觉输入控制任务的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 35 页 · CC BY 4.0，只裁剪</span>20 个任务和两条聚合曲线。</figcaption>
+</figure>
+<details class="tbl"><summary>表 12 · Visual 控制分数（第 36 页，同上）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>PPO</th><th>SAC</th><th>CURL</th><th>DrQ-v2</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td></tr>
+<tr><td>Acrobot Swingup</td><td>3</td><td>4</td><td>4</td><td>166</td><td>229</td></tr>
+<tr><td>Ball In Cup Catch</td><td>829</td><td>176</td><td>970</td><td>928</td><td>972</td></tr>
+<tr><td>Cartpole Balance</td><td>516</td><td>937</td><td>980</td><td>992</td><td>993</td></tr>
+<tr><td>Cartpole Balance Sparse</td><td>881</td><td>956</td><td>999</td><td>987</td><td>964</td></tr>
+<tr><td>Cartpole Swingup</td><td>290</td><td>706</td><td>771</td><td>863</td><td>861</td></tr>
+<tr><td>Cartpole Swingup Sparse</td><td>1</td><td>149</td><td>373</td><td>773</td><td>759</td></tr>
+<tr><td>Cheetah Run</td><td>95</td><td>20</td><td>502</td><td>716</td><td>836</td></tr>
+<tr><td>Finger Spin</td><td>118</td><td>291</td><td>880</td><td>862</td><td>589</td></tr>
+<tr><td>Finger Turn Easy</td><td>253</td><td>200</td><td>340</td><td>525</td><td>878</td></tr>
+<tr><td>Finger Turn Hard</td><td>79</td><td>94</td><td>231</td><td>247</td><td>904</td></tr>
+<tr><td>Hopper Hop</td><td>0</td><td>0</td><td>164</td><td>221</td><td>227</td></tr>
+<tr><td>Hopper Stand</td><td>4</td><td>5</td><td>777</td><td>903</td><td>903</td></tr>
+<tr><td>Pendulum Swingup</td><td>1</td><td>592</td><td>413</td><td>843</td><td>744</td></tr>
+<tr><td>Quadruped Run</td><td>88</td><td>54</td><td>149</td><td>450</td><td>617</td></tr>
+<tr><td>Quadruped Walk</td><td>112</td><td>49</td><td>121</td><td>726</td><td>811</td></tr>
+<tr><td>Reacher Easy</td><td>487</td><td>67</td><td>689</td><td>944</td><td>951</td></tr>
+<tr><td>Reacher Hard</td><td>94</td><td>7</td><td>472</td><td>670</td><td>862</td></tr>
+<tr><td>Walker Run</td><td>30</td><td>27</td><td>360</td><td>539</td><td>684</td></tr>
+<tr><td>Walker Stand</td><td>161</td><td>143</td><td>486</td><td>978</td><td>976</td></tr>
+<tr><td>Walker Walk</td><td>87</td><td>40</td><td>822</td><td>768</td><td>961</td></tr>
+<tr class="sum"><td>Task mean</td><td>94</td><td>81</td><td>479</td><td>770</td><td>861</td></tr>
+<tr class="sum"><td>Task median</td><td>206</td><td>226</td><td>525</td><td>705</td><td>786</td></tr>
+</tbody></table></div></details>
+<h3 id="s-dmc2">控制基准（Nature 补充材料）</h3>
+<p>Nature 的控制基准是另一组实验：两个模式都是 20 个任务、100 万步，对手里有 TD-MPC2。下面两张表抄自 <a href="https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-025-08744-2/MediaObjects/41586_2025_8744_MOESM1_ESM.pdf">补充材料 PDF</a> 表 5、表 6。这里的均值和中位数是对的：Proprio Dreamer 843 对 DMPO 834，只高一点，Nature 正文也改说“matches the state of the art”。</p>
+<details class="tbl"><summary>补充表 5 · Proprio Control Suite</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>PPO</th><th>D4PG</th><th>TD-MPC2</th><th>DMPO</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td></tr>
+<tr><td>Acrobot Swingup</td><td>14</td><td>372</td><td>496</td><td>432</td><td>378</td></tr>
+<tr><td>Ball In Cup Catch</td><td>668</td><td>972</td><td>982</td><td>979</td><td>978</td></tr>
+<tr><td>Cartpole Balance</td><td>397</td><td>990</td><td>994</td><td>977</td><td>993</td></tr>
+<tr><td>Cartpole Balance Sparse</td><td>684</td><td>990</td><td>1000</td><td>996</td><td>1000</td></tr>
+<tr><td>Cartpole Swingup</td><td>189</td><td>869</td><td>864</td><td>842</td><td>852</td></tr>
+<tr><td>Cartpole Swingup Sparse</td><td>9</td><td>801</td><td>0</td><td>722</td><td>525</td></tr>
+<tr><td>Cheetah Run</td><td>163</td><td>791</td><td>708</td><td>832</td><td>752</td></tr>
+<tr><td>Finger Spin</td><td>92</td><td>862</td><td>988</td><td>924</td><td>958</td></tr>
+<tr><td>Finger Turn Easy</td><td>270</td><td>919</td><td>937</td><td>950</td><td>972</td></tr>
+<tr><td>Finger Turn Hard</td><td>76</td><td>779</td><td>944</td><td>910</td><td>963</td></tr>
+<tr><td>Hopper Hop</td><td>0</td><td>72</td><td>394</td><td>217</td><td>308</td></tr>
+<tr><td>Hopper Stand</td><td>5</td><td>538</td><td>799</td><td>663</td><td>887</td></tr>
+<tr><td>Pendulum Swingup</td><td>45</td><td>578</td><td>793</td><td>832</td><td>817</td></tr>
+<tr><td>Quadruped Run</td><td>131</td><td>835</td><td>868</td><td>816</td><td>916</td></tr>
+<tr><td>Quadruped Walk</td><td>178</td><td>953</td><td>963</td><td>940</td><td>951</td></tr>
+<tr><td>Reacher Easy</td><td>414</td><td>970</td><td>967</td><td>975</td><td>974</td></tr>
+<tr><td>Reacher Hard</td><td>280</td><td>950</td><td>971</td><td>956</td><td>963</td></tr>
+<tr><td>Walker Run</td><td>62</td><td>707</td><td>843</td><td>763</td><td>711</td></tr>
+<tr><td>Walker Stand</td><td>282</td><td>980</td><td>994</td><td>983</td><td>984</td></tr>
+<tr><td>Walker Walk</td><td>141</td><td>963</td><td>985</td><td>967</td><td>973</td></tr>
+<tr class="sum"><td>Task mean</td><td>205</td><td>795</td><td>825</td><td>834</td><td>843</td></tr>
+<tr class="sum"><td>Task median</td><td>152</td><td>865</td><td>941</td><td>917</td><td>954</td></tr>
+</tbody></table></div></details>
+<details class="tbl"><summary>补充表 6 · Visual Control Suite</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>PPO</th><th>SAC</th><th>TD-MPC2</th><th>DrQ-v2</th><th>Dreamer</th></tr></thead><tbody>
+<tr class="sum"><td>Environment steps</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td><td>1M</td></tr>
+<tr><td>Acrobot Swingup</td><td>3</td><td>4</td><td>14</td><td>166</td><td>300</td></tr>
+<tr><td>Ball In Cup Catch</td><td>829</td><td>176</td><td>971</td><td>920</td><td>975</td></tr>
+<tr><td>Cartpole Balance</td><td>516</td><td>937</td><td>949</td><td>992</td><td>994</td></tr>
+<tr><td>Cartpole Balance Sparse</td><td>881</td><td>956</td><td>968</td><td>981</td><td>975</td></tr>
+<tr><td>Cartpole Swingup</td><td>290</td><td>706</td><td>703</td><td>863</td><td>843</td></tr>
+<tr><td>Cartpole Swingup Sparse</td><td>1</td><td>149</td><td>76</td><td>773</td><td>411</td></tr>
+<tr><td>Cheetah Run</td><td>95</td><td>20</td><td>334</td><td>716</td><td>846</td></tr>
+<tr><td>Finger Spin</td><td>118</td><td>291</td><td>961</td><td>861</td><td>886</td></tr>
+<tr><td>Finger Turn Easy</td><td>253</td><td>200</td><td>730</td><td>525</td><td>903</td></tr>
+<tr><td>Finger Turn Hard</td><td>79</td><td>94</td><td>814</td><td>247</td><td>944</td></tr>
+<tr><td>Hopper Hop</td><td>0</td><td>0</td><td>180</td><td>221</td><td>246</td></tr>
+<tr><td>Hopper Stand</td><td>4</td><td>5</td><td>805</td><td>912</td><td>904</td></tr>
+<tr><td>Pendulum Swingup</td><td>1</td><td>592</td><td>534</td><td>845</td><td>668</td></tr>
+<tr><td>Quadruped Run</td><td>88</td><td>54</td><td>279</td><td>450</td><td>614</td></tr>
+<tr><td>Quadruped Walk</td><td>112</td><td>49</td><td>165</td><td>726</td><td>897</td></tr>
+<tr><td>Reacher Easy</td><td>487</td><td>67</td><td>930</td><td>944</td><td>960</td></tr>
+<tr><td>Reacher Hard</td><td>94</td><td>7</td><td>827</td><td>670</td><td>922</td></tr>
+<tr><td>Walker Run</td><td>30</td><td>27</td><td>575</td><td>539</td><td>797</td></tr>
+<tr><td>Walker Stand</td><td>161</td><td>143</td><td>934</td><td>979</td><td>982</td></tr>
+<tr><td>Walker Walk</td><td>87</td><td>40</td><td>923</td><td>768</td><td>966</td></tr>
+<tr class="sum"><td>Task mean</td><td>206</td><td>226</td><td>634</td><td>705</td><td>802</td></tr>
+<tr class="sum"><td>Task median</td><td>94</td><td>81</td><td>767</td><td>770</td><td>900</td></tr>
+</tbody></table></div></details>
+<h3 id="s-bsuite">BSuite</h3>
+<figure class="pfig narrow" id="fig16" style="max-width:520px">
+<img src="dreamerv3/fig16.webp" width="1271" height="623" alt="图 16：BSuite 分类雷达图" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 37 页 · CC BY 4.0，只裁剪</span>七个类别的雷达图。Dreamer 在尺度和记忆类最突出。Boot DQN 在探索类远高于其他方法：Deep Sea 任务上 1.00 对 0.00（表 13），所以 Dreamer 不是处处占优。</figcaption>
+</figure>
+<details class="tbl"><summary>表 13 · BSuite 分数（第 38 页）</summary><div class="tablewrap"><table class="t-num"><thead><tr><th>任务</th><th>Random</th><th>PPO</th><th>AC-RNN</th><th>DQN</th><th>Boot DQN</th><th>Dreamer</th></tr></thead><tbody>
+<tr><td>Bandit</td><td>0.00</td><td>0.38</td><td>1.00</td><td>0.93</td><td>0.98</td><td>0.96</td></tr>
+<tr><td>Bandit Noise</td><td>0.00</td><td>0.61</td><td>0.63</td><td>0.71</td><td>0.80</td><td>0.75</td></tr>
+<tr><td>Bandit Scale</td><td>0.00</td><td>0.39</td><td>0.60</td><td>0.74</td><td>0.83</td><td>0.78</td></tr>
+<tr><td>Cartpole</td><td>0.04</td><td>0.84</td><td>0.40</td><td>0.85</td><td>0.69</td><td>0.93</td></tr>
+<tr><td>Cartpole Noise</td><td>0.04</td><td>0.77</td><td>0.20</td><td>0.82</td><td>0.69</td><td>0.93</td></tr>
+<tr><td>Cartpole Scale</td><td>0.04</td><td>0.83</td><td>0.12</td><td>0.72</td><td>0.65</td><td>0.92</td></tr>
+<tr><td>Cartpole Swingup</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.15</td><td>0.03</td></tr>
+<tr><td>Catch</td><td>0.00</td><td>0.91</td><td>0.87</td><td>0.92</td><td>0.99</td><td>0.96</td></tr>
+<tr><td>Catch Noise</td><td>0.00</td><td>0.54</td><td>0.27</td><td>0.58</td><td>0.68</td><td>0.53</td></tr>
+<tr><td>Catch Scale</td><td>0.00</td><td>0.90</td><td>0.17</td><td>0.85</td><td>0.65</td><td>0.94</td></tr>
+<tr><td>Deep Sea</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00</td><td>1.00</td><td>0.00</td></tr>
+<tr><td>Deep Sea Stochastic</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.90</td><td>0.00</td></tr>
+<tr><td>Discounting Chain</td><td>0.20</td><td>0.24</td><td>0.39</td><td>0.25</td><td>0.22</td><td>0.40</td></tr>
+<tr><td>Memory Len</td><td>0.00</td><td>0.17</td><td>0.70</td><td>0.04</td><td>0.04</td><td>0.65</td></tr>
+<tr><td>Memory Size</td><td>0.00</td><td>0.47</td><td>0.29</td><td>0.00</td><td>0.00</td><td>0.59</td></tr>
+<tr><td>Mnist</td><td>0.05</td><td>0.77</td><td>0.56</td><td>0.85</td><td>0.85</td><td>0.61</td></tr>
+<tr><td>Mnist Noise</td><td>0.05</td><td>0.41</td><td>0.22</td><td>0.38</td><td>0.34</td><td>0.34</td></tr>
+<tr><td>Mnist Scale</td><td>0.05</td><td>0.76</td><td>0.09</td><td>0.49</td><td>0.31</td><td>0.55</td></tr>
+<tr><td>Mountain Car</td><td>0.10</td><td>0.10</td><td>0.10</td><td>0.93</td><td>0.93</td><td>0.92</td></tr>
+<tr><td>Mountain Car Noise</td><td>0.10</td><td>0.10</td><td>0.10</td><td>0.89</td><td>0.82</td><td>0.87</td></tr>
+<tr><td>Mountain Car Scale</td><td>0.10</td><td>0.10</td><td>0.10</td><td>0.85</td><td>0.56</td><td>0.90</td></tr>
+<tr><td>Umbrella Distract</td><td>0.00</td><td>1.00</td><td>0.09</td><td>0.30</td><td>0.26</td><td>0.74</td></tr>
+<tr><td>Umbrella Length</td><td>0.00</td><td>0.87</td><td>0.43</td><td>0.39</td><td>0.39</td><td>0.78</td></tr>
+<tr class="sum"><td>Basic</td><td>0.04</td><td>0.60</td><td>0.58</td><td>0.90</td><td>0.89</td><td>0.88</td></tr>
+<tr><td>Credit assignment</td><td>0.03</td><td>0.76</td><td>0.37</td><td>0.59</td><td>0.56</td><td>0.75</td></tr>
+<tr class="sum"><td>Exploration</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.68</td><td>0.01</td></tr>
+<tr class="sum"><td>Generalization</td><td>0.06</td><td>0.47</td><td>0.19</td><td>0.68</td><td>0.60</td><td>0.70</td></tr>
+<tr class="sum"><td>Memory</td><td>0.00</td><td>0.32</td><td>0.49</td><td>0.02</td><td>0.02</td><td>0.62</td></tr>
+<tr class="sum"><td>Noise</td><td>0.02</td><td>0.54</td><td>0.24</td><td>0.51</td><td>0.61</td><td>0.62</td></tr>
+<tr class="sum"><td>Scale</td><td>0.04</td><td>0.60</td><td>0.22</td><td>0.73</td><td>0.60</td><td>0.82</td></tr>
+<tr class="sum"><td>Task mean (%)</td><td>3</td><td>49</td><td>32</td><td>54</td><td>60</td><td>66</td></tr>
+<tr class="sum"><td>Category mean (%)</td><td>3</td><td>47</td><td>30</td><td>49</td><td>57</td><td>63</td></tr>
+</tbody></table></div></details>
+<h3 id="s-abl">消融的单任务曲线</h3>
+<figure class="pfig narrow" id="fig17">
+<img src="dreamerv3/fig17.webp" width="1585" height="1527" alt="图 17：稳健技巧消融的单任务曲线" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 39 页 · CC BY 4.0，只裁剪</span>14 个任务上的稳健技巧消融。同一技巧在不同任务上的影响差别很大。</figcaption>
+</figure>
+<figure class="pfig narrow" id="fig18">
+<img src="dreamerv3/fig18.webp" width="1584" height="1540" alt="图 18：学习信号消融的单任务曲线" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 40 页 · CC BY 4.0，只裁剪</span>同样 14 个任务上的学习信号消融。去掉重建梯度，大多数任务明显变差。</figcaption>
+</figure>
+
+<h2 id="code">代码对照</h2>
+<p>读的是 <a href="https://github.com/danijar/dreamerv3/tree/e01491fad6434b2245a3b8ca201dd7faedcc458c">danijar/dreamerv3 e01491f</a>（2026-10-04），MIT 许可，没有运行。Nature 版的 Code availability 指向这个仓库。动画的结构表有每个网络的逐项对比，这里列公式和文件的对应，以及差别。动画里凡是有差别的地方，我画的是代码。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>论文</th><th>代码</th><th>一致吗</th></tr></thead><tbody>
+<tr><td>式 (1) RSSM</td><td><code>dreamerv3/rssm.py</code> <code>RSSM._observe, _prior, _core</code></td><td>一致。先验 2 层，后验 1 层，正文没写层数</td></tr>
+<tr><td>式 (3)</td><td><code>RSSM.loss</code></td><td>一致。KL 对 32 个分类求和后截断（读者注 4）</td></tr>
+<tr><td>式 (5)</td><td><code>agent.py lambda_return</code></td><td><b>不一致</b>：代码下标后移，用下一状态的价值（读者注 6）</td></tr>
+<tr><td>式 (5) 的 γ</td><td><code>contdisc: True</code></td><td>实现不同，等价（读者注 7）</td></tr>
+<tr><td>式 (6)</td><td><code>imag_loss</code></td><td>一致，加了 <code>weight</code>。熵的符号代码是对的（读者注 8）</td></tr>
+<tr><td>式 (7)</td><td><code>embodied/jax/utils.py Normalize</code></td><td>一致（读者注 9）</td></tr>
+<tr><td>式 (9)</td><td><code>embodied/jax/nets.py symlog, symexp</code></td><td>一致，用 log1p 和 expm1</td></tr>
+<tr><td>式 (10)(12)</td><td><code>heads.py symexp_twohot</code>，<code>outs.py TwoHot</code></td><td>一致（读者注 10）</td></tr>
+<tr><td>回放评论家</td><td><code>repl_loss</code></td><td>一致。末端用想象回报的起点值 <code>boot</code></td></tr>
+<tr><td>表 3、4</td><td><code>configs.yaml</code></td><td>12M 和 β₂ 不一致（读者注 17）</td></tr>
+<tr><td>表 2</td><td><code>configs.yaml</code></td><td>回放比例部分不一致（读者注 16）</td></tr>
+<tr><td>分数</td><td><code>scores/*.json.gz</code>，<code>baselines.yaml</code></td><td>有数据，读过 Minecraft 和控制基准的覆盖范围（读者注 14）</td></tr>
+</tbody></table></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">图 1 的柱子</a>：和表对得上；Rainbow 223、R2D2+ 65 只在图里。</li>
+<li><a href="#n2">引用时要说清哪一版</a>：v1、v2、Nature 在演员梯度、β、控制基准上都不同。</li>
+<li><a href="#n3">“超过 150 个任务”</a>：表 2 加起来 191，去重 147，加消融任务才过 150。</li>
+<li><a href="#n4">free bits 的额度</a>：1 nat 针对 32 个分类的和；32 这个数 v2 没写；β<sub>dyn</sub> 从 0.5 改成 1。</li>
+<li><a href="#n5">T = 16 和 H = 15</a>：16 个状态，15 步，1024 个起点。</li>
+<li><a href="#n6">式 (5) 的 \(v_t\)</a>：字面上用了当前状态的价值，v1 和代码都是下一状态；字面照算抬高约 5.2%。</li>
+<li><a href="#n7">继续头和没写的权重</a>：γ 通过继续头进入回报；<code>weight</code> 没写；EMA 正则取期望。</li>
+<li><a href="#n8">演员的反转</a>：v1 连续动作反传，v2、Nature、代码全部 Reinforce；式 (6) 的熵符号字面反了。</li>
+<li><a href="#n9">回报归一化细节</a>：S 从 0 开始，298 次更新到 95%；玩具和正文方向一致。</li>
+<li><a href="#n10">two-hot</a>：255 桶，步长 0.1575，原值空间加权；浮点从左到右求和得 0.625。</li>
+<li><a href="#n11">重算聚合行</a>：基本对上；MuZero 21 个游戏更高；R2D2+ 1B 不在表里。</li>
+<li><a href="#n12">表 11、12</a>：“均值”和“中位数”两行写反，图 1 用的也是中位数；Nature 写对了。</li>
+<li><a href="#n13">“100 天”</a>：按 20 Hz 算是 57.9 天。</li>
+<li><a href="#n14">仓库的 Minecraft 分数</a>：20 条运行，19 条拿到钻石，回合 0.45%。</li>
+<li><a href="#n15">图 6 读数</a>：KL 最大；回报归一化和 two-hot 基本并列；重建 26.2，奖励价值 93.6。</li>
+<li><a href="#n16">回放比例</a>：算术对；Atari100k 代码 256，两版论文 128。</li>
+<li><a href="#n17">网络的表和代码</a>：12M 的 1024 应为 2048；Nature 1M 的 16 应为 4；最大池化代替步长卷积；β₂ 0.999。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 6 日用脚本核对过可以打开，除了 <code>minerl.io</code>：脚本连不上（连接失败，不是 404），我没有核实，所以 MineRL 链到它的 GitHub。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://danijar.com/dreamerv3">DreamerV3</a></td><td>本文</td><td><a href="https://github.com/danijar/dreamerv3">代码</a></td><td><a href="https://arxiv.org/abs/2301.04104">2301.04104</a> · <a href="https://www.nature.com/articles/s41586-025-08744-2">Nature</a></td></tr>
+<tr><td><a class="ds" href="dreamer.html">Dreamer V1</a></td><td>本站姐妹页</td><td><a href="https://github.com/danijar/dreamer">代码</a></td><td><a href="https://arxiv.org/abs/1912.01603">1912.01603</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/danijar/dreamerv2">DreamerV2</a></td><td>离散隐变量和 KL 平衡的来源</td><td>github.com/danijar/dreamerv2</td><td><a href="https://arxiv.org/abs/2010.02193">2010.02193</a></td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>读这篇的起因</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari（ALE）</a></td><td>Atari、Atari100k 基准</td><td>github.com/Farama-Foundation/Arcade-Learning-Environment</td><td><a href="https://arxiv.org/abs/1207.4708">1207.4708</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openai/procgen">ProcGen</a></td><td>16 个程序生成游戏</td><td>github.com/openai/procgen</td><td><a href="https://arxiv.org/abs/1912.01588">1912.01588</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/lab">DMLab</a></td><td>3D 任务</td><td>github.com/google-deepmind/lab</td><td><a href="https://arxiv.org/abs/1612.03801">1612.03801</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a></td><td>Proprio 和 Visual 控制</td><td>github.com/google-deepmind/dm_control</td><td><a href="https://arxiv.org/abs/1801.00690">1801.00690</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/bsuite">BSuite</a></td><td>行为测试集</td><td>github.com/google-deepmind/bsuite</td><td><a href="https://arxiv.org/abs/1908.03568">1908.03568</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/minerllabs/minerl">MineRL</a></td><td>Minecraft 环境和比赛</td><td>github.com/minerllabs/minerl</td><td><a href="https://arxiv.org/abs/1904.10079">1904.10079</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/danijar/crafter">Crafter</a></td><td>消融和缩放实验用</td><td>github.com/danijar/crafter</td><td><a href="https://arxiv.org/abs/2109.06780">2109.06780</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>贯穿全文的基线</td><td><a href="https://github.com/google-deepmind/acme">Acme</a></td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1911.08265">MuZero</a></td><td>Atari 对手</td><td>–</td><td><a href="https://arxiv.org/abs/1911.08265">1911.08265</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1802.01561">IMPALA</a></td><td>DMLab、Minecraft 对手</td><td>–</td><td><a href="https://arxiv.org/abs/1802.01561">1802.01561</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/eloialonso/iris">IRIS</a></td><td>Atari100k 对手</td><td>github.com/eloialonso/iris</td><td><a href="https://arxiv.org/abs/2209.00588">2209.00588</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/jrobine/twm">TWM</a></td><td>Atari100k 对手</td><td>github.com/jrobine/twm</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/mila-iqia/spr">SPR</a></td><td>Atari100k 对手</td><td>github.com/mila-iqia/spr</td><td><a href="https://arxiv.org/abs/2007.05929">2007.05929</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/nicklashansen/tdmpc2">TD-MPC2</a></td><td>Nature 版的控制对手</td><td>github.com/nicklashansen/tdmpc2</td><td><a href="https://arxiv.org/abs/2310.16828">2310.16828</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2206.11795">VPT</a></td><td>用人类数据拿到钻石</td><td>–</td><td><a href="https://arxiv.org/abs/2206.11795">2206.11795</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2301.04104v2、Nature 版和官方代码后的整理，不是作者的官方内容。所有原图裁自 arXiv v2，作者 Hafner、Pasukonis、Ba、Lillicrap，<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，只做了裁剪和格式转换。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

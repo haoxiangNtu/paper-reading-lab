@@ -8,6 +8,11 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Uncertainty-Aware Robotic World Model Makes Offline Model-Based Reinforcement Learning Work on Real Robots（[arXiv 2504.16680](https://arxiv.org/abs/2504.16680)，arXiv 2025，SuperMimic 引用） | [rwm-u 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rwm-u.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rwm-u/index.html) | 给 RWM 加集成不确定性，只用日志离线训练策略并部署到真机。 | 18 条 |
+| Mastering Diverse Domains through World Models（[arXiv 2301.04104](https://arxiv.org/abs/2301.04104)，Nature 2025，SuperMimic 引用） | [dreamerv3 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/dreamerv3.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/dreamerv3/index.html) | 同一套超参数跨 8 个领域的世界模型智能体：symlog、two-hot、KL 平衡、回报归一化，演员全部改用 Reinforce。 | 17 条 |
+| Temporal Difference Learning for Model Predictive Control（[arXiv 2203.04955](https://arxiv.org/abs/2203.04955)，ICML 2022，SuperMimic 引用） | [td-mpc 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/td-mpc.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/td-mpc/index.html) | 每个决策步用学到的潜空间模型采样规划，H 步之外交给终值函数；模型不重建观测，只学奖励、价值和潜一致性。 | 15 条 |
+| DayDreamer: World Models for Physical Robot Learning（[arXiv 2206.14176](https://arxiv.org/abs/2206.14176)，CoRL 2022，SuperMimic 引用） | [daydreamer 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/daydreamer.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/daydreamer/index.html) | 把 Dreamer 直接放到四台真实机器人上在线学习：actor 和 learner 解耦，从零学走路和视觉拣放，并用官方分数文件核对图上的数字。 | 14 条 |
+| ControlVAE: Model-Based Learning of Generative Controllers for Physics-Based Characters（[arXiv 2210.06063](https://arxiv.org/abs/2210.06063)，SIGGRAPH Asia 2022，SuperMimic 引用） | [controlvae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/controlvae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/controlvae/index.html) | 用可微世界模型训练状态条件 VAE 控制器，再冻结技能空间做下游任务。 | 17 条 |
 | Accelerated Policy Learning with Parallel Differentiable Simulation（[arXiv 2204.07137](https://arxiv.org/abs/2204.07137)，ICLR 2022，SuperMimic 引用） | [shac 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/shac.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/shac/index.html) | 把任务切成 32 步短窗口，末端接评论家，让可微仿真在接触任务上真正快过 PPO，并拆解 SuperMimic 从它拿走和改掉了什么。 | 15 条 |
 | Dream to Control: Learning Behaviors by Latent Imagination（[arXiv 1912.01603](https://arxiv.org/abs/1912.01603)，ICLR 2020，SuperMimic 引用） | [dreamer 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/dreamer.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/dreamer/index.html) | 把价值梯度穿过学到的隐空间动力学反传，只靠想象学长视野视觉控制；动画当场计算 V_λ，并有可运行的玩具循环。 | 16 条 |
 | SuperTrack: Motion Tracking for Physically Simulated Characters using Supervised Learning（[doi:10.1145/3478513.3480527](https://doi.org/10.1145/3478513.3480527)，ACM TOG 2021，SuperMimic 引用） | [supertrack 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/supertrack.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/supertrack/index.html) | 把仿真器换成可导的世界模型，动作跟踪变成监督学习；动画在玩具两连杆上现场训练并算梯度。 | 17 条 |
@@ -31,6 +36,43 @@
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
 | [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
+
+## RWM-U 读后要点
+
+- λ 可用区间窄：ANYmal D 上 u 差 8%，真实评估却是 0.43 对 0.90，选 λ 用了真实评估。
+- 代码的 u 是跨 45 维求和的标准差，不是式 (4) 的方差。
+- 代码默认损失的最优 σ 是 0，checkpoint 里 σ≈5.5e−5，图 3 贴零线不能说明环境随机性小。
+- 真机 800K+200K 得 0.91±0.03，对在线无模型 0.88±0.01，区间重叠。
+
+## DreamerV3 读后要点
+
+- V3 演员不穿过世界模型反传，连续动作也用 Reinforce，和 SuperMimic 相反。
+- 世界模型主要靠重建：去掉重建梯度终点 26，去掉奖励和价值梯度 94（读矢量图）。
+- v1、v2、Nature 的控制基准和 β 都不同，引用要说明版本。
+- free bits 的 1 nat 针对 32 个分类的 KL 之和。
+
+## TD-MPC 读后要点
+
+- TOLD 没有解码器，奖励和价值的梯度穿过 d 回到编码器。
+- 动作来自每步一次 MPPI：537×5×6 = 16,110 次 d、R 调用，约 20 ms。
+- π 不是最终控制器，只服务 TD 目标和规划采样。
+- SuperMimic 只引用一句，没有做规划：目标函数形式相近，但它在训练时用梯度解 θ。
+- 玩具实验（自设）：一致性损失不过滤干扰，挑任务信息的是奖励和价值项。
+
+## DayDreamer 读后要点
+
+- 算法基本是 DreamerV2，贡献在实验和解耦的 actor/learner 基础设施。
+- 式 (5) 首项应为 (ẑ·z+1)/2；门关时速度项是 5，所以 A1 曲线从 5 起步，超过 9 必在前进。
+- 附录 D 的 γ=0.95 在代码里是 0.995；“开始学习 10⁴”大于 Sphero 全程 9929 步。
+- H=15 加起点共 16 个状态，32×32×16=16384，即文中“16K”。
+- 图轴要小心读：图 A.1 约 9 个/分钟，按墙钟约 2 个/分钟。
+
+## ControlVAE 读后要点
+
+- 残差后验让 KL 只含 μq，先验网络拿不到 KL 梯度。
+- 世界模型流程基本沿用 SuperTrack，新东西是 VAE 结构和技能空间。
+- 下游任务阶段冻结 π 和 ω，梯度只穿过它们回到 μg。
+- 数据到 3.3 小时，下游任务明显退化。
 
 ## SHAC 读后要点
 
@@ -147,8 +189,8 @@ index.html          论文列表与写法约定
 papers/supermimic.html       SuperMimic 精读
 papers/supermimic/charts.js  精读页的折线图，数据从原文矢量图读出，是重画的
 papers/supermimic/*.webp     从 PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者
-papers/{shac,dreamer,supertrack,rwm,deepmimic}.html  SuperMimic 引用论文的精读（图表数据在同名目录）
-interactives/{shac,dreamer,supertrack,rwm,deepmimic}/  对应的 3D 框架动画
+papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
+interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}/  对应的 3D 框架动画
 interactives/supermimic/     SuperMimic 的 11 幕 3D 框架动画（精读页内嵌）
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切

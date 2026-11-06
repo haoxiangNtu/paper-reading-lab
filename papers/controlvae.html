@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ControlVAE 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2210.06063 ControlVAE 的中文精读：按原文章节整理，含全部 32 个编号公式、算法 1 和 2、表 1、14 张图的文字描述、和官方代码的对照、11 幕 3D 框架动画（浏览器里现场训练一个玩具 ControlVAE）和 17 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-a{min-width:560px}.t-b{min-width:680px}.t-c{min-width:480px}.t-links{min-width:640px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.algo{font-family:var(--font-mono);font-size:13px;line-height:1.75;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;overflow-x:auto}
+.algo .h{color:var(--accent);font-weight:600}
+.algo .c{color:var(--muted)}
+.algo div{white-space:nowrap}
+.i1{padding-left:1.5em}.i2{padding-left:3em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/controlvae/index.html">3D 框架动画</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2210.06063 · cs.GR · ACM TOG 41(6)，SIGGRAPH Asia 2022 · 中文精读</p>
+<h1>ControlVAE：穿过学到的世界模型，训练一个生成式角色控制器</h1>
+<p class="orig">ControlVAE: Model-Based Learning of Generative Controllers for Physics-Based Characters</p>
+<p>作者 Heyuan Yao、Zhenhua Song、Baoquan Chen、Libin Liu，北京大学。通讯作者 Libin Liu。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2210.06063">arXiv 原文</a><a href="https://arxiv.org/html/2210.06063">网页版</a><a href="https://arxiv.org/pdf/2210.06063">PDF</a><a href="https://heyuanyao-pku.github.io/Control-VAE/">项目主页</a><a href="https://github.com/heyuanYao-pku/Control-VAE">官方代码</a><span>16 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，PDF 上也写着“仅供个人使用，不得再分发”，所以这里不放任何原图，也不做逐字翻译，用自己的话按原文顺序覆盖全部章节。每张图写了文字描述，“看原图”打开 arXiv 网页版的对应位置。</p>
+<p>公式按原文编号给出，表 1 的数字照录。论文的曲线都是位图，没有矢量数据可读，所以这页没有重画任何图；写“约”的读数是我目测的。标成“读者注”的框是我核算或对照代码后写的，不属于论文，页尾有汇总。</p>
+<p>代码读的是官方仓库 <a href="https://github.com/heyuanYao-pku/Control-VAE/tree/025684f01f2d02b6aa3196a2e4d437d3e4231c5d">heyuanYao-pku/Control-VAE 提交 025684f</a>（2024-12-30，BSD 3-Clause），只读没跑。它的 README 自称“重新实现”，所以和论文有出入不一定是论文写错，这页把两边都列出来。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#st">和 SuperTrack 的差别</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 ControlVAE</a><a href="#i3d">3D 框架动画</a><a href="#s3-1">3.1 生成</a><a href="#s3-2">3.2 推断</a><a href="#s3-3">3.3 训练</a><a href="#s3-4">3.4 实现</a><a href="#s4">4 高层控制器</a><a href="#s4-1">4.1 MPC</a><a href="#s4-2">4.2 任务策略</a><a href="#s4-3">4.3 任务</a><a href="#s5">5 结果</a><a href="#s5-6">5.6 对比</a><a href="#s5-7">5.7 鲁棒性</a><a href="#s6">6 讨论</a><a href="#toy">玩具上算出来的</a><a href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>物理角色控制的常见做法是用强化学习模仿动捕，可每换一个任务往往要从头训练。想复用技能，自然想到运动学动作合成里常用的生成模型（VAE 之类）：把技能编进一个隐空间，高层策略在隐空间里选。难点在于生成模型的损失定义在动作上，而梯度过不去仿真器。</p>
+<p>ControlVAE 的做法是学一个可导的世界模型替换仿真器，让 VAE 的重建损失直接监督控制策略。</p>
+<ul>
+<li><b>结构：</b>策略 \(\pi(a|s,z)\)、状态条件先验 \(p(z|s)\)、残差后验 \(q(z|s_t,s_{t+1})\)、世界模型 \(\omega(s_{t+1}|s_t,a_t)\)，四部分一起训练，世界模型用当前策略收集的数据在线拟合。</li>
+<li><b>数据：</b>从 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a> 选 4 段长序列，加镜像约 30 分钟。20000 轮，约 50 小时。</li>
+<li><b>结果：</b>从先验随机采样能生成走、转、跳等动作；冻结技能空间后，经世界模型反传训练航向、转向、技能任务，半小时左右出结果。</li>
+<li><b>对比：</b>标准正态先验（VAE-NC）在航向任务上回报约 0.35，条件先验约 0.75（图 9，目测）。同样的航向任务，基于模型的训练比 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 快。</li>
+</ul>
+<p>读完我认为最值得记住三点：残差后验把 KL 变成一个只含 \(\mu_q\) 的二次型，先验网络因此拿不到 KL 的梯度（<a href="#n2">读者注 2</a>）；这篇的世界模型部分几乎照搬 SuperTrack，新东西是 VAE 结构和技能空间；和官方代码对照时差别最大的是下游任务的损失，式 22 的 \(w_z=20\) 按字面算比代码重约 64 倍（<a href="#n11">读者注 11</a>）。</p>
+
+<div class="i3d" id="i3d0">
+<p class="lab">自己画的 · 想直接看结构</p>
+<p>完整的 11 幕动画放在第 3 节开头，<a href="#i3d">点这里跳过去</a>，或者<a href="../interactives/controlvae/index.html">全屏打开</a>。第 2 到 10 幕在浏览器里现场训练一个二维玩具 ControlVAE，可以拖隐空间里的点，看先验概率和 KL。</p>
+</div>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://arxiv.org/html/2210.06063#S0.F1">看原图 ↗</a></span><p>横幅渲染，一个白色人形在蓝色地面上依次起身、行走、单脚跳、跳跃、奔跑，用多个叠影表示连续帧。</p></div>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 提到 ControlVAE 四处（它的文献 [6]）。全部如下：</p>
+<ul>
+<li><b>§2 相关工作（<a href="supermimic.html#s2">我的整理</a>）：</b>和 SuperTrack、MoConVQ、SuperDyno 列为“学到的可微动力学用于动作控制”。对 ControlVAE 的描述是联合学动力学模型、隐技能表示和生成式控制器。</li>
+<li><b>§2 表 1：</b>ControlVAE 这一行，Mimic 和 Latent 两列合并写 MBRL（基于模型的学习，一起训练），Downstream 单独写 MBRL（冻结前一阶段后再训），Task signal 写 RL（下游用自己的任务目标，不是蒸馏），不上真机。SuperMimic 自己是三列合并的 MBRL，Task signal 写 Distill / RL，上真机。</li>
+<li><b>§3 开头（<a href="supermimic.html#s3">我的整理</a>）：</b>ControlVAE 经学到的模型优化下游任务策略，同时冻结技能控制器；SuperMimic 把目标编码器和共享解码器经同一个动力学模型联合训练。</li>
+<li><b>§3.3（<a href="supermimic.html#s3-3">我的整理</a>）：</b>和 SuperTrack 一起被引作“常常省略评论家，只优化 H 步奖励和”的例子。SuperMimic 说这样在名义跟踪上回报可以差不多，但更短视，受扰后的恢复回报可能在窗口之外。</li>
+</ul>
+<p>SuperMimic 没有说自己从 ControlVAE 继承了哪个具体设计。下面的对照是我读两篇原文后整理的，不是作者的说法：</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>ControlVAE</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>分阶段</td><td>先联合训 VAE 和 ω，再冻结 π 和 ω 训任务策略（§4）</td><td>目标编码器和共享解码器同时训（它的附录 B）</td></tr>
+<tr><td>隐变量</td><td>64 维高斯，有 KL，条件先验，σ = 0.3</td><td>32 维，tanh 限幅（它的附录 C）；全文没提 KL 和先验</td></tr>
+<tr><td>窗口外</td><td>没有评论家，\(T_{VAE}=24\)，\(\gamma=0.95\)</td><td>评论家自举，\(H=32\)，\(\gamma=0.99\)</td></tr>
+<tr><td>世界模型</td><td>\(T_w=8\)，确定性均值，输出速度增量</td><td>\(k=8\)，确定性，加奖励、观测、终止头和仿真上下文 ξ</td></tr>
+<tr><td>规模</td><td>约 30 分钟（大数据集 3.3 小时时下游明显退化，§5.7）</td><td>最多 264 小时</td></tr>
+<tr><td>对象</td><td>动画角色，ODE，20 Hz 控制</td><td>Unitree G1，50 Hz 控制，上真机</td></tr>
+</tbody></table></div>
+
+<h2 id="st">和 SuperTrack 的差别</h2>
+<p>ControlVAE 明说自己受 <a href="supertrack.html">SuperTrack</a> 启发（§2.3），世界模型“大体重复”它的流程（§3.3.2），状态表示和动作正则也沿用它。两者的核心差别是任务：SuperTrack 训练的是确定的跟踪器，给定参考才能动；ControlVAE 训练一个可以脱离参考采样、可以被高层策略复用的生成模型。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>SuperTrack（<a href="supertrack.html">精读</a>）</th><th>ControlVAE</th></tr></thead><tbody>
+<tr><td>产物</td><td>一个跟踪策略 Π</td><td>隐空间、先验、后验、技能策略，外加世界模型</td></tr>
+<tr><td>策略的条件</td><td>当前状态和参考帧</td><td>当前状态和 z；参考只进后验</td></tr>
+<tr><td>新任务</td><td>论文只做跟踪和交互式运动学控制器驱动</td><td>冻结后在 z 上训任务策略，或者采样 MPC</td></tr>
+<tr><td>动作</td><td>绕参考姿态的偏移</td><td>绝对目标旋转（轴角）</td></tr>
+<tr><td>窗口</td><td>W 滚 8 帧，Π 滚 32 帧（60 Hz）</td><td>ω 滚 8 帧，VAE 滚 24 帧（20 Hz，1.2 秒）</td></tr>
+<tr><td>更新比例</td><td>每次迭代各一步</td><td>每轮各 8 次，每轮先收集 2048 状态</td></tr>
+<tr><td>损失</td><td>加权 L1，无 KL</td><td>同样 L1 加权（式 16），多了 β KL 和 γ 折扣</td></tr>
+<tr><td>收集时的 z</td><td>不适用</td><td>每步 40% 从先验采，60% 从后验采</td></tr>
+</tbody></table></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>问题：模仿动捕的物理控制器已经能学很多动作，但每个任务常常从头训，技能怎么复用是开放问题。运动学动作合成那边，<a class="ds" href="https://arxiv.org/abs/2103.14274">MotionVAE</a> 和归一化流已经证明隐空间可以被多种下游任务复用。这些办法搬不到物理控制上，因为目标定义在动作域，梯度过不去被当成黑箱的仿真器。就算仿真器可导，铰接刚体和接触的强非线性也容易让优化停在差的局部极小。一条绕路是把生成目标变成奖励项（比如 <a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a>、<a class="ds" href="https://arxiv.org/abs/2205.01906">ASE</a>），但那要训练两个互相耦合的间接监督系统，需要小心调。</p>
+<p>基于模型的方法提供另一条路：学一个世界模型（world model，预测“当前状态 + 动作 → 下一状态”的近似模型），它可导，于是动作域的目标可以直接监督策略。SuperTrack 已经在跟踪上做成了，作者由此推想更灵活的控制模型也能这样学。</p>
+<p>贡献有两个。第一是 VAE 结构的生成式策略，配一个以模拟角色状态为条件的先验。作者的初步实验说，非条件先验（标准正态）分不开不同技能的表示。第二是在线学到的世界模型，它既用来监督隐空间和策略，也能让下游任务做基于模型的优化。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>物理动作控制器</h3>
+<p>从 1990 年代手工分析和手写控制器开始，后来有抽象模型、最优控制、模型预测控制、策略优化和强化学习。这些都依赖先验知识和调参，所以出现了模仿人体动作的数据驱动方法，核心任务是学反馈策略跟踪参考动作，<a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a> 用深度强化学习把这条路推到高难度动作，后续推广到不同体型和环境。</p>
+<p>多技能方面，一类是训练鲁棒跟踪器去跟预训练的运动学控制器，但能力受限于运动学控制器，运行时还要同时算两个网络。一类是把单个控制器组织成图或由高层调度，运行时要保留全部子控制器。近年的研究用各种生成模型把动作编进紧凑隐表示。作者说学好这个表示并不简单，本文提出若干新部件并用实验验证。</p>
+<h3 id="s2-2"><span class="no">2.2</span>动作控制里的生成模型</h3>
+<p>运动学合成：早期用高斯混合和高斯过程，后来有 VAE（混合专家网络、Transformer）、归一化流（MoGlow）、GAN。隐空间采样得到自然动作，高层控制器用优化或学到的策略复用。</p>
+<p>物理控制器同样可以写成生成模型：Merel 等把一批专家蒸馏进隐空间；Won 等 2022 用条件 VAE 做行为克隆；Luo 等把 MCP 运动基元的混合权重当技能表示；AMP 和 ASE 走对抗路线。ControlVAE 基于条件 VAE，和前人的差别是先验随状态变，并且用基于模型的算法训练。</p>
+<h3 id="s2-3"><span class="no">2.3</span>基于模型的学习</h3>
+<p>模型可以是准确的（可微仿真器）或近似的（高斯过程、神经网络）。近似模型提供可导的转移函数，让目标的梯度过仿真这一关。这类方法在物理角色动画里用得少，早期有 NeuroAnimator，SuperTrack 是最早成功跟踪大量技能的框架之一。</p>
+<p>和同期的 Won 等 2022 差三点，都是作者自己的说法：(a) 对方用行为克隆，要先有预训练专家，本文直接从原始片段学；(b) 对方离线学世界模型，本文和策略一起在线学，作者认为这对下游基于模型的学习是关键，对方没有展示同样结果；(c) 对方用状态无关的标准先验。</p>
+
+<h2 id="s3"><span class="no">3</span>ControlVAE</h2>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 4 页 · <a href="https://arxiv.org/html/2210.06063#S3.F2">看原图 ↗</a></span><p>系统总览。上排从左到右是橙框动作数据集（三个小人）、蓝框仿真器、绿色圆柱回放缓存，缓存有一个黄箭头向下指向世界模型，标 Update。下面淡蓝底的大框内从左到右：红框 Skill Embeddings（上面的钟形曲线标 posterior \(p(z_t|s_t,s_{t+1})\)，下面灰框标 prior \(p(z_t|s_t)\)），蓝框控制策略（输出 \(a_t\)），绿框世界模型（输出 \(s_{t+1}\) 标 Prediction）。\(s_t\) 从左下角接入这三块，\(s_{t+1}\) 由下方回路接回。实线是 Training，绿色虚线是 Generation。图里的后验写作 \(p\)，正文写作 \(q\)。</p></div>
+<p>控制策略写成条件分布 \(\pi(a|s,z)\)，\(z\) 取自先验。训练的目标是让每个 \(z\) 对应一个技能，这样高层策略就可以在隐空间 \(\mathcal Z\) 里工作。每一步：角色看到 \(s_t\)，由 \(\pi\) 算 \(a_t\)，仿真器按 \(p(s_{t+1}|s_t,a_t)\) 走一步。动作序列丢掉不看，关心的是状态轨迹 \(\tau=\{s_{0:T}\}\)，要让 \(p(\tau)\) 匹配数据集 \(\mathcal D=\{\tilde\tau_i\}\) 的分布。这里假设 \(\{z_{0:T-1}\}\) 彼此独立。</p>
+<div class="eq"><div class="m">\[ p(\tau)=\int_{z_{0:T-1}} p(z_{0:T-1})\,p(s_{0:T}|z_{0:T-1}) \]</div><span class="no">(1)</span></div>
+<p>这个积分算不了，于是用 VAE 的证据下界（ELBO，evidence lower bound，对数似然的一个可优化下界）。因为 \(s_{t+1},a_t\) 只依赖 \(s_t,z_t\)：</p>
+<div class="eq"><div class="m">\[ \log p(\tau)-\log p(s_0)\ \ge\ \sum_{t=0}^{T-1}\mathbb E_{q(z_t|s_t,s_{t+1})}\bigl[\log p(s_{t+1}|s_t,z_t)\bigr]-\sum_{t=0}^{T-1}D_{\rm KL}\bigl(q(z_t|s_t,s_{t+1})\,\|\,p(z_t)\bigr) \]</div><span class="no">(2)</span></div>
+<p>\(q\) 近似真后验 \(p(z_t|\tau)\)，并假定只依赖这一步的状态转移。读法是一个自编码器：\(q\) 从相邻两个状态提取技能（编码），\(p(s_{t+1}|s_t,z_t)\) 由技能重建下一状态（解码）。KL 把 \(q\) 拉向先验，于是从先验采的样本能解码成合理技能。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 换成条件先验后，式 2 还成立吗（成立）</span><p>式 1、2 是按 \(z_t\) 彼此独立、先验 \(p(z_t)\) 写的，§3.1 换成 \(p(z_t|s_t)\) 时论文没有重写。\(s_t\) 依赖 \(z_{t-1}\)，所以严格说 \(z_t\) 不再边缘独立。我自己推了一遍：把联合写成 \(p(s_0)\prod_t p(z_t|s_t)\,p(s_{t+1}|s_t,z_t)\)，变分分布写成 \(\prod_t q(z_t|s_t,s_{t+1})\)，代入 Jensen，得到的下界和式 2 同形，只是 KL 里的先验变成 \(p(z_t|s_t)\)，这也是式 9 左边的写法。所以结论不变，“独立”要读成“给定 \(s_t\) 条件独立”。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 框架动画</p>
+<p>按结构走 11 幕，可拖动旋转。第 2 到 10 幕的数字是浏览器里现场训练的玩具算出来的，不是论文数据。第 3 幕拖隐空间的点看 KL，第 8 幕采样，第 10 幕改 \(w_z\)。</p>
+<iframe src="../interactives/controlvae/index.html?embed=1" title="ControlVAE 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/controlvae/index.html">全屏打开 ↗</a>（带结构表和“哪些是示意”）</p>
+</div>
+
+<h3 id="s3-1"><span class="no">3.1</span>生成</h3>
+<p>常规先验是标准正态。作者的初步实验里，这样的先验让角色频繁换技能，动作发抖、偶尔摔倒，下游也变差，比如方向任务里难以保持方向。作者推测（原文用的是 presume）状态无关的先验信息不足，编码器于是不一致：同一个技能在不同状态被编到隐空间的不同位置。所以改用条件先验，对角高斯：</p>
+<div class="eq"><div class="m">\[ p(z_t|s_t)\sim\mathcal N\bigl(\mu_p(s_t;\theta_p),\ \sigma_p^2 I\bigr) \]</div><span class="no">(3)</span></div>
+<p>\(\mu_p\) 是网络，标准差是超参数。策略也是高斯，均值是网络：</p>
+<div class="eq"><div class="m">\[ \pi(a_t|s_t,z_t)\sim\mathcal N(\mu_\pi,\Sigma_\pi) \]</div><span class="no">(4)</span></div>
+<p>生成过程的对数似然对动作积分，由 Jensen 不等式得到下界：</p>
+<div class="eq"><div class="m">\[ \log p(s_{t+1}|s_t,z_t)=\log\int_{a_t}p(s_{t+1}|s_t,a_t)\,\pi(a_t|s_t,z_t)\ \ge\ \mathbb E_{\pi(a_t|s_t,z_t)}\bigl[\log p(s_{t+1}|s_t,a_t)\bigr] \]</div><span class="no">(5)</span></div>
+<p>仿真器当黑箱，真实转移未知，用世界模型近似，同样是对角高斯：</p>
+<div class="eq"><div class="m">\[ \omega(s_{t+1}|s_t,a_t)\sim\mathcal N(\mu_w,\Sigma_w) \]</div><span class="no">(6)</span></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>推断</h3>
+<p>后验也取高斯，并让它和先验共用标准差，因为两者要靠近：</p>
+<div class="eq"><div class="m">\[ q(z_t|s_t,s_{t+1})\sim\mathcal N\bigl(\hat\mu_q,\ \sigma_q^2 I\bigr),\qquad \sigma_q=\sigma_p \]</div><span class="no">(7)</span></div>
+<p>均值不直接学，学相对先验的残差（结构来自 SRNN）：</p>
+<div class="eq"><div class="m">\[ \hat\mu_q=\mu_p+\mu_q,\qquad \mu_q=\mu_q(s_t,s_{t+1};\theta_q) \]</div><span class="no">(8)</span></div>
+<p>于是 KL 不用再看先验，一行算完：</p>
+<div class="eq"><div class="m">\[ D_{\rm KL}\bigl(q(z_t|s_t,s_{t+1})\,\|\,p(z_t|s_t)\bigr)=\frac{\mu_q^\top\mu_q}{2\sigma_p^2} \]</div><span class="no">(9)</span></div>
+<p>训练可以看成：学会利用下一状态的信息去修正先验。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 先验网络拿不到 KL 的梯度</span><p>式 9 我核过，等方差高斯的 KL 就是这个形式。由它直接推出 \(\partial D_{\rm KL}/\partial\theta_p=0\)。官方代码写法等价：<code>modules.py</code> 的 <code>kl_loss(mu_prior, mu_post)</code> 算 \(0.5(\mu_{prior}-\mu_{post})^2/\sigma^2\)，而 <code>mu_post = mu_prior + residual</code>，自动求导时 \(\mu_{prior}\) 正好消掉。</p><p>所以这和普通 CVAE 不一样：普通 CVAE 里先验被 KL 拉向后验；这里 KL 只把残差压向 0，<b>先验只能靠重建和动作损失经 \(z\) 传回来的梯度学习</b>。残差被压小后，“修正量”就得由先验接手，这是我对它工作方式的理解，论文没有这样讲。玩具第 3、6 幕能看到这个梯度：\(\partial{\rm KL}/\partial\mu_p=(0,0)\)。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>训练</h3>
+<h3 id="s3-3-1"><span class="no">3.3.1</span>Control VAE</h3>
+<p>训练是在数据集上做极大似然，也就是最大化式 2；\(\pi\)、\(p\)、\(q\) 一起训，世界模型单独训。式 2 不逐步算，而在合成轨迹上算：挑起始状态 \(\tilde s_0\)，在世界模型里递推，每步 \(z_t\) 由 \(q(z_t|s_t,\tilde s_{t+1})\) 采（用重参数化，reparameterization，把采样写成“均值 + σ × 噪声”以便反传），波浪号的量来自参考片段，不带波浪号的来自合成轨迹。由式 5 得到损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{rec}=\sum_{t=0}^{T-1}\gamma^t\,\mathbb E_{q(z_t|s_t,\tilde s_{t+1}),\,\pi(a_t|s_t,z_t)}\bigl[\|\tilde s_{t+1}-\mu_w(s_t,a_t)\|_W^2\bigr] \]</div><span class="no">(10)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{kl}=\sum_{t=0}^{T-1}\gamma^t\,\bigl\|\mu_q(s_t,\tilde s_{t+1})\bigr\|_2^2\,/\,2\sigma_p^2 \]</div><span class="no">(11)</span></div>
+<p>合成轨迹越往后越不准，所以乘折扣 \(\gamma=0.95\)。沿用 SuperTrack，加 L1 和 L2 的动作正则：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{act}=\sum_{t=0}^{T-1}\gamma^t\bigl(w_{a1}\|a_t\|_1+w_{a2}\|a_t\|_2^2\bigr) \]</div><span class="no">(12)</span></div>
+<p>论文说 L1 项也可以换成更大的 \(w_{a2}\)。总目标：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\mathcal L_{rec}+\beta\mathcal L_{kl}+\mathcal L_{act} \]</div><span class="no">(13)</span></div>
+<p>\(\beta\) 仿照 β-VAE，每 500 轮增加一次，从 0.01 到 0.1。</p>
+
+<div class="algo" id="alg1">
+<div class="h">算法 1 · ControlVAE 训练（<a href="https://arxiv.org/html/2210.06063#algorithm1">看原文 ↗</a>，这里是转写）</div>
+<div><b>TrajectoryCollection</b>(Env, ControlVAE)</div>
+<div class="i1">从 D 选 τ̃ = {s̃₀, s̃₁, …, s̃_T}；s₀ ← s̃₀，t ← 0</div>
+<div class="i1">未终止时循环：</div>
+<div class="i2">采 z_t ~ q(z_t|s_t, s̃_{t+1})　<span class="c">// 或 z_t ~ p(z_t|s_t)，见 §3.4.4</span></div>
+<div class="i2">采 a_t ~ π(a_t|s_t, z_t)；s_{t+1} ← 用 s_t 和 a_t 仿真；t ← t+1</div>
+<div class="i1">把 τ* = {s₀, a₀, s₁, a₁, …} 和 τ̃ 存入 B′</div>
+<div><b>TrainWorldModel</b>(ω, T_w)</div>
+<div class="i1">从 B 采 τ̄* = {s̄₀, ā₀, s̄₁, ā₁, …}；s₀ ← s̄₀，L_w ← 0</div>
+<div class="i1">for t ← 0 到 T_w − 1：s_{t+1} ← ω(s_t, ā_t)；L_w ← L_w + ‖s_{t+1} − s̄_{t+1}‖_{W′}</div>
+<div class="i1">用 L_w 更新 ω</div>
+<div><b>TrainControlVAE</b>(ω, ControlVAE, T_VAE)</div>
+<div class="i1">从 B 采 τ̄* 和 τ̃；s₀ ← s̄₀，L ← 0</div>
+<div class="i1">for t ← 0 到 T_VAE − 1：</div>
+<div class="i2">采 z_t ~ q(z_t|s_t, s̃_{t+1})；采 a_t ~ π(a_t|s_t, z_t)；s_{t+1} ← ω(s_t, a_t)</div>
+<div class="i2">L ← L + L_rec(s_{t+1}, s̃_{t+1}) + β L_kl + L_act</div>
+<div class="i1">用 L 更新 ControlVAE</div>
+</div>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · 式 10 是平方，实现是 L1；权重只有代码里有</span><p>式 10 来自高斯似然，是平方范数；§3.4.1 的式 16 说实际用 1-范数，代码也是（<code>pose_err</code> 里 <code>torch.norm(..., p=1)</code>）。严格地说 L1 对应拉普拉斯似然，不再是式 5 的高斯下界，所以式 16 是工程选择，不是式 2 的直接结果（我的推断）。</p><p>论文没给权重 \(W\) 和 \(w_{a1},w_{a2}\) 的数值。代码 <code>Data/ControlVAE.yml</code>：pos 0.2，rot 0.1，vel 0.5，avel 0.5，height 1.2，up_dir 3，l1 0.01，l2 0.001。其中 vel 和 avel 在 <code>pose_err</code> 里还乘了 \(dt=0.05\)，等效 0.025。代码还把折扣和除以 rollout 长度（<code>sum(...)/rollout_length</code>），式 10 到 13 里没有这个除法。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · β 的进度：论文 0.01→0.1，代码 0.009→0.09</span><p><code>controlvae.py</code>：<code>ptu.scheduler(0, 8, 0.009, 0.09, 500*8)</code>。每 500×8 = 4000 次更新（每轮 8 次，即 500 轮）升一档，线性 8 档，第 4000 轮左右到 0.09，之后不变。训练总共 20000 轮，所以后 80% 的时间 β 都是 0.09。论文没写何时到顶。yml 里的 <code>kl: 0.1</code> 没有被使用，我搜过 <code>weight['kl']</code> 没有结果。</p></div>
+
+<h3 id="s3-3-2"><span class="no">3.3.2</span>世界模型</h3>
+<p>流程基本重复 SuperTrack。用当前策略在仿真器里收集的轨迹集合 \(\mathcal B=\{\tau_j^*\}\) 做极大似然：从 \(\mathcal B\) 的随机状态 \(\bar s_0\) 出发，在世界模型里执行记录的动作 \(\{\bar a_t\}\)，得到合成轨迹：</p>
+<div class="eq"><div class="m">\[ \mathcal L_w=\sum_{t=0}^{T'-1}\bigl\|\bar s_{t+1}-\mu_w(s_t,a_t)\bigr\|_{W'}^2 \]</div><span class="no">(14)</span></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 世界模型损失有三种写法</span><p>式 14 和式 17 是平方；算法 1 是不带平方的 \(\|\cdot\|_{W'}\)；代码 <code>world_model.py</code> 的 <code>loss</code> 是 L1：位置、速度、角速度取 p=1 范数，旋转用四元数差的旋转向量长度，速度和角速度再乘 \(dt\)。权重 pos 1，rot 1，vel 4，avel 4（论文没给）。三者方向一致，都没有 \(\gamma\) 折扣，只是范数不同。代码还给世界模型优化器加了 <code>weight_decay=1e-3</code>，论文没提。</p></div>
+
+<h3 id="s3-3-3"><span class="no">3.3.3</span>训练过程</h3>
+<p>先收集，然后轮流更新世界模型和 ControlVAE。</p>
+<p><b>收集。</b>每轮开始，从 \(\mathcal D\) 的一条随机轨迹选起点，用后验采的 \(z\) 让策略在仿真器里跟踪它。轨迹和参考存入临时缓存 \(\mathcal B'\)，状态数超过 \(N_{B'}=2048\) 就停，并入 \(\mathcal B\)，替换最旧的，保持 \(N_B=5\times10^4\) 以内。提前终止防止缓存里存太多坏样本：超过 \(T_{max}=512\) 步，或者头部跟踪误差超过 \(d_{max}=0.5\) m 持续 \(T_{term}=1\) 秒。</p>
+<p><b>更新世界模型。</b>从 \(\mathcal B\) 取 \(N_w=512\) 段长 \(T_w=8\) 的片段，算式 14，每轮更新 8 次。</p>
+<p><b>更新 ControlVAE。</b>每批 \(N_{VAE}=512\) 条、每条 \(T_{VAE}=24\) 帧，起点取自 \(\mathcal B\) 以保证覆盖状态空间，对应的片段取自 \(\mathcal D\) 作参考，每轮更新 8 次。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 这些数字意味着什么；提前终止在代码里不太一样</span><p><b>我算的：</b>缓存约 \(5\times10^4/2048=24.4\) 轮换一遍。每轮真实转移 2048，合成转移 \(8\times512\times8=32768\)（世界模型）加 \(8\times512\times24=98304\)（VAE），合计是真实转移的 64 倍。20000 轮共 \(4.1\times10^7\) 个真实转移，20 Hz 下约 569 小时仿真时间；50 小时除以 20000 轮约每轮 9 秒。</p><p><b>代码：</b><code>cal_done</code> 只比较头的<b>高度</b>差，不是三维距离；计数器超限时加 1、否则减 1，不要求连续 20 帧（20 帧正好 1 秒）。<code>Data/Pretrained/config.yml</code> 有 <code>env_min_length: 26</code>：前 26 步不因误差终止，论文没提。还有一条：观测绝对值超过 50 立即终止。</p><p><b>这个最短长度不只是细节。</b>我的玩具一开始没有它，种子 9 在第 10 轮左右就死锁了：策略差、回合都很短、取不到足够长的窗口、再也没有更新。加上最短 12 步后 6 个种子都正常。这只说明玩具里需要，不能断定原系统也如此。</p></div>
+
+<h3 id="s3-4"><span class="no">3.4</span>实现</h3>
+<h3 id="s3-4-1"><span class="no">3.4.1</span>策略表示</h3>
+<p><b>状态。</b>角色是带浮动根的铰接刚体，完整状态是每个刚体的位置、朝向、线速度、角速度 \(s^*=\{x_i,q_i,v_i,\omega_i\},i\in B\)。和 SuperTrack 一样换到根的局部坐标，作为 ControlVAE 和世界模型的输入 \(s=\{\bar x_i,\bar q_i,\bar v_i,\bar\omega_i,h_i,y_0\}\)，\(h_i\) 是各刚体高度，\(y_0\) 是根局部坐标的上方向：</p>
+<div class="eq"><div class="m">\[ (\bar x_i,\bar q_i,\bar v_i,\bar\omega_i)=q_0^{-1}\otimes(x_i-x_0,\ q_i,\ v_i,\ \omega_i) \]</div><span class="no">(15)</span></div>
+<p>旋转用 6D 表示（取旋转矩阵前两列）。重建损失实际用 1-范数：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{rec}=\sum_{t=0}^{T-1}\gamma^t\bigl[\|W(\tilde s_{t+1}-s_{t+1})\|_1\bigr] \]</div><span class="no">(16)</span></div>
+<p>\(W={\rm diag}(w_{\bar x},w_{\bar q},w_{\bar v},w_{\bar\omega},w_h,w_y)\) 平衡各分量。</p>
+<p><b>动作。</b>用 PD 控制器驱动，动作是所有关节的目标旋转 \(a=\{\hat q_j\},j\in J\)，用 3D 轴角。</p>
+<p><b>隐变量。</b>\(\mathcal Z\) 64 维。先验和后验的均值都是两个 512 单元隐层的网络，ELU 激活。每一层的输入分别拼接 \(s_t\) 和 \(s_{t+1}\)，强调状态信息。\(\sigma_p=0.3\)。</p>
+<p><b>策略。</b>\(\mu_\pi\) 用混合专家（mixture of experts，MoE：几套专家网络的参数按门控权重混合），类似 MotionVAE 的解码器：6 个专家，每个 3 个 512 隐层；门控网络 2 个 64 隐层；ELU。\(z\) 拼到专家每层输入上，并做层归一化。\(\Sigma_\pi=\sigma_\pi^2I\)，\(\sigma_\pi=0.05\)。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 维度、层数和 64 维里 σ = 0.3 的含义</span><p><b>维度（代码）：</b><code>decompose_obs</code> 断言 \((\dim-3)\bmod 16=0\)，每刚体 \(3+6+3+3+1=16\)，20 个刚体加 3 维上方向，\(s\) 是 323 维。19 个关节，\(a\) 是 57 维。论文没写这些总数。</p><p><b>层数：</b>论文说先验和后验“两个隐层”；代码 <code>Encoder</code> 先 append 一层，再循环 <code>hidden_layer_num=2</code> 次，实际是 <b>3 层</b>隐层加输出层。策略（3 层）、门控（2 层）、世界模型（4 层）和论文一致。</p><p><b>σ 的量级（我算的）：</b>64 维下 \(\|\sigma\epsilon\|\approx 0.3\sqrt{64}=2.4\)，先验样本几乎都在距 \(\mu_p\) 约 2.4 的球壳上，而不是“靠近均值”。式 9 的系数 \(1/2\sigma^2=5.56\)，再乘 \(\beta=0.1\) 是 0.556。玩具是 2 维，这个球壳效应看不出来。</p></div>
+
+<h3 id="s3-4-2"><span class="no">3.4.2</span>世界模型</h3>
+<p>公式和训练方式都同 SuperTrack。\(\mu_w(s,a)\) 是 4 个 512 隐层、ELU 的网络，输入是 \(s\) 和转成四元数的目标旋转，输出各刚体在根局部坐标系里的速度增量和角速度增量 \(d\bar v_i,d\bar\omega_i\)，新状态用前向欧拉积分。损失在全局坐标里计算：</p>
+<div class="eq"><div class="m">\[ \mathcal L_w=\sum_{t=0}^{T'-1}\bigl\|\bar s^*_{t+1}-s^*_{t+1}\bigr\|_{W'}^2 \]</div><span class="no">(17)</span></div>
+<p>\(W'={\rm diag}(w_x,w_q,w_v,w_\omega)\) 凭经验取。随机性大时训练不稳，所以合成滚动直接用均值 \(\mu_w\)，不从高斯采样。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 动作输入：论文写四元数，代码是 6D</span><p><code>world_model.py</code>：输入维度 <code>ob_size + ac_size*2</code>，注释 “rotvec to 6d vector”；<code>forward</code> 里 <code>quat_to_vec6d(flip_quat_by_w(quat_from_rotvec(action)))</code>。按 57 维动作和 323 维状态算，输入是 437 维。论文写转成四元数。动画页的结构表两边都列了。“用均值不采样”和代码一致。</p></div>
+
+<h3 id="s3-4-3"><span class="no">3.4.3</span>数据平衡</h3>
+<p>数据集是几条无结构的长序列，动作难易不一。均匀选起点时，容易的动作跑得久，占满缓存，难的（如起身）学不会。所以给每个状态算一个价值，价值低的更常被选。\(\mathcal V=\{V_t\}\) 初始为 0，每 200 轮更新：</p>
+<div class="eq"><div class="m">\[ V_t^*=\sum_{k=0}^{T-t}\gamma^k r_{t+k}+\gamma^{T+1-t}V_{T+1} \]</div><span class="no">(18)</span></div>
+<div class="eq"><div class="m">\[ V_t=(1-\alpha)V_t+\alpha V_t^* \]</div><span class="no">(19)</span></div>
+<p>\(T\) 是这条轨迹的长度，\(\gamma=0.95\)。回报由重建损失换算，温度 \(T_V=20\)：</p>
+<div class="eq"><div class="m">\[ r_t=e^{-\|W(\tilde s_t-s_t)\|_1/T_V} \]</div><span class="no">(20)</span></div>
+<p>后面 200 轮按 \(\propto 1/\max(0.01,V_t)\) 的概率选起点。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 数据平衡在代码里的差别</span><p><code>vclode_track_env.py</code>：<code>update_val</code> 和 <code>update_p</code> 由 <code>mpi_sync</code> 调用，<b>每轮都更新</b>，不是每 200 轮。\(\alpha\) 论文没给，代码是 0.1。两处公式也不同：本轮没访问到的状态，它的目标取 <code>val/2</code>，也就是价值会衰减，它们因此慢慢回到被优先选的状态；轨迹末尾的自举，失败终止取 0，到达最长取当步回报，而不是式 18 的 \(V_{T+1}\)。温度 20 和 \(1/\max(0.01,V)\) 和论文一致。</p></div>
+
+<h3 id="s3-4-4"><span class="no">3.4.4</span>轨迹采样</h3>
+<p>两个增强。一是收集中随机切换参考片段，起点同样按数据平衡选，逼策略学动作之间的过渡。这样经常因姿态不匹配摔倒，角色就在训练中学会了自己爬起来。二是让收集里的 \(z\) 随机取自后验或先验，取先验的概率凭经验定为 0.4。作者说这样学到的技能嵌入在下游任务里更主动、更灵敏。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 论文没写的两个细节</span><p>代码 <code>trajectory_collection.py</code> 是<b>每一步</b>独立抛硬币（<code>p=[0.4,0.6]</code>），不是整条轨迹选一种。切换参考的频率论文没写，代码 <code>env_random_count</code> 默认 96 步，20 Hz 下 4.8 秒。动画第 4 幕能切换这个比例。</p></div>
+
+<h2 id="s4"><span class="no">4</span>基于模型的高层控制器</h2>
+<p>学好后有隐空间和 \(\pi(a|s,z)\)。任务策略 \(\pi(z|s,g)\) 吃状态和任务参数 \(g\)，输出 \(z\)，再由技能策略出动作。任务策略可以用无模型 RL 训（前人的做法），但有了世界模型就能用基于模型的办法。这一阶段 ControlVAE 的参数冻结，只传梯度。学到的策略在真仿真器里跑。</p>
+<h3 id="s4-1"><span class="no">4.1</span>模型预测控制</h3>
+<p>采样式 MPC：每个时间步在世界模型里生成 \(N_{MPC}\) 条长 \(T_{MPC}\) 的蒙特卡洛轨迹，\(z_t\) 从状态条件先验采；用任务损失打分，把最好那条的第一个动作放进仿真器。\(N_{MPC}=128,T_{MPC}=4\) 在他们的实验里够用。</p>
+<h3 id="s4-2"><span class="no">4.2</span>任务策略的基于模型学习</h3>
+<p>任务策略结构同后验：\(\mathcal N(\hat\mu_g,\sigma_g^2I)\)，\(\sigma_g=\sigma_q\)，均值是相对先验的残差：</p>
+<div class="eq"><div class="m">\[ \hat\mu_g=\mu_p+\mu_g,\qquad \mu_g=\mu_g(s,g;\theta_g) \]</div><span class="no">(21)</span></div>
+<p>训练时生成 \(N_{ML}=256\) 条、固定 \(T_{ML}=16\) 步的合成轨迹，同样用重参数化。初始状态这样来：在真仿真器里跑当前任务策略，目标每 72 步随机换一次，状态和目标存进大小 4096 的 \(\mathcal B_g\)，合成时从里面取起点和后续的目标序列。</p>
+<h3 id="s4-3"><span class="no">4.3</span>任务</h3>
+<p>除非另说，所有任务损失都是这个形式：</p>
+<div class="eq"><div class="m">\[ \mathcal L(\tau^g)=\sum_{t=1}^{T}\bigl(\mathcal L_g(s_{t-1},s_t)+\mathcal L_{fall}(s_t)\bigr)+w_z\sum_{t=0}^{T-1}\|\mu_g\|_2^2 \]</div><span class="no">(22)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{fall}(s_t)=\max(h_0^*-h_0,\ 0) \]</div><span class="no">(23)</span></div>
+<p>\(h_0\) 是根的高度，摔倒阈值 \(h_0^*=0.5\) m。最后一项把任务策略拉向先验，作者说它对训练稳定和成功很关键，\(w_z=20\) 适用于全部实验。</p>
+<p><b>高度控制。</b>\(H\in\{-1,1\}\)，\(-1\) 鼓励蹲下直到躺地，\(1\) 鼓励起身，能跳就跳：</p>
+<div class="eq"><div class="m">\[ \mathcal L_g=H\cdot h_0 \]</div><span class="no">(24)</span></div>
+<p><b>航向控制。</b>朝目标方向 \(\theta_h^*\in[-\pi,\pi]\) 走，速度 \(v^*\in[0,3]\) m/s。按目标速度归一化，让低速也受重视。权重 \((w_{\theta_h},w_v)=(2.0,1.0)\)。</p>
+<div class="eq"><div class="m">\[ \mathcal L_g=w_{\theta_h}|\theta_h^*-\theta_h|+w_v\frac{|v^*-v|}{\max(v^*,1)} \]</div><span class="no">(25)</span></div>
+<p><b>转向控制。</b>同时控制朝向 \(\theta_h\) 和行进方向 \(\theta_v\)，权重 \((2.0,2.0,1.0)\)。\(\bar v_0\) 是根线速度的水平分量。</p>
+<div class="eq"><div class="m">\[ \mathcal L_g=w_{\theta_h}|\theta_h^*-\theta_h|+w_{\theta_v}|\theta_v^*-\theta_v|+w_v\frac{|v^*-\|\bar v_0\|_2|}{\max(v^*,1)} \]</div><span class="no">(26)</span></div>
+<p><b>技能控制。</b>让角色用指定技能完成任务，比如一边跳一边转向。每个技能是手选的 4 秒片段，一共 5 个（走、跑、单脚跳、跳、小跳步），\(c\) 是 one-hot。技能和 \(z\) 之间没有直接映射，所以仿照 AMP 加判别器，让模型基于学习也有“别做错动作”的压力。每次迭代：生成任务策略的滚动 \(\{\tau^g\}\)；同时用后验跟踪同长度的技能片段，得到 \(\{\tau^c\}\)。\(\tau^c\) 当真样本，\(\tau^g\) 当假样本，用最小二乘 GAN：</p>
+<div class="eq"><div class="m">\[ \arg\min_D\ \mathbb E_{s_t,s_{t+1}\sim\{\tau^c\}}\bigl[(D(s_t,s_{t+1};c)-1)^2\bigr]+\mathbb E_{s_t,s_{t+1}\sim\{\tau^g\}}\bigl[(D(s_t,s_{t+1};c)+1)^2\bigr]+w_g\mathbb E_{s_t,s_{t+1}\sim\{\tau^c\}}\bigl[\|\nabla_{s_t,s_{t+1}}D(s_t,s_{t+1};c)\|^2\bigr] \]</div><span class="no">(27)</span></div>
+<p>\(w_g=20\)。任务策略的对抗项，其中 \(s_t,s_{t+1}\sim\{\tau^g\}\)：</p>
+<div class="eq"><div class="m">\[ \mathcal L_D=(D(s_t,s_{t+1};c)-1)^2 \]</div><span class="no">(28)</span></div>
+<p>再单独训一个分类器 \(C\)，只用真样本：</p>
+<div class="eq"><div class="m">\[ \arg\min_C\ \mathbb E_{s_t,s_{t+1}\sim\{\tau^c\}}\bigl[\mathcal H[C(s_t,s_{t+1}),c]\bigr] \]</div><span class="no">(29)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_C=\mathcal H[C(s_t,s_{t+1}),c],\quad s_t,s_{t+1}\sim\{\tau^g\} \]</div><span class="no">(30)</span></div>
+<p>总损失，\(\mathcal L_{g'}\) 是目标任务（如航向）的损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_g=\mathcal L_{g'}+w_D\mathcal L_D+w_C\mathcal L_C+w_r\mathcal L_{reg} \]</div><span class="no">(31)</span></div>
+<p>\(\mathcal L_{reg}\) 把 \(\tau^c\) 当作完美策略完成“跟踪这段片段”这个任务的结果，要求任务策略克隆它：从 \(\tau^c\) 提取任务参数 \(g^{c'}_t\)，把后验的 \(z\) 当作完美策略的输出。作者同样说它对稳定很关键。\((w_D,w_C,w_r)=(5.0,0.5,10.0)\)。</p>
+<div class="eq"><div class="m">\[ \mathcal L_{reg}=\|z_t^{c}-z_t^{c'}\|_1,\qquad z_t^{c'}\sim\pi(z|s_t,g_t^{c'}) \]</div><span class="no">(32)</span></div>
+
+<div class="algo" id="alg2">
+<div class="h">算法 2 · 任务策略的基于模型训练（<a href="https://arxiv.org/html/2210.06063#algorithm2">看原文 ↗</a>，这里是转写）</div>
+<div><b>GenSynTraj</b>(ω, s₀, p(z|s_t, ∗))　<span class="c">// p(z|s_t, ∗) 是 z 的某个条件分布</span></div>
+<div class="i1">for t ← 0 到 T_SL − 1：采 z_t ~ p(z|s_t, ∗)；采 a_t ~ π(a_t|s_t, z_t)；s_{t+1} ← ω(s_t, a_t)</div>
+<div><b>TrainSkillCtrl</b>(Env, ControlVAE, ω, π, D, C)　<span class="c">// D 判别器，C 分类器</span></div>
+<div class="i1">用随机目标 {g_t} 收集仿真轨迹 τ̄*；把 τ̄* 和 {g_t} 存入 B</div>
+<div class="i1"><span class="c">/* 真滚动 */</span> 在 D 中选带随机技能标签 c 的片段 τ̃；τᶜ = {s₀ᶜ, z₀ᶜ, …} ← GenSynTraj(s̃₀, q(z|s_t, s̃_{t+1}))</div>
+<div class="i1"><span class="c">/* 假滚动 */</span> 从 B 选 τ̄* 和 {g_t}；τᵍ = {s₀, s₁, …} ← GenSynTraj(s̄₀, π(z|s_t, g_t))；用 τᵍ 算 L_{g′}, L_D, L_C</div>
+<div class="i1"><span class="c">/* 正则项 */</span> for t ← 0 到 T_SL − 1：g_t^{c′} ← 由 s_tᶜ, s_{t+1}ᶜ 算目标参数；z_t^{c′} ~ π(z|s_tᶜ, g_t^{c′})；用 z_tᶜ, z_t^{c′} 算 L_reg</div>
+<div class="i1"><span class="c">/* 更新 */</span> 用式 31 更新 π；用 τᶜ, τ^{fake} 和式 27 更新 D；用 τ̃, c 和式 30 更新 C</div>
+</div>
+
+<div class="note" id="n11"><span class="lab">读者注 11 · 下游任务：论文和官方代码差得最多的地方</span><p>官方代码只带两个任务：随机采样和 <code>PlayGround/joystick_playground.py</code>（航向）。<b>MPC、高度、转向、技能控制、判别器和分类器都不在仓库里</b>（搜 <code>mpc</code>、<code>discriminator</code>、<code>classifier</code> 没有结果）。航向任务的对比：</p>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>项</th><th>论文</th><th>代码 <code>joystick_playground.py</code></th></tr></thead><tbody>
+<tr><td>\(w_z\) 项</td><td>\(w_z\sum_t\|\mu_g\|_2^2\)，\(w_z=20\)</td><td><code>torch.mean(offset**2)</code> × 20：对 64 维也取了平均，再除以 T</td></tr>
+<tr><td>速度项权重</td><td>\(w_v=1.0\)</td><td><b>0</b>（<code>weight=[1,0,100,20]</code>，上一行注释掉的是 <code>[1,1,100,20]</code>）</td></tr>
+<tr><td>方向项</td><td>每一步，\(2|\theta^*-\theta|\)</td><td>只用<b>最后一步</b>（<code>loss_value[0]=loss[0][-1]</code>），除以 π，权重 1</td></tr>
+<tr><td>\(\mathcal L_{fall}\)</td><td>\(h^*=0.5\) m，权重 1</td><td>\(h^*=0.6\) m，权重 100</td></tr>
+<tr><td>批量 / 缓存</td><td>256 / 4096</td><td>512 / 2000</td></tr>
+<tr><td>采样 z</td><td>高斯，重参数化</td><td><code>latent = mu + offset</code>，不加 σ 噪声</td></tr>
+<tr><td>换目标</td><td>每 72 步</td><td>每 96 步（<code>env_random_count</code> 默认值）</td></tr>
+<tr><td>相同</td><td colspan="2">T = 16；3 层 256；RAdam；lr 0.001×max(0.99ⁱᵗᵉʳ, 0.1)；\(\mu_g\) 残差结构；速度候选 0 到 3</td></tr>
+</tbody></table></div>
+<p><b>\(w_z\) 的量级（我算的）：</b>VAE 训练时 \(\|\mu_q\|^2\) 的有效系数是 \(\beta/2\sigma^2=0.1/0.18=0.556\)。按式 22 字面，下游 \(\|\mu_g\|^2\) 的系数是 20，是训练时的 36 倍。按代码，对 64 维取了平均，等效 \(20/64=0.3125\)，比训练时还小；比论文字面小 64 倍。所以式 22 的 20 不能脱离“每维平均”这个实现去理解。我不确定论文实验用的是哪一种，README 说这个仓库是重新实现，<code>Data/Pretrained</code> 里也只有 VAE 的配置。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · §4.3 里几处小的不一致</span><p>算法 2 用 \(T_{SL}\)，正文用 \(T_{ML}\)。§4.3 标题叫 skill control，式 31 前一句叫 style control。算法 2 写 \(\tau^{fake}\)，正文写 \(\tau^g\)。正文说选了 5 个技能，图 11 却有 6 个子图，多一个 Getup（起身）。都不影响理解。</p></div>
+
+<h2 id="s5"><span class="no">5</span>结果</h2>
+<h3 id="s5-1"><span class="no">5.1</span>系统设置</h3>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 9 页 · <a href="https://arxiv.org/html/2210.06063#S4.F3">看原图 ↗</a></span><p>两个角色模型并排。(a) 仿真模型由胶囊体和球组成；(b) 可视化模型是光滑的白色人形。</p></div>
+<p>角色高 1.6 m，重 49.5 kg，20 个刚体。PD 参数统一 \((k_p,k_d)=(400,50)\)，脚趾关节 \((10,1)\)，手腕 \((5,1)\)。仿真器 ODE，120 Hz，用 stable-PD 保证大步长稳定。ControlVAE、世界模型、任务策略都跑在 20 Hz，两次决策之间动作不变。系统不假设知道仿真内部，只从物理引擎取刚体的位置和朝向，速度用有限差分算。PyTorch 实现，训好后比实时快。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 角色参数和代码一致</span><p>读 <code>Data/Misc/world.json</code>：20 个刚体、19 个关节；<code>Kps</code> 除脚趾 10、手腕 5 外都是 400，<code>Damping</code> 除脚趾和手腕是 1 外都是 50，和论文一致。质量要小心，3 个躯干刚体用 <code>MassValue</code>，其余按 <code>Density</code> 由几何算（<code>Mass</code> 字段里的 1.0 不生效）。我按胶囊、球、方块的体积算出 <b>49.55 kg</b>，和 49.5 吻合；几何最高减最低约 1.56 m，和 1.6 m 接近（我只算了几何中心加半径，没算旋转）。代码还有论文没写的力矩上限 <code>TorqueLimit</code>：400，脚趾和手腕 10。子步 <code>substep: 6</code> × 20 Hz = 120 Hz ✓。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>ControlVAE 训练</h3>
+<p>训练数据是从 LaFAN 选的 4 条长序列（表 1），包含走、跑、转、单脚跳、跳、小跳步、摔倒和起身。降采样到 20 fps，加镜像，约 30 分钟。</p>
+<div class="tablewrap" id="tab1"><table class="t-c"><caption>表 1 · 重采样后各段长度（<a href="https://arxiv.org/html/2210.06063#S5.T1">看原文 ↗</a>）</caption><thead><tr><th>动作</th><th>帧数（20 fps）</th></tr></thead><tbody>
+<tr><td>Walk</td><td>5227</td></tr><tr><td>Run</td><td>4757</td></tr><tr><td>Jump</td><td>4889</td></tr><tr><td>Getup</td><td>3365</td></tr>
+</tbody></table></div>
+<p>优化器 RAdam，\(\beta_1=0.9,\beta_2=0.999\)，策略和世界模型的学习率 (1e-5, 2e-3)，梯度范数裁到 \([-1,1]\)。完整训练 20000 轮，约 50 小时，4 个并行线程，Intel Xeon Gold 6240 @ 2.60GHz，一张 NVIDIA GTX 2080Ti。约 10000 轮后开始收敛，之后动作质量还在提高。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 10 页 · <a href="https://arxiv.org/html/2210.06063#S5.F4">看原图 ↗</a></span><p>典型学习曲线。横轴迭代数 0 到 20000，纵轴回报（式 20，在收集的仿真轨迹上算）。红线很快从约 0.4 升到 0.7 以上，之后缓慢爬到约 0.8，浅红带是波动范围，大致在 0.6 到 0.9。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 1 和 30 分钟对得上</span><p>合计 18238 帧，除以 20 fps 是 911.9 秒，15.2 分钟；加镜像 30.4 分钟，和“约 30 分钟”一致。仓库带了原始 BVH，帧头是 26131、23781、24444、16821 帧，帧时长 0.01 秒，乘 20 fps 得 5226.2、4756.2、4888.8、3364.2，<b>向上取整正好等于表 1 的四个数</b>。文件名是 walk1_subject5、run1_subject5、jumps1_subject1、fallAndGetUp1_subject1。</p><p>看图 4，曲线在约 2500 轮就接近平台（目测），“约 10000 轮开始收敛”是作者的判断，可能指动作质量而不是这条回报曲线。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>评估</h3>
+<p><b>重建。</b>用后验当跟踪控制器，随机选片段让它跟。角色能准确复现，换一段时平滑过渡再继续跟。差距太大时可能摔倒，然后自己找到起身的办法，这段恢复动作并不在数据集里。</p>
+<p><b>随机采样。</b>随机起始状态，每个控制步从 \(p(z|s)\) 采样，角色平滑地做出停下再起步、随机转弯、短暂的单脚跳和小跳步。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 10 页 · <a href="https://arxiv.org/html/2210.06063#S5.F5">看原图 ↗</a></span><p>2×3 共 6 个子图，每个是若干彩色线的平面根轨迹，各走 200 个控制步（10 秒）。同一子图的线从同一个起点出发，往不同方向散开，有绕圈，也有长直线。范围约几米。200 步除以 20 Hz 确实是 10 秒。</p></div>
+
+<h3 id="s5-4"><span class="no">5.4</span>模型预测控制</h3>
+<p>在高度和航向任务上测试。用户交互下角色能躺下、起身、朝目标走，在训练用的那台机器上能实时。样本数有限，结果不保证平滑准确，但大体可接受。作者说实践中 MPC 可以当实验工具，用来试训练设置和损失函数。</p>
+
+<h3 id="s5-5"><span class="no">5.5</span>基于模型的训练</h3>
+<p><b>设置。</b>\(\mu_g\) 3 个隐层，航向任务每层 256，其他 512。RAdam，学习率 \(0.001\times\max(0.99^{\rm iteration},0.1)\)，作者说衰减提高了稳定性。</p>
+<p><b>航向控制。</b>角色响应方向和速度的变化，自动在技能间切换，也能抵抗外力、从翻滚中恢复（图 10）。“走到目标位置”这个衍生任务由相对距离算目标方向和速度。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 原文第 11 页 · <a href="https://arxiv.org/html/2210.06063#S5.F6">看原图 ↗</a></span><p>航向任务的速度响应。横轴 0 到 10 秒，纵轴速度。目标（橙线）约 2.5，到第 4 秒后平滑降到 0。实测（红线）在 2.5 上下抖动，起步有约 3.2 的尖峰，第 5 秒后跟着降，比目标略晚，之后贴近 0。</p></div>
+<p><b>转向控制。</b>角色朝一个方向走、面向另一个方向，比如侧走，脚步比直走复杂。</p>
+<p><b>技能控制。</b>完成航向任务时用指定技能。判别器和分类器都是 2 个 256 隐层，RAdam，学习率 0.0001 和 0.01。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 原文第 11 页 · <a href="https://arxiv.org/html/2210.06063#S5.F7">看原图 ↗</a></span><p>技能任务的学习曲线，按第一轮归一化。红线（分类损失）先冲到约 2 再降到约 0.35；蓝线（方向损失）在前几百轮从 1 降到约 0.8 后平稳。作者解读为先学会方向，再逐步学会风格。方向损失只降到初值的约 80%，归一化后看不出绝对误差。</p></div>
+<div class="fig" id="fig10"><span class="lab">图 10 · 原文第 12 页 · <a href="https://arxiv.org/html/2210.06063#S5.F10">看原图 ↗</a></span><p>7 个子图，都是高层策略下角色的连续帧：(a) 走到目标位置；(b) 变速和转弯；(c) 侧走；(d) 跳着转弯；(e) 单脚跳着转弯；(f) 被推后恢复；(g) 被物体打中后保持平衡。</p></div>
+<div class="fig" id="fig11"><span class="lab">图 11 · 原文第 13 页 · <a href="https://arxiv.org/html/2210.06063#S5.F11">看原图 ↗</a></span><p>6 组连续帧：走、跑、跳、单脚跳、小跳步、起身。</p></div>
+
+<h3 id="s5-6"><span class="no">5.6</span>对比</h3>
+<p><b>和非条件先验（VAE-NC）。</b>另训一个用标准正态先验的 ControlVAE，等价于把后验改成 \(\mathcal N(\mu_q,I)\)，并在需要时采 \(z\sim\mathcal N(0,I)\)。把三段不同技能编码后比较（图 8）：条件先验下每个技能的隐编码更连贯，不同技能分得更开。下游也是：随机采样时 VAE-NC 更不稳，常摔倒且难以爬起；航向任务里难以跟随方向，一直转圈摔倒（图 9）。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 11 页 · <a href="https://arxiv.org/html/2210.06063#S5.F8">看原图 ↗</a></span><p>两个并排散点连线图，jump（蓝）、turn around（橙）、walk（绿）。(a) VAE-NC 三色混成中间一团。(b) ControlVAE：橙绿各成一小团，蓝色绕成大环，互相分开。两图坐标都标约 ±0.015，论文没写是如何把 64 维投到 2 维的，也没写这个刻度的含义（作为对照，\(\sigma_p=0.3\)）。</p></div>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 11 页 · <a href="https://arxiv.org/html/2210.06063#S5.F9">看原图 ↗</a></span><p>航向任务的训练曲线，横轴 0 到 2.5 小时，纵轴回报。ControlVAE（红）迅速到约 0.7 后稳定在约 0.75；非条件先验（蓝）从约 0.25 缓慢升到约 0.35。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · VAE-NC 同时改了两件事：先验和 σ</span><p>按论文的写法，VAE-NC 的后验是 \(\mathcal N(\mu_q,I)\)，也就是 \(\sigma=1\)，而 ControlVAE 是 \(\sigma=0.3\)。除了“去掉条件”，噪声幅度也变大 3.3 倍，式 9 的 KL 系数变成 1/11。所以图 8 和图 9 的差距不能全归给条件先验，至少从论文的描述看不出拆分。论文没有 \(\mathcal N(0,0.3^2I)\) 这一组。</p><p>代码里 <code>StandardVAEEncoder</code> 定义了，但 <code>ControlVAE.__init__</code> 写死 <code>SimpleLearnablePriorEncoder</code>，没有被用到。它的 <code>encode_prior</code> 用 <code>randn*self.var</code>，默认 <code>fix_var=0.3</code>，和论文说的 \(\mathcal N(0,I)\) 也不一样。</p><p>我在<a href="#toy">玩具</a>上把三组都跑了：差距主要来自 σ，只去掉条件几乎没有差别。玩具是二维、无接触的，<b>不能用来否定论文</b>，它只说明这个对比需要第三组才能下结论。</p></div>
+<p><b>和强化学习。</b>用 PPO 在同一个技能空间上训同一个航向任务，策略结构相同，回报 \(r_t=e^{-\mathcal L_g}\)（式 25），不含 \(\mathcal L_{fall}\)，摔倒时提前终止。作者的 PPO 实现在简单跟踪任务上能达到和 DeepMimic 相当的水平。基于模型的方法更快到高水平，且同样转移数下也更好。论文说基于模型能在半小时内出好结果，RL 要久得多。</p>
+<div class="fig" id="fig12"><span class="lab">图 12 · 原文第 13 页 · <a href="https://arxiv.org/html/2210.06063#S5.F12">看原图 ↗</a></span><p>两张训练曲线，纵轴回报。左：横轴转移数 0 到 1×10⁷（真实加合成）。ControlVAE（红）很快到约 0.7，之后约 0.75；PPO（蓝）慢慢升到约 0.7。右：横轴时间，ControlVAE 约 1 小时内到约 0.75 并结束；PPO 画到 3 小时，到约 0.68。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 图 12 的“转移数”计入了合成转移</span><p>论文自己提醒了这一点：左图把真实和合成加在一起，基于模型的部分主要是合成转移。所以左图不是“真实样本效率”的对比，它比的是总转移数。按图 12 右图目测，半小时时 ControlVAE 已在 0.7 以上，和“半小时”的说法一致。两边算回报用的损失相同，但 PPO 不带 \(\mathcal L_{fall}\)，改用提前终止，这是实验设定，不是偏差。</p></div>
+
+<h3 id="s5-7"><span class="no">5.7</span>鲁棒性、可扩展性和泛化</h3>
+<p><b>随机种子。</b>三个种子结果一致（图 13a）。不同种子训练的世界模型可以互换：同一个技能策略、不同世界模型训出的航向策略性能相近（图 13b）。</p>
+<p><b>训练设置。</b>\(T_w=1\)（世界模型不做合成滚动）时训练很不稳定，早早崩掉。把 ControlVAE 的学习率提到 2e-5，收敛更快但后期可能不稳，不过提前停在稳定区间，学到的模型仍可用于下游（图 13c）。</p>
+<div class="fig" id="fig13"><span class="lab">图 13 · 原文第 13 页 · <a href="https://arxiv.org/html/2210.06063#S5.F13">看原图 ↗</a></span><p>四个子图。(a) 3 个种子的回报曲线重合，到约 0.8。(b) 航向任务的方向和速度损失，原世界模型和换种子世界模型几乎重合，前 300 轮降到约 0.15 和 0.25。(c) 训练损失：默认设置（蓝）平稳在约 3；无滚动（绿）在约 5000 到 8000 轮多次冲到 20 以上；大学习率（红）在约 15000 和 18000 轮有尖峰。(d) sfu、dance 回报约 0.8，large 约 0.7。</p></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · \(T_w=1\) 的崩溃，我的玩具没有复现</span><p>动画第 5 幕在同一个缓存上分别训 \(T_w=1\) 和 \(T_w=8\)。玩具上 24 步开环的平均误差，\(T_w=1\) 约 0.023，\(T_w=8\) 约 0.039，单步模型反而更好，也没有崩。合理的解释是玩具的动力学是光滑的一阶伺服，没有接触，也没有 323 维状态里那些难学的方向。所以玩具不能拿来佐证或反驳图 13(c)。</p></div>
+<p><b>覆盖。</b>把训练序列切成 2 秒片段全部跟踪，算各刚体相对根的位置和参考之间的平均误差。训练动作都能准确重建。再选 5 段 <a class="ds" href="http://mocap.cs.sfu.ca/">SFU 动捕数据</a>（未参与训练）：和已有技能相近的（风格化走、跺脚）也能跟，丢一些细节；差别大的（如翻滚）角色只在地上挣扎，误差很大。</p>
+<div class="fig" id="fig14"><span class="lab">图 14 · 原文第 14 页 · <a href="https://arxiv.org/html/2210.06063#S5.F14">看原图 ↗</a></span><p>9 根柱，纵轴 pose error (m)。目测约：walk 0.03，jump 0.032，run 0.035，getup 0.054，sfu_walk 0.07，sfu_stomp 0.068，sfu_jumprope 0.092，sfu_crawl 0.13，sfu_roll 0.155。论文没有给数字，图是位图，这些是我目测的。</p></div>
+<p><b>数据集。</b>还测了 SFU 的约 7 分钟运动片段和 LaFAN 的 4 分钟舞蹈，训练过程相似，采样分别产生多样的运动和舞蹈。又在 LaFAN 的 3.3 小时（含镜像）上训练，覆盖除了物体交互和不平地形以外的大部分类别：训练时间差不多，但收敛到更低的回报（图 13d）；重建的视觉差距变大，<b>下游任务明显退化</b>。</p>
+
+<h2 id="s6"><span class="no">6</span>讨论</h2>
+<p>关键观察：可导的世界模型把控制策略的学习和定义在仿真动作上的损失连了起来，同时给高层策略提供了可用的替身。作者提到可以试 GAN、归一化流等其他生成模型，或者和动作合成、风格迁移、动作补全结合。</p>
+<p>局限：世界模型只学了角色自己，环境变了（加物体、加角色）就要重学，这类任务目前还得用无模型 RL。性能受数据集限制，比如朝某个方向面向另一个方向的动作稀少，高层策略就学不好。数据到几小时时效率下降，作者猜测是网络容量不够。稀疏技能和大数据集是下一步方向。</p>
+
+<h2 id="toy">玩具上算出来的（不是论文内容）</h2>
+<p>动画第 2 到 10 幕的玩具是一个真实跑完算法 1 的小型 ControlVAE。状态 2 维（速度 u、转向 w），隐变量 2 维，仿真器是我写的一阶伺服加耦合阻力，无接触，学习器只看转移。全部网络现场在浏览器里训练，手写反传，算法 1 的三步和式 9、10、12、21、25 都按原式实现（重建和世界模型用 L1，跟代码）。没有 MoE，没有数据平衡，用 Adam。</p>
+<p>下表是把读者注 15 的三组都训了，6 个种子（7 到 12），每组种子跑 120 轮 VAE、500 次任务策略更新，再在 6 组目标方向和速度上跑 60 步真玩具仿真器。表里是平均值和 [最小, 最大]，脚本和页面用的是同一份代码。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>先验</th><th>跟踪 L1</th><th>航向误差 \(w_z{=}0\)</th><th>\(w_z{=}2\)</th><th>\(w_z{=}20\)</th><th>速度误差 \(w_z{=}2\)</th></tr></thead><tbody>
+<tr><td>条件，σ = 0.3</td><td>0.13 [0.11, 0.17]</td><td>0.09 [0.07, 0.12]</td><td>0.20 [0.18, 0.23]</td><td>0.60 [0.46, 1.06]</td><td>0.29 [0.26, 0.42]</td></tr>
+<tr><td>N(0, I)，σ = 1</td><td>0.16 [0.10, 0.41]</td><td>0.17 [0.12, 0.24]</td><td>0.62 [0.52, 0.70]</td><td>1.48 [1.30, 1.64]</td><td>0.74 [0.60, 0.85]</td></tr>
+<tr><td>N(0, 0.3²I)</td><td>0.12 [0.07, 0.15]</td><td>0.10 [0.07, 0.12]</td><td>0.20 [0.18, 0.22]</td><td>0.56 [0.47, 0.62]</td><td>0.28 [0.26, 0.33]</td></tr>
+</tbody></table></div>
+<p>只采先验不看目标的基线，航向误差约 1.5。读法：在这个玩具上，把 σ 从 1 改到 0.3 带来了绝大部分差距，条件先验和 \(\mathcal N(0,0.3^2I)\) 分不出高下。这<b>不等于</b>论文错了：玩具的状态就是技能本身，没有“同一个技能在不同相位被编到不同位置”的问题，那正是作者提出条件先验的理由，而这种结构在 2 维状态上表现不出来。它只说明，要把功劳归给条件这一件事，需要在真实角色上多跑一组。第 7 幕可以看三种先验的隐空间。</p>
+<p>另外两个玩具现象：\(w_z\) 从 0 到 20，\(\|\mu_g\|^2\) 下降两个数量级，任务误差升高，这个取舍和式 22 的说明一致；\(T_w=1\) 的崩溃没有复现（<a href="#n17">读者注 17</a>）。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>都是我核算或对照代码后写的，不属于论文。论文的图都是位图，目测的数我都写了“约”。</p>
+<ol class="notes">
+<li><a href="#n1">条件先验下式 2 仍成立</a>：我重推了一遍，“独立”要读成给定 \(s_t\) 条件独立。</li>
+<li><a href="#n2">先验拿不到 KL 梯度</a>：由式 9 直接得到，代码等价；先验只靠重建梯度学。</li>
+<li><a href="#n3">式 10 是平方，实现是 L1</a>；权重只在代码里有，代码还多除了 T。</li>
+<li><a href="#n4">β 的进度</a>：论文 0.01→0.1，代码 0.009→0.09，第 4000 轮到顶。</li>
+<li><a href="#n5">世界模型损失的三种写法</a>：式 14 平方，算法 1 不平方，代码 L1，外加 weight decay。</li>
+<li><a href="#n6">每轮规模和提前终止</a>：合成转移是真实的 64 倍；代码只比头高度，有最短 26 帧。</li>
+<li><a href="#n7">维度、层数和 σ</a>：323 / 57 维；先验和后验代码是 3 层不是 2 层；64 维 σ=0.3 的球壳半径 2.4。</li>
+<li><a href="#n8">动作输入</a>：论文四元数，代码 6D。</li>
+<li><a href="#n9">数据平衡</a>：论文每 200 轮，代码每轮；未访问状态价值会衰减。</li>
+<li><a href="#n10">先验采样按步</a>；换参考每 96 步，论文没写。</li>
+<li><a href="#n11">下游任务差得最多</a>：MPC 等不在仓库里；\(w_z\) 字面比代码重 64 倍，速度项权重在代码里是 0。</li>
+<li><a href="#n12">§4.3 的小不一致</a>：\(T_{SL}\)/\(T_{ML}\)，5 个技能和 6 个子图。</li>
+<li><a href="#n13">角色参数一致</a>：PD 对得上，按几何算出 49.55 kg，代码多一个力矩上限。</li>
+<li><a href="#n14">表 1 核对</a>：18238 帧，30.4 分钟；BVH 帧头向上取整正好等于表 1。</li>
+<li><a href="#n15">VAE-NC 同时改了 σ</a>：从 0.3 变成 1；玩具上差距主要来自 σ。</li>
+<li><a href="#n16">图 12 的转移数含合成转移</a>，不是真实样本效率。</li>
+<li><a href="#n17">\(T_w=1\) 的崩溃</a>：玩具没有复现，不能作为佐证。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>在这篇里的角色</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a></td><td>主要训练数据</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset</td><td>Harvey et al. 2020，Robust Motion In-Betweening</td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.sfu.ca/">SFU Motion Capture</a></td><td>未见动作测试；另一个训练集</td><td>mocap.cs.sfu.ca</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2103.14274">MotionVAE</a></td><td>运动学 VAE；MoE 解码器的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2103.14274">2103.14274</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a></td><td>判别器和梯度惩罚的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2104.02180">2104.02180</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2205.01906">ASE</a></td><td>对抗技能嵌入，相关工作</td><td>–</td><td><a href="https://arxiv.org/abs/2205.01906">2205.01906</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>无模型基线</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a></td><td>PPO 实现的对标</td><td>–</td><td><a href="https://arxiv.org/abs/1804.02717">1804.02717</a></td></tr>
+<tr><td><a href="supertrack.html">SuperTrack</a></td><td>世界模型流程的来源</td><td>本站精读</td><td>Fussell et al. 2021</td></tr>
+<tr><td><a href="supermimic.html">SuperMimic</a></td><td>引用本文的后续工作</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td>版本记录</td><td>ACM 正式版</td><td>–</td><td><a href="https://doi.org/10.1145/3550454.3555434">10.1145/3550454.3555434</a>（脚本访问返回 403，未验证）</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2210.06063 和官方代码后的整理，不是作者的官方内容；原文和原图版权归作者和 ACM 所有，这页没有放原图。玩具的数字来自我自己的小实验，不是论文数据。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

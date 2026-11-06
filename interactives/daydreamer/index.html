@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DayDreamer 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2206.14176 DayDreamer 的框架做成 11 幕 3D 动画：actor 和 learner 解耦、回放、多模态融合、在真实序列上训练世界模型、隐空间想象、λ 回报、两种策略梯度、四台机器人和真实钟表下的结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:112px;display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);max-width:330px;background:color-mix(in srgb,var(--bg2) 80%,transparent);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.ctl .row>span,.ctl .rng>span{min-width:3.6em;color:var(--fg)}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:1px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .rng{display:flex;gap:6px;align-items:center}
+.ctl input[type=range]{width:130px;accent-color:var(--accent)}
+.ctl output{font-family:var(--font-mono);font-size:12px;color:var(--fg);min-width:2.6em}
+.info .live{margin:6px 0 10px}
+.info .live p{margin:4px 0;font-size:12.5px;line-height:1.6}
+.info table.mini,.mini{width:100%;font-size:12.5px;border-collapse:collapse;margin:4px 0}
+.mini td,.mini th{padding:2px 5px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+.mini th{font-weight:500;color:var(--muted);background:none;white-space:nowrap}
+.mini td.n,.mini th.n{text-align:right;font-family:var(--font-mono);white-space:nowrap}
+.mini td.nw{white-space:nowrap}
+.mini tr.on td{background:var(--panel);color:var(--accent)}
+.info .eq-mini{font-family:var(--font-mono);font-size:12.5px;background:var(--panel);border-radius:6px;padding:6px 8px;margin:6px 0;overflow-x:auto}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+@media (max-width:640px){.ctl{top:118px;max-width:calc(100% - 20px)}}
+body.embed .ctl{top:88px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="daydreamer.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/daydreamer.html">返回精读</a><a href="../../papers/daydreamer.html#s2">原文第 2 节</a><a href="../../papers/daydreamer.html#s3">第 3 节</a><a href="../../papers/dreamer.html">Dreamer</a><a href="../../papers/supermimic.html">SuperMimic</a><a href="https://arxiv.org/abs/2206.14176">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2206.14176 · DAYDREAMER</p>
+<h1>机器人一边动，一边在隐空间里学</h1>
+<p class="lead">一共 11 幕。第 1 到 3 幕是系统结构：actor 和 learner 怎样解耦、回放里有什么。第 4 到 8 幕是训练：多模态融合、世界模型、隐空间想象、λ 回报、两种策略梯度。第 9 到 11 幕是实验：四台机器人的任务、真实钟表下的结果、环境变化后的适应。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。左上方的面板能选机器人、切换写法、拖参数，数字当场重算。第 1 幕可以点方块跳转。结果柱来自原文图 4 到 7 的矢量数据和官方仓库的分数文件。玩具和示意部分都有标注，清单在页面下方。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和超参数</h2>
+<p class="sub">“论文”列是附录 D 和正文的说法，“代码”列读自 <a href="https://github.com/danijar/daydreamer/tree/709016ce11c32dad1f24c4cc77afdf980d2a92a8">danijar/daydreamer 709016c</a> 的 <code>embodied/agents/dreamerv2plus/configs.yaml</code>（defaults 加四个机器人配置）。两者不同的地方动画都标出，可切换的都能切换。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">运行结构</td></tr>
+<tr><td>S1</td><td>actor 和 learner</td><td>两个线程</td><td>两个进程，README 要求开两个终端。回放经 ZeroMQ 传输，权重经 checkpoint 文件传</td></tr>
+<tr><td>S2</td><td>同步周期</td><td>没写</td><td>train.sync_every: 20 秒（四台都是）</td></tr>
+<tr><td>S3</td><td>learner 限速</td><td>没有训练频率超参数</td><td>learning.py 循环不限速；train_every: 4 只在 run: train 时读</td></tr>
+<tr><td>S4</td><td>回放容量</td><td>10⁶，FIFO</td><td>replay_size: 1e6</td></tr>
+<tr><td>S5</td><td>开始学习</td><td>10⁴ 步</td><td>train_fill：A1 5000，XArm 和 UR5 2000，Sphero 1000</td></tr>
+<tr><td>S6</td><td>批量</td><td>B = 32，T = 32</td><td>同</td></tr>
+<tr class="grp"><td colspan="4">世界模型</td></tr>
+<tr><td>W1</td><td>图像编码器</td><td>没写层数</td><td>4 层卷积，核 4，步长 2，通道 64, 128, 256, 512：31, 14, 6, 2，展平 2048</td></tr>
+<tr><td>W2</td><td>向量编码器</td><td>MLP 4 × 512</td><td>同；与卷积输出拼接</td></tr>
+<tr><td>W3</td><td>RSSM 确定路径</td><td>512</td><td>XArm、UR5、Sphero 512；<b>A1 256</b></td></tr>
+<tr><td>W4</td><td>随机码</td><td>32 个变量，每个 32 类</td><td>同；另加 unimix：默认 0.01</td></tr>
+<tr><td>W5</td><td>KL 平衡</td><td>0.8</td><td>wmkl_balance: 0.8；KL 权重由 AutoAdapt 调到目标 3.5</td></tr>
+<tr><td>W6</td><td>奖励和价值头</td><td>没写分布</td><td>dist: symlog</td></tr>
+<tr><td>W7</td><td>优化</td><td>学习率 10⁻⁴，ε 10⁻⁶，裁剪 100</td><td>同，另有权重衰减 10⁻²</td></tr>
+<tr class="grp"><td colspan="4">演员-评论家</td></tr>
+<tr><td>A1</td><td>想象长度</td><td>正文 H = 16，附录 D H = 15</td><td>imag_horizon: 15，加起点共 16 个状态</td></tr>
+<tr><td>A2</td><td>折扣</td><td>γ = 0.95</td><td>四个机器人都是 0.995；defaults 0.998</td></tr>
+<tr><td>A3</td><td>λ</td><td>0.95</td><td>同</td></tr>
+<tr><td>A4</td><td>目标价值网络</td><td>每 100 次更新一次</td><td>同，硬拷贝</td></tr>
+<tr><td>A5</td><td>策略梯度</td><td>连续用重参数化，离散用 Reinforce；式 (4) 只写后者</td><td>同；策略分数先过均值-标准差归一化</td></tr>
+<tr><td>A6</td><td>熵系数 η</td><td>附录 D 没有</td><td>actent：初值 3×10⁻³，自动调到目标（A1 0.5，其余 0.4）</td></tr>
+<tr class="grp"><td colspan="4">机器人</td></tr>
+<tr><td>R1</td><td>A1</td><td>20 Hz，12 维连续，马达角、朝向、角速度</td><td>env.repeat: 50（1000 Hz 底层），观测 16 维</td></tr>
+<tr><td>R2</td><td>UR5</td><td>2 Hz，离散，RGB + 本体</td><td>动作 6 个；本体 19 维；图上换算约 1.1 Hz</td></tr>
+<tr><td>R3</td><td>XArm</td><td>约 0.5 Hz，离散，RGB-D + 本体</td><td>本体 20 维；csv 中位数 0.76 和 0.59 Hz</td></tr>
+<tr><td>R4</td><td>Sphero</td><td>2 Hz，连续，只有 RGB</td><td>动作 2 维；图上换算 1.25 Hz</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意，哪些是玩具</h2>
+<ul class="mine">
+<li><b>第 1 幕的机器狗。</b>方块拼的，步态是正弦函数。</li>
+<li><b>第 2 幕（玩具）。</b>一次训练的毫秒数是滑块，论文和代码都没给。频率、超时和训练次数是按这个假设算出来的算术。耦合写法是我为对比写的，每 4 步训练 1 次取自 configs.yaml。</li>
+<li><b>第 3 幕。</b>格子数和总步数是真实的；从哪几格取样是随机数，32 × 32 的批次只是形状。</li>
+<li><b>第 4 幕。</b>通道数和形状是按代码算的，彩色方块的大小只表示相对关系。z 里亮的格子是随机数。</li>
+<li><b>第 5 幕（玩具）。</b>左边的结构来自图 3。右边的分布是造的，但 KL 平衡的梯度和下降都是当场算的；“重建拉力”是占位，代替真实解码器损失。</li>
+<li><b>第 6 幕。</b>状态个数是真实的。每个小块不代表任何数值。</li>
+<li><b>第 7 幕（玩具）。</b>r 和 v 是造的，递推是式 (3)。四台机器人的“秒数”用文中写的控制频率算。</li>
+<li><b>第 8 幕（玩具）。</b>一维高斯和 6 动作 softmax 不是 Dreamer 的网络。估计器和真值是当场算的。</li>
+<li><b>第 9 幕。</b>所有动作都是关键帧，A1 的姿态数值是我按第 3.1 节的时间节点设的，所以“合计”只说明门控怎么工作，不等于真实奖励。旁边同时列出图 4 的真实值。</li>
+<li><b>第 11 幕。</b>A1 被推的动作是示意，柱子是真实分数。把 60 分钟当作开始推的时刻来自正文，分数文件里没有标记。纵轴 × 0.65 是我的换算，见精读页读者注。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2206.14176 和官方代码后的理解，不是作者的官方图。原文以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。逐节内容和核算见<a href="../../papers/daydreamer.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

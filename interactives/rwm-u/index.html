@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RWM-U 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2504.16680 RWM-U 的框架做成 11 幕 3D 动画：离线数据、共享 GRU 加五个头、当场训练的玩具集成、σ 为什么塌到零、图 3、想象、可拖 λ 的目标面、图 4、图 5、上真机。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:96px;display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);z-index:3}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl span{min-width:3.4em}
+.ctl input[type=range]{width:170px;accent-color:var(--accent)}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal !important}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="rwm-u.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/rwm-u.html">返回精读</a><a href="../../papers/rwm.html">RWM 精读</a><a href="../../papers/supermimic.html">SuperMimic 精读</a><a href="https://arxiv.org/abs/2504.16680">arXiv</a><a href="https://github.com/leggedrobotics/robotic_world_model">官方代码</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2504.16680 · RWM-U</p>
+<h1>只用日志训练策略：集成怎样估计“模型在哪里不可信”，λ 又怎样用它</h1>
+<p class="lead">一共 11 幕。第 1、2 幕是离线流程和数据。第 3 到 5 幕拆集成：结构、认知不确定性、偶然不确定性。第 6 幕是论文图 3。第 7、8 幕是想象和 MOPO-PPO 的目标。第 9 到 11 幕是调 λ、基线对比和上真机。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。左上角是控件：第 8 幕可以拖 λ，第 4 幕切覆盖、成员数、重采样和种子，第 5 幕切损失，第 7 幕切目标和接法，第 3 幕切论文或代码。第 1、3、10 幕的方块可以点。第 4、5、7、8 幕的右侧数字是浏览器里当场训练的玩具算出来的；第 2、6、9、10、11 幕的数字来自原文表格或矢量图。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：论文和官方代码（ANYmal D）</h2>
+<p class="sub">“论文”列出自表 S2 到 S11 和正文。“代码”列出自 robotic_world_model@82147f9 的 <code>scripts/reinforcement_learning/model_based</code>（离线路径），rsl_rl_rwm@18eebcd 的 <code>system_dynamics.py</code>，robotic_world_model_lite@13a798e。代码读过，没有运行。写“没写”的是论文确实没给。动画第 3 幕两边都能切，其余各幕画论文的值。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">世界模型 p_φ</td></tr>
+<tr><td>W1</td><td>观测 o</td><td>45 维：v 3、ω 3、g 3、q 12、q̇ 12、τ 12（表 S2）</td><td>相同；固定的归一化均值和标准差写在配置里</td></tr>
+<tr><td>W2</td><td>动作 a</td><td>12 维（表 S4）</td><td>相同</td></tr>
+<tr><td>W3</td><td>特权</td><td>接触 8 维（表 S3）；终止只在伦理声明里提了一句</td><td>接触 8 维 ＋ 终止 1 维</td></tr>
+<tr><td>W4</td><td>基座</td><td>GRU 256, 256（表 S7），头之前共享（§4.1）</td><td>GRU 2 层 256；状态一个，接触和终止另一个</td></tr>
+<tr><td>W5</td><td>头</td><td>MLP 128，ReLU</td><td>相同；μ 是相对上一帧的残差</td></tr>
+<tr><td>W6</td><td>B, M, N, α</td><td>5, 32, 8, 1.0（表 S10）</td><td>5, 32, 8；损失直接平均，等价 α = 1</td></tr>
+<tr><td>W7</td><td>损失 L_o</td><td>没写形式；说学到的方差能捕捉偶然不确定性</td><td>默认重参数样本对真值的平方和，最优 σ = 0（第 5 幕）</td></tr>
+<tr><td>W8</td><td>自助重采样</td><td>“bootstrap ensembles”（§4.1）</td><td>rsl_rl_rwm 的训练里 <code>bootstrap=True</code>；lite 的 <code>model_training.py</code> 没传，默认关</td></tr>
+<tr><td>W9</td><td>学习率, 权重衰减, 批量</td><td>1e−4, 1e−5, 1024</td><td>lite 相同</td></tr>
+<tr><td>W10</td><td>迭代</td><td>2500（表 S10）</td><td>lite 500；随附 checkpoint 的 iter = 5000</td></tr>
+<tr><td>W11</td><td>训练数据</td><td>表 S10：6M；表 1：1M</td><td>随附 CSV 10000 行，只作想象起点</td></tr>
+<tr class="grp"><td colspan="4">不确定性和想象</td></tr>
+<tr><td>U1</td><td>认知 u</td><td>\(\mathrm{Var}_b[\mu^b]\)（式 4）</td><td><code>state_means.std(dim=0).sum(dim=1)</code>：标准差，跨 45 维求和，归一化单位</td></tr>
+<tr><td>U2</td><td>偶然</td><td>预测标准差的成员平均（§5.1）</td><td><code>state_stds.mean(dim=0).sum(dim=1)</code>，也跨维求和</td></tr>
+<tr><td>U3</td><td>下一帧</td><td>集成均值（式 4）</td><td>想象：每条轨迹固定抽一个成员的 μ；评估（图 3 那种）：集成均值</td></tr>
+<tr><td>U4</td><td>想象规模</td><td>4096 条 × 100 步（表 S11）</td><td>8192 条 × 24 步，单条最长 256 步</td></tr>
+<tr><td>U5</td><td>起点</td><td>从 D 抽（算法 1 第 5 行）</td><td>相同；只有第一步喂满 32 帧历史，之后重置的轨迹只喂 1 帧</td></tr>
+<tr><td>U6</td><td>其他</td><td>没写</td><td>想象里每 48 到 96 步随机推一下基座速度；策略输入加均匀噪声；速度命令 ±1 内均匀，2% 站立</td></tr>
+<tr class="grp"><td colspan="4">MOPO-PPO</td></tr>
+<tr><td>P1</td><td>奖励</td><td>\(r-\lambda u\)（式 5），λ = 1.0（表 S11）</td><td>相同形式，λ 存成 −1.0；所有项都再乘 dt = 0.02</td></tr>
+<tr><td>P2</td><td>策略、价值</td><td>MLP 128 × 3，ELU（表 S8）；策略输入 48 维（表 S5）</td><td>相同</td></tr>
+<tr><td>P3</td><td>PPO</td><td>lr 0.001，5 轮，4 小批，KL 0.01，γ 0.99，ε 0.2，熵 0.005（表 S11）</td><td>lite 相同；robotic_world_model 里 lr 1e−4、熵 1e−4；两者另有 GAE λ = 0.95、价值系数 1.0</td></tr>
+<tr><td>P4</td><td>迭代</td><td>2500（表 S11）；图 4 横轴 500 和 1900</td><td>500</td></tr>
+<tr><td>P5</td><td>覆盖范围</td><td>Franka、ANYmal D、G1；CQL、MBPO、MBPO-PPO、MOPO</td><td>只有 ANYmal D 平地和 MOPO-PPO；没有真机采集脚本</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 4、5、7、8 幕的玩具。</b>当场训练：一维位置加一个动作，480 条日志转移，共享一层 tanh 基座加每成员一层，手写反传和 Adam，1200 步，固定种子。曲线是算出来的，但和 RWM-U 没有数值关系。种子之间差别很大（第 4、8 幕可切），比如种子 3 在区间外几乎不分歧，需要更大的 λ。悬崖、目标位置和策略形式都是我为演示设的。</li>
+<li><b>第 8 幕用网格搜索代替 PPO。</b>只看式 (5) 怎样改变目标函数，不表示 PPO 的收敛过程。u 除以日志单步变化的标准差再乘 λ，这样 λ 的量级接近论文的量级，但两边的 λ 不能互相换算。</li>
+<li><b>第 2 幕的路径和安全框尺寸。</b>论文没给尺寸，路径手写。柱子是表 1 的数字。</li>
+<li><b>第 11 幕和第 1、2 幕的四足。</b>盒子和圆柱拼的，步态是正弦。第 11 幕的三种动作只按论文文字摆，不是网络输出。</li>
+<li><b>第 3 幕的小球和方块大小。</b>只表示数据流向。</li>
+<li><b>第 5 幕右图。</b>解析式，高度只为能放进一张图而归一，两条曲线的高度不能直接比。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2504.16680v3 和官方代码后的理解，不是作者的官方图。原图见 <a href="https://arxiv.org/html/2504.16680">arXiv 网页版</a>，版权归作者。逐节内容和核算见<a href="../../papers/rwm-u.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>
