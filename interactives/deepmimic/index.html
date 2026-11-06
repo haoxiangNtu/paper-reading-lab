@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DeepMimic 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 1804.02717 DeepMimic 的核心框架做成 11 幕 3D 动画：控制回路、相位、策略网络、PD 目标、模仿奖励当场计算、RSI 和 ET 的开关、任务目标合成、多技能、PPO、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+:root{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100} }
+:root[data-theme="light"]{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100}
+.ctl{position:absolute;left:10px;right:10px;bottom:48px;display:flex;gap:5px 12px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl .cg{display:inline-flex;gap:4px;align-items:center;background:color-mix(in srgb,var(--bg2) 82%,transparent);border-radius:8px;padding:2px 5px;pointer-events:auto}
+.ctl .cg[hidden]{display:none}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:1px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl input[type=range]{width:110px;accent-color:var(--accent)}
+.ctl output{font-family:var(--font-mono);font-size:11.5px;min-width:4.6em;color:var(--fg)}
+#live{margin:0 0 10px}
+#live:empty{display:none}
+#live dl{margin:6px 0}
+.rb{display:grid;grid-template-columns:7.8em 1fr 3.4em;gap:6px;align-items:center;font-size:12.5px;margin:3px 0}
+.rb .t{height:9px;background:var(--panel);border-radius:4px;overflow:hidden}
+.rb .t i{display:block;height:100%;border-radius:4px}
+.rb .v{font-family:var(--font-mono);font-size:11.5px;text-align:right}
+.cht{font-size:12.5px;color:var(--muted);margin:8px 0 2px!important}
+svg.ch{display:block;width:100%;height:auto}
+svg.ch .gl{stroke:var(--line);stroke-width:1;opacity:.6}
+svg.ch .tk{fill:var(--muted);font:10px var(--font-mono)}
+svg.ch .mk{stroke:var(--fg);stroke-width:1;stroke-dasharray:3 3}
+.lg{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:11.5px;margin:0 0 2px}
+.lg i,#chtip i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:4px}
+.info{position:relative}
+#chtip{position:absolute;z-index:3;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:11.5px;line-height:1.5;pointer-events:none}
+#chtip span{display:block;white-space:nowrap}
+table.mini{font-size:11.5px;width:100%}
+table.mini th,table.mini td{padding:2px 5px;white-space:nowrap}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+body.embed .ctl{bottom:44px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="deepmimic.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/deepmimic.html">返回精读</a><a href="../../papers/deepmimic.html#s5-3">§5.3 奖励</a><a href="../../papers/deepmimic.html#s6">§6 训练</a><a href="../../papers/supermimic.html">SuperMimic</a><a href="https://arxiv.org/abs/1804.02717">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 1804.02717 · DEEPMIMIC</p>
+<h1>一段参考动作，怎样变成物理角色的技能</h1>
+<p class="lead">一共 11 幕。第 1 幕是总回路，第 2 到 4 幕是策略的输入和输出：相位、网络、PD 目标。第 5 到 7 幕是最关键的三样：<b>模仿奖励、RSI、ET</b>。第 8、9 幕加上任务和多技能，第 10 幕是 PPO，第 11 幕是原文的数字。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。画面下方是这一幕的开关和滑块，改了立刻重算。人物的骨架、质量和参考动作都取自<a href="https://github.com/xbpeng/DeepMimic">官方仓库</a>（MIT 许可，commit 1f915c5），所以奖励是在真实运动学上算的。页面不跑任何 DeepMimic 策略：橙色人物要么是参考片段加人为漂移，要么是玩具或示意，每一幕都写明了。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画和当场计算都不可用。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="live"></div>
+    <div id="chtip" hidden></div>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构（论文对照官方代码）</h2>
+<p class="sub">“论文”一列出自 arXiv v3。“代码”一列读自 <a href="https://github.com/xbpeng/DeepMimic/tree/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801">1f915c5</a>（2025-11-27），括号里是初始提交 3ca04d3（2018-10-14）不同时的值。代码只读过，没有运行。写着“没写”的，论文确实没给。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和输出（人形）</td></tr>
+<tr><td>A1</td><td>状态 s</td><td>197 维（表 1）。位置、四元数、线速度、角速度，局部坐标，加 φ</td><td>1f915c5：227 维（朝向改为法向+切向 6 维）。3ca04d3：13×15 + 根高 + φ = 197。根旋转记世界系</td></tr>
+<tr><td>A2</td><td>动作 a</td><td>36 维（表 1）。球关节轴角，转动关节标量</td><td>1f915c5：28 维（3×8 + 4，指数映射）。3ca04d3：36 维（4×8 + 4，轴角）</td></tr>
+<tr><td>A3</td><td>相位 φ</td><td>[0, 1]，循环时重置</td><td>GetPhase = time/周期，取模 1</td></tr>
+<tr><td>A4</td><td>部件 / 自由度</td><td>13 / 34，45 kg，1.62 m</td><td>15 个部件（含 2 个固定手腕），质量和为 45 kg</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>π，V</td><td>全连接 1024, 512，ReLU；线性输出</td><td>fc_2layers_1024units：1024, 512，相同</td></tr>
+<tr><td>N2</td><td>Σ</td><td>固定对角，超参数，没写数值</td><td>归一化动作空间里标准差 0.05</td></tr>
+<tr><td>N3</td><td>高度图分支</td><td>16@8×8, 32@4×4, 32@4×4, 64 全连接</td><td>仓库里没有</td></tr>
+<tr class="grp"><td colspan="4">控制</td></tr>
+<tr><td>C1</td><td>频率</td><td>策略 30 Hz，仿真 1.2 kHz</td><td>UpdateRate 30；60 × 10 × 2 = 1200 Hz</td></tr>
+<tr><td>C2</td><td>PD</td><td>稳定 PD，增益“手工指定”，没给数值</td><td>CalcControlForces 是稳定 PD。Kp/Kd：胸 1000/100，颈 100/10，髋 500/50，膝 500/50，踝 400/40，肩 400/40，肘 300/30</td></tr>
+<tr class="grp"><td colspan="4">模仿奖励（第 5 幕两种都能切）</td></tr>
+<tr><td>R1</td><td>权重</td><td>r_p 0.65，r_v 0.1，r_e 0.15，r_c 0.1</td><td>r_p 0.5，r_v 0.05，r_e 0.15，r_root 0.2，r_c 0.1</td></tr>
+<tr><td>R2</td><td>r_p</td><td>exp(−2 Σⱼθⱼ²)</td><td>exp(−2 Σⱼwⱼθⱼ²)，wⱼ 归一化，和为 1</td></tr>
+<tr><td>R3</td><td>r_v</td><td>exp(−0.1 Σⱼ‖Δq̇ⱼ‖²)</td><td>exp(−0.1 Σⱼwⱼ‖Δq̇ⱼ‖²)</td></tr>
+<tr><td>R4</td><td>r_e</td><td>exp(−40 Σₑ‖Δpₑ‖²)，世界坐标</td><td>exp(−10 Σₑ‖Δpₑ‖²)，相对根、去朝向（3ca04d3：40 乘 4 个末端的平均，数值相同）</td></tr>
+<tr><td>R5</td><td>r_c</td><td>exp(−10 ‖Δp_c‖²)，质心位置</td><td>exp(−‖Δv_c‖²)，质心速度</td></tr>
+<tr><td>R6</td><td>r_root</td><td>无</td><td>exp(−5(‖Δp‖² + 0.1θ² + 0.01‖Δv‖² + 0.001‖Δω‖²))</td></tr>
+<tr class="grp"><td colspan="4">回合</td></tr>
+<tr><td>E1</td><td>RSI</td><td>起点从参考动作均匀抽</td><td>RandDouble(0, dur)，姿态和速度同步</td></tr>
+<tr><td>E2</td><td>ET 触发</td><td>“某些部位，如躯干或头”</td><td>多数技能：除两脚外 13 个部位。侧手翻另外放过双手；爬行只算根、胸、颈；翻滚和起身关闭</td></tr>
+<tr><td>E3</td><td>回合长度</td><td>循环技能 20 s，非循环按 T_cycle</td><td>从 0.5 s 退火到 20 s，历时 3200 万样本，论文没提</td></tr>
+<tr class="grp"><td colspan="4">PPO</td></tr>
+<tr><td>P1</td><td>m, n, γ, λ, ε</td><td>4096, 256, 0.95, 0.95, 0.2</td><td>相同</td></tr>
+<tr><td>P2</td><td>α_π</td><td>5×10⁻⁵（人形、Atlas）</td><td>2×10⁻⁶（3ca04d3：2.5×10⁻⁶），优势另做了标准化</td></tr>
+<tr><td>P3</td><td>α_v</td><td>10⁻²</td><td>5×10⁻⁴（3ca04d3：10⁻²）</td></tr>
+<tr><td>P4</td><td>动量</td><td>0.9</td><td>0.9，另有策略权重衰减 5×10⁻⁴，论文没提</td></tr>
+<tr><td>P5</td><td>探索率</td><td>没提</td><td>按动作抽样的概率从 1 退火到 0.2，历时 6400 万样本</td></tr>
+<tr class="grp"><td colspan="4">任务（r = 0.7 r_I + 0.3 r_G）</td></tr>
+<tr><td>T1</td><td>朝向、打击、掷球、地形</td><td>§9 的公式和范围</td><td>2018 版的这些任务不在仓库里；仓库里的 Strike、Heading 等场景是 2021 年 AMP 版本</td></tr>
+<tr><td>T2</td><td>多片段、技能选择、复合策略</td><td>§7</td><td>SceneImitate 只有单片段；我没在仓库里找到这三种的实现</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意，哪些是算的</h2>
+<ul class="mine">
+<li><b>人物。</b>骨架尺寸、质量、参考片段是真的，取自官方仓库。但橙色人物不是策略输出：第 5 幕是参考加人为漂移，第 7 幕的摔倒过程是我写的过渡，第 8 幕的踢腿是单帧搜索结果按时间高斯加权。</li>
+<li><b>第 2 幕。</b>搜索和差值是在真实片段上算的。比较只用朝向，没算速度。</li>
+<li><b>第 3 幕。</b>输出柱的高度是假的，维度都来自表 1。部件和关节的拆分是我从表 1 反推的。</li>
+<li><b>第 4 幕。</b>单自由度积分是真算的，用代码里的 Kp、Kd、力矩上限。转动惯量是我按均匀杆估的，目标直接取参考角。真实策略的输出不是参考角。</li>
+<li><b>第 5 幕。</b>两套公式都是真算的。论文没说 j 是否含根，这里含。代码版只抄了奖励的数学，没有地面采样（地面高度取 0）。</li>
+<li><b>第 6、7 幕的玩具。</b>20 步链上的表格演员-评论家是页面当场训练的，每个配置 8 个种子，种子固定所以每次一样。链的结构和奖励（0.9、0.45、0.15）是我定的，0.15 落在算出的躺地奖励 0.10 和 0.31 之间。它能说明机制，不能替代论文的实验，而且复现不了关 ET 时回报大跌那部分。</li>
+<li><b>第 7 幕的躺地奖励。</b>真算的：根朝天、关节照参考，对行走片段求平均。</li>
+<li><b>第 9 幕。</b>多片段的 r_I 是真算的，相位对齐是我的假设。复合策略的 V 是手调的，Boltzmann 公式是真的。</li>
+<li><b>第 10 幕。</b>奖励真算，λ 回报和裁剪目标真算，V 是手写的。</li>
+<li><b>第 11 幕。</b>柱子都是表中数字。论文的曲线图（图 11 到 14）都是位图，没有矢量数据，所以这里没有重画。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 1804.02717 后的理解，不是作者的官方图。原图看<a href="https://arxiv.org/html/1804.02717">arXiv 网页版</a>，版权归作者。参考片段和骨架数据来自 <a href="https://github.com/xbpeng/DeepMimic">xbpeng/DeepMimic</a>，MIT License，Copyright (c) 2018 Xue Bin Peng，许可全文在 deepmimic.js 开头。逐节内容和核算见<a href="../../papers/deepmimic.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

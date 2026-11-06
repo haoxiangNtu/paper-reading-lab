@@ -20,6 +20,46 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/shac.html">SHAC：短窗口加评论家，让可微仿真真正好用</a></p>
+<p class="en">Accelerated Policy Learning with Parallel Differentiable Simulation</p>
+<div class="meta"><span>arXiv 2204.07137</span><span>ICLR 2022</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把任务切成 32 步短窗口，末端接评论家，让可微仿真在接触任务上真正快过 PPO，并拆解 SuperMimic 从它拿走和改掉了什么。</p>
+<div class="tags"><span class="pill">可微仿真</span><span class="pill">短视野</span><span class="pill">演员-评论家</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">15 条读者注</span></div>
+<div class="links"><a class="go" href="papers/shac.html">读精读 →</a><a href="interactives/shac/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2204.07137">原文</a><a href="https://github.com/NVlabs/DiffRL">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/dreamer.html">Dreamer：只靠想象学行为</a></p>
+<p class="en">Dream to Control: Learning Behaviors by Latent Imagination</p>
+<div class="meta"><span>arXiv 1912.01603</span><span>ICLR 2020</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把价值梯度穿过学到的隐空间动力学反传，只靠想象学长视野视觉控制；动画当场计算 V_λ，并有可运行的玩具循环。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">RSSM</span><span class="pill">潜在想象</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">16 条读者注</span></div>
+<div class="links"><a class="go" href="papers/dreamer.html">读精读 →</a><a href="interactives/dreamer/index.html">10 幕 3D 框架动画</a><a href="https://arxiv.org/abs/1912.01603">原文</a><a href="https://github.com/danijar/dreamer">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/supertrack.html">SuperTrack：把仿真器换成可导的世界模型</a></p>
+<p class="en">SuperTrack: Motion Tracking for Physically Simulated Characters using Supervised Learning</p>
+<div class="meta"><span>doi:10.1145/3478513.3480527</span><span>ACM TOG 2021</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把仿真器换成可导的世界模型，动作跟踪变成监督学习；动画在玩具两连杆上现场训练并算梯度。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">可微仿真</span><span class="pill">动作跟踪</span><span class="pill">ACM 版权 · 文字描述图</span><span class="pill rn">17 条读者注</span></div>
+<div class="links"><a class="go" href="papers/supertrack.html">读精读 →</a><a href="interactives/supertrack/index.html">11 幕 3D 框架动画</a><a href="https://doi.org/10.1145/3478513.3480527">原文</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/rwm.html">RWM：在学到的神经仿真器里跑 PPO</a></p>
+<p class="en">Robotic World Model: A Neural Network Simulator for Robust Policy Optimization in Robotics</p>
+<div class="meta"><span>arXiv 2501.10100</span><span>arXiv 2025</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">用自回归训练的 GRU 世界模型在想象轨迹上跑 PPO，策略零次迁移到 ANYmal D 和 Unitree G1。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">MBPO-PPO</span><span class="pill">自回归</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">17 条读者注</span></div>
+<div class="links"><a class="go" href="papers/rwm.html">读精读 →</a><a href="interactives/rwm/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2501.10100">原文</a><a href="https://github.com/leggedrobotics/robotic_world_model">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/deepmimic.html">DeepMimic：模仿奖励、RSI 和 ET</a></p>
+<p class="en">DeepMimic: Example-Guided Deep Reinforcement Learning of Physics-Based Character Skills</p>
+<div class="meta"><span>arXiv 1804.02717</span><span>SIGGRAPH 2018</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">一段参考动作加模仿奖励、RSI 和 ET，让物理角色用 PPO 学会空翻；奖励可在真实骨架上当场算。</p>
+<div class="tags"><span class="pill">动作模仿</span><span class="pill">PPO</span><span class="pill">物理角色</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/deepmimic.html">读精读 →</a><a href="interactives/deepmimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/1804.02717">原文</a><a href="https://github.com/xbpeng/DeepMimic">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/supermimic.html">SuperMimic：用一个可微世界模型，把人形全身控制的训练算力降下来</a></p>
 <p class="en">SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model</p>
 <div class="meta"><span>arXiv 2610.28480</span><span>2026-10-20</span><span>CoRL 2026</span><span>UC Berkeley</span><span>2026-11-06 读</span></div>
@@ -105,6 +145,7 @@
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
 <tr><td><code>papers/supermimic.html</code></td><td>SuperMimic 精读</td></tr>
+<tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
 <tr><td><code>papers/supermimic/charts.js</code></td><td>SuperMimic 精读页的折线图，数据点从原文矢量图读出，是重画的，不是原图</td></tr>
 <tr><td><code>papers/supermimic/*.webp</code></td><td>从 SuperMimic PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者</td></tr>
 <tr><td><code>interactives/supermimic/</code></td><td>SuperMimic 的 11 幕 3D 框架动画（<code>index.html</code>，精读页 §3.1 内嵌），three.js</td></tr>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SHAC 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2204.07137 SHAC 的框架做成 11 幕 3D 动画：BPTT 和短窗口的计算图、可微仿真器、接触模型、混沌玩具上当场算的梯度爆炸和损失地形、提前终止、评论家自举、算法 1 现场训练，和 SuperMimic 的对照。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;bottom:52px;right:10px;display:flex;gap:5px 6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl>*{pointer-events:auto}
+.ctl span,.ctl .hz{background:color-mix(in srgb,var(--bg2) 80%,transparent);padding:1px 6px;border-radius:6px;margin-left:6px}
+.ctl .hz{display:inline-flex;align-items:center;gap:6px;color:var(--fg);margin-left:0}
+.ctl .hz b{color:var(--accent);min-width:2.4em;display:inline-block;text-align:right;font-family:var(--font-mono)}
+.ctl .hz input{width:190px;accent-color:var(--accent)}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+.info table.mini{font-size:12.5px;width:100%;margin:8px 0;font-family:var(--font-mono)}
+.info table.mini th,.info table.mini td{padding:3px 4px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="shac.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/shac.html">返回精读</a><a href="../../papers/shac.html#s3-3">原文 §3.3</a><a href="../../papers/supermimic.html">SuperMimic 精读</a><a href="https://arxiv.org/abs/2204.07137">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2204.07137 · SHAC · ICLR 2022</p>
+<h1>短视野演员-评论家：为什么切短窗口反而学得动</h1>
+<p class="lead">一共 11 幕。第 1 幕看 BPTT 和 SHAC 的计算图差别；第 2、3 幕是可微仿真器；第 4 到 6 幕回答论文 §3.2 的三个问题：梯度为什么炸、地形为什么崩、提前终止有什么害。第 7 到 9 幕是方法本身：短窗口、评论家、算法 1 整个循环。第 10 幕是论文结果，第 11 幕和 <a href="../../papers/supermimic.html">SuperMimic</a> 逐项比。</p>
+<p class="howto">第 4 幕可以拖动窗口长度 h，第 5、6、7、8、9 幕有按钮，切换后数字当场重算。一个受周期驱动的小摆是我设的玩具（第 2、4 到 9 幕），它的梯度是真的用伴随递推算的，并且和中心差分对过账；但它只说明机制，玩具的数值不能外推到人形。第 10 幕的柱子是从原文矢量图和表格读的真实数值。超参数来自论文表 1、4、5 和官方代码 <a href="https://github.com/NVlabs/DiffRL/tree/a4c0dd1696d3c3b885ce85a3cb64370b580cb913">NVlabs/DiffRL@a4c0dd1</a>。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构（论文表 1、4、5，算法 1；代码 DiffRL@a4c0dd1）</h2>
+<p class="sub">“代码”表示论文没写、只有代码里有。“没写”就是论文和代码都没给。玩具一节是我自己的设定，和论文无关。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">策略 π_θ</td></tr>
+<tr><td>P1</td><td>网络</td><td>观测 → μ</td><td>MLP，ELU，隐藏层后 LayerNorm。CartPole (64,64)；Ant (128,64,32)；Humanoid (256,128)；MTU (512,256)</td></tr>
+<tr><td>P2</td><td>分布</td><td>μ → a</td><td>a ~ N(μ, σ)，重参数化采样。代码：σ 是可学参数，log σ 初值 −1.0，不依赖状态；送入仿真前过 tanh，再 clip 到 [−1,1]</td></tr>
+<tr><td>P3</td><td>优化</td><td>式 (5) → Adam 一步</td><td>β = (0.7, 0.95)；lr CartPole 0.01，其余 0.002，线性衰减（代码：衰减到 10⁻⁵）。代码：梯度范数裁到 1.0</td></tr>
+<tr class="grp"><td colspan="4">评论家 V_φ 和目标网络 V_φ′</td></tr>
+<tr><td>C1</td><td>网络</td><td>观测 → 标量</td><td>MLP，ELU，LayerNorm。CartPole、Ant (64,64)；Humanoid (128,128)；MTU (256,256)</td></tr>
+<tr><td>C2</td><td>目标</td><td>窗口数据 → Ṽ</td><td>TD-λ，λ = 0.95，式 (7)，用 V_φ′；γ = 0.99</td></tr>
+<tr><td>C3</td><td>拟合</td><td>式 (6)</td><td>16 遍，每遍 4 个小批；lr CartPole 0.001，Ant 0.002，Humanoid、MTU 0.0005。代码：小批未打乱（<code>shuffle=False</code>）</td></tr>
+<tr><td>C4</td><td>目标更新</td><td>V_φ′ ← αV_φ′ + (1−α)V_φ</td><td>α：CartPole、Ant 0.2；Humanoid、MTU 0.995</td></tr>
+<tr class="grp"><td colspan="4">采样和循环</td></tr>
+<tr><td>S1</td><td>窗口</td><td>上一窗口末态 → 新窗口</td><td>h = 32，N = 64（表 4）。代码里 Hopper N = 256</td></tr>
+<tr><td>S2</td><td>回合数</td><td></td><td>M：CartPole 500，其余 2000。每轮样本 32 × 64 = 2048（我的计算）</td></tr>
+<tr><td>S3</td><td>观测归一化</td><td></td><td>运行均值和标准差（代码 obs_rms，归一化统计每窗口冻结一份）</td></tr>
+<tr><td>S4</td><td>提前终止</td><td>done</td><td>代码：提前终止 V 记 0，超时用 V(终止前观测)；reward 累计和折扣清零</td></tr>
+<tr class="grp"><td colspan="4">可微仿真器 dFlex（式 2 到 4）</td></tr>
+<tr><td>D1</td><td>动力学</td><td>s, a → s′</td><td>Mq̈ = Jᵀf + c + τ；CRBA，Cholesky，半隐式欧拉。子步数（代码）：CartPole 4，Ant、Cheetah、Hopper 16，Humanoid、MTU 48</td></tr>
+<tr><td>D2</td><td>接触</td><td>d, ḋ, v_t → f</td><td>式 (3)。系数（代码，k_n/k_d/k_t/μ）：Ant 4e4/1e4/3e3/0.75；Humanoid 2e4/5e3/1e3/0.75；Cheetah 2e4/1e3/1e3/1.0；Hopper 2e4/1e3/1e3/0.9；MTU 5e3/2e3/1e3/0.5</td></tr>
+<tr><td>D3</td><td>限位</td><td>q → f</td><td>式 (4)；代码 limit_ke = 1e3，另有 limit_kd = 10 的阻尼项（CartPole 只设了 limit_kd = 1）</td></tr>
+<tr class="grp"><td colspan="4">玩具（第 2、4 到 9 幕，和论文无关，是我设的）</td></tr>
+<tr><td>T1</td><td>动力学</td><td>(φ, ω, ψ), a → 下一状态</td><td>ω′ = ω + dt(−sin φ − 0.5ω + 2cos ψ + a)，φ′ = φ + dt·ω′，ψ′ = ψ + dt·2/3，dt = 0.25</td></tr>
+<tr><td>T2</td><td>奖励</td><td></td><td>−cos φ′ − 0.02ω′² − 0.01a²</td></tr>
+<tr><td>T3</td><td>网络</td><td>(sin φ, cos φ, ω/3, sin ψ, cos ψ) →</td><td>策略 16 隐藏单元 tanh，输出过 tanh；评论家 16 隐藏单元，输出 ×20</td></tr>
+<tr><td>T4</td><td>训练</td><td></td><td>第 9 幕：N·h ≈ 256，总预算约 76,800 步，噪声 σ = 0.25，评论家每轮 6 遍。训练时无终止</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕。</b>方块数少于真实步数，红球放大是示意。没有计算。</li>
+<li><b>第 3 幕。</b>接触系数来自代码；小球质量和下落高度是我设的，积分用的是式 (3)，不是 dFlex。</li>
+<li><b>第 2、4 到 9 幕的摆。</b>动力学、网络和任务全是我设的玩具。计算是真的，结论只说明机制。特别地，玩具训练后会进入稳定轨道，梯度不再爆炸，论文报告的人形并不这样。</li>
+<li><b>第 5 幕的小球。</b>在 29×29 网格上走到更低的相邻格，只用来显示局部极小的多少，不是 Adam。</li>
+<li><b>第 6 幕的软权重。</b>形状是我设的 sigmoid。SuperMimic 的 d̂ 是用 BCE 学出来的，这里只演示“乘进权重”这个结构。</li>
+<li><b>第 11 幕。</b>色块只是分类，没有数值含义。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2204.07137 和官方代码后的理解，不是作者的官方图。原图见 <a href="https://arxiv.org/html/2204.07137">arXiv 网页版</a>。逐节内容和核算见<a href="../../papers/shac.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>

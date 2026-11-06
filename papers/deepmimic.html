@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DeepMimic 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 1804.02717 DeepMimic 的中文精读：按原文章节逐节整理，含全部公式、结果表、图的文字描述、和官方代码的对照、11 幕 3D 框架动画（模仿奖励当场计算，RSI 和 ET 可开关）和 18 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-m{min-width:420px}.t-cmp{min-width:640px}.t-code{min-width:620px}.t-links{min-width:600px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/deepmimic/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 1804.02717v3 · cs.GR · ACM TOG 37(4)，SIGGRAPH 2018 · 中文精读</p>
+<h1>DeepMimic：用参考动作引导深度强化学习，让物理角色学会技能</h1>
+<p class="orig">DeepMimic: Example-Guided Deep Reinforcement Learning of Physics-Based Character Skills</p>
+<p>作者 Xue Bin Peng、Pieter Abbeel、Sergey Levine（UC Berkeley），Michiel van de Panne（UBC）。这是 <a href="supermimic.html">SuperMimic</a> 相关工作里引用的第一篇动作模仿论文。</p>
+<div class="meta"><a href="https://arxiv.org/abs/1804.02717">arXiv 原文</a><a href="https://arxiv.org/html/1804.02717">网页版</a><a href="https://arxiv.org/pdf/1804.02717">PDF</a><a href="https://xbpeng.github.io/projects/DeepMimic/index.html">项目主页</a><a href="https://github.com/xbpeng/DeepMimic">官方代码</a><span>正文 13 页，参考文献和补充材料到第 18 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，没有授权翻译或转载。所以这里不做逐字翻译，用自己的话按原文顺序覆盖第 1 到 11 节和补充材料 A 到 D。插图没有放副本，每张图用文字描述，点“看原图”打开 arXiv 网页版的对应位置。论文的学习曲线都是位图，没有矢量数据，所以没有重画。表格数字照录原文。</p>
+<p><b>公式编号。</b>原文正文的公式都没有编号，全文只有补充材料 A 里的 n 步回报标了 (1)。这里按所在小节标注，比如“§5.3”，这不是原文的编号。</p>
+<p><b>代码。</b>官方代码是 <a class="ds" href="https://github.com/xbpeng/DeepMimic">xbpeng/DeepMimic</a>，MIT 许可。我读了最新提交 <a href="https://github.com/xbpeng/DeepMimic/tree/1f915c52fcd4b95b5f5f15b759ae91bd81e9a801">1f915c5</a>（2025-11-27）和初始提交 <a href="https://github.com/xbpeng/DeepMimic/tree/3ca04d3">3ca04d3</a>（2018-10-14），只读，没有运行。两者和论文有多处不同，都写在下面，也说明动画画的是哪一种。标成“读者注”的框是整理时核算或对照的结果，不属于论文内容。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 概览</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 背景</a><a href="#s5">5 策略表示</a><a href="#s5-3">5.3 奖励</a><a href="#s6">6 训练</a><a href="#s6-1">6.1 RSI</a><a href="#s6-2">6.2 ET</a><a href="#s7">7 多技能</a><a href="#s8">8 角色</a><a href="#s9">9 任务</a><a href="#s10">10 结果</a><a href="#s10-4">10.4 消融</a><a href="#s11">11 讨论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#apD">附录 D</a><a class="rn" href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>物理仿真的角色要能抗干扰、能适应环境，但手工写控制器难，深度强化学习（RL）又常常学出怪动作。这篇的做法很直接：<b>奖励里加一项“和参考动作有多像”</b>，用 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 训练一个带相位输入的策略，再加两个训练上的改动，让翻跟头这类高动态技能也能学会。</p>
+<ul>
+<li><b>覆盖面：</b>人形 24 种技能，加 Atlas、霸王龙、龙，都用同一套方法和奖励。</li>
+<li><b>两个关键：</b>参考状态初始化（RSI，reference state initialization）和提前终止（ET，early termination）。没有 ET，后空翻、侧空翻和旋风踢的回报从约 0.8 掉到约 0.36。没有 RSI，后空翻只会小跳。</li>
+<li><b>任务：</b>r = 0.7 r<sub>I</sub> + 0.3 r<sub>G</sub>。可以边模仿边朝指定方向走、踢目标、扔球、过障碍。</li>
+<li><b>多片段：</b>max 奖励、one-hot 技能选择、用价值函数选技能的复合策略，三种办法。</li>
+<li><b>代价：</b>一个技能约 6000 万样本，8 核 CPU 约 2 天；每个技能单独训练。</li>
+</ul>
+<p>读完我认为最值得记住三点。奖励是一组指数项的加权和，所以<b>每一项对哪种偏差敏感</b>决定了策略学成什么样（<a href="#i3d">第 5 幕</a>可以试）。公开代码里的奖励和论文公式<b>差别很大</b>（<a href="#n4">读者注 4</a>）。表 2 里前空翻的 0.485 和论文自己的学习曲线<b>对不上</b>（<a href="#n12">读者注 12</a>）。</p>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://arxiv.org/html/1804.02717#S0.F1">看原图 ↗</a></span><p>两组序列渲染。左边人形角色做侧手翻，右边模拟的 Atlas 机器人做旋风踢。每组用连续的半透明姿态把一次动作摊开。</p></div>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 明确提到这篇的地方只有两处：引言说物理动作模仿是用 RL 训练策略跟踪参考片段，引用 [2]；相关工作说“DeepMimic 用无模型 RL 展示了生动的角色技能”。它没有在表 1 里比较 DeepMimic，也没有说具体继承了什么。SuperMimic 的任务设定和奖励写明来自 BeyondMimic [3]。</p>
+<p>所以下面这张表是我对照两篇原文做的比较，不是 SuperMimic 的说法。“框架”这一行是实质的继承：跟踪参考动作，指数形式的奖励，从动作库中间重置，不合格就终止。其余几行都换了。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>方面</th><th>DeepMimic</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>框架</td><td>奖励鼓励跟踪参考片段</td><td>同样，但目标是“一个控制器覆盖整个动作库”</td></tr>
+<tr><td>策略改进</td><td>PPO，无模型，靠采样估计梯度</td><td>穿过可微世界模型做 BPTT，解析梯度。这是它要解决的核心问题</td></tr>
+<tr><td>奖励</td><td>四项指数的加权和，§5.3</td><td>BeyondMimic 的六项指数加正则（<a href="supermimic.html#apA">表 A.2</a>），按部件取平均。形式同族，项和尺度不同。<a href="#n4">读者注 4</a> 说明 DeepMimic 的代码其实也用了加权平均</td></tr>
+<tr><td>重置</td><td>RSI：均匀抽 φ</td><td>按 1 秒分区间，50% 均匀，40% 偏向回报低的区间，10% 按历史权重。RSI 的扩展，原文未把它归功于 DeepMimic</td></tr>
+<tr><td>终止</td><td>指定部位碰地</td><td>根高度差 > 0.25 m 或倾斜误差 > 0.8，和参考比</td></tr>
+<tr><td>时间信息</td><td>一维相位 φ，线性前进</td><td>未来 K = 10 帧参考动作，没有相位输入。§11 的“节奏不能调”这条局限在这里是否解决，原文没讨论</td></tr>
+<tr><td>动作</td><td>PD 目标角。代码里增益高（膝 Kp = 500），角度接近真实目标</td><td>q<sup>sp</sup> = αa + q⁰，低增益，设定点按原文说法是“力矩的代理”</td></tr>
+<tr><td>探索</td><td>固定方差的高斯策略</td><td>确定性策略，动作噪声只为拓宽世界模型的数据</td></tr>
+<tr><td>规模和算力</td><td>每个技能约 6000 万样本，8 核 CPU 约 2 天；最多几个片段</td><td>129,514 个动作，1 张 GPU 3 小时</td></tr>
+<tr><td>真机</td><td>只在仿真里；§11 列为今后工作</td><td>Unitree G1</td></tr>
+</tbody></table></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>布料、流体的物理仿真已经普及，物理仿真的角色却没有。难点是<b>泛化</b>（手写控制器依赖人的洞察，很难推广到新技能和新情况）和<b>可指挥</b>（让角色做出想要的行为很难）。</p>
+<p>深度 RL 减少了人工，但动作质量明显不如运动学方法或手工控制器：多余的上身动作、怪步态、不自然的姿态。此前引入动捕数据的做法，多是把跟踪控制器叠在运动学动画系统上。这要求运动学系统给出可跟踪的动作，也限制了偏离动作去恢复平衡或完成任务的能力，而且实现复杂。</p>
+<p>本文直接奖励“像参考动作”，同时奖励完成任务。主要贡献是把目标导向的 RL 和数据（动捕或关键帧）结合成一个框架。作者承认各部件早已存在，新的是这个组合。消融实验指出两个关键部件：RSI 和 ET。还给出三种多片段方法：基于 max 的奖励、用户可触发多技能的策略、用价值函数估计切换可行性来串联单片段策略。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>运动学模型。</b>有足够数据时，按情况选片段的控制器很有效；也有高斯过程潜空间、自编码器、相位函数网络（PFNN）等生成模型。数据好时质量常高于仿真方法，但对新情况合成能力有限，任务一复杂数据就不够用。物理是一种补救的先验。</p>
+<p><b>物理模型。</b>行走控制研究很多，常靠简化模型加优化；二次规划的动力学优化也用于行走；轨迹优化能合成物理上合理的动作，又扩展到在线模型预测控制。它们在高动态、接触多的动作上吃力。本文的主要优势是通用：一个无模型框架覆盖更广的技能，能合成模仿和任务，策略紧凑且计算快，能用高维状态和环境输入。</p>
+<p><b>强化学习。</b>策略梯度成为连续控制的主流，但结果常不自然，因为缺少生物力学模型时很难写出自然动作的奖励。只奖励前进速度会产生多余肢体动作和不对称步态，加能耗或冲击惩罚只有有限改善。<a class="ds" href="https://arxiv.org/abs/1606.03476">GAIL</a> 这类方法用数据诱导目标，结果还比不上动画领域的标准方法。最接近的是 DeepLoco：也加模仿项，但用固定初始状态，做不了高动态动作；只演示了行走，且只有一个无手臂的双足模型；多片段时还要手工挑片段。</p>
+<p><b>动作模仿。</b>从早期平面双足到三维人形的模型跟踪，再到用参考动作塑造 RL 奖励。本文覆盖更难的范围：间歇接地的高动态旋转、踢腿和翻转，并指出 RSI 和 ET 的关键作用。能力最接近的是 SAMCON（基于采样的控制器），但它组件多、迭代步骤多，要定义低维状态表示，也不清楚如何扩展到任务目标。</p>
+
+<h2 id="s3"><span class="no">3</span>概览</h2>
+<p>输入是角色模型、一组运动学参考动作、一个由奖励定义的任务。输出是控制策略 \(\pi(a_t\mid s_t,g_t)\)。参考动作是目标姿态序列 \(\{\hat q_t\}\)。动作是 PD（比例-微分）控制器的目标角度，PD 再算出各关节的力矩。参考动作定义模仿奖励 \(r^I\)，目标 \(g_t\) 定义任务奖励 \(r^G\)。策略用神经网络表示，PPO 训练。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总回路、相位、网络、PD 回路、模仿奖励、RSI、ET、任务合成、多技能、PPO、结果。第 5 幕可以选漂移方式和幅度，在真实骨架和真实参考片段上当场算奖励，并切换论文公式和官方代码。第 6、7 幕可以开关 RSI 和 ET，看一个当场训练的玩具。第 4 幕当场积分单关节 PD。人物不是策略输出，每幕都说明了哪些是算的，哪些是示意。</p>
+<iframe src="../interactives/deepmimic/index.html?embed=1" title="DeepMimic 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/deepmimic/index.html">全屏打开，还有论文和代码的完整对照表 ↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>背景</h2>
+<p>标准 RL 设定。为了简洁，这一节省略目标 \(g\)。每个控制步观测 \(s_t\)，从 \(\pi\) 采样 \(a_t\)，环境按 \(p(s'\mid s,a)\) 给出下一状态和标量奖励 \(r_t\)。要最大化期望回报：</p>
+<div class="eq"><div class="m">\[ J(\theta)=\mathbb E_{\tau\sim p_\theta(\tau)}\Bigl[\sum_{t=0}^{T}\gamma^t r_t\Bigr],\qquad p_\theta(\tau)=p(s_0)\prod_{t=0}^{T-1}p(s_{t+1}\mid s_t,a_t)\,\pi_\theta(a_t\mid s_t) \]</div><span class="no">§4</span></div>
+<p>\(T\) 是视野，可以无限，\(\gamma\in[0,1]\) 是折扣。策略梯度的估计式：</p>
+<div class="eq"><div class="m">\[ \nabla_\theta J(\theta)=\mathbb E_{s_t\sim d_\theta(s_t),\,a_t\sim\pi_\theta(a_t\mid s_t)}\bigl[\nabla_\theta\log\pi_\theta(a_t\mid s_t)\,\mathcal A_t\bigr] \]</div><span class="no">§4</span></div>
+<div class="eq"><div class="m">\[ \mathcal A_t=R_t-V(s_t),\quad R_t=\sum_{l=0}^{T-t}\gamma^l r_{t+l},\quad V(s_t)=\mathbb E[R_t\mid\pi_\theta,s_t] \]</div><span class="no">§4</span></div>
+<p>\(d_\theta\) 是策略下的状态分布。优势 \(\mathcal A_t\) 为正，就提高这个动作的概率。本文用 PPO，价值函数用 TD(λ) 的多步回报训练，优势用 <a class="ds" href="https://arxiv.org/abs/1506.02438">GAE(λ)</a> 计算，细节在补充材料。</p>
+
+<h2 id="s5"><span class="no">5</span>策略表示</h2>
+<p>参考动作只给运动学信息，也就是目标姿态。每一步该施加什么动作才能实现它，由策略决定。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>状态和动作</h3>
+<p><b>状态。</b>各部件相对根（骨盆）的位置、四元数旋转、线速度和角速度。都在角色的局部坐标系里，根在原点，x 轴朝根的朝向。因为目标姿态随时间变，再加一个<b>相位</b> \(\phi\in[0,1]\)：0 是片段开头，1 是结尾，循环动作每周期重置回 0。需要任务时再加目标 \(g\)。</p>
+<p><b>动作。</b>每个关节 PD 控制器的目标朝向。策略以 30 Hz 查询。球关节用轴角表示，转动关节用标量角。作者解释说，和直接输出力矩相比，PD 把局部阻尼和反馈这些细节抽象掉了，已有工作表明这能提升某些任务的效果和学习速度。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 相位到底区分了多少</span><p>我在官方仓库的参考片段上算：对每个 φ，在相位相差 ≥ 0.2 的帧里找朝向最接近的一帧，比较这两帧和各自 0.1 秒后的姿态差（每关节 RMS）。行走最接近的一对差 0.219 rad，0.1 秒后差 0.365 rad。后空翻是 0.353 和 0.727 rad。旋风踢是 0.672 和 0.734 rad。所以只看朝向，片段里没有“完全一样”的两帧，只是差距被放大约 1 到 2 倍。这没有算速度，加上速度差距会更明显。我的推断：φ 的主要好处不一定是消歧，也可能只是让网络更容易把“时间”映射到目标。论文没有做去掉 φ 的实验，这只是我的计算（<a href="#i3d">第 2 幕</a>能当场看）。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 36 维和 197 维是哪个版本的代码</span><p>论文说人形 197 维状态、36 维动作。初始提交 3ca04d3 和这对得上：每个部件 3 + 4 + 3 + 3 = 13 维，15 个部件，加根高、加 φ，13×15 + 2 = 197；球关节开了 <code>ENABLE_PD_SPHERE_AXIS</code>，轴和角共 4 个数，8 个球关节加 4 个转动关节，4×8 + 4 = 36。</p><p>最新提交 1f915c5 不一样了。旋转特征变成法向加切向 6 维（<code>GetRotFeatureDim</code> 返回 2 × 3），动作改用 3 维指数映射（<code>gExpMapDim = 3</code>）。按代码算状态是 15×15 + 2 = 227，动作是 3×8 + 4 = 28。这是我读代码算的，没有运行。两处都由 2021-04-06 的 AMP 提交 60ebe88 引入。想对照论文维度要看初始提交。</p><p>论文说状态都在局部坐标系，但两个提交的 humanoid3d 控制器配置都写了 <code>RecordWorldRootRot: true</code>，根的旋转和速度记的是世界系。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>网络</h3>
+<div class="eq"><div class="m">\[ \pi(a\mid s)=\mathcal N(\mu(s),\Sigma) \]</div><span class="no">§5.2</span></div>
+<p>均值 \(\mu(s)\) 由网络给出，协方差 \(\Sigma\) 是固定的对角阵，是超参数。两层全连接 1024、512，ReLU，线性输出。价值函数结构相同，只是输出一个线性单元。</p>
+<p>视觉任务额外加高度图 \(H\)：在角色周围的均匀网格上采样，先过卷积，再过全连接，然后和 \(s\)、\(g\) 拼接，后面接相同的全连接层。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 4 页 · <a href="https://arxiv.org/html/1804.02717#S5.F2">看原图 ↗</a></span><p>视觉运动策略网络的示意图。高度图 \(H\) 依次过 16 个 8×8、32 个 4×4、32 个 4×4 的卷积，再到 64 单元全连接。结果和 \(s\)、\(g\) 拼接后过 1024、512 单元的全连接，线性层输出 \(\mu(s)\)。原文图注说，不用高度图时只有第 5 到 7 层。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · Σ 的数值论文没写</span><p>论文只说 Σ 是超参数，没给数值。代码（<code>ct_agent_humanoid_ppo.txt</code>）的 Noise 是 0.05，作用在归一化后的动作空间。按最新提交的归一化尺度换算：球关节 0.05 × π ≈ 0.157 rad，膝和肘（范围 3.14 rad）是 0.05 / (0.5 / 3.14) ≈ 0.314 rad。这个换算是我的。另外，代码里每个动作以一定概率才抽样，否则取均值，这个概率从 1 退火到 0.2，历时 6400 万样本（<code>ExpParamsBeg/End</code> 的 Rate），论文也没提。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>奖励</h3>
+<div class="eq"><div class="m">\[ r_t=\omega^I r_t^I+\omega^G r_t^G \]</div><span class="no">§5.3</span></div>
+<p>第 10 节给出 \(\omega^I=0.7,\ \omega^G=0.3\)，所有任务相同。模仿奖励分四项：</p>
+<div class="eq"><div class="m">\[ r_t^I=w^p r_t^p+w^v r_t^v+w^e r_t^e+w^c r_t^c,\qquad w^p=0.65,\ w^v=0.1,\ w^e=0.15,\ w^c=0.1 \]</div><span class="no">§5.3</span></div>
+<p><b>姿态。</b>\(q_t^j\) 和 \(\hat q_t^j\) 是第 \(j\) 个关节的角色和参考朝向，\(\ominus\) 是四元数差，\(\lVert\cdot\rVert\) 取绕轴转过的标量角（弧度）：</p>
+<div class="eq"><div class="m">\[ r_t^p=\exp\Bigl[-2\Bigl(\sum_j\lVert\hat q_t^j\ominus q_t^j\rVert^2\Bigr)\Bigr] \]</div><span class="no">§5.3</span></div>
+<p><b>速度。</b>局部关节角速度，目标由参考动作有限差分得到：</p>
+<div class="eq"><div class="m">\[ r_t^v=\exp\Bigl[-0.1\Bigl(\sum_j\lVert\dot{\hat q}_t^j-\dot q_t^j\rVert^2\Bigr)\Bigr] \]</div><span class="no">§5.3</span></div>
+<p><b>末端。</b>左右手脚的世界坐标，单位米：</p>
+<div class="eq"><div class="m">\[ r_t^e=\exp\Bigl[-40\Bigl(\sum_e\lVert\hat p_t^e-p_t^e\rVert^2\Bigr)\Bigr] \]</div><span class="no">§5.3</span></div>
+<p><b>质心。</b></p>
+<div class="eq"><div class="m">\[ r_t^c=\exp\bigl[-10\lVert\hat p_t^c-p_t^c\rVert^2\bigr] \]</div><span class="no">§5.3</span></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 公开代码的奖励和这几个公式差很多</span><p>对照 <code>SceneImitate.cpp</code>（1f915c5，3ca04d3 对人形等价）：</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项</th><th>论文 §5.3</th><th>代码</th></tr></thead><tbody>
+<tr><td>权重</td><td>0.65, 0.1, 0.15, 0.1</td><td>0.5, 0.05, 0.15, 根 0.2, 质心 0.1</td></tr>
+<tr><td>姿态</td><td>\(\exp(-2\sum_j\theta_j^2)\)</td><td>\(\exp(-2\sum_j w_j\theta_j^2)\)，\(w_j\) 由 DiffWeight 归一化，和为 1</td></tr>
+<tr><td>速度</td><td>\(\exp(-0.1\sum_j\lVert\Delta\dot q_j\rVert^2)\)</td><td>\(\exp(-0.1\sum_j w_j\lVert\Delta\dot q_j\rVert^2)\)</td></tr>
+<tr><td>末端</td><td>\(\exp(-40\sum_e)\)，世界坐标</td><td>\(\exp(-10\sum_e)\)，相对根，高度相对地面，去掉朝向。3ca04d3 写作 40 乘 4 个末端的平均，数值一样</td></tr>
+<tr><td>质心</td><td>位置，\(\exp(-10\lVert\Delta p\rVert^2)\)</td><td>速度，\(\exp(-\lVert\Delta v\rVert^2)\)</td></tr>
+<tr><td>根</td><td>无</td><td>\(\exp(-5(\lVert\Delta p\rVert^2+0.1\theta^2+0.01\lVert\Delta v\rVert^2+0.001\lVert\Delta\omega\rVert^2))\)</td></tr>
+</tbody></table></div>
+<p>差别不是小数点级别的。在真实行走片段的同一帧上（t = 0.4 s），我用页面的实现算，所有非根关节各偏 0.3 rad：论文公式 \(r^p=0.115\)，总分 \(r^I=0.271\)；代码 \(r^p=0.867\)，总分 0.798。整个角色平移 10 cm，姿态没变：论文公式 \(r^e=0.202\)，总分 0.871；代码 \(r^e=1\)，总分 0.990。</p>
+<p>这两个数都来自<a href="#i3d">第 5 幕</a>的实现，可以自己切换。代码版只抄了奖励的数学，没有跑它的仿真。动画默认画论文公式。论文没说求和是否含根，代码含（权重 1），这里也含。我不知道论文实验当时用的是哪一版。</p></div>
+
+<h2 id="s6"><span class="no">6</span>训练</h2>
+<p>用带裁剪目标的 PPO。两个网络：策略 \(\pi_\theta(a\mid s,g)\) 和价值函数 \(V_\psi(s,g)\)。按回合训练：开始时从参考动作均匀抽初始状态，每步采样动作，直到固定视野或触发终止。收集一批后，抽小批量更新。价值目标用 TD(λ)，优势用 GAE(λ)。</p>
+<p>RL 里探索是老问题。已有工作多关注新奇度或信息增益，较少关注<b>回合本身的结构</b>。本节考虑两个常被当作问题固定属性的设计：初始状态分布和终止条件。作者发现用默认选择（固定初始状态、固定长度回合）通常学不会高难动作。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 算法 1 和回合长度</span><p>算法 1 的第 4、5 行（抽初始状态）在外层循环里，第 6 行 for 循环收集 m 步，字面上一批只有一个回合，也看不到提前终止。§6 的文字说得更对：回合可以中途结束。代码是按回合重置的。</p><p>论文说回合模拟到“固定时间视野”。代码的训练配置（args/train_humanoid3d_*）把上限从 0.5 s 退火到 20 s，历时 3200 万样本（<code>time_lim</code>、<code>time_end_lim</code>、<code>anneal_samples</code>，<code>UpdateTimerParams</code>），初始提交里 0.5 s 和 3200 万就有。这是一种课程，和 RSI、ET 一起影响早期的样本分布，论文没有提。读消融结果时要记得，我不知道那些实验是否用了它。</p></div>
+
+<h3 id="s6-1"><span class="no">6.1</span>初始状态分布</h3>
+<p>固定起点时，策略只能<b>按顺序</b>学：先学前面的相位，再往后推。后空翻很典型：会落地，才谈得上从起跳拿到高回报；不会落地，起跳反而回报更差。而且奖励只有到了那个状态才拿得到，没到过高奖励状态，就不知道它好。</p>
+<p>固定起点在很多任务里是出于方便，比如真机。模仿任务则不同，参考动作本身就是一个信息丰富的状态分布。每回合从参考动作上抽一个状态，把角色放上去，这就是 RSI。类似做法用于过平面双足和操作。这样在策略还不熟练时就能碰到好状态。作者换了个说法解释：RSI 是除奖励外，策略获取参考动作信息的第二条渠道。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 6 页 · <a href="https://arxiv.org/html/1804.02717#S6.F3">看原图 ↗</a></span><p>四个角色的渲染：(a) 人形，(b) Atlas，(c) 霸王龙，(d) 龙。都由刚体部件铰接而成。</p></div>
+
+<h3 id="s6-2"><span class="no">6.2</span>提前终止</h3>
+<p>循环技能可以看成无限视野的 MDP，但训练时每回合是有限的。回合在到时或触发条件时结束。行走常用的条件是检测摔倒。这些设定常被一笔带过，影响没人好好评估。本文用类似 [Peng et al. 2016] 的条件：躯干或头等指定部位碰地就结束，<b>之后奖励全为 0</b>。</p>
+<p>作者给了两个作用。第一，塑造奖励，不鼓励不想要的行为。第二，筛选数据：摔倒后很难回到原轨迹，不终止时，早期样本会被地上挣扎的状态占满，网络容量花在无用状态上，类似监督学习的类别不平衡。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · RSI 和 ET 的代码对上了，触发部位比举例宽</span><p>都对得上：<code>CalcRandKinResetTime</code> 是 <code>RandDouble(0, dur)</code>，<code>SyncCharacters</code> 同步姿态和速度。摔倒时 <code>CalcReward</code> 返回 0；失败终止时价值取 <code>val_fail = r_fail/(1−γ)</code>，r_fail 取最小奖励 0。到时只是回合结束（<code>eTerminateNull</code>），不当作失败。</p><p>论文举例“躯干或头”。代码在多数技能（13 个训练配置）里是除两脚外的 13 个部位（<code>--fall_contact_bodies 0 1 2 3 4 6 7 8 9 10 12 13 14</code>）。侧手翻再放过两只手；爬行只算根、胸、颈；翻滚和两个起身关掉了（<code>--enable_char_contact_fall false</code>）。这些例外是合理的，这些动作本来就要碰地，但论文没写。</p><p>我没在 <code>SceneImitate</code> 里找到“固定初始状态”的开关，§10.4 的消融配置大概没有随代码公开。这是“我没找到”，不是确定没有。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 躺在地上比划能拿多少分</span><p>§10.4 说 ET 消除了“摔倒后在地上比划”的局部最优。我算了这个局部最优的奖励：根朝天，关节照参考动，高度 0.2 m，在行走片段上取平均。论文公式 0.097，其中 r_v 项是 0.933 × 0.1，也就是说几乎全部来自速度项。代码公式 0.312，主要来自权重归一化后的姿态项。后空翻片段是 0.115 和 0.247。</p><p>所以不开 ET 时躺地每步有约 0.1 到 0.3 的稳定收入；开 ET 后变成 0。还没学好、站着得分也不高的策略，确实可能宁愿躺下。<a href="#i3d">第 7 幕</a>可以拖动这个比较。动画里也放了一个玩具实验，但它只能复现样本占比这一点（约 20%），复现不了回报大跌，因为表格策略没有容量限制。</p></div>
+
+<h2 id="s7"><span class="no">7</span>多技能整合</h2>
+<p>三种方法，适用情况不同。</p>
+<p><b>多片段奖励。</b>对 \(k\) 个片段的模仿目标取最大：</p>
+<div class="eq"><div class="m">\[ r_t^I=\max_{j=1,\dots,k} r_t^j \]</div><span class="no">§7</span></div>
+<p>策略可以自己选当前最合适的片段，随时切换，不需要 DeepLoco 那种手工规划器。</p>
+<p><b>技能选择。</b>目标 \(g_t\) 是 one-hot 向量，非零项对应要做的动作。没有额外的任务奖励，只算选中片段的模仿奖励。训练时每个周期开始随机抽 \(g_t\)，所以策略必须学会所有切换。</p>
+<p><b>复合策略。</b>技能多了联合学很难，可能一个都学不好。分而治之：各技能单独训练，用价值函数决定此刻做哪个，因为价值函数估计了当前状态下这个策略的预期表现：</p>
+<div class="eq"><div class="m">\[ \Pi(a\mid s)=\sum_{i=1}^{k}p^i(s)\,\pi^i(a\mid s),\qquad p^i(s)=\frac{\exp\bigl(V^i(s)/\mathcal T\bigr)}{\sum_{j=1}^{k}\exp\bigl(V^j(s)/\mathcal T\bigr)} \]</div><span class="no">§7</span></div>
+<p>\(\mathcal T\) 是温度。不需要额外训练。形式像 MACE，但更简单，子策略各自独立训练。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 这一节没有随代码公开</span><p>§7 的三种方法，以及 §9 的 2018 版朝向、打击、掷球、地形任务，我都没在官方仓库找到实现。<code>SceneImitate</code> 只处理一个片段。关键词 heightmap、throw、one-hot、boltzmann 在 scenes 和 learning 目录下只搜到 C++ 的 <code>throw</code> 语句。仓库里的 Strike、Heading 等场景带 AMP 后缀，是 2021 年 AMP 论文加的，奖励不同。所以这部分只能看论文。</p></div>
+
+<h2 id="s8"><span class="no">8</span>角色</h2>
+<p>人形、Atlas、霸王龙、龙。都是铰接刚体，部件之间用 3 自由度球关节连接，膝和肘是 1 自由度转动关节。每个关节有 PD，增益手工指定，所有任务保持不变。人形和 Atlas 结构相似，但质量分布和执行器差别很大，Atlas 几乎是人形的四倍重。霸王龙和龙没有动捕数据，用关键帧。对比标准 RL 基准（如 <a class="ds" href="https://github.com/openai/gym">OpenAI Gym</a>，动作 3 到 17 维），这里维度高很多。</p>
+<p><b>表 1 · <a href="https://arxiv.org/html/1804.02717#S7.T1">看原表 ↗</a></b></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>属性</th><th class="n">Humanoid</th><th class="n">Atlas</th><th class="n">T-Rex</th><th class="n">Dragon</th></tr></thead><tbody><tr><td>部件数 Links</td><td class="n">13</td><td class="n">12</td><td class="n">20</td><td class="n">32</td></tr><tr><td>总质量 Total Mass (kg)</td><td class="n">45</td><td class="n">169.8</td><td class="n">54.5</td><td class="n">72.5</td></tr><tr><td>身高 Height (m)</td><td class="n">1.62</td><td class="n">1.82</td><td class="n">1.66</td><td class="n">1.83</td></tr><tr><td>自由度 Degrees of Freedom</td><td class="n">34</td><td class="n">31</td><td class="n">55</td><td class="n">79</td></tr><tr><td>状态特征 State Features</td><td class="n">197</td><td class="n">184</td><td class="n">262</td><td class="n">418</td></tr><tr><td>动作参数 Action Parameters</td><td class="n">36</td><td class="n">32</td><td class="n">64</td><td class="n">94</td></tr></tbody></table></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 表 1 的数字都能互相推出来</span><p><b>状态 = 13 × 部件 + 2。</b>霸王龙 13×20 + 2 = 262，龙 13×32 + 2 = 418，正好。人形 197 反推 15，Atlas 184 反推 14，都比表中部件数多 2。人形的代码确实有 15 个部件，其中两个是固定的手腕，没有自由度，表 1 没算。Atlas 模型不在仓库里，我没法同样核对。</p><p><b>动作和自由度。</b>设球关节 s 个、转动关节 r 个，自由度 = 6 + 3s + r，动作 = 4s + r。人形 s=8, r=4；Atlas s=7, r=4；霸王龙 s=15, r=4；龙 s=21, r=10。每种都有 s + r = 部件 − 1，符合一棵树。解出来都是整数，说明这张表是自洽的，也证实了轴角按 4 个数算。</p><p><b>质量和身高。</b>代码里人形 15 个部件质量和是 45 kg，和表一致。身高按根高 0.887 m（后空翻首帧）加胸、颈偏移和头的球心、半径，约 1.62 m，也一致。169.8 / 45 = 3.77，“几乎四倍”成立。</p></div>
+
+<h2 id="s9"><span class="no">9</span>任务</h2>
+<p><b>目标朝向。</b>\(d_t^*\) 是水平面上的二维单位向量，\(v^*\) 是目标速度，\(v_t\) 是质心速度。只罚慢，不罚快。目标方向是输入 \(g_t=d_t^*\)，训练时回合内随机变：</p>
+<div class="eq"><div class="m">\[ r_t^G=\exp\bigl[-2.5\max(0,\,v^*-v_t^{\mathsf T}d_t^*)^2\bigr] \]</div><span class="no">§9</span></div>
+<p><b>打击。</b>用指定部位（比如脚）打中随机放置的球形目标，部位中心离目标 0.2 m 内算命中：</p>
+<div class="eq"><div class="m">\[ r_t^G=\begin{cases}1,&\text{目标已被击中}\\ \exp\bigl[-4\lVert p_t^{tar}-p_t^e\rVert^2\bigr],&\text{否则}\end{cases} \]</div><span class="no">§9</span></div>
+<p>\(g_t=(p_t^{tar},h)\)，\(h\) 是“之前是否已经打中”的二值标记，因为策略是前馈的，\(h\) 充当记忆。目标距角色 [0.6, 0.8] m，高度 [0.8, 1.25] m，初始方向变化范围 2 rad，每周期开始重置。</p>
+<p><b>掷球。</b>打击的变体：球通过球关节连在手上，在回合中固定时刻松开。目标和奖励同打击，状态多了球的位置、旋转、线速度和角速度。目标距离 [2.5, 3.5] m，高度 [1, 1.25] m，方向 [0.7, 0.9] rad。</p>
+<p><b>地形穿越。</b>目标和奖励类似朝向，目标方向固定为前进方向。四种环境：</p>
+<ul>
+<li><b>混合障碍：</b>沟宽 [0.2, 1] m，墙高 [0.25, 0.4] m，台阶高度 [0.35, −0.35] m，中间隔 [5, 8] m 平地。</li>
+<li><b>密集沟：</b>每组 1 到 4 条，宽 [0.1, 0.3] m，相距 [0.2, 0.4] m，组间 [1, 2] m 平地。</li>
+<li><b>蜿蜒平衡木：</b>路宽约 0.4 m。</li>
+<li><b>楼梯：</b>台阶高 [0.01, 0.2] m，深 0.28 m。</li>
+</ul>
+<p>渐进训练：先在平地上训练无高度图的网络，再加高度图和卷积层到不规则地形里继续。线性布局的两个环境用 100 个采样点覆盖 10 m 的一维高度场；平衡木用 32×32，覆盖 3.5×3.5 m。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 7 页 · <a href="https://arxiv.org/html/1804.02717#S9.F4">看原图 ↗</a></span><p>角色穿越随机地形的四排序列，从上到下是混合障碍、密集沟、蜿蜒平衡木、楼梯。蓝线是质心轨迹。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 高度图的分辨率</span><p>一维高度场 10 m / 100 = 0.1 m 一个点，密集沟最窄也是 0.1 m，正好在一个采样点的量级上。平衡木 3.5 m / 32 ≈ 0.11 m，0.4 m 宽的路约占 3.6 个点。楼梯环境用什么高度图，论文没写。这些是我的算术，论文没讨论是否够用。</p></div>
+
+<h2 id="s10"><span class="no">10</span>结果</h2>
+<p>策略 30 Hz，物理 1.2 kHz，<a class="ds" href="https://github.com/bulletphysics/bullet3">Bullet</a> 引擎，网络用 <a class="ds" href="https://github.com/tensorflow/tensorflow">TensorFlow</a>。力矩由<a href="https://www.cc.gatech.edu/~turk/my_papers/stable_pd.pdf">稳定 PD</a>（Tan et al. 2011）计算。每个技能用约 0.5 到 5 s 的动捕，来自 <a class="ds" href="http://mocap.cs.cmu.edu">CMU Mocap</a> 和 <a class="ds" href="http://mocap.cs.sfu.ca">SFU Mocap</a>，手工处理并重定向到角色上。霸王龙和龙用美术师的关键帧。</p>
+<p>回报按每回合最小和最大可能回报归一化，最大值不一定能达到，比如掷球的最大值要求球瞬间到目标。<b>评测时开 ET，初始状态用 RSI。</b>\(\omega^I=0.7,\omega^G=0.3\)，所有任务相同。</p>
+<p><b>表 2：</b>单技能，只模仿。未注明角色的都是人形。\(T_{cycle}\) 是片段长度，\(N_{samples}\) 是训练样本数，NR 是 32 个回合的平均归一化回报。循环技能视野 20 s，非循环按 \(T_{cycle}\)。<a href="https://arxiv.org/html/1804.02717#S9.T2">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>技能</th><th class="n">T<sub>cycle</sub> (s)</th><th class="n">N<sub>samples</sub> (10⁶)</th><th class="n">NR</th></tr></thead><tbody><tr><td>Backflip</td><td class="n">1.75</td><td class="n">72</td><td class="n">0.729</td></tr><tr><td>Balance Beam</td><td class="n">0.73</td><td class="n">96</td><td class="n">0.783</td></tr><tr><td>Baseball Pitch</td><td class="n">2.47</td><td class="n">57</td><td class="n">0.785</td></tr><tr><td>Cartwheel</td><td class="n">2.72</td><td class="n">51</td><td class="n">0.804</td></tr><tr><td>Crawl</td><td class="n">2.93</td><td class="n">68</td><td class="n">0.932</td></tr><tr><td>Dance A</td><td class="n">1.62</td><td class="n">67</td><td class="n">0.863</td></tr><tr><td>Dance B</td><td class="n">2.53</td><td class="n">79</td><td class="n">0.822</td></tr><tr><td>Frontflip</td><td class="n">1.65</td><td class="n">81</td><td class="n">0.485</td></tr><tr><td>Getup Face-Down</td><td class="n">3.28</td><td class="n">49</td><td class="n">0.885</td></tr><tr><td>Getup Face-Up</td><td class="n">4.02</td><td class="n">66</td><td class="n">0.838</td></tr><tr><td>Headspin</td><td class="n">1.92</td><td class="n">112</td><td class="n">0.640</td></tr><tr><td>Jog</td><td class="n">0.80</td><td class="n">51</td><td class="n">0.951</td></tr><tr><td>Jump</td><td class="n">1.77</td><td class="n">86</td><td class="n">0.947</td></tr><tr><td>Kick</td><td class="n">1.53</td><td class="n">50</td><td class="n">0.854</td></tr><tr><td>Landing</td><td class="n">2.83</td><td class="n">66</td><td class="n">0.590</td></tr><tr><td>Punch</td><td class="n">2.13</td><td class="n">60</td><td class="n">0.812</td></tr><tr><td>Roll</td><td class="n">2.02</td><td class="n">81</td><td class="n">0.735</td></tr><tr><td>Run</td><td class="n">0.80</td><td class="n">53</td><td class="n">0.951</td></tr><tr><td>Sideflip</td><td class="n">2.44</td><td class="n">64</td><td class="n">0.805</td></tr><tr><td>Spin</td><td class="n">4.42</td><td class="n">191</td><td class="n">0.664</td></tr><tr><td>Spinkick</td><td class="n">1.28</td><td class="n">67</td><td class="n">0.748</td></tr><tr><td>Vault 1-Handed</td><td class="n">1.53</td><td class="n">41</td><td class="n">0.695</td></tr><tr><td>Vault 2-Handed</td><td class="n">1.90</td><td class="n">87</td><td class="n">0.757</td></tr><tr><td>Walk</td><td class="n">1.26</td><td class="n">61</td><td class="n">0.985</td></tr><tr><td>Atlas: Backflip</td><td class="n">1.75</td><td class="n">63</td><td class="n">0.630</td></tr><tr><td>Atlas: Run</td><td class="n">0.80</td><td class="n">48</td><td class="n">0.846</td></tr><tr><td>Atlas: Spinkick</td><td class="n">1.28</td><td class="n">66</td><td class="n">0.477</td></tr><tr><td>Atlas: Walk</td><td class="n">1.26</td><td class="n">44</td><td class="n">0.988</td></tr><tr><td>T-Rex: Walk</td><td class="n">2.00</td><td class="n">140</td><td class="n">0.979</td></tr><tr><td>Dragon: Walk</td><td class="n">1.50</td><td class="n">139</td><td class="n">0.990</td></tr></tbody></table></div>
+<p><b>表 3：</b>模仿加任务。<a href="https://arxiv.org/html/1804.02717#S10.T3">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>环境</th><th class="n">N<sub>samples</sub> (10⁶)</th><th class="n">NR</th></tr></thead><tbody><tr><td>Humanoid: Walk - Target Heading</td><td class="n">85</td><td class="n">0.911</td></tr><tr><td>Humanoid: Jog - Target Heading</td><td class="n">108</td><td class="n">0.876</td></tr><tr><td>Humanoid: Run - Target Heading</td><td class="n">40</td><td class="n">0.637</td></tr><tr><td>Humanoid: Spinkick - Strike</td><td class="n">85</td><td class="n">0.601</td></tr><tr><td>Humanoid: Baseball Pitch - Throw</td><td class="n">221</td><td class="n">0.675</td></tr><tr><td>Humanoid: Run - Mixed Obstacles</td><td class="n">466</td><td class="n">0.285</td></tr><tr><td>Humanoid: Run - Dense Gaps</td><td class="n">265</td><td class="n">0.650</td></tr><tr><td>Humanoid: Winding Balance Beam</td><td class="n">124</td><td class="n">0.439</td></tr><tr><td>Atlas: Walk - Stairs</td><td class="n">174</td><td class="n">0.808</td></tr></tbody></table></div>
+<p>行走和跑步避开了以往深度 RL 的毛病。后空翻、旋风踢这类飞行段长的技能也学会了，爬行、翻滚这类接触多的动作，以及跳马这样要和环境配合的动作也可以。受推搡时有合理的恢复行为。霸王龙和龙说明这个方法可以用关键帧，也能扩展到比以往复杂得多的角色。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 8 页 · <a href="https://arxiv.org/html/1804.02717#S9.F5">看原图 ↗</a></span><p>策略动作的连续快照，从上到下：行走、跑步、侧手翻、舞蹈 A、后空翻、前空翻、翻滚。</p></div>
+<div class="fig" id="fig6"><span class="lab">图 6 · 原文第 9 页 · <a href="https://arxiv.org/html/1804.02717#S9.F6">看原图 ↗</a></span><p>15 个小图：Atlas 的行走、跑步、后空翻、旋风踢；霸王龙行走；龙行走；人形的侧空翻、旋转、两种起身、踢、两种跳马、出拳、爬行。</p></div>
+<div class="fig" id="fig7"><span class="lab">图 7 · 原文第 10 页 · <a href="https://arxiv.org/html/1804.02717#S9.F7">看原图 ↗</a></span><p>上排：旋风踢策略用右脚踢目标。下排：棒球投掷策略把球扔向目标。</p></div>
+<div class="fig" id="fig12"><span class="lab">图 12 · 原文第 17 页 · <a href="https://arxiv.org/html/1804.02717#A4.F12">看原图 ↗</a></span><p>人形 24 个技能的学习曲线，横轴是样本数，纵轴是 32 回合的平均归一化回报。走、跑、慢跑几乎是阶跃式上升，在 1000 到 2000 万样本时就接近平台。翻转类要到约 2000 到 4000 万样本才明显上升。后空翻和跑步画了 3 个种子，看上去一致，其余只有一次训练。</p></div>
+<div class="fig" id="fig13"><span class="lab">图 13 · 原文第 18 页 · <a href="https://arxiv.org/html/1804.02717#A4.F13">看原图 ↗</a></span><p>Atlas、霸王龙、龙的学习曲线。Atlas 的后空翻和旋风踢上升慢、波动大，走和跑则很快到平台。霸王龙和龙最后接近 1.0。</p></div>
+<div class="fig" id="fig14"><span class="lab">图 14 · 原文第 18 页 · <a href="https://arxiv.org/html/1804.02717#A4.F14">看原图 ↗</a></span><p>任务的学习曲线，11 个小图，比表 3 多了跳和翻两个技能选择。混合障碍的曲线噪声大，几乎水平。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 时间、片段长度、样本数</span><p><b>物理频率。</b>代码 60 Hz × <code>num_update_substeps</code> 10 × <code>num_sim_substeps</code> 2 = 1200 Hz，和 1.2 kHz 一致。策略 30 Hz 也一致，一个动作 40 个子步。<code>cImpPDController::CalcControlForces</code> 是稳定 PD。</p><p><b>片段长度。</b>表 2 的 24 个人形技能里，17 个的片段在仓库中。按帧时长求和后，13 个四舍五入和表一致。不一致的有 4 个：Getup Face-Down 3.28 对 3.033，Getup Face-Up 4.02 对 3.767（都差约 0.25 s），Jog 0.80 对 0.833，Walk 1.26 对 1.267。没有公开的 7 个是 Balance Beam、Baseball Pitch、Frontflip、Headspin、Landing、两个 Vault。</p><p><b>循环。</b>代码的片段文件里后空翻等都标 <code>wrap</code>（循环），只有两种起身、kick、punch 标 <code>none</code>。论文只说循环技能 20 s，没有列哪些循环。</p><p><b>样本。</b>“通常约 6000 万”：表 2 人形 24 项中位数 66.5，均值 73.2，最少 41，最多 191。6000 万样本 / 2 天 ≈ 347 样本每秒，8 核每核约 43，也就是单核约 1.4 倍实时（30 Hz）。这些除法是我的。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 前空翻的 0.485 和曲线对不上</span><p>图 12 到 14 是位图。我读了每个小图的蓝线像素，用坐标框定标，取最后 10% 横轴的平均，和表 2、表 3 的 NR 比较，共 39 项。这种读法精度有限，曲线抖动大的尤其如此，但足以看出异常：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>项</th><th class="n">表中 NR</th><th class="n">曲线末段读数</th><th class="n">差</th></tr></thead><tbody>
+<tr><td><b>Frontflip</b></td><td class="n">0.485</td><td class="n">0.753</td><td class="n"><b>+0.268</b></td></tr>
+<tr><td>Atlas: Spinkick</td><td class="n">0.477</td><td class="n">0.356</td><td class="n">−0.121</td></tr>
+<tr><td>Balance Beam</td><td class="n">0.783</td><td class="n">0.695</td><td class="n">−0.088</td></tr>
+<tr><td>Headspin</td><td class="n">0.640</td><td class="n">0.566</td><td class="n">−0.074</td></tr>
+<tr><td>Vault 2-Handed</td><td class="n">0.757</td><td class="n">0.685</td><td class="n">−0.072</td></tr>
+<tr><td>Sideflip</td><td class="n">0.805</td><td class="n">0.734</td><td class="n">−0.071</td></tr>
+<tr><td>Atlas: Backflip</td><td class="n">0.630</td><td class="n">0.561</td><td class="n">−0.069</td></tr>
+</tbody></table></div>
+<p>其余 32 项差都在 0.05 以内，比如 Backflip 0.729 对 0.732，Walk 0.985 对 0.981，Run - Mixed Obstacles 0.285 对 0.286。前空翻是唯一大幅偏离的，而且曲线明显稳定在约 0.75。表 2 的 0.485 可能是抄录问题，也可能是用了别的策略，我不知道是哪种，论文没有解释。Frontflip 的片段不在仓库里，也没法另外核实。</p></div>
+
+<h3 id="s10-1"><span class="no">10.1</span>任务</h3>
+<p>比较同时优化两种目标、只优化模仿、只优化任务的策略。各评测 100 次。<a href="https://arxiv.org/html/1804.02717#S10.T4">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>环境</th><th class="n">\(r^I+r^G\)</th><th class="n">\(r^I\)</th><th class="n">\(r^G\)</th></tr></thead><tbody>
+<tr><td>Humanoid: Strike - Spinkick</td><td class="n">99%</td><td class="n">19%</td><td class="n">55%</td></tr>
+<tr><td>Humanoid: Baseball Pitch - Throw</td><td class="n">75%</td><td class="n">5%</td><td class="n">93%</td></tr>
+</tbody></table></div>
+<p>只模仿不够：加上任务目标，策略会偏离片段，形成新的策略。只有任务也能完成，但动作不自然。掷球任务里，策略干脆抱着球跑向目标。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 11 页 · <a href="https://arxiv.org/html/1804.02717#S10.F8">看原图 ↗</a></span><p>没有参考动作训练的掷球策略：三张快照，角色弯着腰带球跑向红色目标，最后目标变绿。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 4 该怎么读</span><p>掷球里只任务 93%，高于两者合起来的 75%。原文图 8 解释了这个高分来自抱球跑。所以这张表要和动作质量一起看，成功率高不等于任务完成方式对。模仿的代价是 18 个百分点。原文正文只引用了 r_I 和合起来的数字，93% 和 55% 只在表里。</p></div>
+
+<h3 id="s10-2"><span class="no">10.2</span>多技能整合</h3>
+<p><b>多片段。</b>用 5 段行走和转弯片段，训练跟随目标朝向。记录每步最匹配的片段：朝向不变时主要匹配直行，朝向变化时匹配转弯，对齐后回到直行。说明确实在用多个片段。片段应属同类，混入侧翻和前翻这样差异大的，策略可能只学其中一部分。</p>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 11 页 · <a href="https://arxiv.org/html/1804.02717#S10.F9">看原图 ↗</a></span><p>一个 20 s 回合的时间线，横轴是行走步数。一条线是目标朝向（阶梯变化，范围约 0 到 3 弧度），另一条是最匹配的片段编号 0 到 4。大多数时候在 0（直行），朝向变化时跳到 1 到 4。</p></div>
+<p><b>技能选择。</b>训练了一个翻转策略（前翻、后翻、左右侧翻）和一个跳跃策略（前后左右）。各片段首末帧复制，使周期相同。训练后能按任意顺序做。</p>
+<p><b>复合策略。</b>后空翻、前空翻、侧空翻、侧手翻、旋风踢、翻滚、脸朝下起身、脸朝上起身，共 8 个策略。价值函数归一化到 [−1, 1]，\(\mathcal T=0.3\)。每周期开始抽一个技能，执行一个完整周期，不连续抽同一个。这些策略从未显式学切换，靠价值函数选择也能切换成功。摔倒时会自动选起身策略，不用脚本。</p>
+
+<h3 id="s10-3"><span class="no">10.3</span>重定向</h3>
+<p><b>角色重定向。</b>把人形的局部关节旋转直接复制给 Atlas，为它重新训练。原 Atlas 的串联一维转动关节合成了三维球关节。人形策略直接用在 Atlas 上，跑步和后空翻的回报只有 0.013 和 0.014，专门训练的是 0.846 和 0.630。</p>
+<p><b>环境重定向。</b>平地的落地动作，训练成从 2 m 台上跳下。加高度图后，一段跑步片段能适应各种障碍；一段直行片段能在平衡木上转弯。Atlas 能爬不规则楼梯，但步态别扭，作者怀疑是参考动作不适合。</p>
+<div class="fig" id="fig10"><span class="lab">图 10 · 原文第 12 页 · <a href="https://arxiv.org/html/1804.02717#S10.F10">看原图 ↗</a></span><p>左：平地上的原始落地动作。右：从 2 m 台上跳下，同一段参考。</p></div>
+<p><b>物理重定向。</b>月球重力（1.622 m/s²）下训练旋风踢和侧手翻，回报 0.792 和 0.688。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · “Atlas 和人形差不多”只对一半</span><p>作者说 Atlas 的表现和人形相当。按表 2（Atlas 对人形）：走 0.988 对 0.985，跑 0.846 对 0.951，后空翻 0.630 对 0.729，旋风踢 0.477 对 0.748。走和跑确实接近，旋风踢只有人形的 64%（0.477 / 0.748）。0.013、0.014、0.846、0.630 和表 2 一致。</p></div>
+
+<h3 id="s10-4"><span class="no">10.4</span>消融</h3>
+<p>比较开关 RSI 和 ET。不开 ET 时每回合模拟满 20 s。<b>评测时一律关 ET、固定初始状态</b>，和表 2 的协议不同。大多数统计只跑了一次训练。</p>
+<p><b>表 5 · <a href="https://arxiv.org/html/1804.02717#S10.T5">看原表 ↗</a></b></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>技能</th><th class="n">RSI + ET</th><th class="n">ET</th><th class="n">RSI</th></tr></thead><tbody><tr><td>Backflip</td><td class="n">0.791</td><td class="n">0.730</td><td class="n">0.379</td></tr><tr><td>Sideflip</td><td class="n">0.823</td><td class="n">0.717</td><td class="n">0.355</td></tr><tr><td>Spinkick</td><td class="n">0.848</td><td class="n">0.858</td><td class="n">0.358</td></tr><tr><td>Walk</td><td class="n">0.980</td><td class="n">0.981</td><td class="n">0.974</td></tr></tbody></table></div>
+<div class="fig" id="fig11"><span class="lab">图 11 · 原文第 12 页 · <a href="https://arxiv.org/html/1804.02717#S10.F11">看原图 ↗</a></span><p>四个小图（后空翻、侧空翻、旋风踢、行走），每个三条曲线：RSI + ET、只 ET、只 RSI。三个高动态技能里，只 RSI 那条一直在 0.2 到 0.4 之间慢慢爬，另外两条约在 2000 到 3000 万样本处跳起来。行走里只 RSI 也能到顶，但晚了约 2000 万样本。</p></div>
+<p><b>ET。</b>对多数技能至关重要。重罚碰地，消除了“摔了在地上比划”的局部最优。</p>
+<p><b>RSI。</b>对飞行段长的动态技能很关键。没有 RSI 时回报看起来差不多，但看动作就知道不对。后空翻没有 RSI 时学不会完整翻转，只是原地向后小跳。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 5 能说明的和不能说明的</span><p><b>回报区分不了翻和不翻。</b>后空翻 0.730（小跳）是 0.791（真翻）的 92%。旋风踢和行走的只 ET 比 RSI + ET 还略高（0.858 对 0.848，0.981 对 0.980）。所以模仿奖励和这个归一化回报不足以判断技能是否学会，作者靠的是看动作。这一判断在表里找不到数字依据，只能看视频。</p>
+<p><b>和表 2 的数对不上。</b>同样是完整方法：Backflip 表 2 0.729，表 5 0.791；Sideflip 0.805，0.823；Spinkick 0.748，0.848；Walk 0.985，0.980。这是预期之内的，协议不同：表 2 开 ET 用 RSI，表 5 关 ET 用固定起点。但有点反直觉，开 ET 用 RSI 反而常低一些。可能的原因是关 ET 时摔了还继续拿分，也可能是不同的训练运行。这是我的推断，论文没说。</p>
+<p><b>缺一格。</b>表 5 没有两者都关的配置。</p>
+<p><b>一次运行。</b>“大多数统计只跑一次”，曲线中段的跳跃位置不能看得太细。图 12 的后空翻和跑步 3 个种子确实很接近，但只对这两个技能有依据。</p></div>
+
+<h3 id="s10-5"><span class="no">10.5</span>鲁棒性</h3>
+<p>半个周期处对骨盆施加 0.2 s 的力，每次加 10 N 直到摔倒，前向和侧向各测。作者说不差于 SAMCON 报告的数字。训练时没有外部扰动，作者猜测鲁棒性主要来自随机策略的探索噪声。</p>
+<p><b>表 6 · <a href="https://arxiv.org/html/1804.02717#S10.T6">看原表 ↗</a></b></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>技能</th><th class="n">Forward (N)</th><th class="n">Sideway (N)</th></tr></thead><tbody><tr><td>Backflip</td><td class="n">440</td><td class="n">100</td></tr><tr><td>Cartwheel</td><td class="n">200</td><td class="n">470</td></tr><tr><td>Run</td><td class="n">720</td><td class="n">300</td></tr><tr><td>Spinkick</td><td class="n">690</td><td class="n">600</td></tr><tr><td>Walk</td><td class="n">240</td><td class="n">300</td></tr></tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 把力换成速度</span><p>720 N × 0.2 s = 144 N·s。全加在 45 kg 的人形上，相当于约 3.2 m/s 的速度变化。这是把角色当成一个质点的粗算（我的），力实际只加在骨盆上。方向差别很大：后空翻前向 440 N，侧向只有 100 N。正文的 720 和 600 与表一致。和 SAMCON 的比较论文没给 SAMCON 的数字，要去查 Liu et al. 2016。“鲁棒性来自探索噪声”是作者明说的猜测，没有实验。</p></div>
+
+<h2 id="s11"><span class="no">11</span>讨论和局限</h2>
+<p>作者总结说，策略鲁棒，没有扰动时动作和动捕几乎分不清。局限列得很具体：</p>
+<ul>
+<li>相位必须和参考同步，随时间线性前进。策略不能调节奏，恢复动作因此不够灵活。</li>
+<li>多片段方法只适用少量片段，还没有在大动作库上演示。</li>
+<li>PD 增益要按角色手工调。</li>
+<li>学习慢，每个技能常要几天，各自独立训练。</li>
+<li>模仿奖励是手工定义的状态相似度，项的权重也要小心设。</li>
+</ul>
+<p>今后工作：部署到机器人（行走、灵巧操作），理解学到的策略并和人比较，更多技能和更复杂交互，引入层次结构。</p>
+<p>这个清单差不多就是后来工作的路线图。动作库规模和算力正是 <a href="supermimic.html">SuperMimic</a> 要解决的，相位被未来参考帧取代，真机也做到了（这句是我的看法）。</p>
+
+<h2 id="apA"><span class="no">A</span>多步回报</h2>
+<p>蒙特卡洛回报无偏但方差大。n 步回报截断求和，后面用价值函数，这是全文唯一编号的公式：</p>
+<div class="eq"><div class="m">\[ R_t^{(n)}=\sum_{l=0}^{n-1}\gamma^l r_{t+l}+\gamma^n V(s_{t+n}) \]</div><span class="no">(1)</span></div>
+<p>\(n=1\) 是 Q 学习常用的一步回报，\(n=\infty\) 回到蒙特卡洛。λ 回报是 n 步回报的指数加权平均：</p>
+<div class="eq"><div class="m">\[ R_t(\lambda)=(1-\lambda)\sum_{n=1}^{\infty}\lambda^{n-1}R_t^{(n)} \]</div><span class="no">附录 A</span></div>
+<p>第 \(T\) 步后奖励为 0 时，无穷和可写成：</p>
+<div class="eq"><div class="m">\[ R_t(\lambda)=(1-\lambda)\sum_{n=1}^{T-t-1}\lambda^{n-1}R_t^{(n)}+\lambda^{T-t-1}R_t^{(T-t)} \]</div><span class="no">附录 A</span></div>
+<p>\(\lambda=0\) 是一步回报，\(\lambda=1\) 是蒙特卡洛。用这个回报算 TD 就是 TD(λ)，算优势就是 GAE(λ)：\(\hat{\mathcal A}_t=R_t(\lambda)-V(s_t)\)。</p>
+
+<h2 id="apB"><span class="no">B</span>离策略学习</h2>
+<p>梯度是对当前参数估计的，数据原则上只够走一步。用重要性采样就能用旧策略的数据多走几步：</p>
+<div class="eq"><div class="m">\[ \nabla_\theta J(\theta)=\mathbb E_{s_t\sim d_{\theta_{old}},\,a_t\sim\pi_{\theta_{old}}}\bigl[w_t(\theta)\nabla_\theta\log\pi_\theta(a_t\mid s_t)\mathcal A_t\bigr],\quad w_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_{old}}(a_t\mid s_t)} \]</div><span class="no">附录 B</span></div>
+<div class="eq"><div class="m">\[ L^{IS}(\theta)=\mathbb E_{s_t\sim d_{\theta_{old}},\,a_t\sim\pi_{\theta_{old}}}\bigl[w_t(\theta)\mathcal A_t\bigr] \]</div><span class="no">附录 B</span></div>
+
+<h2 id="apC"><span class="no">C</span>近端策略优化</h2>
+<p>策略梯度方差大，不稳定。<a class="ds" href="https://arxiv.org/abs/1502.05477">TRPO</a> 加了 KL 散度约束，用共轭梯度和线搜索近似满足：</p>
+<div class="eq"><div class="m">\[ \max_\theta J(\theta)\quad\text{s.t.}\quad\mathbb E_{s_t\sim d_\theta}\bigl[\mathrm{KL}(\pi_{\theta_{old}}(\cdot\mid s_t)\,\Vert\,\pi_\theta(\cdot\mid s_t))\bigr]\le\delta_{KL} \]</div><span class="no">附录 C</span></div>
+<p>PPO 把硬约束换成代理损失。本文用裁剪版：</p>
+<div class="eq"><div class="m">\[ L^{CLIP}(\theta)=\mathbb E_{s_t,a_t}\bigl[\min\bigl(w_t(\theta)\mathcal A_t,\ \mathrm{clip}(w_t(\theta),1-\epsilon,1+\epsilon)\mathcal A_t\bigr)\bigr] \]</div><span class="no">附录 C</span></div>
+
+<h2 id="apD"><span class="no">D</span>学习算法</h2>
+<p>所有策略共用这个流程。超参数只有步长随角色变：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>参数</th><th>值</th></tr></thead><tbody>
+<tr><td>批量 m</td><td>4096 样本</td></tr><tr><td>小批量 n</td><td>256</td></tr><tr><td>γ</td><td>0.95</td></tr><tr><td>λ（TD 和 GAE）</td><td>0.95</td></tr><tr><td>ε</td><td>0.2</td></tr><tr><td>价值步长 \(\alpha_v\)</td><td>\(10^{-2}\)</td></tr><tr><td>策略步长 \(\alpha_\pi\)</td><td>\(5\times10^{-5}\)（人形、Atlas），\(2\times10^{-5}\)（龙、霸王龙）</td></tr><tr><td>优化器</td><td>SGD，动量 0.9</td></tr><tr><td>算力</td><td>人形单技能约 6000 万样本，8 核约 2 天，全在 CPU</td></tr>
+</tbody></table></div>
+<p><b>算法 1（用自己的话）。</b>随机初始化 θ、ψ。循环：从参考动作抽 \(s_0\) 放好角色；走 m 步，每步采样动作，模拟，把 \((s,a,r,s')\) 记入 \(\mathcal D\)；令 \(\theta_{old}\leftarrow\theta\)；每个更新步抽 n 个样本，用 TD(λ) 的目标 \(y_i\) 更新价值，用 GAE 的优势和比值 \(w_i\) 按裁剪目标更新策略：</p>
+<div class="eq"><div class="m">\[ \psi\leftarrow\psi+\alpha_v\frac1n\sum_i\nabla_\psi V_\psi(s_i)\bigl(y_i-V(s_i)\bigr),\qquad\theta\leftarrow\theta+\alpha_\pi\frac1n\sum_i\nabla_\theta\min\bigl(w_i(\theta)\mathcal A_i,\ \mathrm{clip}(w_i(\theta),1-\epsilon,1+\epsilon)\mathcal A_i\bigr) \]</div><span class="no">算法 1</span></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 附录公式的核算</span><p><b>λ 回报。</b><a href="#i3d">第 10 幕</a>按附录 A 的定义式算 \(R_t(\lambda)\)，再和 GAE 递推 \(\hat{\mathcal A}_t+V(s_t)\) 比较，最大差在 \(10^{-15}\) 量级，公式没问题（设 \(V(s_T)=0\)）。</p>
+<p><b>裁剪的说法只对一半。</b>附录 C 说 clip “在比值离 1 超过 ε 时把梯度置零”。按公式，\(A>0\) 时只有 \(w>1+\epsilon\) 才取到常数项，\(w<1-\epsilon\) 时 min 取未裁剪的 \(wA\)，梯度不为零；\(A<0\) 时反过来。也就是说只把“往好的方向走太远”这一侧的梯度置零，这样才是下界。动画第 10 幕的曲线能看出来。</p></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 超参数和代码</span><p>m、n、γ、λ、ε、动量、网络宽度和 <code>ct_agent_humanoid_ppo.txt</code> 都一致（代码每批按 ⌈样本数/256⌉ 步更新，4096 就是 16 步）。步长不一致：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th></th><th class="n">论文</th><th class="n">3ca04d3</th><th class="n">1f915c5</th></tr></thead><tbody>
+<tr><td>策略步长</td><td class="n">5×10⁻⁵</td><td class="n">2.5×10⁻⁶</td><td class="n">2×10⁻⁶</td></tr>
+<tr><td>价值步长</td><td class="n">10⁻²</td><td class="n">10⁻²</td><td class="n">5×10⁻⁴</td></tr>
+</tbody></table></div>
+<p>代码还把优势标准化并裁到 ±4（<code>NormAdvClip</code>），策略有 5×10⁻⁴ 的权重衰减，这些论文都没提。标准化会改变梯度的尺度，所以步长不能直接相比，这是我的说明，不是作者的。这些都是读代码得到的，没有运行。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">相位到底区分了多少</a>：参考片段里没有朝向完全相同的两帧；差距放大约 1 到 2 倍。</li>
+<li><a href="#n2">36 和 197 是哪个版本</a>：对得上初始提交；最新提交按读码算是 28 和 227。</li>
+<li><a href="#n3">Σ 的数值论文没写</a>：代码 0.05（归一化），换算约 0.157 和 0.314 rad；另有探索率退火。</li>
+<li><a href="#n4">公开代码的奖励差很多</a>：同样 0.3 rad 的偏差，论文 0.271，代码 0.798。</li>
+<li><a href="#n5">算法 1 和回合长度</a>：伪代码没写终止；代码把回合上限从 0.5 s 退火到 20 s。</li>
+<li><a href="#n6">RSI 和 ET 的代码</a>：逻辑一致；碰地部位比论文举例宽；没找到固定起点开关。</li>
+<li><a href="#n7">躺在地上比划</a>：论文公式 0.097，代码 0.312 每步。</li>
+<li><a href="#n8">§7 没有公开代码</a>：多技能和 2018 版任务都不在仓库里。</li>
+<li><a href="#n9">表 1 互相推得出</a>：13L + 2 和 4s + r 都自洽；人形和 Atlas 多算 2 个部件。</li>
+<li><a href="#n10">高度图的分辨率</a>：0.1 m 一点，正好是最窄的沟。</li>
+<li><a href="#n11">时间、片段长度、样本数</a>：1.2 kHz 对上；17 个片段里 4 个长度不一致。</li>
+<li><a href="#n12">前空翻 0.485 对不上</a>：曲线末段约 0.75，39 项里唯一大偏离。</li>
+<li><a href="#n13">表 4 该怎么读</a>：抱球跑拿到 93%。</li>
+<li><a href="#n14">Atlas 相当只对一半</a>：旋风踢只有人形的 64%。</li>
+<li><a href="#n15">表 5 能说明什么</a>：小跳拿到真翻 92% 的回报；和表 2 协议不同；没有全关的一列。</li>
+<li><a href="#n16">把力换成速度</a>：720 N × 0.2 s 约等于 3.2 m/s。</li>
+<li><a href="#n17">附录公式的核算</a>：λ 回报验证；裁剪的说法只对一半。</li>
+<li><a href="#n18">超参数和代码</a>：其他一致，步长不一致。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据、引擎、方法。链接在 2026 年 11 月 6 日用脚本核对过，都返回 200，唯一的例外是 DOI 对脚本返回 403，浏览器应该能开。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://xbpeng.github.io/projects/DeepMimic/index.html">DeepMimic</a></td><td>本文，含视频</td><td><a href="https://github.com/xbpeng/DeepMimic">xbpeng/DeepMimic</a></td><td><a href="https://arxiv.org/abs/1804.02717">1804.02717</a>，<a href="https://doi.org/10.1145/3197517.3201311">DOI</a></td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.cmu.edu">CMU Mocap</a></td><td>动捕数据来源</td><td>mocap.cs.cmu.edu</td><td>–</td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.sfu.ca">SFU Mocap</a></td><td>动捕数据来源</td><td>mocap.cs.sfu.ca</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/openai/gym">OpenAI Gym</a></td><td>论文比较的连续控制基准</td><td>github.com/openai/gym</td><td><a href="https://arxiv.org/abs/1606.01540">1606.01540</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/bulletphysics/bullet3">Bullet</a></td><td>物理引擎</td><td>github.com/bulletphysics/bullet3</td><td>–</td></tr>
+<tr><td><a class="ds" href="http://www.mujoco.org/forum/index.php?resources/atlas-v5.16/">Atlas 模型</a></td><td>论文引用的模型地址</td><td>mujoco.org 论坛</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/tensorflow/tensorflow">TensorFlow</a></td><td>网络框架</td><td>github.com/tensorflow/tensorflow</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>训练算法</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1506.02438">GAE</a></td><td>优势估计</td><td>–</td><td><a href="https://arxiv.org/abs/1506.02438">1506.02438</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1502.05477">TRPO</a></td><td>PPO 的前身</td><td>–</td><td><a href="https://arxiv.org/abs/1502.05477">1502.05477</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1606.03476">GAIL</a></td><td>用数据诱导目标的模仿</td><td>–</td><td><a href="https://arxiv.org/abs/1606.03476">1606.03476</a></td></tr>
+<tr><td><a class="ds" href="https://www.cs.ubc.ca/~van/papers/2017-TOG-deepLoco/index.html">DeepLoco</a></td><td>最接近的前作</td><td>cs.ubc.ca/~van</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.cc.gatech.edu/~turk/my_papers/stable_pd.pdf">Stable PD</a></td><td>Tan et al. 2011</td><td>–</td><td>同左（PDF）</td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>引用本文的后续工作</td><td><a href="supermimic.html">本站精读</a></td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.08241">BeyondMimic</a></td><td>SuperMimic 的奖励来源</td><td>–</td><td><a href="https://arxiv.org/abs/2508.08241">2508.08241</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 1804.02717 后的整理，不是作者的官方内容；原文和原图版权归作者和 ACM 所有，这里没有放图片副本。动画里的参考片段和骨架数据来自 xbpeng/DeepMimic（MIT License，Copyright (c) 2018 Xue Bin Peng）。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

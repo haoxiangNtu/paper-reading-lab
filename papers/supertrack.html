@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperTrack 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="SuperTrack（Fussell、Bergamin、Holden，ACM TOG / SIGGRAPH Asia 2021）的中文精读：按原文章节逐节整理，含全部编号公式和算法、结果表、图的文字描述、从矢量图读出的数据、11 幕 3D 框架动画（玩具上现场训练）和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-a{min-width:560px}.t-b{min-width:640px}.t-c{min-width:480px}.t-links{min-width:640px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.algo{font-family:var(--font-mono);font-size:13px;line-height:1.75;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;overflow-x:auto}
+.algo .t{font-weight:600;color:var(--fg);margin-bottom:4px;font-family:var(--font-body)}
+.algo .c{color:var(--muted)}
+.algo div{white-space:nowrap}
+/* charts: palette validated on the site's surfaces; every value is read from the paper's vector figures */
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-axis{stroke:var(--muted);stroke-width:1}
+.viz-ref{stroke:var(--muted);stroke-width:1;stroke-dasharray:5 4}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:12.5px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.viz-table p{max-width:none;font-family:var(--font-mono);font-size:11.5px;overflow-wrap:anywhere;margin:4px 0}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/supertrack/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">ACM TOG 40(6) · SIGGRAPH Asia 2021 · 2021 年 12 月 · 中文精读</p>
+<h1>SuperTrack：用监督学习做物理角色的动作跟踪</h1>
+<p class="orig">SuperTrack: Motion Tracking for Physically Simulated Characters using Supervised Learning</p>
+<p>作者 Levi Fussell（Ubisoft La Forge、爱丁堡大学）、Kevin Bergamin、Daniel Holden（Ubisoft La Forge）。</p>
+<div class="meta"><a href="https://doi.org/10.1145/3478513.3480527">DOI 10.1145/3478513.3480527</a><a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf">作者主页的 PDF</a><a href="https://theorangeduck.com/page/supertrack-motion-tracking-physically-simulated-characters-using-supervised-learning">作者的论文页</a><span>13 页，没有 arXiv 版，没有官方代码</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>PDF 第 1 页的声明是 ACM 的标准格式：个人或课堂使用可以免费复制，前提是不用于盈利并保留声明；“To copy otherwise, or republish, to post on servers or to redistribute to lists, requires prior specific permission”；版权“held by the owner/author(s). Publication rights licensed to ACM”。这不是开放许可，所以这里不放任何原图，不做逐字翻译。我用自己的话按原文顺序覆盖全部 9 节，每张图用文字描述，“看原图”打开作者主页 PDF 的对应页。</p>
+<p>公式和算法按原文编号给出，表格数字照录原文。标着“重画”的折线图不是原图，是我从原文矢量图读出数据点（<code>pdftocairo -svg</code>，按网格线标定）后画的，可以悬停看数值。标成“读者注”的框是我核算或对照发现的问题，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>作者没有公开代码：论文和作者页都没有代码链接，Ubisoft 的 GitHub 组织里也没找到这篇的仓库。GitHub 上有第三方实现（<a class="ds" href="https://github.com/venite-xjc/SuperTrack">venite-xjc/SuperTrack</a>、<a class="ds" href="https://github.com/kistf001/supertrack-pytorch-mujoco">kistf001/supertrack-pytorch-mujoco</a>），我只看了它们的 README，没有核实，这页不依赖它们。论文提到的补充视频我没有看。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3-2">3.2 表示</a><a href="#s3-3">3.3 网络输入</a><a href="#s3-4">3.4 世界模型</a><a href="#s3-5">3.5 策略</a><a href="#s3-6">3.6 训练</a><a href="#s4">4 结果</a><a href="#s5">5 评估</a><a href="#s5-1">5.1 对比 PPO</a><a href="#s5-2">5.2 迁移</a><a href="#s5-3">5.3 性能</a><a href="#s6">6 消融</a><a href="#s7">7 局限</a><a href="#s8">8 讨论</a><a href="#s9">9 结论</a><a href="#toy">玩具上算出来的</a><a class="rn" href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>动作跟踪的任务是让物理仿真里的角色复现一段动捕动作。当时的主流做法是 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 这类无模型强化学习，它要很多样本，对超参数、数据不平衡都敏感。这篇论文把跟踪写成纯监督学习：先训练一个世界模型近似仿真器的一部分转移（模拟角色这一部分），它是可导的，跟踪损失就能穿过它直接反传到策略。</p>
+<ul>
+<li><b>两个网络：</b>世界模型 W 预测模拟角色的刚体加速度，再积分；策略 Π 输出 PD 目标的偏移。两者每次迭代各更新一步，共用一个循环缓存。</li>
+<li><b>窗口：</b>W 滚动 8 帧训练，Π 穿过 W 滚动 32 帧训练。这两个数后来在 SuperMimic 里也是 8 和 32。</li>
+<li><b>结果：</b>在 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a> 上，同一硬件 20 小时，回合完成度 ST 约 0.91，PPO 约 0.40（我从矢量图读的）。对丢弃数据、数据失衡、策略滞后，ST 明显不敏感。</li>
+<li><b>局限：</b>前瞻不超过 32 帧，所以只适合短视野、奖励稠密的任务。</li>
+</ul>
+<p>读完我认为最值得记住三点：只预测受动作影响的那部分物理，世界模型就可以是确定性的前馈网络；预测局部加速度再用写死的公式积分，让网络少学很多东西；窗口大小两头都有代价，W 太长策略学不动（图 15），Π 太长训练会终止。</p>
+
+<div class="i3d" id="i3d0">
+<p class="lab">自己画的 · 想直接看结构</p>
+<p>完整的 11 幕动画放在第 3 节开头，<a href="#i3d">点这里跳过去</a>，或者<a href="../interactives/supertrack/index.html">全屏打开</a>。第 4 到 9 幕在一个玩具两连杆上现场训练世界模型和策略，并现算反传梯度。</p>
+</div>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 把 SuperTrack 列为“学到的可微动力学用于动作控制”这一方向的起点（它的文献 [12]）。原文提到它两处，都是下面这样说的：</p>
+<ul>
+<li><b>§2 相关工作（<a href="supermimic.html#s2">我的整理</a>）：</b>SuperTrack 通过一个学到的、可微的仿真器替身优化动作控制策略。SuperMimic 说自己把这个方向推到单 GPU 训练大规模人形跟踪器和迁移到真机，世界模型以仿真上下文为条件，部署的策略用带噪声的本体感觉和目标输入。</li>
+<li><b>§3.3（<a href="supermimic.html#s3-3">我的整理</a>）：</b>之前用解析梯度训练的跟踪控制器“常常省略评论家，只优化 H 步奖励和”，引 SuperTrack 和 ControlVAE。SuperMimic 说这样名义跟踪回报可以差不多，但更短视，受扰动后的恢复回报可能在窗口之外（它的 §4.3）。</li>
+</ul>
+<p>它没有说哪些设计继承自 SuperTrack，比较表（它的表 1）也没有列 SuperTrack。下面这张表是我对照两篇原文整理的，是我的比较，不是作者的说法：</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>SuperTrack</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>核心思路</td><td>从仿真器日志学可导替身，穿过它反传</td><td>相同</td></tr>
+<tr><td>世界模型窗口 / 策略窗口</td><td>\(N_{\mathcal W}=8\)，\(N_\Pi=32\)（60 Hz，0.133 / 0.533 秒）</td><td>\(k=8\)，\(H=32\)（50 Hz，0.16 / 0.64 秒）</td></tr>
+<tr><td>交替方式</td><td>每次迭代 W 一步、Π 一步，共用缓存</td><td>同一循环里交替，比例不同（见它的附录 D）</td></tr>
+<tr><td>窗口之外</td><td>没有评论家，前瞻到 \(N_\Pi\) 为止</td><td>评论家 \(V_\psi\) 自举</td></tr>
+<tr><td>世界模型输出</td><td>局部加速度，写死的积分；只有状态</td><td>\(\hat s_{t+1}\) 加奖励、观测、终止头；状态的内容论文没写</td></tr>
+<tr><td>世界模型损失</td><td>世界空间 L1（§3.4）</td><td>状态、奖励、观测 L2，终止 BCE（它的式 1）</td></tr>
+<tr><td>条件信息</td><td>无</td><td>仿真上下文 \(\xi\)（摩擦、标定偏移、躯干质心）</td></tr>
+<tr><td>动作</td><td>绕<b>参考姿态</b>的偏移，\(t=\exp(\tfrac\alpha2\hat o)\otimes k^t\)；图 15 显示这比绝对目标好很多</td><td>绕<b>默认姿态</b>，\(q^{\rm sp}=\alpha a+q^0\)，沿用 BeyondMimic 的低增益设定</td></tr>
+<tr><td>想象中的策略噪声</td><td>\(\sigma=0.1\) 加在偏移上（算法 2）</td><td>确定性策略；噪声只在收集时加在动作上，观测噪声在模型外加</td></tr>
+<tr><td>对象和规模</td><td>动画角色，PhysX 等，256 个并行，最多约 7 小时动作</td><td>Unitree G1，MuJoCo Warp，每 GPU 4096 环境，最多 264 小时，上真机</td></tr>
+</tbody></table></div>
+<p>数值 8 和 32 相同是事实，是否沿用我没有证据。滚动长度上两篇的表述也不同：SuperTrack 图 14 明确说超过 64 帧 W 就难以保持关节约束；SuperMimic §3.3 说模型“在无限长的滚动上保持稳定”，但没给数据（<a href="supermimic.html#n3">它的读者注 3</a>）。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>RL 已经能让物理角色高质量地跟踪动捕，常用的是 PPO。作者列出 PPO 的问题：样本效率低，对超参数、类别不平衡、环境设计、奖励和特征设计乃至随机种子都敏感（引 Henderson 2017）。训练能否成功很难预料，这对游戏生产是风险。</p>
+<p>论文把最常见的任务“动作跟踪”写成监督学习：策略通过跟踪损失的反向传播直接优化。这可以看成基于模型的学习，也可以看成同时学两个模型的监督问题，一个预测世界动力学，一个输出最小化跟踪损失的动作。</p>
+<p>方法依赖四个观察：</p>
+<ol>
+<li>跟踪的奖励或损失通常是运动学角色和模拟角色状态的简单可导函数。</li>
+<li>两个角色的转移部分可分：运动学角色的行为一般不因模拟角色而改变。</li>
+<li>模拟角色的转移完全来自确定性物理仿真，所以普通前馈网络能有效近似。</li>
+<li>用网络近似之后就得到近似可导的物理仿真器，策略能穿过它反传跟踪损失。</li>
+</ol>
+<p>理论上两个网络都可以离线训练，但需要的数据覆盖太大，所以搭了一个类似 RL gym 的交互环境，把数据写进大的循环缓存，从中随机采样同时训练。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=1">看原图 ↗</a></span><p>横幅渲染，棋盘地面上两组连续帧。金黄色人形是起始姿态，红色半透明的层层叠影是世界模型往后预测出来的姿态，一组拖得很长，另一组像一团翻动的衣摆。用来说明世界模型被当作近似可导的物理仿真器。</p></div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>基于模型的学习</h3>
+<p>有模型就能做优化，可以利用模型结构（如 Coros 2010 等），也可以用无梯度的黑箱优化（如 Hämäläinen 2014 等）。无梯度方法在动作维度高时吃力。可导模型扩展性更好（Tassa 2012），但很难超出特定任务，也不容易从优化单个动作走到优化策略。基于模型的 RL 可以只靠奖励信号学策略（Janner 2019），但通用场景同样不好用。模型可以按第一性原理设计，也可以拟合近似模型（系统辨识），系统一复杂手工设计就不现实。</p>
+<h3 id="s2-2"><span class="no">2.2</span>学到的世界模型</h3>
+<p>另一条路是在观测上监督训练一个通用可导模型（Nagabandi 2017、Schmidhuber 1990），即 <a class="ds" href="https://arxiv.org/abs/1803.10122">World Models</a>（Ha 和 Schmidhuber 2018）。难点是环境里有些东西观测不到、是随机的、或者不受动作影响，所以通用情况下转移函数必须是概率性的，要大量数据来打破动作和观测的伪相关，还要处理稀疏而重要的事件。</p>
+<p>这篇论文绕开了大部分问题：世界模型只学转移函数里受动作影响的子集，也就是确定性物理仿真的结果。作者认为最接近的前作是 <a class="ds" href="https://doi.org/10.1145/280814.280816">NeuroAnimator</a>（Grzeszczuk 1998），它也用学到的模型预测昂贵的物理仿真，再用梯度做轨迹优化。这篇可以看成多加一步：把优化结果记进一个策略网络。</p>
+<h3 id="s2-3"><span class="no">2.3</span>无模型学习</h3>
+<p>无模型 RL 不需要动力学知识，所以在摩擦、接触、执行器这些难建模的问题上很有吸引力，但样本效率低，最适合样本容易获得的仿真，比如当作黑箱的游戏物理引擎（<a class="ds" href="https://github.com/bulletphysics/bullet3">Bullet</a>、<a class="ds" href="https://www.havok.com/havok-physics/">Havok</a>、<a class="ds" href="https://developer.nvidia.com/physx-sdk">PhysX</a>）。PPO 在人物控制上用得最广，前提是样本效率不是大问题。</p>
+<h3 id="s2-4"><span class="no">2.4</span>动作跟踪</h3>
+<p>早期工作从简单目标或启发式得到类似行走的行为，后来为了真实感转向动捕乃至视频。近年的跟踪工作主要用 PPO 加“跟踪奖励”（<a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a>、<a class="ds" href="https://doi.org/10.1145/3355089.3356536">DReCon</a> 等）。作者注意到用基于模型 RL 做动作模仿的工作很少，而且多在小问题上，称自己是第一个在这样大的规模上把学到的世界模型用于动作跟踪。</p>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总循环、256 个角色和 30 秒的缓存、局部坐标（现算）、W 走一步（玩具现算）、窗口训练（可切换 \(N_{\mathcal W}\)）、PD 偏移（玩具）、穿过 W 反传（可切换 \(N_\Pi\)，和仿真器差分对照）、完整训练（可切换种子）、和似然比估计比方向（可切换样本数）、原文曲线（可切换实验）、视野和 SuperMimic（可切换论文）。可以暂停、拖进度、旋转画面。第 4 到 9 幕第一次打开时要现场训练一两秒。</p>
+<iframe src="../interactives/supertrack/index.html?embed=1" title="SuperTrack 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/supertrack/index.html">全屏打开，还有完整结构表 ↗</a></p>
+</div>
+
+<h3 id="s3-1"><span class="no">3.1</span>环境</h3>
+<p>训练环境类似 DeepMimic 的 gym：并行仿真 256 个关节由 PD 控制器驱动的角色，去跟踪动捕库里对应的运动学动画。回合在两种情况下结束：超过最大长度 512 帧；或者已经超过最小长度 48 帧，且头部高度和参考差超过 25 cm。结束后用 RSI（reference state initialization，把角色放到随机动画的随机帧上开始）复位，加竖直修正防止穿地。可以按用户给的概率分布选动画。回合结束后，样本才写进循环缓存。这样产生数据的速度约 5000 样本/秒。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 两处小的前后出入</span><p>§3.1 说缓存细节见 §3.5，实际写在 §3.6（§3.5 讲策略）。§3.5 的文字说把“初始目标运动学状态”喂给策略，算法 2 和图 3 用的是每一帧的 \(K_{i+1}\)，这页按算法。都不影响理解。</p></div>
+<h3 id="s3-2"><span class="no">3.2</span>表示</h3>
+<p>角色状态用所有刚体的世界坐标：位置 \(\mathbf x^p\in\mathbb R^{3B}\)、速度 \(\dot{\mathbf x}^p\in\mathbb R^{3B}\)、四元数旋转 \(\mathbf x^r\in\mathbb R^{4B}\)、角速度 \(\dot{\mathbf x}^r\in\mathbb R^{3B}\)，记 \(\mathbf X=\{\mathbf x^p,\dot{\mathbf x}^p,\mathbf x^r,\dot{\mathbf x}^r\}\)，\(B\) 是刚体数。运动学角色 \(\mathbf K\) 和模拟角色 \(\mathbf S\) 用同样的表示。</p>
+<p>PD 目标 \(\mathbf T=\{\mathbf t,\dot{\mathbf t}\}\)，每个关节一个目标旋转 \(\mathbf t\in\mathbb R^{4J}\) 和目标角速度 \(\dot{\mathbf t}\in\mathbb R^{3J}\)，\(J\) 是关节数。PD 控制器按当前关节状态和目标的差算力矩。策略给出的偏移 \(\mathbf o\in\mathbb R^{3J}\) 是旋转向量，经指数映射（把旋转向量变成旋转）转成四元数，再乘到运动学角色的关节旋转上：</p>
+<div class="eq"><div class="m">\[ \mathbf t=\exp\!\bigl(\tfrac{\alpha}{2}\,\mathbf o\bigr)\otimes\mathbf k^t,\qquad \dot{\mathbf t}=\dot{\mathbf k}^t\ \ (\text{或在不支持的仿真器里 }\dot{\mathbf t}=0) \]</div><span class="no"></span></div>
+<p>\(\alpha\) 是偏移的总缩放。只对目标旋转加偏移，目标角速度照抄运动学角色。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · \(\alpha=120\) 的单位</span><p>表 1 和表 3 只写 120，论文没写单位。按上面的公式，若是弧度，\(o=1\) 就转 120 弧度，约 19 圈，不可能。所以我推断是度：\(o=1\) 对应 120°，\(\sigma=0.1\) 的噪声相当于约 12°，PPO 的 \(\sigma=0.2\) 约 24°。这是我的推断。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>网络输入</h3>
+<p>世界坐标不具有平移和旋转不变性，原始四元数还有双重覆盖（\(q\) 和 \(-q\) 是同一旋转）。所以输入前做几步：乘上根刚体（通常是胯）变换的逆，换到角色空间；四元数转成旋转矩阵的前两列（two-axis，来自 Zhang 2018）；再加上所有刚体离地的高度和竖直方向在根坐标系里的方向。这样网络知道重力方向和每个肢体到地面的距离，可以推断接触：</p>
+<div class="eq"><div class="m">\[ \mathrm{Local}(\mathbf X)=\{\mathbf x^{lp},\dot{\mathbf x}^{lp},\mathbf x^{lr},\dot{\mathbf x}^{lr},\mathbf x^{h},\mathbf x^{up}\} \]</div><span class="no">(1)</span></div>
+<div class="eq"><div class="m">\[ \mathbf x^{lp}\in\mathbb R^{3B}=\mathrm{Inv}(\mathbf x^{root\,r})\otimes(\mathbf x^{p}-\mathbf x^{root\,p}) \]</div><span class="no">(2)</span></div>
+<div class="eq"><div class="m">\[ \dot{\mathbf x}^{lp}\in\mathbb R^{3B}=\mathrm{Inv}(\mathbf x^{root\,r})\otimes\dot{\mathbf x}^{p} \]</div><span class="no">(3)</span></div>
+<div class="eq"><div class="m">\[ \mathbf x^{lr}\in\mathbb R^{6B}=\mathrm{TwoAxis}(\mathrm{Inv}(\mathbf x^{root\,r})\otimes\mathbf x^{r}) \]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[ \dot{\mathbf x}^{lr}\in\mathbb R^{3B}=\mathrm{Inv}(\mathbf x^{root\,r})\otimes\dot{\mathbf x}^{r} \]</div><span class="no">(5)</span></div>
+<div class="eq"><div class="m">\[ \mathbf x^{h}\in\mathbb R^{B}=\mathrm{Height}(\mathbf x^{p}) \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ \mathbf x^{up}\in\mathbb R^{3}=\mathrm{Inv}(\mathbf x^{root\,r})\otimes[0\ 0\ 1]^T \]</div><span class="no">(7)</span></div>
+<p>TwoAxis 把四元数转成旋转矩阵，取前两列。Height 算刚体相对地面或高度图的高度。\(\otimes\) 是四元数相乘或四元数作用到向量上。最后每个量用离线在运动学数据库上统计的均值和标准差归一化。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 3 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=3">看原图 ↗</a></span><p>世界模型训练的示意。从左边的橙色圆 \(S_i\) 出发，经过三个蓝色方块 W；每个 W 上方有 \(T_i,T_{i+1},T_{i+2}\) 输入，右边输出红色圆 \(P_{i+1},P_{i+2}\) 并接着进入下一个 W。下方两个橙色圆 \(S_{i+1},S_{i+2}\) 是真值，和 \(P\) 算损失，红色虚线画出损失沿链条反传。</p></div>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 4 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=4">看原图 ↗</a></span><p>策略训练的示意。比图 2 多一层：上方绿色圆 \(K_{i+1},K_{i+2},\dots\) 进紫色方块 \(\Pi\)，Π 输出黑色圆 \(T\) 进蓝色方块 W，W 输出红色圆 \(P\)，\(P\) 又回到下一个 Π。下方绿色圆 \(K\) 是损失的目标，红色虚线穿过 W 和 Π 反传回去。起点是橙色圆 \(S_i\)。</p></div>
+
+<h3 id="s3-4"><span class="no">3.4</span>世界模型</h3>
+<p>从缓存采 \(N_{\mathcal W}=8\) 帧的窗口，取出模拟状态 \(\mathbf S\) 和当时用的 PD 目标 \(\mathbf T\)。从第一帧 \(\mathbf S_0\) 开始，状态和目标进网络 W，输出局部于根刚体的位置和旋转加速度 \(\ddot{\mathbf x}^{lp}\in\mathbb R^{3B}\)、\(\ddot{\mathbf x}^{lr}\in\mathbb R^{3B}\)。乘上根刚体旋转变成世界系，再和当前状态积分：</p>
+<div class="eq"><div class="m">\[ \mathrm{Integrate}(\mathbf X,\ddot{\mathbf x}^p,\ddot{\mathbf x}^r,dt)=\{\mathbf y^p,\dot{\mathbf y}^p,\mathbf y^r,\dot{\mathbf y}^r\} \]</div><span class="no">(8)</span></div>
+<div class="eq"><div class="m">\[ \dot{\mathbf y}^p=dt\,\ddot{\mathbf x}^p+\dot{\mathbf x}^p \]</div><span class="no">(9)</span></div>
+<div class="eq"><div class="m">\[ \dot{\mathbf y}^r=dt\,\ddot{\mathbf x}^r+\dot{\mathbf x}^r \]</div><span class="no">(10)</span></div>
+<div class="eq"><div class="m">\[ \mathbf y^p=dt\,\dot{\mathbf y}^p+\mathbf x^p \]</div><span class="no">(11)</span></div>
+<div class="eq"><div class="m">\[ \mathbf y^r=\exp\!\bigl(\tfrac{dt}{2}\dot{\mathbf y}^r\bigr)\otimes\mathbf x^r \]</div><span class="no">(12)</span></div>
+<p>先更新速度，再用新速度更新位置，这是半隐式欧拉积分。预测出的下一状态再喂进网络，一直滚完窗口。每帧的预测 \(\mathbf P\) 和真值 \(\mathbf S\) 算损失并更新权重。损失权重 \(w_{pos},w_{vel},w_{rot},w_{ang}\) 调到训练开始时各项贡献大致相等。\(\ominus\) 是四元数差：左边乘右边的逆再取对数。这样的窗口训练可以看成每 \(N_{\mathcal W}\) 帧做一次 teacher forcing（把网络输入重置成真值，Williams 和 Zipser 1989）。算法按单个样本写，实际按小批量。</p>
+<div class="algo" id="alg1"><div class="t">算法 1：训练世界模型 W（原文第 3 页）。TrainWorldModel(S, T, \(N_{\mathcal W}\), \(\theta_{\mathcal W}\), dt)</div>
+<div>\(\mathbf P_0\leftarrow\mathbf S_0\) <span class="c">　// 初始预测状态</span></div>
+<div>for \(i\leftarrow0\) to \(N_{\mathcal W}-1\) do <span class="c">　// 在窗口上预测 P</span></div>
+<div>　\(\ddot{\mathbf p}^{lp}_i,\ddot{\mathbf p}^{lr}_i\leftarrow\mathcal W([\mathrm{Local}(\mathbf P_i)\ \mathbf T_i]^T;\theta_{\mathcal W})\) <span class="c">　// 预测刚体加速度</span></div>
+<div>　\(\ddot{\mathbf p}^{p}_i,\ddot{\mathbf p}^{r}_i\leftarrow\mathbf p^{root\,r}_i\otimes\ddot{\mathbf p}^{lp}_i,\ \mathbf p^{root\,r}_i\otimes\ddot{\mathbf p}^{lr}_i\) <span class="c">　// 转到世界系</span></div>
+<div>　\(\mathbf P_{i+1}\leftarrow\mathrm{Integrate}(\mathbf P_i,\ddot{\mathbf p}^{p}_i,\ddot{\mathbf p}^{r}_i,dt)\) <span class="c">　// 积分</span></div>
+<div>end</div>
+<div>\(\mathcal L_{pos}\leftarrow w_{pos}\sum_i\lVert\mathbf s^p_i-\mathbf p^p_i\rVert_1\)</div>
+<div>\(\mathcal L_{vel}\leftarrow w_{vel}\sum_i\lVert\dot{\mathbf s}^p_i-\dot{\mathbf p}^p_i\rVert_1\)</div>
+<div>\(\mathcal L_{rot}\leftarrow w_{rot}\sum_i\lVert\mathbf s^r_i\ominus\mathbf p^r_i\rVert_1\)</div>
+<div>\(\mathcal L_{ang}\leftarrow w_{ang}\sum_i\lVert\dot{\mathbf s}^r_i-\dot{\mathbf p}^r_i\rVert_1\)</div>
+<div>\(\theta_{\mathcal W}\leftarrow\mathrm{RAdam}(\theta_{\mathcal W},\nabla\sum_*\mathcal L_*)\) <span class="c">　// 更新参数</span></div>
+</div>
+
+<h3 id="s3-5"><span class="no">3.5</span>策略</h3>
+<p>从缓存采 \(N_\Pi=32\) 帧的窗口，取初始模拟状态 \(\mathbf S_0\) 和目标运动学状态 \(\mathbf K\)。模拟状态和目标运动学状态进策略，得到 PD 偏移 \(\mathbf o\)；加上 \(\sigma=0.1\) 的高斯噪声用于状态和动作的探索；乘 \(\alpha\) 转成四元数，乘到运动学关节旋转上，再配上运动学关节角速度，得到 PD 目标 \(\mathbf T\)。PD 目标和预测状态一起进世界模型，得到下一状态。重复到窗口结束，预测和目标运动学状态在<b>局部空间</b>算损失，更新策略权重。</p>
+<p>权重 \(w_{lpos},w_{lvel},w_{lrot},w_{lang},w_{hei},w_{up}\) 调到训练开始时贡献大致相等。\(w_{lreg},w_{sreg}\) 小两个数量级，用来惩罚大偏移。算法同样按单样本写，训练用小批量。这个算法也是 gym 里收集数据的流程，只是用真实物理仿真器代替世界模型。</p>
+<div class="algo" id="alg2"><div class="t">算法 2：训练策略 Π（原文第 4 页）。TrainPolicy(S₀, K, W, \(N_\Pi\), \(\theta_\Pi\), σ, α, dt)</div>
+<div>\(\mathbf P_0\leftarrow\mathbf S_0\)</div>
+<div>for \(i\leftarrow0\) to \(N_\Pi-1\) do</div>
+<div>　\(\mathbf o_i\leftarrow\Pi([\mathrm{Local}(\mathbf P_i),\mathrm{Local}(\mathbf K_{i+1})]^T;\theta_\Pi)\) <span class="c">　// 预测 PD 偏移</span></div>
+<div>　\(\hat{\mathbf o}_i\leftarrow\mathbf o_i+\sigma\mathcal N(0,1)\) <span class="c">　// 加噪声</span></div>
+<div>　\(\mathbf T_i\leftarrow\{\exp(\tfrac\alpha2\hat{\mathbf o}_i)\otimes\mathbf k^t_{i+1},\ \dot{\mathbf k}^t_{i+1}\}\) <span class="c">　// PD 目标</span></div>
+<div>　\(\ddot{\mathbf p}^{lp}_i,\ddot{\mathbf p}^{lr}_i\leftarrow\mathcal W([\mathrm{Local}(\mathbf P_i)\ \mathbf T_i]^T;\theta_{\mathcal W})\) <span class="c">　// 穿过世界模型</span></div>
+<div>　\(\ddot{\mathbf p}^{p}_i,\ddot{\mathbf p}^{r}_i\leftarrow\mathbf p^{root\,r}_i\otimes\ddot{\mathbf p}^{lp}_i,\ \mathbf p^{root\,r}_i\otimes\ddot{\mathbf p}^{lr}_i\)</div>
+<div>　\(\mathbf P_{i+1}\leftarrow\mathrm{Integrate}(\mathbf P_i,\ddot{\mathbf p}^{p}_i,\ddot{\mathbf p}^{r}_i,dt)\)</div>
+<div>end</div>
+<div>\(\mathbf P^l,\mathbf K^l\leftarrow\mathrm{Local}(\mathbf P),\mathrm{Local}(\mathbf K)\) <span class="c">　// 局部空间</span></div>
+<div>\(\mathcal L_{lpos}\leftarrow w_{lpos}\sum_i\lVert\mathbf p^{lp}_i-\mathbf k^{lp}_i\rVert_1\)，\(\mathcal L_{lvel}\leftarrow w_{lvel}\sum_i\lVert\dot{\mathbf p}^{lp}_i-\dot{\mathbf k}^{lp}_i\rVert_1\)</div>
+<div>\(\mathcal L_{lrot}\leftarrow w_{lrot}\sum_i\lVert\mathbf p^{lr}_i-\mathbf k^{lr}_i\rVert_1\)，\(\mathcal L_{lang}\leftarrow w_{lang}\sum_i\lVert\dot{\mathbf p}^{lr}_i-\dot{\mathbf k}^{lr}_i\rVert_1\)</div>
+<div>\(\mathcal L_{hei}\leftarrow w_{hei}\sum_i\lVert\mathbf p^{h}_i-\mathbf k^{h}_i\rVert_1\)，\(\mathcal L_{up}\leftarrow w_{up}\sum_i\lVert\mathbf p^{up}_i-\mathbf k^{up}_i\rVert_1\)</div>
+<div>\(\mathcal L_{lreg}\leftarrow w_{lreg}\sum_i\lVert\mathbf o_i\rVert_2^2\)，\(\mathcal L_{sreg}\leftarrow w_{sreg}\sum_i\lVert\mathbf o_i\rVert_1\)</div>
+<div>\(\theta_\Pi\leftarrow\mathrm{RAdam}(\theta_\Pi,\nabla\sum_*\mathcal L_*)\)</div>
+</div>
+<p>注意两个算法的差别：W 在世界空间算损失（全局漂移算误差），Π 在局部空间算（全局位置和朝向不进损失，只有 §4.2 的崎岖地形额外加了）。正则作用在加噪声之前的 \(\mathbf o\) 上。算法里只更新 \(\theta_\Pi\)，梯度穿过 W 但 W 的权重不变。</p>
+
+<h3 id="s3-6"><span class="no">3.6</span>训练</h3>
+<p>每次迭代：把环境新数据拉进约 150,000 样本的循环缓存（存 S、K、T）；把当前策略发给环境；用算法 1 训练 W 一步；用算法 2 训练 Π 一步。约 10,000 次迭代开始看到基本的平衡行为（在 Nvidia GTX 1070 这样的中端显卡上约两小时）。完整训练要约 100,000 到 200,000 次，约 20 到 40 小时，取决于硬件、设置和想要的跟踪质量。</p>
+<div class="tablewrap"><table class="t-c" id="tab1"><caption>表 1：超参数（原文第 5 页）</caption><thead><tr><th></th><th>项目</th><th>值</th></tr></thead><tbody>
+<tr><td rowspan="6">世界模型</td><td>Hidden Layers</td><td>5</td></tr><tr><td>Hidden Units</td><td>1024</td></tr><tr><td>Activation</td><td>ELU</td></tr><tr><td>Batchsize</td><td>2048</td></tr><tr><td>Learning Rate</td><td>0.001</td></tr><tr><td>Window (\(N_{\mathcal W}\))</td><td>8</td></tr>
+<tr><td rowspan="6">策略</td><td>Hidden Layers</td><td>5</td></tr><tr><td>Hidden Units</td><td>1024</td></tr><tr><td>Activation</td><td>ELU</td></tr><tr><td>Batchsize</td><td>1024</td></tr><tr><td>Learning Rate</td><td>0.0001</td></tr><tr><td>Window (\(N_\Pi\))</td><td>32</td></tr>
+<tr><td rowspan="2">其他</td><td>Noise Scale (\(\sigma\))</td><td>0.1</td></tr><tr><td>Offset Scale (\(\alpha\))</td><td>120</td></tr>
+</tbody></table></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 速率对账：数字自洽，缓存只存 30 秒</span>
+<p><b>迭代速度。</b>10,000 次 2 小时是 1.39 次/秒；100,000 次 20 小时和 200,000 次 40 小时也都是 1.39，自洽。§3.6 说 20 到 40 小时，表 2 的 Rough Terrain 写 50 小时，略超出，算小差异。</p>
+<p><b>缓存。</b>150,000 ÷ 5000 = 30 秒。所以缓存里永远只有最近半分钟的数据，约 42 次迭代换一轮（30 × 1.39）。论文说 ST 是 off-policy，这是对的，但实际用到的旧数据并不旧。</p>
+<p><b>和实时比。</b>256 × 60 = 15,360 帧/秒才算实时，5000 样本/秒约是三分之一。</p>
+<p><b>样本重用。</b>每次迭代约进 5000 ÷ 1.39 ≈ 3600 个新样本，W 用掉 2048 × 8 = 16,384 帧，Π 用 1024 × 32 = 32,768 帧，重用约 4.6 倍和 9.1 倍。20 小时共产生约 3.6 亿样本，约是 LaFAN 的 144 万帧的 250 倍。这些都是我的计算。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 维度和 20 MB 对得上</span>
+<p>按式 (1)–(7) 相加：\(3B+3B+6B+3B+B+3=16B+3\)，\(B=20\) 时 323 维。Π 输入两个 Local，646 维，输出 \(3J=57\) 维。W 输出 \(6B=120\) 维；输入多个 T，论文没写 T 进网络前怎么编码，直接拼 \(7J=133\) 维的话是 456 维。</p>
+<p>按 5 层 × 1024 算（含偏置）：W 约 4,789,368 个参数，Π 约 4,919,353 个，用 32 位浮点约 19.2 MB 和 19.7 MB，和 §5.3 的“约 20 MB”一致。32 位是我的假设。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 论文没写的量</span><p>复现要自己定这些：各损失权重的具体值；PD 的 kp 和 kd；角色的质量和尺寸；\(dt\)（从表 2 的 60 Hz 看是 1/60，没明说）；T 进网络的编码；RAdam 的其他参数；§7 提到的梯度裁剪阈值；\(\sigma\) 噪声是否也用于 gym（§3.5 说算法 2 也是 gym 的流程，所以我认为是）。这些是“论文没写”，不是我没找到。</p></div>
+<h2 id="s4"><span class="no">4</span>结果</h2>
+<p>除特别说明，结果都用 <a class="ds" href="https://developer.nvidia.com/physx-sdk">PhysX</a>。衡量指标是 Survival Rate：回合持续超过给定时间而没有失败的比例，失败定义同 §3.1。这里到动画结尾没失败就跳到新的随机帧，计时不停，所以可以统计到 60 秒。作者认为它反映数据库的大小、物理难度和多样性。</p>
+<div class="tablewrap"><table class="t-a" id="tab2"><caption>表 2：各数据库（原文第 7 页）</caption><thead><tr><th>Database</th><th>#Frames</th><th>#Bodies (B)</th><th>#Joints (J)</th><th>FPS (Hz)</th><th>Training (hr)</th></tr></thead><tbody>
+<tr><td>LaFAN</td><td>1,442,572</td><td>20</td><td>19</td><td>60</td><td>40</td></tr>
+<tr><td>Styles</td><td>378,200</td><td>20</td><td>19</td><td>60</td><td>20</td></tr>
+<tr><td>Dance</td><td>20,844</td><td>20</td><td>19</td><td>60</td><td>20</td></tr>
+<tr><td>DReCon</td><td>38,332</td><td>20</td><td>19</td><td>60</td><td>20</td></tr>
+<tr><td>Controller</td><td>71,322</td><td>20</td><td>19</td><td>60</td><td>20</td></tr>
+<tr><td>Dog</td><td>81,240</td><td>26</td><td>25</td><td>60</td><td>20</td></tr>
+<tr><td>Rough Terrain</td><td>1,544,920</td><td>20</td><td>19</td><td>60</td><td>50</td></tr>
+</tbody></table></div>
+<h3 id="s4-1"><span class="no">4.1</span>动作跟踪</h3>
+<p><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN</a>（Harvey 2020）约 6.5 小时，无结构，包含跳舞、摔倒和起身、打斗、运动、爬、滚、单脚跳、踉跄和行走。这里只用平地上的动作，重定向到统一的角色尺寸。其中有些动作物理上跟不了，比如一个人拉着手把另一个人拉起来。和 Won 2020 不同，不用聚类、不用专家，全库共用一个策略。</p>
+<p>中等规模的 Styles 约 1.7 小时，30 种风格的行走，训练后超过 80% 的回合超过一分钟（论文没给这个数据集的来源）。很小的 Dance 约 6 分钟，高难度的舞蹈动作，超过 95% 的回合超过一分钟。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 6 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=6">看原图 ↗</a></span><p>两个上下排列的折线图，横轴 0 到 60 秒，纵轴是回合占比。上图 ST，下图 PPO。下面的数字是我从矢量图读的 60 秒处的值。</p></div>
+<div class="tablewrap"><table class="t-a"><caption>图 4 的读数：60 秒时还没失败的比例（%），矢量图读数，我的读取</caption><thead><tr><th>训练和测试</th><th>ST</th><th>PPO</th></tr></thead><tbody>
+<tr><td>LaFAN</td><td>65.7</td><td>2.6</td></tr><tr><td>Styles</td><td>79.4</td><td>43.4</td></tr><tr><td>Styles (LaFAN)：LaFAN 上训练，Styles 上测试</td><td>45.2</td><td>0.0</td></tr><tr><td>Dance</td><td>95.1</td><td>45.3</td></tr><tr><td>DReCon</td><td>99.0</td><td>54.3</td></tr><tr><td>Controller</td><td>63.9</td><td>21.1</td></tr><tr><td>Dog</td><td>97.2</td><td>27.2</td></tr><tr><td>Rough Terrain</td><td>10.8</td><td>没测</td></tr>
+</tbody></table></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 图 4 的三个核对</span>
+<p><b>“超过 80%”。</b>Styles 在 60 秒处我读到 79.4%，略低于正文的“超过 80%”。Dance 95.1%，和“超过 95%”一致。标定用纵轴 0 和 100 两条网格线，曲线起点读到 100.03，所以读数误差约 0.03，这个差不是读图造成的，但差距很小。</p>
+<p><b>和图 9 互相印证。</b>回合完成度是平均回合长度 ÷ 512 帧，512 帧 = 8.53 秒，所以应该等于生存曲线在 0 到 8.53 秒上的平均。积分图 4 的 PPO LaFAN 得到 0.419，图 9 里 PPO 20 小时约 0.40，对得上。ST LaFAN 积分得 0.969，图 9 里 20 小时约 0.91；图 4 的策略按表 2 是 40 小时的，加上训练时有 \(\sigma\) 噪声，方向合理。</p>
+<p><b>训练时长。</b>表 2 只给了一列 Training，图 4 的 PPO 训练了多久论文没写，所以图 4 上 ST 和 PPO 的差距不一定是同样时长下的差距。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · LaFAN 的长度比公开版多</span><p>表 2 的 1,442,572 帧在 60 Hz 下是 6.68 小时，和正文“约 6.5 小时”接近。其他几个也对得上：Styles 1.75 小时，Dance 5.8 分钟，Rough Terrain 7.15 小时。</p>
+<p>但公开的 LAFAN1 的 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset#data">README</a> 写的是 496,672 帧、30 fps、约 4.6 小时，而且正文还说只用平地动作。6.68 小时比全集还多 45%。论文没解释。一个可能是做了左右镜像（全集翻倍是 9.2 小时，去掉 Obstacles 的 17/77 个序列后约 7.2 小时），或者用了内部版本（LAFAN1 本来就出自作者所在的 Ubisoft La Forge）。这只是我的猜测，不能当事实。</p></div>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 6 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=6">看原图 ↗</a></span><p>3 × 3 的渲染图。黄色木偶人形在棋盘地面上做 LaFAN 里的难动作：高抬腿、跑、跳、趴地、踉跄、手脚撑地爬行、下蹲出拳等。</p></div>
+<div class="fig" id="fig6"><span class="lab">图 6 · 原文第 6 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=6">看原图 ↗</a></span><p>Dance 数据库的连续帧叠影，四组，颜色从棕到黄表示时间推移，右上角有 time 箭头。</p></div>
+<h3 id="s4-2"><span class="no">4.2</span>崎岖地形</h3>
+<p>同样的方法和状态表示可以扩展到崎岖地形，数据库约 7 小时，包含平地和崎岖地面的行走。难点是模拟角色不能离运动学角色太远，否则参考动作和脚下的地形对不上。所以额外给策略两个角色在世界空间的根位置和根旋转差，加上惩罚这个差的损失（这样策略学会修正全局漂移），并在根位置差超过 1 米或旋转差超过 90° 时立即结束回合。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 原文第 7 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=7">看原图 ↗</a></span><p>黄色角色的多帧叠影，从左到右走过由高度不同的深色方块组成的地形。</p></div>
+<h3 id="s4-3"><span class="no">4.3</span>交互控制</h3>
+<p>预录 10 到 20 分钟用户操作运动学控制器的结果，存成数据库再训练跟踪，就得到可交互的策略。两个例子：一个响应灵敏的 Motion Matching 控制器；一个 Dog 控制器，类似 <a class="ds" href="https://doi.org/10.1145/3386569.3392440">Learned Motion Matching</a>（Holden 2020）。结果里还有一个基于 LaFAN 的 Motion Matching 控制器，类似 DReCon。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 7 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=7">看原图 ↗</a></span><p>两张并排的渲染，上方都有游戏手柄图标。左边是人形在走，右边是四足的狗在跑。</p></div>
+
+<h2 id="s5"><span class="no">5</span>评估</h2>
+<p>比较策略的指标是训练过程中平均回合长度除以 512（最大长度），1 表示所有回合都跑满，称回合完成度（episode completion）。所有对比用同样硬件（Nvidia GTX 1070）。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 这个指标有下限</span><p>回合至少 48 帧才可能因头高偏差终止，所以完成度的下限约 48 ÷ 512 = 0.094。读图：PPO 的曲线都从 0.094 到 0.097 开始，ST 从 0.10 到 0.13 开始。所以 PPO 在 LaFAN 上 20 小时的 0.40 要从 0.094 算起，真实提升是 0.3 左右。这个下限是我算的，论文没有提。</p></div>
+<h3 id="s5-1"><span class="no">5.1</span>和 PPO 比较</h3>
+<p>比较内容：随机种子带来的方差、损失或奖励缩放、物理仿真器、数据失衡、经验收集速度、策略同步、抗扰动。除另有说明都用 PhysX 和 LaFAN。作者发现 PPO 在小数据库上表现不错，在 LaFAN 上差很多，推测是因为规模和多样性。</p>
+<p>PPO 用同样的状态和动作表示，网络“略小”。动作分布是固定标准差的高斯，\(\sigma=0.2\)（实验发现比 0.1 好）。gym 和 RSI 完全相同。奖励类似 DReCon，加了几项以贴近本文损失：</p>
+<div class="eq"><div class="m">\[ r=w_{rew}\exp\bigl(-(\mathcal L_{lpos}+\mathcal L_{lvel}+\mathcal L_{lrot}+\mathcal L_{lang}+\mathcal L_{lhei}+\mathcal L_{lup})\bigr),\qquad w_{rew}=1\Big/\sqrt{\tfrac{0.05}{1-\gamma}} \]</div><span class="no"></span></div>
+<p>各项和算法 2 相同，但权重略调（按单帧算，不按窗口），\(w_{rew}\) 用来缩放总奖励。\(\gamma=0.99\) 时 \(w_{rew}=1/\sqrt5\approx0.447\)（我的计算）。</p>
+<div class="tablewrap"><table class="t-c" id="tab3"><caption>表 3：PPO 超参数（原文第 8 页）</caption><thead><tr><th>项目</th><th>值</th></tr></thead><tbody>
+<tr><td>Hidden Layers</td><td>2</td></tr><tr><td>Hidden Units</td><td>256</td></tr><tr><td>Activation</td><td>ELU</td></tr><tr><td>Policy Learning Rate</td><td>0.0001</td></tr><tr><td>Critic Learning Rate</td><td>0.001</td></tr><tr><td>Discount Factor (\(\gamma\))</td><td>0.99</td></tr><tr><td>GAE-\(\lambda\)</td><td>0.95</td></tr><tr><td>Sample Size</td><td>8192</td></tr><tr><td>Batchsize</td><td>512</td></tr><tr><td>Noise Scale (\(\sigma\))</td><td>0.2</td></tr><tr><td>Offset Scale (\(\alpha\))</td><td>120</td></tr>
+</tbody></table></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · “略小”其实小 20 倍，PPO 没试过同样大的网络</span><p>按 Local 的 646 维输入和 57 维输出算，2 层 × 256 约 246,073 个参数，ST 的策略约 4,919,353 个，差 20 倍。图 10 测过的最大的是 2 层 × 512 和 4 层 × 128，都没到 5 层 × 1024。图 10 确实显示更大不更好（宽度 128、256、512 在 20 小时读到 0.43、0.39、0.37），所以这不太可能翻转结论，但 PPO 在同样网络下的结果论文没有给。</p></div>
+<h4 id="s5-1-1"><span class="no">5.1.1</span>随机种子</h4>
+<p>每个算法跑三个种子。作者认为两者都比较一致，方差不大，可能是奖励定义约束严格，局部极小少。</p>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 8 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=8">看原图 ↗</a></span><p>三个上下排列的折线图，横轴 0 到 20 小时，纵轴回合完成度。Random Seed：三条青色 ST 和三条红色 PPO。Loss Scale：实线是 \(w_{lvel}\) ×5，虚线是基线。Physics Engine：PhysX、Havok、Bullet 各一条 ST 和一条 PPO。下面重画第一个面板。</p></div>
+<div class="viz"><p class="cap">重画 · 图 9 Random Seed · 矢量图读数 · 悬停看数值</p><div id="c-seed"></div></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 基线恰好是最快的那个种子</span>
+<p>在第 2 小时，ST 三个种子读到 0.66、0.55、0.55；到 0.6 的时间是 1.64、2.41、2.38 小时；19 小时读到 0.915、0.894、0.868。PPO 三个种子在第 2 小时都是约 0.24，19 小时 0.37 到 0.39。所以“一致”对最终值成立，但上升段 ST 的种子差异比 PPO 大得多。</p>
+<p>我还对比了其他面板：ST-1 和图 9 Loss Scale 的虚线、Physics Engine 的 ST-PhysX、图 11 两个面板的虚线、图 15 的 acc，在 1 到 10 小时的读数差都在 0.002 以内，PD-offsets 差 0.007。它们应该是同一次运行。PPO-1 同样是 PPO 的基线。也就是说，所有“和基线比”的面板用的都是最快的那个种子。</p>
+<p>配置相同但不是这次运行的曲线也能看出这点：图 15 的 \(N_{\mathcal W}=8\) 在第 2 小时只有 0.51，\(N_\Pi=32\) 是 0.57，都低于 0.66。作者说消融里“尽量保持同一实验内硬件一致”，图 15 这几个面板之间是否换过硬件，论文没标。</p></div>
+<h4 id="s5-1-2"><span class="no">5.1.2</span>损失缩放</h4>
+<p>把 \(w_{lvel}\) 放大 5 倍，两者都比较稳健。作者认为 PPO 的奖励是各项的乘积（指数里相加），削弱了单项的影响。读图：ST 在第 2 小时从 0.66 变成 0.58，20 小时几乎一样（约 0.91）；PPO 20 小时约 0.39 对 0.40。</p>
+<h4 id="s5-1-3"><span class="no">5.1.3</span>物理仿真器</h4>
+<p>比较 PhysX、<a class="ds" href="https://www.havok.com/havok-physics/">Havok</a>、<a class="ds" href="https://github.com/bulletphysics/bullet3">Bullet</a>。后两者不方便支持 PD 目标角速度，设为零。作者说 ST 的最终表现比较接近，PPO“变化稍大”，可能是经验收集速度不同。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · PPO 的差异不只是“稍大”</span><p>20 小时读数：ST 在 PhysX、Havok、Bullet 上约 0.91、0.92、0.98，极差 0.07；PPO 约 0.39、0.67、0.44，极差 0.27，约是 ST 的 4 倍。PPO-Havok 在第 9 到 12 小时从 0.30 涨到 0.53，这个突增论文没解释。ST-Bullet 明明把目标角速度设成零却是三者最好的，这也没解释。上升速度差别也不小：ST 到第 5 小时，Bullet 0.82，PhysX 0.78，Havok 0.47。</p></div>
+<h4 id="s5-1-4"><span class="no">5.1.4</span>数据失衡</h4>
+<p>用做 Motion Matching 控制器的原始数据库，它有 Idle、Walk、Crouch、Jog、Run 标签，把 Walk 过采样 10 倍。ST 大约 1.5 小时出现稳定的跑、慢跑和下蹲。PPO 训练 10 小时后，除了走路没有其他动作是稳定的。</p>
+<h4 id="s5-1-5"><span class="no">5.1.5</span>经验收集</h4>
+<p>随机扔掉 70% 的回合，把经验率降到约三分之一。作者说 PPO 训练慢了一倍（twice as slowly），ST 基本不受影响，原因是 ST off-policy 且样本效率高，而 PPO 常常受限于经验收集速度。</p>
+<div class="viz"><p class="cap">重画 · 图 11 Experience Gather · 矢量图读数 · 悬停看数值</p><div id="c-exp"></div></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 读图是慢了约 3 倍</span><p>把曲线按 0.5 小时平滑后，看 PPO 到同一水平的时间：0.24 从 2.3 变 6.7 小时，0.26 从 4.0 变 11.9 小时，0.28 从 6.2 变 18.8 小时，比值约 2.9 到 3.0；0.22 到 0.25 这段比值在 2.9 到 4.0 之间。保留的数据少了 1/0.3 = 3.3 倍，所以 PPO 的进度差不多就是和数据量成正比，这反而更支持论文“被经验收集速度限制”的说法。“慢一倍”可能是用了别的比法，论文没写怎么算的。ST 到 0.8 从 6.4 变 8.4 小时，到 0.85 从 9.9 变 13.6 小时，约 1.3 到 1.4 倍，也不完全是没有影响，不过 20 小时差不多追平了（0.91 对 0.90）。</p></div>
+<h4 id="s5-1-6"><span class="no">5.1.6</span>策略同步</h4>
+<p>ST 是 off-policy，W 和 Π 都不要求数据来自当前策略。实验让环境里的策略落后当前策略 N 次训练迭代，N 叫同步间隔，试了 15 和 100。作者说 PPO 作为 on-policy 算法在这种条件下无法工作，ST 基本不受影响。</p>
+<div class="fig" id="fig10"><span class="lab">图 10 · 原文第 9 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=9">看原图 ↗</a></span><p>两个折线图，都是 PPO，横轴 0 到 20 小时。PPO Policy Width 用两层，宽度 128、256、512；PPO Policy Depth 用 128 宽，2、3、4 层。所有曲线几乎重合，20 小时都在 0.37 到 0.43 之间。</p></div>
+<div class="fig" id="fig11"><span class="lab">图 11 · 原文第 9 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=9">看原图 ↗</a></span><p>三个折线图。Experience Gather：ST 和 PPO 的实线是扔掉 70% 回合，虚线是基线。Data Imbalance：横轴 0 到 10 小时，竖虚线在 1.5 小时；ST 在竖线处约 0.70，到约 6.3 小时 0.91 结束；PPO 在竖线处约 0.32，到 10 小时约 0.57。Policy Sync：ST-15、ST-100、PPO-15，虚线是基线。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 图号和“无法工作”的程度</span>
+<p>§5.1.6 写的是“Fig 9 shows”，同步间隔的结果其实在图 11 的 Policy Sync 面板，图 9 没有这个面板。</p>
+<p>读图：PPO-15 没有完全失败，18.5 小时约 0.23，基线约 0.40。图里没有 PPO-100。ST-15 约 0.89、ST-100 到 12.7 小时结束时约 0.87，基线同一时间约 0.86。</p>
+<p>按读者注 3 的速度，100 次迭代约 72 秒。相比 20 小时的训练，这是很短的滞后。off-policy 的说法在结构上成立（算法里确实没用数据来自当前策略这一条件），但实验只测到约一分钟这个量级。</p></div>
+<h4 id="s5-1-7"><span class="no">5.1.7</span>抗扰动</h4>
+<p>两种方法都训练 20 小时。每秒向角色扔一个立方体，速度 5 m/s，质量逐渐增加，测回合完成度。作者结论：同样训练时长下 PPO 并不比 ST 更稳健。</p>
+<div class="viz"><p class="cap">重画 · 图 13 Robustness · 矢量图读数 · 悬停看数值</p><div id="c-rob"></div></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 绝对值 ST 高，相对下降 ST 更多</span><p>32 个质量点里，只有约 62 kg 一处 PPO 略高（0.236 对 0.223），图注“在一系列扰动大小上更稳健”就绝对值而言成立。但起点差很多：约 1 kg 时 ST 0.948，PPO 0.406。按各自起点的比例：20 kg 时 ST 剩 48%，PPO 剩 59%；100 kg 时 ST 剩 20%，PPO 剩 39%。也就是说，这张图主要反映 ST 没有扰动时好得多，并没有说明同样水平的策略里 ST 更抗扰。正文的措辞“PPO 并不更稳健”比图注谨慎。60 kg 以上两条曲线都在 0.2 附近。</p></div>
+<h3 id="s5-2"><span class="no">5.2</span>泛化和迁移学习</h3>
+<p>把在 LaFAN 上训练的策略直接用到没见过的 Styles，能跟住相当一部分。还可以微调：用 LaFAN 的策略和世界模型初始化 Styles 任务。迁移策略时，冻结除最后一层外的权重，把策略学习率设得很小；世界模型的初始化和训练不变。也试了只迁移世界模型、从零训练新策略，此时因为早期 W 就准，可以用更高的策略学习率，而把 W 学习率降低以防止不稳定。</p>
+<div class="fig" id="fig12"><span class="lab">图 12 · 原文第 10 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=10">看原图 ↗</a></span><p>一个折线图，横轴 0 到 4.5 小时，三条曲线加一条水平虚线。读数：虚线约 0.82，是未微调的 LaFAN 策略在 Styles 上的完成度。迁移策略从 0.81 起步，到 0.9 约 0.68 小时，到 2.8 小时结束时约 0.93。只迁移 W 到 0.82 约 1.24 小时，到 0.9 约 2.5 小时。不迁移到 0.82 约 1.86 小时，到 0.9 约 4.0 小时。图例把 WM-transfer 拼成了 WM-transer。</p></div>
+<div class="fig" id="fig13"><span class="lab">图 13 · 原文第 10 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=10">看原图 ↗</a></span><p>横轴立方体质量 0 到 100 kg，纵轴回合完成度。ST 从约 0.95 迅速下降，PPO 从约 0.41 缓慢下降，60 kg 以上都在 0.2 附近。上面已重画。</p></div>
+<h3 id="s5-3"><span class="no">5.3</span>性能</h3>
+<p>总体和用 PPO 的方法类似。策略每帧评估一次，约 1800 μs，权重约 20 MB。世界模型的性能和内存相近。物理以 240 Hz 仿真，约束求解 20 次迭代，每帧 300 到 1000 μs，取决于仿真器。性能测试都在 Intel Xeon E5-1650 CPU 上跑。</p>
+<div class="fig" id="fig14"><span class="lab">图 14 · 原文第 10 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=10">看原图 ↗</a></span><p>三张并排的渲染，右下角标 32、64、128，红色人形叠影是世界模型自由预测的帧。帧数越多叠影越散。图注：超过 64 帧后世界模型难以保持关节约束，姿态预测变差。</p></div>
+
+<h2 id="s6"><span class="no">6</span>消融</h2>
+<p>作者尽量让同一实验内的硬件一致，不一致时会标明。</p>
+<h3 id="s6-1"><span class="no">6.1</span>窗口大小</h3>
+<p>窗口训练比单步预测更稳定地学到长程预测。策略需要较大的窗口来学长期才有回报的动作，比如走路时迈一步，但前提是世界模型长程够准。而世界模型的窗口太大，预测状态可能和目标状态脱钩，世界模型可能会忽略动作。图 15 显示相对窗口大小的影响。策略窗口设成 64，训练变得不稳定并终止。作者发现 \(N_\Pi=32\)、\(N_{\mathcal W}=8\) 在他们试的所有任务上都稳定。</p>
+<div class="viz"><p class="cap">重画 · 图 15 World Model Window · 矢量图读数 · 悬停看数值</p><div id="c-nw"></div></div>
+<div class="viz"><p class="cap">重画 · 图 15 Policy Window · 矢量图读数 · 悬停看数值</p><div id="c-np"></div></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · \(N_\Pi=64\) 在终止前是最快的</span><p>读图：3 小时时 \(N_{\mathcal W}\) = 8、16、32、64 约 0.62、0.60、0.39、0.24。\(N_\Pi\) 这边，64 的曲线在约 1.0 到 1.8 小时之间一直高于 32，在终止前的 1.85 小时读到 0.655，同时 32 是 0.556，16 是 0.326。星号在 1.90 小时。所以 64 的问题是训练到中途崩溃，学习效果本身并不差。论文没说明“terminates”具体是什么，比如数值爆炸还是其他原因。这也是长窗口的代价和收益同时存在的直接证据。图例把 \(N_{\mathcal W}\) 写成了 \(N_\omega\)。</p></div>
+<h3 id="s6-2"><span class="no">6.2</span>PD 偏移</h3>
+<p>另一种做法是直接输出 PD 目标，不用运动学关节旋转作基础（如 DeepMimic、Won 2020）。图 15 显示预测偏移更准、学得更快，作者认为运动学关节旋转是一个接近目标的良好起点。读图：约 11 小时偏移 0.86，绝对目标 0.26。</p>
+<h3 id="s6-3"><span class="no">6.3</span>世界模型预测加速度</h3>
+<p>世界模型预测刚体加速度再积分。另一种是直接预测速度。读图：20 小时加速度 0.91，速度 0.84；第 2 小时 0.66 对 0.42。</p>
+<div class="fig" id="fig15"><span class="lab">图 15 · 原文第 11 页 · <a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf#page=11">看原图 ↗</a></span><p>四个上下排列的折线图。World Model Window：蓝色由浅到深，\(N_{\mathcal W}\) = 8、16、32、64，横轴到 3 小时。Policy Window：橙色由浅到深，\(N_\Pi\) = 16、32、64，横轴到 3.5 小时，64 的曲线在约 1.9 小时结束，用星号标记。PD-offsets：横轴到 11 小时。World Model Output：acc 和 vel，横轴到 20 小时。前两个面板上面已重画，后两个可以在 3D 动画第 10 幕切换查看。</p></div>
+
+<h2 id="s7"><span class="no">7</span>局限</h2>
+<p>学习率过高或过低、窗口设得不好都会影响训练时间或稳定性。本来训练就长，一个让训练时间翻倍的调整都会让实验难以进行。</p>
+<p>方法只在动作跟踪上展示过。作者相信可以扩展到任何不受模拟角色行为影响、且能写成角色状态可导函数的目标，但没有测试。</p>
+<p>RL 方法的前瞻由折扣因子控制，理论上无限；这个方法的前瞻限于窗口 \(N_\Pi\)，需要更长时间尺度的高层任务会很难学。单纯加大窗口不行，因为自回归反馈会增加不稳定，世界模型误差也会累积（图 14）。梯度裁剪有一些帮助，但方法很可能仍限于短期、奖励稠密的任务，比如动作跟踪。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 实际的视野差多少</span><p>“理论上无限”在 \(\gamma=0.99\) 时有效视野约 \(1/(1-\gamma)=100\) 帧，1.67 秒。\(N_\Pi=32\) 帧是 0.533 秒。差约 3 倍，不算很大，但 §8 说的脚滑一类瑕疵和这有关。SuperMimic 在窗口末端加了评论家来补这一段，它的 §4.3 给了受推恢复的对照（<a href="supermimic.html#s4-3">见那边的精读</a>）。这个对比是我算的。</p></div>
+
+<h2 id="s8"><span class="no">8</span>讨论和未来工作</h2>
+<p>PPO 用梯度的经验估计，这个方法算解析梯度。好处是能准确跟踪所有刚体和它们的速度，因为策略始终朝最能同时优化所有损失分量的方向走；经验上也更能利用大网络。坏处是不像 PPO 那样利用探索，更难发现新行为，比如摔倒时迈步恢复，这类行为一般不在当前策略的直接下降方向上，需要更多探索。所以有些动作会出现脚滑，因为短视野的跟踪损失不能像 PPO 的长视野回报那样往前规划。</p>
+<p>世界模型必须稳定准确，这依赖平移和旋转不变的状态表示和窗口训练。把世界模型限制在运动学角色附近的动力学子空间，也让学习简单很多。作者提出，以后也许可以学一个压缩的潜变量状态编码，在其中做物理积分，提高长期预测的稳定性。</p>
+<p>推理时世界模型可以作为真实物理的近似替代，但网络较大，往往比原仿真还贵。这里只预测 PD 目标旋转的偏移，也可以预测目标角速度的偏移和 PD 的刚度和阻尼系数，只要同时给世界模型作输入，作者认为是直接的扩展。</p>
+<p>off-policy 的好处这篇只探索了一点。更通用的世界模型，或者高效地在不同任务之间迁移世界模型，可能缩短训练时间。这个方法也应该适用于其他物理模仿方法，比如把监督损失换成判别器损失的工作（GAIL、<a class="ds" href="https://doi.org/10.1145/3450626.3459670">AMP</a> 等）。</p>
+<h2 id="s9"><span class="no">9</span>结论</h2>
+<p>论文提出了用监督学习得到可导世界模型来跟踪物理角色动作的方法，策略通过最小化有限视野上的跟踪损失直接由梯度下降学习。结果覆盖多个难的跟踪任务，并和 PPO 在训练时间、动作质量和超参数、设计敏感性上做了比较。</p>
+
+<h2 id="toy">玩具上算出来的（不是论文内容）</h2>
+<p>3D 动画第 4 到 9 幕用的玩具：二维两连杆，基座固定，1 kg、0.5 m，PD 驱动，240 Hz，每帧 1/60 秒。状态和论文一样用最大坐标，网络 2 层 × 32，训练循环和 §3.6 一样。全部写在页面 JavaScript 里，反向传播手写。下面是一次运行（种子 1，Chrome 和 Node 的结果一致，换环境可能略有差别）。这些只说明机制，不能外推到人形。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 玩具的结果</span>
+<p><b>反传没写错。</b>穿过 W 的梯度和对 W 本身做中心差分，32 帧上的相对差约 5×10⁻¹⁰。</p>
+<p><b>跟踪。</b>只用 PD 平均末端误差 27.4 cm，训练 1000 次后在真实仿真器里 3.1 cm。</p>
+<p><b>梯度质量。</b>和仿真器差分（真值）的余弦，\(N_\Pi\) = 8、16、32、64、128 时为 0.991、0.926、0.840、0.624、0.236。长窗口下穿过 W 的梯度确实变差，和 §7 的说法同向。训练一开始（W 没学过）余弦是 −0.44。</p>
+<p><b>似然比估计。</b>同样 32 帧（64 维），M = 8、64、512 条轨迹时余弦平均 0.326、0.648、0.917，和 \(\sqrt{M/(M+d)}\) 的 0.333、0.707、0.943 接近。</p>
+<p><b>窗口。</b>W 自由滚动 128 帧的末端误差，\(N_{\mathcal W}\) = 1、2、8、32 时为 16.2 m、3.7 m、0.70 m、0.34 m，窗口越长 W 自身越准。但把 \(N_{\mathcal W}=32\) 放进完整循环，三个种子都在第 400 次迭代之后跟踪误差恶化（到第 1000 次，两个种子发散到无穷，一个到 1.3 m），\(N_{\mathcal W}=8\) 三个种子都稳定。这和图 15 方向一致，但论文的曲线是学得慢，没有发散，机制我没有查清，也可能是玩具特有。</p>
+<p><b>没复现的。</b>玩具上预测速度和预测加速度、绝对目标和偏移，都看不出差别，任务太简单。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>都是我核算或对照后写的，不属于论文。读数都来自 PDF 的矢量图。</p>
+<ol class="notes">
+<li><a href="#n1">两处小的前后出入</a>：§3.1 的节号和 §3.5 的文字。</li>
+<li><a href="#n2">α = 120 的单位</a>：论文没写，只能是度，σ 噪声约 12°。</li>
+<li><a href="#n3">速率对账</a>：迭代 1.39 次/秒自洽；缓存只存 30 秒。</li>
+<li><a href="#n4">维度和 20 MB 对得上</a>：Local 323 维，约 490 万参数，约 20 MB。</li>
+<li><a href="#n5">论文没写的量</a>：权重、PD 增益、dt、T 的编码等。</li>
+<li><a href="#n6">图 4 的三个核对</a>：Styles 79.4% 略低于“超过 80%”；积分和图 9 对得上；PPO 训练时长没写。</li>
+<li><a href="#n7">LaFAN 的长度比公开版多</a>：6.68 小时对公开版 4.6 小时，论文没解释。</li>
+<li><a href="#n8">这个指标有下限</a>：48 ÷ 512 ≈ 0.094。</li>
+<li><a href="#n9">“略小”其实小 20 倍</a>：24.6 万对 492 万参数，PPO 没试过同样大的网络。</li>
+<li><a href="#n10">基线恰好是最快的种子</a>：所有基线面板都是 ST-1；第 2 小时 0.66 对 0.55。</li>
+<li><a href="#n11">PPO 的差异不只是“稍大”</a>：极差 0.27 对 0.07。</li>
+<li><a href="#n12">读图是慢了约 3 倍</a>：论文写慢一倍；和 3.3 倍的数据量接近成正比。</li>
+<li><a href="#n13">图号和“无法工作”的程度</a>：应为图 11；PPO-15 到 0.23；滞后最多约 72 秒。</li>
+<li><a href="#n14">绝对值 ST 高，相对下降 ST 更多</a>：起点差很大，不能说同水平下更抗扰。</li>
+<li><a href="#n15">N_Π = 64 在终止前是最快的</a>：1.85 小时 0.655 对 0.556。</li>
+<li><a href="#n16">实际的视野差多少</a>：100 帧对 32 帧。</li>
+<li><a href="#n17">玩具的结果</a>：反传核对、梯度余弦、窗口；玩具不能外推。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>2026 年 11 月 6 日用脚本核对过这些链接。标 “403” 的是 doi.org 跳转到 ACM 后对脚本返回 403，我没能用脚本确认能打开，浏览器里应该可以。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>链接</th><th>核对</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://doi.org/10.1145/3478513.3480527">SuperTrack</a></td><td>本文（ACM 页面）</td><td>doi.org/10.1145/3478513.3480527</td><td>403</td></tr>
+<tr><td><a class="ds" href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf">作者 PDF</a></td><td>本文，作者主页托管</td><td>theorangeduck.com</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN1</a></td><td>动捕数据集（Harvey 2020）</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset；<a href="https://doi.org/10.1145/3386569.3392480">论文</a></td><td>200；论文 403</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/physx-sdk">PhysX</a></td><td>物理引擎</td><td>developer.nvidia.com/physx-sdk</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://www.havok.com/havok-physics/">Havok</a></td><td>物理引擎</td><td>havok.com/havok-physics</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://github.com/bulletphysics/bullet3">Bullet</a></td><td>物理引擎</td><td>github.com/bulletphysics/bullet3</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>基线算法</td><td>arxiv.org/abs/1707.06347</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1804.02717">DeepMimic</a></td><td>gym 和 RSI 的来源</td><td>arxiv.org/abs/1804.02717</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://doi.org/10.1145/3355089.3356536">DReCon</a></td><td>奖励的来源，也是一个数据库的名字</td><td>doi.org/10.1145/3355089.3356536</td><td>403</td></tr>
+<tr><td><a class="ds" href="https://doi.org/10.1145/280814.280816">NeuroAnimator</a></td><td>最接近的前作</td><td>doi.org/10.1145/280814.280816</td><td>403</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1803.10122">World Models</a></td><td>世界模型一词的出处</td><td>arxiv.org/abs/1803.10122</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://doi.org/10.1145/3386569.3392440">Learned Motion Matching</a></td><td>Dog 控制器的参考</td><td>doi.org/10.1145/3386569.3392440</td><td>403</td></tr>
+<tr><td><a class="ds" href="https://doi.org/10.1145/3450626.3459670">AMP</a></td><td>判别器损失的例子</td><td>doi.org/10.1145/3450626.3459670</td><td>403</td></tr>
+<tr><td><a class="ds" href="https://github.com/venite-xjc/SuperTrack">venite-xjc/SuperTrack</a></td><td>第三方实现，未核实</td><td>github.com/venite-xjc/SuperTrack</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://github.com/kistf001/supertrack-pytorch-mujoco">supertrack-pytorch-mujoco</a></td><td>第三方实现，未核实</td><td>github.com/kistf001/supertrack-pytorch-mujoco</td><td>200</td></tr>
+</tbody></table></div>
+<p>Styles、Dance、Controller、Dog、Rough Terrain 几个数据库论文没有给来源，我找不到公开链接。</p>
+
+<footer><p>精读是我读 SuperTrack 后的整理，不是作者的官方内容。原文和原图版权归作者和 ACM，这里没有放原图。“重画”的折线图只用了从原文矢量图读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="supertrack/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

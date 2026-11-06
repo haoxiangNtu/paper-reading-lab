@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dreamer 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 1912.01603 Dreamer（ICLR 2020）的中文精读：按原文章节逐节整理，含全部编号公式、结果表、图的文字描述、官方代码对照、从矢量图读出的数据、10 幕 3D 框架动画和 16 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:680px}.t-code{min-width:660px}.t-g{min-width:560px}.t-links{min-width:600px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-tip[hidden]{display:none}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/dreamer/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 1912.01603 · cs.LG · v3 2020 年 3 月 17 日 · ICLR 2020 · 中文精读</p>
+<h1>Dreamer：在学到的隐空间里想象，用解析梯度学长远行为</h1>
+<p class="orig">Dream to Control: Learning Behaviors by Latent Imagination</p>
+<p>作者 Danijar Hafner（多伦多大学，Google Brain）、Timothy Lillicrap（DeepMind）、Jimmy Ba（多伦多大学）、Mohammad Norouzi（Google Brain）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/1912.01603">arXiv 原文</a><a href="https://arxiv.org/html/1912.01603">网页版</a><a href="https://arxiv.org/pdf/1912.01603">PDF</a><a href="https://danijar.com/dreamer">项目主页</a><a href="https://github.com/danijar/dreamer">代码 TF2</a><a href="https://github.com/google-research/dreamer">代码 TF1</a><span>正文 9 页，参考文献与附录到第 20 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，没有授权翻译或转载，所以这里不做逐字翻译，也不放原图。内容用自己的话按原文顺序覆盖正文七节和附录 A 到 G。</p>
+<p>公式按原文编号给出，表格数字照录原文。每张图用文字说明它画了什么，“看原图”打开 arXiv 网页版的对应位置。标着“重画”的图不是原图，是我从原文 PDF 的矢量数据读出点后画的。标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p>作者公开了两份代码，我都读了，都没有运行：<a href="https://github.com/danijar/dreamer/tree/56d4d444dfd0582b0e79dab80aebbea74c0ce40d">danijar/dreamer</a> 提交 56d4d44（2021-05-03，TensorFlow 2）和 <a href="https://github.com/google-research/dreamer/tree/d517542f9777c53864ff6f2683cea88be9ea98ac">google-research/dreamer</a> 提交 d517542（2020-04-10，TensorFlow 1）。TF1 版的说明写着它是原始实现，并推荐用 TF2 版，称后者更简单更快且能复现结果。论文写的和代码不同的地方都列出来了。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 世界模型控制</a><a href="#s3">3 潜在想象学行为</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 学隐空间动力学</a><a href="#s5">5 相关工作</a><a href="#s6">6 实验</a><a href="#s7">7 结论</a><a href="#apA">附录 A 超参数</a><a href="#apB">附录 B 推导</a><a href="#apC">附录 C 离散控制</a><a href="#apD">附录 D 行为学习</a><a href="#apE">附录 E 表征学习</a><a href="#apF">附录 F 动作重复</a><a href="#apG">附录 G 分数表</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>从图像学控制时，世界模型能把经验压缩成可预测的紧凑表示，但从模型导出行为有很多做法。Dreamer 的做法是：只在隐空间的想象轨迹上学行为，把学到的状态价值的<b>解析梯度</b>穿过这些轨迹传回动作模型。</p>
+<ul>
+<li><b>解决什么：</b>只优化想象窗口内奖励的智能体是短视的；基于模型的方法又常用无梯度优化。Dreamer 同时学价值模型（看窗口之外）和动作模型（用梯度）。</li>
+<li><b>结果：</b><a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a> 的 20 个图像任务上，500 万环境步平均 823 分，PlaNet 同样步数 332 分，D4PG 一亿步 786 分。</li>
+<li><b>算力：</b>约 3 小时 / 100 万环境步，PlaNet 是 11 小时。</li>
+<li><b>超参数：</b>所有连续任务一套，H = 15，γ = 0.99，λ = 0.95。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，这篇的贡献主要在行为学习那一半，世界模型直接沿用 PlaNet 的 RSSM。第二，式 (6) 的 V<sub>λ</sub> 等价于一个很短的递推，λ = 0.95、H = 15 时最长那一项占 48.8%（<a href="#n4">读者注 4</a>）。第三，“超过 D4PG”要读细：两者平均的任务集不同，同任务比较时 D4PG 在 18 个任务里有 12 个更高（<a href="#n11">读者注 11</a>）。</p>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 的<a href="supermimic.html#s2">相关工作</a>只有一句话提到本文：Dreamer 和 DreamerV3 学隐空间动力学，用于基于想象的演员-评论家学习。它没有说从 Dreamer 继承了什么。它明确写的来源是：短视野加评论家的目标受 SHAC 启发，评论家目标来自 GAE，从回放状态出发想象是 Dyna 的风格。所以下面的“相同”和“不同”是我逐项比对两篇原文得出的，不是 SuperMimic 的自述。</p>
+<p><b>相同的骨架：</b>三段轮换（收集、拟合模型、在模型里学行为）；想象时冻结模型；回报穿过模型反传给策略，而不是用似然比估计；用评论家估计窗口之外的回报，评论家没有目标网络；评论家目标的递推形式相同，λ 都是 0.95，γ 都是 0.99。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>Dreamer（隐空间）</th><th>SuperMimic（显式状态）</th></tr></thead><tbody>
+<tr><td>输入</td><td>图像 64×64×3，状态未知（POMDP）</td><td>仿真器状态 ŝ，加每回合的仿真上下文 ξ</td></tr>
+<tr><td>模型的状态</td><td>学到的 h（200 维）和 s（30 维），维度没有物理含义</td><td>仿真器状态本身，可以逐维直接监督</td></tr>
+<tr><td>随机性</td><td>30 维高斯，每步采样；用它表达未观测到的因素</td><td>确定性 MLP (2048, 2048, 2048)。随机来源已知：物理参数写进 ξ，动作噪声存进缓存，传感器噪声加在模型外</td></tr>
+<tr><td>记忆</td><td>GRU 负责跨步记忆</td><td>模型无循环结构；策略吃最近 10 帧观测</td></tr>
+<tr><td>拟合目标</td><td>式 (10)：重建 + 奖励 + KL。先验只被约束走一步</td><td>k = 8 步自回归：状态、奖励、观测的平方误差加终止 BCE</td></tr>
+<tr><td>想象</td><td>H = 15，2500 条，起点是后验状态</td><td>H = 32，4096 条，起点是回放状态和它的 ξ</td></tr>
+<tr><td>窗口外份额 γ<sup>H</sup></td><td>0.860</td><td>0.725（γ 相同，H 不同，我的计算）</td></tr>
+<tr><td>策略</td><td>随机 tanh 高斯，重参数化；输入隐特征</td><td>确定性；输入带噪观测 + 目标</td></tr>
+<tr><td>策略目标</td><td>式 (7)：每个想象状态的 V<sub>λ</sub> 求和</td><td>SuperMimic 式 (2)：H 步奖励和加一次 γ<sup>H</sup>V。相当于只在起点算、取 λ = 1，并乘存活权重</td></tr>
+<tr><td>评论家输入</td><td>和策略相同的隐特征</td><td>ŝ, g, ξ，比策略看到的多</td></tr>
+<tr><td>提前终止</td><td>可选的折扣头，训练到软标签 0 和 γ</td><td>学到的终止概率，连乘成软存活权重 ĉ</td></tr>
+<tr><td>数据</td><td>1 个环境，每 1000 环境步更新 100 次</td><td>每 GPU 4096 个环境</td></tr>
+<tr><td>部署</td><td>要带编码器和 RSSM 才能算出状态</td><td>只带策略，世界模型、评论家和 ξ 都留在训练里</td></tr>
+</tbody></table></div>
+<p>一句话概括差别的来源：Dreamer 面对的是未知环境和图像，必须自己学一个能表达不确定性的状态；SuperMimic 面对的是已知随机来源的仿真器，状态现成，所以模型可以是确定性回归，也不需要解码器。动画<a href="../interactives/dreamer/index.html?scene=10&amp;p=0.3">第 10 幕</a>把两条流水线放在一起。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>世界模型把智能体对世界的知识放进一个能预测未来的参数模型。输入是图像时，隐动力学模型把观测抽象到紧凑空间再往前预测。隐状态占内存小，可以并行想象几千条轨迹。</p>
+<p>从模型导出行为的常见途径有两种：参数化策略最大化想象奖励，或者在线规划。两者都有问题。只考虑固定窗口内的奖励会短视；很多工作又为了对模型误差稳健而用无梯度优化，没有利用神经网络动力学提供的解析梯度。</p>
+<p>Dreamer 用一个新的演员-评论家算法处理这两点：在隐空间预测状态价值和动作，价值满足想象奖励上的贝尔曼一致性，动作模型把价值的解析梯度穿过动力学反传。和在线学习或经验回放的演员-评论家比，世界模型能在过去经验之间内插，还能给出多步回报的解析梯度。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 1 页 · <a href="https://arxiv.org/html/1912.01603#S1.F1">看原图 ↗</a></span><p>页边一条竖排的示意图，从上到下三格：经验数据集（一组图像序列）、学到的隐动力学（图像压成紧凑状态的链）、通过潜在想象学到的价值和动作（在隐状态链上标出预测的价值和动作，梯度沿链往回）。</p></div>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 2 页 · <a href="https://arxiv.org/html/1912.01603#S2.F2">看原图 ↗</a></span><p>五张任务观测图：Cup、Acrobot、Hopper、Walker、Quadruped。作者说这些任务的难点包括接触动力学、稀疏奖励、多自由度和 3D 环境，其中几个此前没有世界模型方法能解决。</p></div>
+<p>贡献有两条：用预测动作和状态价值的办法学长视野行为；在 <a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a> 的图像任务上，同一套超参数下，数据效率、计算时间和最终性能都超过此前的基于模型和无模型方法。</p>
+
+<h2 id="s2"><span class="no">2</span>用世界模型控制</h2>
+<p><b>强化学习设定。</b>视觉控制写成部分可观测马尔可夫决策过程（POMDP：智能体看不到完整状态，只有观测）。时间离散，动作是连续向量 \(a_t\sim p(a_t\mid o_{\le t},a_{<t})\)，观测和奖励由未知环境产生 \(o_t,r_t\sim p(o_t,r_t\mid o_{<t},a_{<t})\)。目标是最大化 \(\mathrm{E}_p\big[\sum_{t=1}^T r_t\big]\)。</p>
+<p><b>智能体部件。</b>沿用 Dyna 以来的三段：学动力学、学行为、和环境交互。它们可以交错，也可以并行。</p>
+<ul>
+<li><b>学隐动力学：</b>从数据集里，根据动作和过去观测预测未来奖励。任何世界模型目标都能接上，第 4 节回顾。</li>
+<li><b>学动作和价值：</b>在预测的隐轨迹上进行，第 3 节。</li>
+<li><b>执行动作模型：</b>到世界里收集新经验。</li>
+</ul>
+<p><b>隐动力学。</b>三个部件组成，\(p\) 表示在真实环境里生成样本的分布，\(q\) 表示用于想象的近似：</p>
+<div class="eq"><div class="m">\[\begin{aligned}\text{表征模型：}&\quad p(s_t\mid s_{t-1},a_{t-1},o_t)\\ \text{转移模型：}&\quad q(s_t\mid s_{t-1},a_{t-1})\\ \text{奖励模型：}&\quad q(r_t\mid s_t).\end{aligned}\]</div><span class="no">(1)</span></div>
+<p>表征模型把观测和动作编码成连续的马尔可夫状态；转移模型不看对应观测就往前预测；奖励模型从状态预测奖励。论文把这个模型类比非线性卡尔曼滤波或实值状态的 HMM，区别是它以动作为条件并预测奖励，所以智能体能在不执行的情况下想象一串动作的结果。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · p 和 q 和 PlaNet 反过来</span><p>本文的 \(q\) 是转移和奖励，\(p\) 是表征。PlaNet 原文相反：\(p(s_t\mid h_t)\) 是转移，\(q(s_t\mid o_{\le t},a_{<t})\) 是编码器（PlaNet 第 2 页算法框和式 (4)）。从 PlaNet 接着读，公式 (10) 的 KL 方向容易看错。本文的 KL 是 KL(表征 ‖ 转移)，和 PlaNet 的 KL(编码器 ‖ 转移) 含义相同，只是字母换了。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 确定路径不在这篇的公式里</span><p>式 (1) 把状态写成一个 \(s_t\)。附录 A 只说“用 PlaNet 的 RSSM”和“隐空间分布是 30 维对角高斯”，确定路径的 200 维正文和附录都没写。要看到结构得读 PlaNet 式 (4)：\(h_t=f(h_{t-1},s_{t-1},a_{t-1})\)，\(s_t\sim p(s_t\mid h_t)\)，再读代码 <code>models.py</code> 的 <code>RSSM</code>：GRU 200 维，后验由 \(h_t\) 和图像向量算出，特征是 \(s\) 和 \(h\) 拼成的 230 维。PlaNet 的论点是只有确定路径表达不了多种未来，只有随机路径难以跨多步记忆。动画<a href="../interactives/dreamer/index.html?scene=3&amp;p=0.8">第 3 幕</a>可以切换。</p></div>
+
+<h2 id="s3"><span class="no">3</span>通过潜在想象学行为</h2>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 3 页 · <a href="https://arxiv.org/html/1912.01603#S3.F3">看原图 ↗</a></span><p>三个并排的计算图。(a) 从经验学动力学：图像 \(o_1,o_2,o_3\) 编码成状态链，每个状态重建 \(\hat o\) 并预测 \(\hat r\)，动作 \(a_1,a_2\) 进入转移。(b) 在想象里学行为：只有第一张图 \(o_1\) 被编码，之后全在隐空间，每个状态预测价值 \(\hat v\)、奖励 \(\hat r\) 和动作 \(\hat a\)。(c) 在环境里行动：编码到当前为止的历史，预测下一个动作。</p></div>
+<p><b>想象环境。</b>隐动力学本身定义了一个完全可观测的 MDP，因为模型状态是马尔可夫的。想象量用下标 \(\tau\)。轨迹从过去经验序列的真实模型状态 \(s_t\) 出发，按 \(s_\tau\sim q(s_\tau\mid s_{\tau-1},a_{\tau-1})\)、\(r_\tau\sim q(r_\tau\mid s_\tau)\)、\(a_\tau\sim q(a_\tau\mid s_\tau)\) 走。目标是最大化 \(\mathrm{E}_q\big[\sum_{\tau=t}^{\infty}\gamma^{\tau-t}r_\tau\big]\)。</p>
+<div class="fig" id="alg1"><span class="lab">算法 1 · 第 3 页 · <a href="https://arxiv.org/html/1912.01603#algorithm1">看原文 ↗</a></span><p>初始化：\(S\) 条随机回合进数据集 \(\mathcal D\)，随机初始化 \(\theta,\phi,\psi\)。循环直到收敛：</p><p><b>做 \(C\) 次更新。</b>动力学学习：取 \(B\) 条长 \(L\) 的序列，算 \(s_t\sim p_\theta\)，用表征学习更新 \(\theta\)。行为学习：从每个 \(s_t\) 想象到 \(t+H\)，预测奖励和价值，按式 (6) 算 \(V_\lambda\)，\(\phi\leftarrow\phi+\alpha\nabla_\phi\sum_{\tau=t}^{t+H}V_\lambda(s_\tau)\)，\(\psi\leftarrow\psi-\alpha\nabla_\psi\sum_{\tau=t}^{t+H}\tfrac12\|v_\psi(s_\tau)-V_\lambda(s_\tau)\|^2\)。</p><p><b>环境交互。</b>从 \(t=1\) 到 \(T\)：由历史算 \(s_t\)，由动作模型算 \(a_t\)，加探索噪声，执行，整条回合加入 \(\mathcal D\)。</p></div>
+<p><b>动作和价值模型。</b>窗口有限时，用演员-评论家考虑窗口之外的奖励：</p>
+<div class="eq"><div class="m">\[\text{动作模型：}\ a_\tau\sim q_\phi(a_\tau\mid s_\tau),\qquad \text{价值模型：}\ v_\psi(s_\tau)\approx \mathrm{E}_{q(\cdot\mid s_\tau)}\Big[\sum_{\tau=t}^{t+H}\gamma^{\tau-t}r_\tau\Big].\]</div><span class="no">(2)</span></div>
+<p>两者是全连接网络，像策略迭代那样合作训练：动作模型最大化价值估计，价值模型去匹配一个随动作模型变化的估计。动作模型输出 tanh 变换的高斯，方便重参数化采样（把随机性放到外部噪声上，使采样结果对网络输出可导）：</p>
+<div class="eq"><div class="m">\[a_\tau=\tanh\big(\mu_\phi(s_\tau)+\sigma_\phi(s_\tau)\,\epsilon\big),\qquad \epsilon\sim\mathrm{Normal}(0,\mathbb I).\]</div><span class="no">(3)</span></div>
+<p><b>价值估计。</b>轨迹从数据集序列的模型状态分叉，走 \(H\) 步。估计方式有几种，偏差和方差取舍不同：</p>
+<div class="eq"><div class="m">\[V_{\mathrm R}(s_\tau)\doteq \mathrm{E}_{q_\theta,q_\phi}\Big[\sum_{n=\tau}^{t+H}r_n\Big],\]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[V^k_{\mathrm N}(s_\tau)\doteq \mathrm{E}_{q_\theta,q_\phi}\Big[\sum_{n=\tau}^{h-1}\gamma^{n-\tau}r_n+\gamma^{h-\tau}v_\psi(s_h)\Big]\quad\text{其中 } h=\min(\tau+k,\,t+H),\]</div><span class="no">(5)</span></div>
+<div class="eq"><div class="m">\[V_\lambda(s_\tau)\doteq (1-\lambda)\sum_{n=1}^{H-1}\lambda^{n-1}V^n_{\mathrm N}(s_\tau)+\lambda^{H-1}V^H_{\mathrm N}(s_\tau).\]</div><span class="no">(6)</span></div>
+<p>\(V_{\mathrm R}\) 只加窗口内奖励，用它就不需要价值模型，这是消融实验的对照。\(V^k_{\mathrm N}\) 走 \(k\) 步后用价值模型估计余下部分。Dreamer 用 \(V_\lambda\)，即不同 \(k\) 的指数加权平均。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 式 (2) 和式 (4) 的写法</span><p>式 (2) 的求和下标和左边的 \(s_\tau\) 用了同一个 \(\tau\)，上限又是有限的 \(t+H\)，而上文的目标是到无穷，下文又说价值模型负责窗口之外。按上下文，它的意思应该是从 \(s_\tau\) 往后的折扣和；这是我的理解。式 (4) 没有 \(\gamma\)，但上文的目标有。代码里的对照配置走 <code>discounted_return</code>，用了折扣（TF1 <code>training/utility.py</code> 的 <code>compute_action_values</code>，价值头关闭时）。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 式 (6) 核算过</span><p>权重加起来是 1。式 (6) 和下面的递推相等，我在 16 个状态、4 个 λ 上数值比对，最大差 \(2.7\times10^{-15}\)；动画第 6 幕当场显示这个差。</p>
+<p>\(V_\lambda(s_\tau)=r_\tau+\gamma\big[(1-\lambda)v_\psi(s_{\tau+1})+\lambda V_\lambda(s_{\tau+1})\big]\)，末端 \(V_\lambda(s_{t+H})=v_\psi(s_{t+H})\)。代码 <code>tools.lambda_return</code> 就是这个形式。</p>
+<p>按 λ = 0.95、H = 15：最长一项 \(V^{15}_{\mathrm N}\) 的权重是 \(0.95^{14}=0.488\)，平均向前看 \((1-\lambda^H)/(1-\lambda)=10.73\) 步。γ = 0.99 时 \(\gamma^{15}=0.860\)，奖励恒定下 86% 的折扣回报在窗口外。所以价值模型不是一个小修正。</p></div>
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 4 页 · <a href="https://arxiv.org/html/1912.01603#S3.F4">看原图 ↗</a></span><p>四个任务（Cartpole Swingup、Cheetah Run、Quadruped Walk、Walker Walk）上最终回报对想象长度的曲线，三条线：Dreamer、无价值模型的动作模型、PlaNet 在线规划。图注的结论是价值模型让 Dreamer 对长度更稳健。都用像素重建，动作重复 R = 2。下面的重画来自原文矢量数据。</p></div>
+<div class="viz" id="c-fig4"><p class="cap">重画 · 从 PDF 第 4 页矢量路径读出（pdftocairo -svg），按坐标轴刻度标定，不含原图的标准差阴影。可悬停看数值。</p></div>
+<p><b>学习目标。</b>先对想象轨迹上所有状态算 \(V_\lambda\)，然后：</p>
+<div class="eq"><div class="m">\[\max_\phi\ \mathrm{E}_{q_\theta,q_\phi}\Big[\sum_{\tau=t}^{t+H}V_\lambda(s_\tau)\Big],\]</div><span class="no">(7)</span></div>
+<div class="eq"><div class="m">\[\min_\psi\ \mathrm{E}_{q_\theta,q_\phi}\Big[\sum_{\tau=t}^{t+H}\tfrac12\big\|v_\psi(s_\tau)-V_\lambda(s_\tau)\big\|^2\Big].\]</div><span class="no">(8)</span></div>
+<p>价值回归时目标不传梯度。动作模型则相反：价值估计取决于奖励和价值预测，它们取决于想象状态，状态取决于想象动作，全是神经网络，所以 \(\nabla_\phi\) 可以用随机反传直接算。连续动作和隐状态用重参数化，离散动作用直通梯度（straight-through：前向用采样，反向当作可导）。学行为时世界模型固定。有提前终止的任务里，世界模型还预测每个状态的折扣，式 (7)(8) 按累积折扣加权。</p>
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 10 幕 · 可拖动、可调参数</p>
+<p>第 6 幕当场算 \(V_\lambda\)，可拖 λ、H、γ；第 7 幕当场算反向梯度并用有限差分核对；第 8 幕在浏览器里跑一个完整的玩具循环，可以关掉价值模型看它变短视。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/dreamer/index.html?embed=1" title="Dreamer 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/dreamer/index.html">新窗口打开，看结构表和“哪些是示意”↗</a></p>
+</div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 (7) 和代码的两处不同</span><p><b>加权。</b>论文说按折扣加权只用于有提前终止的任务。两份代码都对所有任务乘累积折扣：TF2 <code>dreamer.py</code> 里 <code>discount = cumprod([1, pcont[:-2]])</code>，<code>pcont</code> 没有折扣头时就是 γ；TF1 <code>action_pcont_weight=True</code> 是默认值。γ = 0.99 时最后一项权重是 \(0.99^{13}=0.878\)。</p>
+<p><b>项数。</b>式 (7) 从 \(\tau=t\) 到 \(t+H\)，即 16 项。TF2 代码的 <code>_imagine_ahead</code> 从起点走 15 步，只保留这 15 个新状态，起点不在内；<code>lambda_return</code> 用前 14 个的奖励和价值，第 15 个只提供末端价值。所以 H = 15 实际是 14 项 \(V_\lambda\)。我没跑代码，这是读出来的。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 动作模型输入上的 stop_gradient</span><p>论文描述的梯度路径是价值 → 状态 → 动作。两份代码都切断了一段：TF2 <code>_imagine_ahead</code> 里是 <code>self._actor(tf.stop_gradient(self._dynamics.get_feat(state)))</code>，TF1 <code>imagine_forward</code> 的 <code>stop_grad_pre_action</code> 默认 True。结果是 \(a_\tau\) 只通过转移影响后面的状态，不再有 \(\partial a_{\tau+1}/\partial s_{\tau+1}\) 这条路。这个决定论文没提。梯度因此不是式 (7) 的严格全导数。</p>
+<p>动画第 7 幕可以切换，并且两种都用有限差分核对过。玩具上不切断时到达大奖的种子更多（H = 5 时 12/20 对 7/20），但玩具是我造的，不能用来评价这个决定对真实任务的影响。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · TF1 的末端价值差一步</span><p>TF1 <code>compute_action_values</code> 和 <code>compute_value_loss</code> 里，先执行 <code>value = value[:, :-1]</code>，再取 <code>bootstrap = value[:, -1]</code>，得到的是截断后最后一个，也就是倒数第二个状态的价值。TF2 写的是 <code>bootstrap=value[-1]</code>，在截断前取。两者差一步。我只读了代码，没有运行，不知道对分数有没有可见影响。</p></div>
+<p><b>和演员-评论家的比较。</b>Reinforce 梯度的方法（A3C、PPO）用价值基线降方差；Dreamer 直接穿过价值模型反传，这一点接近确定性或重参数化的演员-评论家（DPG、DDPG、SAC）。但后者不穿过转移，只最大化眼前的 Q 值。MVE 和 STEVE 用学到的动力学做多步 Q 学习，提供更准的目标。Dreamer 预测状态价值就够了，因为梯度穿过了动力学。</p>
+
+<h2 id="s4"><span class="no">4</span>学习隐空间动力学</h2>
+<p>在想象里学行为需要一个泛化好的世界模型。这一节回顾三种表征目标：奖励预测、图像重建、对比估计。Dreamer 本身不依赖具体哪一种。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 5 页 · <a href="https://arxiv.org/html/1912.01603#S4.F5">看原图 ↗</a></span><p>两条留出轨迹的长期预测，每条上排真实、下排模型。前 5 帧送进表征模型，然后只给动作预测 45 步，横轴标 Context、6、10、15 到 50。作者用它说明 RSSM 的长期预测准确。</p></div>
+<p><b>奖励预测。</b>原则上只要预测未来奖励就够，数据集够大够多样时这样的表征是充分的。但数据有限、奖励稀疏时，学习和奖励相关的观测内容有助于模型。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 6 页 · <a href="https://arxiv.org/html/1912.01603#S4.F6">看原图 ↗</a></span><p>20 个任务的柱状图，Dreamer 和 PlaNet 是 5×10⁶ 步，D4PG 和 A3C 是 10⁸ 步（A3C 用本体状态输入），5 个种子平均。两个四足任务的 D4PG 和 A3C 标 n/a。数字即<a href="#apG">附录 G 的表</a>。</p></div>
+<p><b>重建。</b>PlaNet 的世界模型：</p>
+<div class="eq"><div class="m">\[\begin{aligned}\text{表征：}&\ p_\theta(s_t\mid s_{t-1},a_{t-1},o_t)\\ \text{观测：}&\ q_\theta(o_t\mid s_t)\\ \text{奖励：}&\ q_\theta(r_t\mid s_t)\\ \text{转移：}&\ q_\theta(s_t\mid s_{t-1},a_{t-1}).\end{aligned}\]</div><span class="no">(9)</span></div>
+<p>观测模型只用来提供学习信号。各部件联合优化变分下界（ELBO）或更一般的变分信息瓶颈（VIB），附录 B 推导，得到观测和奖励的重建项和一个 KL 正则：</p>
+<div class="eq"><div class="m">\[\begin{aligned}&\mathcal J_{\mathrm{REC}}\doteq \mathrm{E}_p\Big[\sum_t\big(\mathcal J^t_{\mathrm O}+\mathcal J^t_{\mathrm R}+\mathcal J^t_{\mathrm D}\big)\Big]+\text{const},\quad \mathcal J^t_{\mathrm O}\doteq\ln q(o_t\mid s_t),\\ &\mathcal J^t_{\mathrm R}\doteq\ln q(r_t\mid s_t),\quad \mathcal J^t_{\mathrm D}\doteq-\beta\,\mathrm{KL}\big(p(s_t\mid s_{t-1},a_{t-1},o_t)\,\big\|\,q(s_t\mid s_{t-1},a_{t-1})\big).\end{aligned}\]</div><span class="no">(10)</span></div>
+<p>转移用 RSSM，表征是 RSSM 加图像的 CNN，观测模型是反卷积网络，奖励是全连接网络。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · KL 的几个细节</span><p><b>只约束一步。</b>式 (10) 的先验 \(q(s_t\mid s_{t-1},a_{t-1})\) 的条件 \(s_{t-1}\) 来自后验，代码 <code>obs_step</code> 就是这样：从上一步后验走一步先验，再用图像算后验。附录 A 说 latent overshooting 不需要（TF1 <code>overshooting_scale</code> 默认 0）。所以模型只在一步转移上被 KL 约束，却要连走 15 步。SuperMimic 的 k = 8 自回归拟合正好在这一点上不同。</p>
+<p><b>free nats 两份代码不一样。</b>TF2 把批平均的 KL 和 3 取大：<code>tf.maximum(tf.reduce_mean(kl), 3.0)</code>。TF1 逐元素算 <code>tf.maximum(0.0, loss - 3.0)</code>。前者只在批平均低于 3 时整体停，后者逐个时间步停。论文只写“clip them below 3 free nats”。</p></div>
+<p><b>对比估计。</b>预测像素可能需要很大的模型容量。也可以反过来从图像预测状态，鼓励状态和观测的互信息，用状态模型代替观测模型：</p>
+<div class="eq"><div class="m">\[\text{状态模型：}\quad q_\theta(s_t\mid o_t).\]</div><span class="no">(11)</span></div>
+<p>重建目标利用了观测的边缘分布是常数，这里要面对状态的边缘分布。它可以用噪声对比估计（NCE）在当前批的观测 \(o'\) 上平均得到。直观上，\(q(s_t\mid o_t)\) 让状态可由当前图像预测，\(\ln\sum_{o'}q(s_t\mid o')\) 让它保持多样、防止坍缩：</p>
+<div class="eq"><div class="m">\[\mathcal J_{\mathrm{NCE}}\doteq \mathrm{E}\Big[\sum_t\big(\mathcal J^t_{\mathrm S}+\mathcal J^t_{\mathrm R}+\mathcal J^t_{\mathrm D}\big)\Big],\quad \mathcal J^t_{\mathrm S}\doteq\ln q(s_t\mid o_t)-\ln\Big(\sum_{o'}q(s_t\mid o')\Big).\]</div><span class="no">(12)</span></div>
+<p>状态模型用 CNN。作者提醒这个下界能高效提取的信息量有限。</p>
+
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 7 页 · <a href="https://arxiv.org/html/1912.01603#S4.F7">看原图 ↗</a></span><p>8 个任务（Acrobot Swingup、Cartpole Swingup Sparse、Hopper Hop、Hopper Stand、Pendulum Swingup、Quadruped Walk、Walker Run、Walker Walk）的训练曲线，横轴到 2×10⁶ 环境步。Dreamer、无价值模型、PlaNet 三条曲线，D4PG 和 A3C 是水平线。图注说需要长视野信用分配的任务（Acrobot、Hopper）只有 Dreamer 成功，只优化窗口内奖励的方法只在 Walker 这类反应式任务上成功。</p></div>
+<h2 id="s5"><span class="no">5</span>相关工作</h2>
+<p><b>隐动力学控制。</b>E2C 和 RCE 把图像嵌入紧凑空间预测，解决简单任务。World Models 两阶段学隐动力学，在想象里进化线性控制器。PlaNet 联合学习，用隐空间在线规划解决视觉运动任务。SOLAR 在隐空间做引导策略搜索。I2A 把想象轨迹交给无模型策略；Lee 等和 Gregor 等学信念表示来加速无模型智能体。</p>
+<p><b>想象的多步回报。</b>VPN、MVE、STEVE 学动力学做多步 Q 学习。AlphaGo 结合动作和价值预测与规划，假设动力学已知；POLO 同样假设已知，用价值集成规划探索。MuZero 学任务相关的奖励和价值模型，能解难任务但要大量经验。PETS、VisualMPC、PlaNet 用无梯度优化在线规划。POPLIN 用自模仿改进在线规划。Piergiovanni 等用隐动力学模型想象着学机器人策略。用神经网络梯度规划只在小问题上做到过，难以放大。</p>
+<p><b>解析价值梯度。</b>DPG、DDPG、SAC 用学到的即时动作价值的梯度，靠经验回放学策略。SVG 用单步模型预测的解析价值梯度降低方差。同期的 Byravan 等用确定性模型在隐空间想象，做导航和操作。ME-TRPO 用预测奖励的梯度加速无模型智能体，输入是本体状态。DistGBP 用模型梯度在简单任务上在线规划。</p>
+
+<div class="fig" id="fig8"><span class="lab">图 8 · 第 8 页 · <a href="https://arxiv.org/html/1912.01603#S6.F8">看原图 ↗</a></span><p>8 个任务（Acrobot Swingup、Cheetah Run、Cup Catch、Finger Spin、Hopper Stand、Pendulum Swingup、Quadruped Run、Walker Stand）上，Dreamer 接三种表征目标的训练曲线：重建、对比、只有奖励。图注：重建在多数任务最好，对比解决大约一半，只预测奖励不够。</p></div>
+<h2 id="s6"><span class="no">6</span>实验</h2>
+<p><b>控制任务。</b><a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a>（<a href="https://arxiv.org/abs/1801.00690">论文</a>）的 20 个视觉任务，选的是 Tassa 等报告图像输入非零表现的那些。观测 64 × 64 × 3，动作 1 到 12 维，奖励 0 到 1，回合 1000 步，初始状态随机，动作重复固定 R = 2。离散动作和提前终止用 <a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari（ALE）</a>（<a href="https://arxiv.org/abs/1207.4708">论文</a>）和 <a class="ds" href="https://github.com/google-deepmind/lab">DeepMind Lab</a>（<a href="https://arxiv.org/abs/1612.03801">论文</a>）的一部分，见附录 C。</p>
+<p><b>实现。</b>TensorFlow Probability，每次训练 1 张 Nvidia V100 和 10 个 CPU 核。约 3 小时 / 10⁶ 环境步；PlaNet 在线规划是 11 小时；D4PG 达到相近表现用 24 小时。连续任务一套超参数，离散任务另一套。除非另说，世界模型用重建学习。</p>
+<p><b>对比方法。</b>连续任务报告最高的是 D4PG（DDPG 的改进版：分布式收集、分布式 Q 学习、多步回报、优先回放）。D4PG（像素）和 A3C（状态输入）的分数取自 Tassa 等。PlaNet 学和 Dreamer 相同的世界模型，用在线规划选动作，这里以 R = 2 重跑。Atari 显示 SimPLe、DQN、Rainbow 的最终表现，DeepMind Lab 显示 IMPALA，作为参考。</p>
+<p><b>性能。</b>5×10⁶ 步平均 823，超过 D4PG 10⁸ 步的 786，同时继承 PlaNet 的数据效率。作者的结论：在世界模型里潜在想象学行为可以超过基于经验回放的顶尖方法。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图例写 1e9，数据是 1e8</span><p>图 6 的图例写 D4PG、A3C 是 10⁸ 步，附录 G 也是 10⁸，代码里基线的键名是 <code>d4pg_100m</code>、<code>a3c_100m_proprio</code>。但图 7、8、10、11、12 的图例写的是 1e9。我从图 7 的矢量数据读了两条水平线：Acrobot Swingup 面板上 A3C 41.9、D4PG 91.7；Cartpole Swingup Sparse 上 A3C 179.9、D4PG 482.0。这些和附录 G 的 10⁸ 步分数（41.90、91.70、179.80、482.00）一致。所以是图例写错了，线本身就是 10⁸ 步的分数。这是我的判断，依据是数值完全吻合。</p></div>
+<p><b>长视野。</b>比较学动作但不学价值、以及 PlaNet 在线规划，在不同想象长度下的表现。图 4 支持价值模型让 Dreamer 对长度更稳健、短 H 也能表现好。附录 D 给出 H = 20 的全部曲线。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 19 和 20</span><p>原文这句话写的是“all 19 tasks with horizon of 20”，紧接着又说 16 of 20 tasks、4 ties。图 10 实际是 20 个面板，所以 19 应该是笔误。“16 胜 4 平”没有对应的数字表：附录 G 只比到 PlaNet、D4PG、A3C，不含无价值模型的分数，这个统计我无法核算。</p></div>
+<p><b>表征学习。</b>Dreamer 能接任何可微的、能根据动作和过去观测预测未来奖励的模型。比较第 4 节的三种。图 8 上重建在多数任务超过对比；只预测奖励不够。作者由此认为表征学习的进步能直接带来任务表现的提升。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 823 对 786 是不同任务集</span><p>附录 G 的平均我重算过，都对得上（下面<a href="#n16">读者注 16</a>）。但 823.39 是 20 个任务的平均，786.32 是 18 个，因为 D4PG 没有两个四足任务。同样 18 个任务上 Dreamer 平均 813.77，差距从 37 缩到 27.4。</p>
+<p>逐任务比较，18 个里 D4PG 有 12 个更高，Dreamer 有 6 个更高。Dreamer 的优势集中在 Acrobot Swingup、Cartpole Swingup Sparse、Cheetah Run、Hopper Hop、Pendulum Swingup、Walker Run；最大的落后是 Finger Spin（498.88 对 985.70）。这些数字不改变结论：Dreamer 只用 1/20 的环境步。但“最终性能超过”主要是这 6 个任务拉开的。PlaNet 在 20 个任务里没有一个超过 Dreamer。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 4 读出来的几件事</span><p><b>Walker Walk 的 H = 40。</b>Dreamer 掉到 528.5，低于无价值模型 743.0 和 PlaNet 585.3；H = 30 时还有 937.4。图注说的“更稳健”在短 H 一端成立，长 H 这一点不成立。曲线有标准差阴影，单点要谨慎。</p>
+<p><b>H = 15 和附录 G 不完全一致。</b>Dreamer 在 H = 15 的读数：Cartpole Swingup 819.1（表 833.66），Cheetah Run 793.7（表 894.56），Quadruped Walk 929.0（表 931.61），Walker Walk 961.1（表 961.67）。Cheetah 差约 100。PlaNet 的差别也不小，比如 Quadruped Walk 146.4 对 238.90。图 4 只说“最终表现”，没写步数和是否同一批运行，论文没写，我不知道原因。</p>
+<p><b>坐标轴外的点。</b>矢量数据里还有 H = 2 的点（在左边框外）和 H = 50 的点（右边框外，被裁掉）。H = 2 时三种方法都很低，Dreamer 只有 40.5 到 199.7。我的重画只取坐标轴范围内的 H = 3 到 40。</p></div>
+
+<h2 id="s7"><span class="no">7</span>结论</h2>
+<p>Dreamer 用解析梯度把多步价值穿过学到的隐动力学，纯靠潜在想象学长视野行为。在图像连续控制上，数据效率、计算时间和最终性能都超过先前方法，也能用于离散动作和提前终止。作者把表征学习看作扩展到更复杂视觉环境的方向。</p>
+
+<h2 id="apA"><span class="no">A</span>超参数</h2>
+<p><b>模型部件。</b>编码器和解码器来自 Ha 和 Schmidhuber，RSSM 来自 PlaNet，其他函数都是 3 层 300 单元的全连接网络，ELU 激活。隐空间分布是 30 维对角高斯。动作模型输出乘 5 的 tanh 均值和 softplus 标准差，高斯再过 tanh。乘 5 让智能体能把动作分布推到饱和。</p>
+<p><b>学习更新。</b>每批 50 条序列，每条 50 步。Adam，世界模型、价值、动作的学习率分别是 \(6\times10^{-4}\)、\(8\times10^{-5}\)、\(8\times10^{-5}\)，梯度范数超过 100 就缩放。KL 不缩放（β = 1），低于 3 free nats 的部分不计。H = 15，动作和价值用同一批轨迹。\(V_\lambda\) 用 γ = 0.99、λ = 0.95。作者发现 latent overshooting、动作熵奖励、价值目标网络都不必要。</p>
+<p><b>环境交互。</b>数据集先用随机动作收 S = 5 条回合。之后交替 100 次训练和 1 条回合，执行众数动作加 Normal(0, 0.3) 噪声。动作重复固定为 2。</p>
+<p><b>离散控制。</b>动作模型输出类别分布的 logits，想象时采样用直通梯度。探索是 ε-greedy，ε 在前 200,000 个梯度步从 0.4 线性降到 0.1。任务更复杂，所以 H = 10，β = 0.1，奖励用 tanh 限幅。折扣由二分类器从隐状态预测，训练到软标签 0 和 γ。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 附录 A 和代码的差别</span><p>完整对照在<a href="#code">代码对照</a>。主要的是：单元数 300 对 400；层数“都是 3”对 奖励 2、价值 3、动作 4；“执行众数动作”对 训练时采样（两份代码都是，TF1 配置名 <code>policy_sample</code>，评测才用 <code>policy_mode</code>）；离散的 ε 下限 0.1 对 TF1 的 0.25。两份代码在前三项上彼此一致，所以我认为代码是实际跑的，附录 A 的文字可能写的是早期设置。这只是推断。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 想象的账</span><p>都按附录 A 和代码算：每次更新 50 × 50 = 2500 个起点，每个 15 步，37,500 个想象状态。每轮 100 次，375 万个，换来 500 次真实决策（1000 环境步 ÷ R = 2），比值 7500。5×10⁶ 环境步是 5000 条回合，50 万次更新。3 小时 / 10⁶ 步意味着 500 万步约 15 小时；PlaNet 同样步数约 55 小时。这些是我的推算，论文只给了每 10⁶ 步的时间。</p></div>
+
+<h2 id="apB"><span class="no">B</span>推导</h2>
+<p>隐动力学的信息瓶颈目标，\(i_t\) 是决定观测的数据集下标，\(p(o_t\mid i_t)\doteq\delta(o_t-\bar o_t)\)：</p>
+<div class="eq"><div class="m">\[\max\ \mathrm I\big(s_{1:T};(o_{1:T},r_{1:T})\mid a_{1:T}\big)-\beta\,\mathrm I\big(s_{1:T},i_{1:T}\mid a_{1:T}\big).\]</div><span class="no">(13)</span></div>
+<p>最大化它，状态要能预测观测和奖励序列，同时每步从当前图像提取的信息受限。模型因此尽量依靠前面时间步已提取的信息，只在必要时才看当前图像。作者认为这鼓励了长期依赖。</p>
+<p>第一项用 KL 非负得下界，并扔掉不依赖表征模型的数据边缘概率：</p>
+<div class="eq"><div class="m">\[\begin{aligned}&\mathrm I\big(s_{1:T};(o_{1:T},r_{1:T})\mid a_{1:T}\big)\\&=\mathrm E\Big[\sum_t\ln p(o_{1:T},r_{1:T}\mid s_{1:T},a_{1:T})-\underbrace{\ln p(o_{1:T},r_{1:T}\mid a_{1:T})}_{\text{const}}\Big]\\&\stackrel{+}{=}\mathrm E\Big[\sum_t\ln p(o_{1:T},r_{1:T}\mid s_{1:T},a_{1:T})\Big]\\&\ge\mathrm E\Big[\sum_t\ln p(o_{1:T},r_{1:T}\mid s_{1:T},a_{1:T})\Big]-\mathrm{KL}\Big(p(o_{1:T},r_{1:T}\mid s_{1:T},a_{1:T})\,\Big\|\,\prod_t q(o_t\mid s_t)q(r_t\mid s_t)\Big)\\&=\mathrm E\Big[\sum_t\ln q(o_t\mid s_t)+\ln q(r_t\mid s_t)\Big].\end{aligned}\]</div><span class="no">(14)</span></div>
+<p>对比目标：减去编码器下数据的常数边缘概率，用贝叶斯公式，再用 InfoNCE 小批量下界：</p>
+<div class="eq"><div class="m">\[\begin{aligned}&\mathrm E\big[\ln q(o_t\mid s_t)+\ln q(r_t\mid s_t)\big]\\&\stackrel{+}{=}\mathrm E\big[\ln q(o_t\mid s_t)-\ln q(o_t)+\ln q(r_t\mid s_t)\big]\\&=\mathrm E\big[\ln q(s_t\mid o_t)-\ln q(s_t)+\ln q(r_t\mid s_t)\big]\\&\ge\mathrm E\Big[\ln q(s_t\mid o_t)-\ln\sum_{o'}q(s_t\mid o')+\ln q(r_t\mid s_t)\Big].\end{aligned}\]</div><span class="no">(15)</span></div>
+<p>第二项用 KL 非负得上界：</p>
+<div class="eq"><div class="m">\[\begin{aligned}&\mathrm I\big(s_{1:T};i_{1:T}\mid a_{1:T}\big)\\&=\mathrm E\Big[\sum_t\ln p(s_t\mid s_{t-1},a_{t-1},i_t)-\ln p(s_t\mid s_{t-1},a_{t-1})\Big]\\&=\mathrm E\Big[\sum_t\ln p(s_t\mid s_{t-1},a_{t-1},o_t)-\ln p(s_t\mid s_{t-1},a_{t-1})\Big]\\&\le\mathrm E\Big[\sum_t\ln p(s_t\mid s_{t-1},a_{t-1},o_t)-\ln q(s_t\mid s_{t-1},a_{t-1})\Big]\\&=\mathrm E\Big[\sum_t\mathrm{KL}\big(p(s_t\mid s_{t-1},a_{t-1},o_t)\,\big\|\,q(s_t\mid s_{t-1},a_{t-1})\big)\Big].\end{aligned}\]</div><span class="no">(16)</span></div>
+<p>上界前面有负号，所以它给整个目标的是下界。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 推导逐步看过</span><p>方向都对。式 (14) 的不等号来自 KL ≥ 0；式 (16) 的不等号来自把真实边缘换成 \(q\)，差一个 KL ≥ 0；代回式 (13) 后正好是式 (10) 的三项。式 (15) 第二步是贝叶斯公式。</p>
+<p>几处写法：式 (13) 第二项写成 \(\mathrm I(s_{1:T},i_{1:T}\mid a_{1:T})\)，逗号应是分号。式 (14) 前几行的 \(\sum_t\) 和联合分布写在一起，严格说是多余的，要到最后一行分解后才有逐时间步的和。式 (15) 的 InfoNCE 通常写成 \(\ln\frac1K\sum\)，这里省了 \(\ln K\)，不影响梯度，也仍是下界。这些是我的核对，没有发现改变结论的错误。</p></div>
+
+<h2 id="apC"><span class="no">C</span>离散控制</h2>
+<p>在 <a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari</a> 和 <a class="ds" href="https://github.com/google-deepmind/lab">DeepMind Lab</a> 的一部分任务上评估。作者承认纯靠世界模型的智能体在这些领域还不算有竞争力，这些任务用来提供视觉复杂度、稀疏奖励和提前终止。观测 64 × 64 × 3，3 到 18 个动作。Atari 按 Machado 等的协议，带粘滞动作（sticky actions：以一定概率重复上一动作）。</p>
+<div class="fig" id="fig9"><span class="lab">图 9 · 第 16 页 · <a href="https://arxiv.org/html/1912.01603#A3.F9">看原图 ↗</a></span><p>16 个面板的训练曲线：14 个 Atari 游戏（Boxing、Choppercommand、Doubledunk、Fishingderby、Ice Hockey、Kangaroo、Krull、Kungfumaster、Mspacman、Namethisgame、Pong、Tutankham、Up N Down、Zaxxon）和 2 个 DeepMind Lab 关卡（Collect Good Objects、Watermaze）。参考线是 SimPLe（10⁵ 步）、DQN 和 Rainbow（2×10⁸ 步）、IMPALA（10¹⁰ 步）和随机策略。图注说 Dreamer 在这一子集上能学到成功行为，并把这些环境的表征学习留作未来方向。本文没有给这些任务的数字表。</p></div>
+
+<h2 id="apD"><span class="no">D</span>行为学习</h2>
+<div class="fig" id="fig10"><span class="lab">图 10 · 第 17 页 · <a href="https://arxiv.org/html/1912.01603#A4.F10">看原图 ↗</a></span><p>20 个任务的动作选择方式对比，横轴到 5×10⁶ 环境步。Dreamer（学动作和价值）、无价值模型（只学动作）、PlaNet（在线规划）三条曲线，阴影是 5 个种子的标准差。基线线是 D4PG、A3C 和混合方法 <a class="ds" href="https://arxiv.org/abs/1907.00953">SLAC</a>（3×10⁶ 步）。</p></div>
+
+<h2 id="apE"><span class="no">E</span>表征学习</h2>
+<div class="fig" id="fig11"><span class="lab">图 11 · 第 18 页 · <a href="https://arxiv.org/html/1912.01603#A5.F11">看原图 ↗</a></span><p>20 个任务上三种表征的完整对比：生成图像和奖励、生成奖励加对比损失、只预测奖励，5 个种子。图注的结论：重建在多数任务上提供最好的学习信号，其次是对比；只靠奖励不够，可能需要更多经验。</p></div>
+
+<h2 id="apF"><span class="no">F</span>动作重复</h2>
+<div class="fig" id="fig12"><span class="lab">图 12 · 第 19 页 · <a href="https://arxiv.org/html/1912.01603#A6.F12">看原图 ↗</a></span><p>20 个任务上动作重复 1、2、4 的对比，横轴到 10⁶ 环境步，2 个种子。图注特别说明用的是之前的一套超参数，结论是 R = 2 整体最好。动作重复（同一动作连续执行几个模拟步）决定控制频率，强化学习方法可能对它敏感，在环境的控制频率上学动力学时这种敏感可能被放大。</p></div>
+
+<h2 id="apG"><span class="no">G</span>连续控制分数</h2>
+<p>第 20 页的表，数字照录。论文脚注说 PlaNet 以固定 R = 2 重跑，因此和 PlaNet 原文的分数不同。</p>
+<div class="tablewrap"><table class="t-g" id="tG"><thead><tr><th></th><th class="n">A3C</th><th class="n">D4PG</th><th class="n">PlaNet</th><th class="n">Dreamer</th></tr>
+<tr class="grp"><th>输入模态</th><th class="n">本体</th><th class="n">像素</th><th class="n">像素</th><th class="n">像素</th></tr>
+<tr class="grp"><th>环境步</th><th class="n">10⁸</th><th class="n">10⁸</th><th class="n">5 × 10⁶</th><th class="n">5 × 10⁶</th></tr></thead><tbody>
+<tr><td>Acrobot Swingup</td><td class="n">41.90</td><td class="n">91.70</td><td class="n">3.21</td><td class="n">365.26</td></tr>
+<tr><td>Cartpole Balance</td><td class="n">951.60</td><td class="n">992.80</td><td class="n">452.56</td><td class="n">979.56</td></tr>
+<tr><td>Cartpole Balance Sparse</td><td class="n">857.40</td><td class="n">1000.00</td><td class="n">164.74</td><td class="n">941.84</td></tr>
+<tr><td>Cartpole Swingup</td><td class="n">558.40</td><td class="n">862.00</td><td class="n">312.56</td><td class="n">833.66</td></tr>
+<tr><td>Cartpole Swingup Sparse</td><td class="n">179.80</td><td class="n">482.00</td><td class="n">0.64</td><td class="n">812.22</td></tr>
+<tr><td>Cheetah Run</td><td class="n">213.90</td><td class="n">523.80</td><td class="n">496.12</td><td class="n">894.56</td></tr>
+<tr><td>Cup Catch</td><td class="n">104.70</td><td class="n">980.50</td><td class="n">455.98</td><td class="n">962.48</td></tr>
+<tr><td>Finger Spin</td><td class="n">129.40</td><td class="n">985.70</td><td class="n">495.25</td><td class="n">498.88</td></tr>
+<tr><td>Finger Turn Easy</td><td class="n">167.30</td><td class="n">971.40</td><td class="n">451.22</td><td class="n">825.86</td></tr>
+<tr><td>Finger Turn Hard</td><td class="n">88.70</td><td class="n">966.00</td><td class="n">312.55</td><td class="n">891.38</td></tr>
+<tr><td>Hopper Hop</td><td class="n">0.50</td><td class="n">242.00</td><td class="n">0.37</td><td class="n">368.97</td></tr>
+<tr><td>Hopper Stand</td><td class="n">27.90</td><td class="n">929.90</td><td class="n">5.96</td><td class="n">923.72</td></tr>
+<tr><td>Pendulum Swingup</td><td class="n">48.60</td><td class="n">680.90</td><td class="n">3.27</td><td class="n">833.00</td></tr>
+<tr><td>Quadruped Run</td><td class="n">−</td><td class="n">−</td><td class="n">280.45</td><td class="n">888.39</td></tr>
+<tr><td>Quadruped Walk</td><td class="n">−</td><td class="n">−</td><td class="n">238.90</td><td class="n">931.61</td></tr>
+<tr><td>Reacher Easy</td><td class="n">95.60</td><td class="n">967.40</td><td class="n">468.50</td><td class="n">935.08</td></tr>
+<tr><td>Reacher Hard</td><td class="n">39.70</td><td class="n">957.10</td><td class="n">187.02</td><td class="n">817.05</td></tr>
+<tr><td>Walker Run</td><td class="n">191.80</td><td class="n">567.20</td><td class="n">626.25</td><td class="n">824.67</td></tr>
+<tr><td>Walker Stand</td><td class="n">378.40</td><td class="n">985.20</td><td class="n">759.19</td><td class="n">977.99</td></tr>
+<tr><td>Walker Walk</td><td class="n">311.00</td><td class="n">968.30</td><td class="n">944.70</td><td class="n">961.67</td></tr>
+<tr><td><b>Average</b></td><td class="n"><b>243.70</b></td><td class="n"><b>786.32</b></td><td class="n"><b>332.97</b></td><td class="n"><b>823.39</b></td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表重算，和代码库的分数文件对比</span><p><b>平均。</b>按表重算：A3C 243.70（18 个任务），D4PG 786.33（18，表写 786.32，差在舍入），PlaNet 332.97（20），Dreamer 823.39（20）。图 6 图注写 PlaNet “332”，是截断，四舍五入应是 333。</p>
+<p><b>代码库的分数文件。</b><code>danijar/dreamer</code> 有 <code>scores/dreamer.json</code>，20 个任务各 5 个种子，每 10⁵ 步一个评测点，最后一点在 4,905,000 步。README 没说它来自哪份实现、哪次运行。最后一点的 5 种子平均，20 个任务再平均是 805.50；最后 5 点是 811.51；每任务取种子平均的峰值是 862.61。我试过的聚合都复现不了附录 G 的逐任务分数。比如 Cartpole Balance 最后一点 641.44，表是 979.56；Acrobot Swingup 465.80，表是 365.26；Hopper Hop 489.12，表是 368.97。论文没写表的聚合方式（比如取最后多少步），所以我不能说哪边错了，只能说这个文件不是这张表的来源，或者聚合方式我没试到。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>TF2 指 <a href="https://github.com/danijar/dreamer/tree/56d4d444dfd0582b0e79dab80aebbea74c0ce40d">danijar/dreamer 56d4d44</a>，TF1 指 <a href="https://github.com/google-research/dreamer/tree/d517542f9777c53864ff6f2683cea88be9ea98ac">google-research/dreamer d517542</a>。两份都只读未跑。TF2 版没有对比目标、只有奖励和无价值模型的配置；TF1 版三者都有（<code>cpc</code> 头、<code>gradient_heads</code>、<code>actor</code> 配置）。动画画的是代码的值。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>TF2</th><th>TF1</th></tr></thead><tbody>
+<tr><td>全连接宽度</td><td>300</td><td>400</td><td>400</td></tr>
+<tr><td>奖励 / 价值 / 动作层数</td><td>3 / 3 / 3</td><td>2 / 3 / 4</td><td>2 / 3 / 4</td></tr>
+<tr><td>确定路径维度</td><td>没写</td><td>200</td><td>200</td></tr>
+<tr><td>随机路径维度</td><td>30</td><td>30</td><td>30</td></tr>
+<tr><td>训练时动作</td><td>众数 + N(0, 0.3)</td><td>采样 + N(0, 0.3)，截到 [−1, 1]</td><td>采样 + 0.3</td></tr>
+<tr><td>动作模型输入</td><td>论文描述梯度穿过状态</td><td>stop_gradient</td><td>stop_gradient</td></tr>
+<tr><td>式 (7)(8) 加权</td><td>只在提前终止的任务</td><td>所有任务乘累积折扣</td><td>同，默认开</td></tr>
+<tr><td>free nats</td><td>“低于 3 不计”</td><td>批平均后 max(KL, 3)</td><td>逐元素 max(0, KL − 3)</td></tr>
+<tr><td>末端价值</td><td>\(v_\psi(s_{t+H})\)</td><td>最后一个状态的价值</td><td>截断后取，倒数第二个状态</td></tr>
+<tr><td>离散 ε</td><td>0.4 到 0.1，前 20 万梯度步</td><td>默认配置没有离散设置</td><td>0.4 下降，下限 0.25</td></tr>
+<tr><td>H、γ、λ、学习率、批量、裁剪、S、R</td><td>15、0.99、0.95、6e-4/8e-5/8e-5、50×50、100、5、2</td><td>相同</td><td>相同</td></tr>
+</tbody></table></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">p 和 q 和 PlaNet 反过来</a>，字母换了，含义相同。</li>
+<li><a href="#n2">确定路径不在这篇的公式里</a>：200 维只在代码里，结构在 PlaNet。</li>
+<li><a href="#n3">式 (2) 和式 (4) 的写法</a>：下标复用，式 (4) 没有 γ，代码的对照配置有。</li>
+<li><a href="#n4">式 (6) 核算过</a>：和递推相等；最长项占 48.8%，平均看 10.73 步，γ¹⁵ = 0.860。</li>
+<li><a href="#n5">式 (7) 和代码的两处不同</a>：代码对所有任务按折扣加权；H = 15 实际只有 14 项。</li>
+<li><a href="#n6">动作模型输入上的 stop_gradient</a>：两份代码都切断，论文没提。</li>
+<li><a href="#n7">TF1 的末端价值差一步</a>：读代码得到，未运行。</li>
+<li><a href="#n8">KL 的几个细节</a>：先验只被约束一步；free nats 两份代码实现不同。</li>
+<li><a href="#n9">图例写 1e9，数据是 1e8</a>：图 7 的水平线数值和 10⁸ 分数吻合。</li>
+<li><a href="#n10">19 和 20</a>：应是笔误；“16 胜 4 平”无法核算。</li>
+<li><a href="#n11">823 对 786 是不同任务集</a>：同 18 个任务是 813.77；D4PG 有 12 个任务更高。</li>
+<li><a href="#n12">图 4 读出来的几件事</a>：Walker H = 40 下跌；H = 15 和附录 G 有差；坐标轴外的点。</li>
+<li><a href="#n13">附录 A 和代码的差别</a>：宽度、层数、训练时采样还是众数、离散 ε。</li>
+<li><a href="#n14">想象的账</a>：37,500 状态 / 更新，想象对真实决策 7500 比 1。</li>
+<li><a href="#n15">推导逐步看过</a>：方向都对，几处笔误不影响结论。</li>
+<li><a href="#n16">表重算，和代码库的分数文件对比</a>：平均对得上；JSON 复现不了逐任务分数。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 6 日用脚本核对过可以打开。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://danijar.com/dreamer">Dreamer</a></td><td>本文</td><td><a href="https://github.com/danijar/dreamer">TF2</a> · <a href="https://github.com/google-research/dreamer">TF1</a></td><td><a href="https://arxiv.org/abs/1912.01603">1912.01603</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/dm_control">DeepMind Control Suite</a></td><td>20 个连续控制任务</td><td>github.com/google-deepmind/dm_control</td><td><a href="https://arxiv.org/abs/1801.00690">1801.00690</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari（ALE）</a></td><td>离散动作</td><td>github.com/Farama-Foundation/Arcade-Learning-Environment</td><td><a href="https://arxiv.org/abs/1207.4708">1207.4708</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/lab">DeepMind Lab</a></td><td>离散动作，3D</td><td>github.com/google-deepmind/lab</td><td><a href="https://arxiv.org/abs/1612.03801">1612.03801</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1811.04551">PlaNet</a></td><td>RSSM 的来源，对比方法</td><td>–</td><td><a href="https://arxiv.org/abs/1811.04551">1811.04551</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1804.08617">D4PG</a></td><td>无模型基线</td><td>–</td><td><a href="https://arxiv.org/abs/1804.08617">1804.08617</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1602.01783">A3C</a></td><td>无模型基线（本体输入）</td><td>–</td><td><a href="https://arxiv.org/abs/1602.01783">1602.01783</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1907.00953">SLAC</a></td><td>混合基线，附录 D</td><td>–</td><td><a href="https://arxiv.org/abs/1907.00953">1907.00953</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2301.04104">DreamerV3</a></td><td>后续工作，SuperMimic 一并提到，这里不展开</td><td>–</td><td><a href="https://arxiv.org/abs/2301.04104">2301.04104</a></td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>读这篇的起因</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 1912.01603 和官方代码后的整理，不是作者的官方内容；原文和原图版权归作者所有，这里没有复制原图。“重画”的图只用了从原文矢量数据读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="dreamer/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
