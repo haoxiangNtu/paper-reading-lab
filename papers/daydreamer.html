@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DayDreamer 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2206.14176 DayDreamer（CoRL 2022）的中文精读：按原文章节逐节整理，含全部编号公式、超参数表、原图、官方代码对照、从矢量图和分数文件核算的数据、11 幕 3D 框架动画和 14 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:680px}.t-code{min-width:660px}.t-g{min-width:560px}.t-links{min-width:600px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-tip[hidden]{display:none}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.notes li{max-width:74ch}
+</style></head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/daydreamer/index.html">3D 框架动画</a><a href="dreamer.html">Dreamer</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2206.14176 · cs.RO · v1 2022 年 6 月 28 日 · CoRL 2022（PMLR 205）· 中文精读</p>
+<h1>DayDreamer：把世界模型直接放到真实机器人上学</h1>
+<p class="orig">DayDreamer: World Models for Physical Robot Learning</p>
+<p>作者 Philipp Wu、Alejandro Escontrela、Danijar Hafner（三人同等贡献）、Ken Goldberg、Pieter Abbeel，加州大学伯克利分校。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2206.14176">arXiv 原文</a><a href="https://arxiv.org/html/2206.14176">网页版</a><a href="https://arxiv.org/pdf/2206.14176">PDF</a><a href="https://proceedings.mlr.press/v205/wu23c.html">PMLR</a><a href="https://danijar.com/daydreamer">项目主页</a><a href="https://github.com/danijar/daydreamer/tree/709016ce11c32dad1f24c4cc77afdf980d2a92a8">官方代码</a><span>正文 8 页，参考文献和附录到第 15 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布，所以下面放了从 PDF 裁切的原图，版权归 Wu 等作者。图只做了裁切和格式转换，没有改内容。正文是我用自己的话按原文顺序写的，不是逐字翻译，覆盖第 1 到 5 节和附录 A 到 D。</p>
+<p>公式按原文编号，数字照录原文。标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。标着“重画”的图只用了官方仓库分数文件里的数值。</p>
+<p>官方代码我读了，没有运行：<a href="https://github.com/danijar/daydreamer/tree/709016ce11c32dad1f24c4cc77afdf980d2a92a8">danijar/daydreamer</a> 提交 709016c（2022-09-13，只有这一个提交，TensorFlow 2）。仓库的 <code>scores/</code> 目录有每次运行的分数，这让很多图上的数字可以直接核对。论文和代码不同的地方都列了出来。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 实验</a><a href="#s31">3.1 A1</a><a href="#s32">3.2 UR5</a><a href="#s33">3.3 XArm</a><a href="#s34">3.4 Sphero</a><a href="#s4">4 相关工作</a><a href="#s5">5 讨论</a><a href="#apA">附录 A 适应</a><a href="#apB">附录 B 想象</a><a href="#apC">附录 C 相关工作详述</a><a href="#apD">附录 D 超参数</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>深度强化学习需要大量试错，所以机器人学习大多依赖仿真器，而仿真器不准，学到的行为也不会随世界变化而调整。这篇问的是：<a href="dreamer.html">Dreamer</a> 这类在学到的世界模型里规划的算法，能不能让真实机器人直接在线学习？作者把 Dreamer 用到四台机器人上，不用仿真器，也没有提出新算法。</p>
+<ul>
+<li><b>A1 四足：</b>从仰面开始，1 小时学会翻身、站起、行走，中途不复位。之后用杆子推，10 分钟内学会抗推或翻回来。SAC 只学会翻身。</li>
+<li><b>UR5 机械臂：</b>从图像和稀疏奖励学多物体拣放，8 小时达到每分钟 2.5 个，接近人类。Rainbow 和 PPO 只学会抓了又放回原箱。</li>
+<li><b>XArm 机械臂：</b>RGB-D 加本体感觉，软物体，10 小时每分钟 3.1 个。Rainbow 没学会。</li>
+<li><b>Sphero 小车：</b>只有图像，2 小时学会导航到目标，平均距离 0.15。DrQv2 表现相近。</li>
+<li><b>工程：</b>actor 和 learner 解耦，四台机器人用同一套超参数（这句话要读细，见<a href="#n12">读者注 12</a>）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，这篇的贡献是实验和基础设施，算法基本就是 DreamerV2，主要改动是把收集和学习并行。第二，奖励设计和实际运行参数在代码里和论文的说法有不少出入：式 (5) 的第一项符号写反了（<a href="#n6">读者注 6</a>），γ 在附录写 0.95、代码是 0.995（<a href="#n12">读者注 12</a>）。第三，“每分钟多少个”和“小时”这两个轴要小心读：图 5 到 7 的横轴换算出的控制频率和正文不一致（<a href="#n8">读者注 8</a>），图 A.1 的 9 个/分钟按真实时钟只有约 2 个（<a href="#n11">读者注 11</a>）。</p>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 的<a href="supermimic.html#s2">相关工作</a>提到本文只有一句：DayDreamer 展示了直接在物理机器人上做世界模型学习。这句话放在讲基于模型的策略优化和机器人部署的那一段，后面没有再引用。它没有说从本文继承了什么，我逐项比对后也没有找到直接采用的部件，下面的对照是我做的，不是 SuperMimic 的自述。</p>
+<p>两篇的问题相反：本文的学习发生在真机上，SuperMimic 的学习发生在仿真器里，真机只用于部署。共同点只有“用世界模型减少真实或仿真交互”这个大方向。算法骨架的继承关系要看 <a href="dreamer.html#sm">Dreamer 页的对照</a>。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>DayDreamer</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>在哪里学</td><td>真机在线，不用仿真器</td><td>仿真器，训完部署到 Unitree G1（SuperMimic §4.4）</td></tr>
+<tr><td>数据量</td><td>1 台机器人，一次运行 1 万到 9 万步</td><td>每 GPU 4096 个环境</td></tr>
+<tr><td>世界模型</td><td>RSSM，隐状态，离散码 32 × 32，要重建输入</td><td>确定性 MLP，显式仿真状态，以仿真上下文 ξ 为条件，不重建图像</td></tr>
+<tr><td>想象长度</td><td>H = 15，γ = 0.995（代码）</td><td>H = 32，γ = 0.99</td></tr>
+<tr><td>随机来源</td><td>未知，用隐变量表达</td><td>已知，物理参数写进 ξ</td></tr>
+<tr><td>部署时带什么</td><td>编码器、RSSM、策略都要带；并且一直在学</td><td>只带策略</td></tr>
+<tr><td>被推的时候</td><td>在线继续学，10 分钟内适应（第 3.1 节）</td><td>训练时不做根速度扰动，理由是确定性模型表达不了这种状态跳变；物理参数随机化已足够迁移（SuperMimic 附录）</td></tr>
+</tbody></table></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<figure class="pfig"><img src="daydreamer/fig1.webp" width="1595" height="543" alt="图 1：四台机器人，A1 四足、UR5、XArm、Sphero" loading="lazy"><figcaption><span class="lab">图 1 · 原文第 1 页 · CC BY 4.0，Wu 等，仅裁切</span>四个实验：(a) A1 四足行走，(b) UR5 视觉拣放，(c) XArm 视觉拣放，(d) Sphero 导航。任务覆盖连续和离散动作、稠密和稀疏奖励、本体感觉和相机输入，以及多模态融合。</figcaption></figure>
+<p>教机器人在真实世界解决复杂任务是机器人学的基础问题。深度强化学习（RL）让机器人靠试错改进，但目前的算法需要的交互太多，在许多真实任务上不实际。现代世界模型（world model，一个从经验学到的、能预测行动后果的模型）在仿真领域和电子游戏里显示了很高的数据效率，因为机器人可以想象动作的结果，减少真实试错。</p>
+<p>作者列举世界模型对机器人的几个好处：预测未来让少量真实交互就能规划和学行为；学到的动力学知识可以复用到下游任务；表示可以融合多种传感器模态，省去手工状态估计；对离线数据泛化好。难点是真实世界的世界模型本身很难学准。</p>
+<p>本文选了最直接的问题设定：真实世界里的在线强化学习，不用仿真器、不用示教。贡献列了四条：</p>
+<ul>
+<li><b>Dreamer 上机器人：</b>四台机器人，没有引入新算法，任务覆盖不同的动作空间、感知模态和奖励结构。</li>
+<li><b>1 小时学会走：</b>四足从零学会翻身、站起、行走，之后 10 分钟内适应被推。</li>
+<li><b>视觉拣放：</b>机械臂从稀疏奖励学拣放，需要从像素定位物体并融合图像和本体感觉，比无模型方法好，接近人类。</li>
+<li><b>开源：</b>公开全部实验的软件基础设施。</li>
+</ul>
+<figure class="pfig narrow"><img src="daydreamer/fig2.webp" width="640" height="725" alt="图 2：真实世界、回放缓存、世界模型、演员评论家四者构成循环" loading="lazy"><figcaption><span class="lab">图 2 · 原文第 2 页 · CC BY 4.0，Wu 等，仅裁切</span>四个部件的循环。当前策略在机器人上收集经验；经验进回放缓存；世界模型在回放的离策略序列上做监督学习；演员-评论家从世界模型隐空间里想象的轨迹学习。收集和学习并行，机器人动的时候学习不停，动作计算的延迟也低。</figcaption></figure>
+
+<h2 id="s2"><span class="no">2</span>方法</h2>
+<p>整体流程和 <a href="dreamer.html">Dreamer</a> 相同：从回放学世界模型，从模型预测的轨迹学行为，部署行为继续扩充回放。为了满足延迟要求，也为了不等环境就能快速训练，作者把学习和收集解耦：learner 线程持续训练世界模型和演员-评论家，actor 线程并行地算动作。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 线程在代码里是两个进程</span>
+<p>论文说线程。官方 README 写“两个进程”，要开两个终端分别跑 <code>--run learning</code> 和 <code>--run acting</code>。actor 写回放走 ZeroMQ（<code>embodied/replay/store.py</code> 的 <code>StoreServer</code> 和 <code>StoreClient</code>）；权重走 checkpoint 文件，<code>acting.py</code> 按 <code>sync_every</code> 周期重新加载，四个机器人的配置都是 20 秒。论文没写同步周期。所以 actor 用的策略最多比 learner 旧 20 秒左右，这是读代码得到的，我没跑。</p>
+<p>另一个容易看错的地方：README 里 A1 的 learner 命令写 <code>--task a1_sim</code>，看起来像在用仿真。读 <code>train.py</code>，<code>learning</code> 分支建好环境后立刻 <code>env.close()</code>，环境只用来提供观测和动作空间的形状，训练数据全部来自 actor 写进回放的真机数据。这和论文“不用仿真器”一致。</p></div>
+
+<p><b>世界模型学习。</b>世界模型是一个预测环境动力学的深度网络。传感器输入可能是大图像，所以它预测未来的表示，不预测未来的输入。这能减少误差累积，也让大批量并行训练成为可能。可以把它看成机器人自己学的一个快速仿真器。结构基于循环状态空间模型（RSSM），四个部件：</p>
+<div class="eq"><div class="m">\[\begin{aligned}\text{编码器：}&\quad \mathrm{enc}_\theta(s_t\mid s_{t-1},a_{t-1},x_t) &\qquad \text{解码器：}&\quad \mathrm{dec}_\theta(s_t)\approx x_t\\ \text{动态网络：}&\quad \mathrm{dyn}_\theta(s_t\mid s_{t-1},a_{t-1}) &\qquad \text{奖励网络：}&\quad \mathrm{rew}_\theta(s_{t+1})\approx r_t\end{aligned}\]</div><span class="no">(1)</span></div>
+<figure class="pfig"><img src="daydreamer/fig3.webp" width="1595" height="644" alt="图 3：左边世界模型学习，右边行为学习的计算图" loading="lazy"><figcaption><span class="lab">图 3 · 原文第 3 页 · CC BY 4.0，Wu 等，仅裁切</span>(a) 世界模型学习，结构类似深度卡尔曼滤波，在回放的子序列上训练。编码器把所有模态融合成离散码 z，解码器重建输入，既提供丰富的学习信号，也方便人检查模型预测。RSSM 学习在不看中间输入的情况下根据动作预测未来的码。(b) 行为学习：只编码第一帧，之后全在隐空间，用大批量并行优化策略，不需要重建输入，从想象轨迹和学到的奖励训练策略和价值网络。</figcaption></figure>
+<p>机器人常有多种传感器：关节读数、力传感器、RGB 和深度图像。编码器把所有输入 \(x_t\) 融合成随机表示 \(z_t\)，动态模型用循环状态 \(h_t\) 预测 \(z_t\) 序列。解码器不参与从隐轨迹学行为。这些实验里机器人要靠交互发现任务奖励，由奖励网络学习预测；也可以手工指定解码后输入的奖励函数。世界模型的所有部件用随机反向传播一起优化。这里 \(s_t\) 指 \((h_t,z_t)\)。</p>
+
+<p><b>演员-评论家学习。</b>世界模型表达和任务无关的动力学知识，演员-评论家学针对当前任务的行为。行为从隐空间预测的轨迹里学，不解码观测。这让单 GPU 上的典型批量达到 16K，和 Isaac Gym 这类专用现代仿真器相近。</p>
+<div class="eq"><div class="m">\[\text{演员：}\ \pi(a_t\mid s_t)\qquad\qquad \text{评论家：}\ v(s_t)\]</div><span class="no">(2)</span></div>
+<p>演员学习在每个隐状态上选动作，最大化未来预测奖励之和。评论家用时序差分学习预测这个和，这样能考虑 \(H=16\) 步规划窗口之外的奖励。回归目标如果选“N 步奖励加评论家预测”，N 的取值是任意的，所以用 λ 回报，即对所有 \(N\in[1,H-1]\) 做加权平均：</p>
+<div class="eq"><div class="m">\[V_t^\lambda\doteq r_t+\gamma\big((1-\lambda)v(s_{t+1})+\lambda V_{t+1}^\lambda\big),\qquad V_H^\lambda\doteq v(s_H).\]</div><span class="no">(3)</span></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · H = 16 和 H = 15，以及 16K 怎么来</span>
+<p>第 2 节写 \(H=16\)，附录 D 写 15，代码 <code>imag_horizon: 15</code>。这不矛盾：代码的 <code>imagine</code> 把起点拼在前面，走 15 步后共有 16 个状态。“16K”也由此对上：每次更新有 B × T = 32 × 32 = 1024 个起点（<code>Agent.train</code> 把批次和时间维摊平），1024 × 16 = 16384。论文自己没写这个算式，是我算的。这个数是状态个数，不是一次传给网络的独立样本数。动画<a href="../interactives/daydreamer/index.html?scene=6&amp;p=0.9">第 6 幕</a>可以改 H 看总数。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 式 (3) 和代码一致</span>
+<p><code>agent.py</code> 的 <code>VFunction.target</code> 用 <code>impl='gve'</code>：<code>interm = r + disc * v[1:] * (1-λ)</code>，再倒着 <code>vals = interm + disc * λ * vals</code>。展开就是式 (3)，只是 γ 换成“γ × 预测的继续概率”。值 \(v\) 用目标网络，和论文说的慢更新副本一致。λ = 0.95、H = 15 时最长一项的权重是 \(0.95^{14}=0.488\)，这个算术和 <a href="dreamer.html#n4">Dreamer 页读者注 4</a> 相同。</p></div>
+<p>评论家回归 λ 回报，演员最大化它。策略梯度有几种估计：Reinforce（用对数概率乘回报，不需要环境可微）和重参数化（把回报的梯度直接穿过可微的动态网络）。按 Hafner 等 (2020)，连续控制用重参数化，离散动作用 Reinforce。此外鼓励高熵，防止策略塌缩成确定性并保持探索：</p>
+<div class="eq"><div class="m">\[\mathcal L(\pi)\doteq-\mathrm E\Big[\sum_{t=1}^{H}\ln\pi(a_t\mid s_t)\,\mathrm{sg}\big(V_t^\lambda-v(s_t)\big)+\eta\,\mathrm H\big[\pi(a_t\mid s_t)\big]\Big]\]</div><span class="no">(4)</span></div>
+<p>sg 表示停止梯度。演员和评论家用 Adam 优化。算 λ 回报时用评论家的慢更新副本。演员和评论家的梯度不影响世界模型，否则模型预测会变得错误且过于乐观。和 Hafner 等 (2020) 相比，这里没有训练频率超参数，因为解耦的 learner 和收集并行，不限速。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 式 (4) 只是一半，还少了几样</span>
+<p>式 (4) 是 Reinforce 的形式，但 A1 和 Sphero 是连续动作，走的是重参数化。代码 <code>ImagActorCritic.loss</code> 两支都有：<code>backprop</code> 时 <code>loss = -score</code>，<code>reinforce</code> 时 <code>loss = -log_prob * stop_gradient(score)</code>。动画<a href="../interactives/daydreamer/index.html?scene=8&amp;p=0.9">第 8 幕</a>在一维玩具上比较两者，同样的问题下 Reinforce 单样本标准差约是重参数化的 2 倍多。</p>
+<p>代码还有三点式 (4) 没写。第一，η 不是常数，附录 D 也没列：<code>actent</code> 是自动调整的系数，初值 \(3\times10^{-3}\)，把归一化熵调到目标（A1 0.5，其余 0.4）。第二，score 进入损失前过了 <code>advnorm</code> 均值-标准差归一化。第三，每项乘了累积折扣权重 <code>traj['weight']</code>。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 11 幕 · 可拖动、可调参数</p>
+<p>第 2 幕切换耦合和解耦，第 3 幕看回放的真实占用，第 4 幕换机器人看融合，第 5 幕当场算 KL 平衡，第 7 幕看 γ 的钟表含义，第 8 幕比较两种梯度估计，第 9 幕可以切换式 (5) 的符号，第 10、11 幕是真实结果。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/daydreamer/index.html?embed=1" title="DayDreamer 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/daydreamer/index.html">新窗口打开，看结构表和“哪些是示意”↗</a></p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>实验</h2>
+<p>四台机器人各一个任务，和相应的算法基线及人类基线比较。任务代表运动、操作、导航，挑战覆盖连续和离散动作、稠密和稀疏奖励、本体感觉和图像观测、传感器融合。要回答三个问题：Dreamer 能否不用仿真器直接在真实世界学习？能否在不同平台、感知模态、动作空间上都成功？数据效率和之前的 RL 算法比如何？</p>
+<p><b>实现。</b>基于 DreamerV2 的官方实现，它能处理多模态。作者开发了异步的 actor 和 learner，这对四足这样高控制频率的环境是必需的，对机械臂这样慢的环境也能加速学习。所有实验用相同的超参数。</p>
+<p><b>基线。</b>每个实验选一个强基线。A1 是连续动作和低维输入，比 <a href="https://arxiv.org/abs/1801.01290">SAC</a>。XArm 和 UR5 是图像加本体感觉、离散动作，比 DQN 系列的 <a href="https://arxiv.org/abs/1710.02298">Rainbow</a>；本体感觉做成广播平面（把每个数铺满一层）和 RGB 通道拼接。UR5 另比 <a href="https://arxiv.org/abs/1707.06347">PPO</a>，“用类似改动融合图像和本体感觉”。人类基线用操作接口遥控机械臂，给出近似上限。Sphero 是图像和连续动作，比 <a href="https://arxiv.org/abs/2107.09645">DrQv2</a>。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 基线拿到的输入和 Dreamer 不完全一样</span>
+<p><b>Rainbow。</b><code>rainbow/env_crafter.py</code> 的 <code>_augment_obs</code> 把图缩到 84 × 84，拼 cartesian、joint、gripper_pos、gripper_side 的平面。深度那两行被注释掉了，所以按公开代码，XArm 上的 Rainbow 没有深度，而 Dreamer 有。论文写基线输入是“图像和本体感觉”，这和代码一致，只是没有点明这个差别。</p>
+<p><b>PPO。</b><code>ppo.py</code> 不是从原始图像学：它用预训练的 <a href="https://arxiv.org/abs/2203.12601">R3M</a> ResNet-50 把图像变成 2048 维向量，再和本体感觉一起进 stable-baselines3。论文没提 R3M。这个文件里环境写的是 <code>xarm_real</code>，<code>ur5_real</code> 那行被注释，而论文只报告了 UR5 的 PPO，所以我不能确定公开文件就是当时的 UR5 版本。</p></div>
+
+<h3 id="s31">3.1 A1 四足行走</h3>
+<figure class="pfig"><img src="daydreamer/fig4.webp" width="1595" height="346" alt="图 4：A1 从仰面到站立到行走的照片，以及 Dreamer 和 SAC 的学习曲线" loading="lazy"><figcaption><span class="lab">图 4 · 原文第 5 页 · CC BY 4.0，Wu 等，仅裁切</span>从仰面、脚朝上开始，Dreamer 1 小时学会翻身、站起、行走，不用仿真器也不复位。SAC 只学会翻身，还需要人帮它脱离一个卡死的腿部姿态。最高奖励 14。实心圆点标出机器人摔到仰面的时刻。单次运行，阴影是每个时间窗内的一个标准差。</figcaption></figure>
+<p>任务是翻身、站起、以固定目标速度前进。此前的四足工作要么要在仿真里大量域随机化训练，要么用恢复控制器避开不安全状态，要么把动作空间限定成参数化轨迹生成器。这里是端到端学习，直接在机器人上，不用仿真器也不复位。Unitree A1 有 12 个直驱电机，20 Hz 控制，连续动作表示电机角度，由硬件上的 PD 控制器实现。输入是电机角、朝向和角速度。为保护电机，用巴特沃斯滤波器滤掉高频指令。场地有限，到边界时人工干预，但不改变关节构型和朝向。</p>
+<figure class="pfig narrow"><img src="daydreamer/fig8.webp" width="640" height="378" alt="图 8：用杆子推机器狗，叠影显示几个时刻" loading="lazy"><figcaption><span class="lab">图 8 · 原文第 5 页 · CC BY 4.0，Wu 等，仅裁切</span>用杆子扰动已学会的行走，10 分钟内机器人学会抗推，或快速翻回来站起。</figcaption></figure>
+<p>奖励是五项之和。直立项由基座坐标系的上向量算，站姿三项由髋、肩、膝的关节角算，速度项由前向速度和总速度算。每一项只有在前一项达到至少 0.7 时才生效，否则置 0：</p>
+<div class="eq"><div class="m">\[\begin{aligned}r^{\mathrm{upr}}&\doteq(\hat z^T[0,0,1]-1)/2 & r^{\mathrm{hip}}&\doteq1-\tfrac14\|q^{\mathrm{hip}}+0.2\|_1 & r^{\mathrm{shoulder}}&\doteq1-\tfrac14\|q^{\mathrm{shoulder}}+0.2\|_1\\ r^{\mathrm{knee}}&\doteq1-\tfrac14\|q^{\mathrm{knee}}-1.0\|_1 & r^{\mathrm{velocity}}&\doteq5\big(\max(0,{}^{\mathcal B}v_x)/\|{}^{\mathcal B}v\|_2\cdot\mathrm{clip}({}^{\mathcal B}v_x/0.3,-1,1)+1\big)\end{aligned}\]</div><span class="no">(5)</span></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 (5) 和代码的三处差别</span>
+<p><b>第一项的符号。</b>式 (5) 写 \((\hat z^T[0,0,1]-1)/2\)，取值在 [−1, 0]，永远到不了门槛 0.7，后四项就永远不开。按这个式子最高奖励也只有 13，而图注说 14。代码 <code>rma_task.py</code> 是 <code>np.dot([0,0,1], up) / 2 + 0.5</code>，即 \((\hat z^T[0,0,1]+1)/2\)，取值 [0, 1]，最高 1 + 1 + 1 + 1 + 10 = 14。所以式 (5) 的减号应当是加号。动画<a href="../interactives/daydreamer/index.html?scene=9&amp;p=0.6&amp;form=0">第 9 幕</a>可以切换。</p>
+<p><b>门控的位置。</b>文字说门没开时“置 0”。代码是 <code>r_vel = (r_kne &gt; 0.7) * ...</code>，然后 <code>10 * (r_vel + 1) / 2</code>。门关时速度项等于 5，不是 0。分数文件也证实：仰面时每步约 5.06。</p>
+<p><b>髋的目标。</b>式 (5) 髋和肩都写 \(+0.2\)，目标是 −0.2。代码 <code>STANDING_POSE = [0, -0.2, 1.0]</code>，髋的目标是 0。另外代码的三项用归一化后的偏差再除以最坏偏差，所以每项都在 [0, 1]，这和式 (5) 的写法也不一样。</p>
+<p>滤波器论文没给参数，代码默认是二阶低通，<code>ACTION_FILTER_HIGH_CUT = 1.5</code>（<code>action_filter.py</code>）。</p></div>
+<p>一小时后，Dreamer 能稳定地翻身、站起、前进。前 5 分钟学会翻过来落到脚上，20 分钟后学会站，约 1 小时学会一种弹跳步态（pronking，四脚几乎同时离地），以目标速度前进。之后用长杆反复把它推倒，额外在线学习 10 分钟内，它学会抗推或快速翻回来。SAC 很快学会翻身，但在这么小的数据预算下站不起来也走不了。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 用奖励结构读图 4</span>
+<p>从代码的奖励能读出曲线的刻度含义（这是我的解读）：<b>5</b> 是仰面的底，<b>9</b> 是不前进时的上限（直立 + 三项站姿最多 4，加速度项的底 5）。超过 9 必然在前进。</p>
+<div class="tablewrap"><table class="t-g"><thead><tr><th>读数（矢量路径，Dreamer）</th><th class="n">时间</th><th class="n">值</th></tr></thead><tbody>
+<tr><td>第一次明显离开 5</td><td class="n">9.1 分</td><td class="n">6.19</td></tr>
+<tr><td>文中“再过 20 分钟站起”附近</td><td class="n">24.2–27.3 分</td><td class="n">7.91–8.43</td></tr>
+<tr><td>第一次超过 9</td><td class="n">33.3 分</td><td class="n">9.41</td></tr>
+<tr><td>最高一格</td><td class="n">54.6 分</td><td class="n">11.12</td></tr>
+<tr><td>最后一格</td><td class="n">59.1 分</td><td class="n">10.72</td></tr>
+</tbody></table></div>
+<p>SAC 最高一格 7.91，从未到 9，和“没有学会走”一致。<code>a1_dreamer.json</code> 的 445 个点按 20 Hz 换算，除第一个点 5.76 外，在约第 7.7 分钟之前都在 5.05 到 5.35 之间，第 7.9 分钟才跳到 6.41。代码的 <code>train_fill</code> 是 5000 步，即前 4.2 分钟是随机策略。所以日志里第一次翻到脚上的证据比文中的“前 5 分钟”晚约 3 分钟。短暂的翻身未必抬高每 12.5 秒的平均分，我不能排除这一点。</p>
+<p>图上的实心圆点在矢量路径里能读出：Dreamer 在 0.5、13.4、30.3、42.3、51.5 分钟，SAC 在 1.0、42.5、53.1 分钟。单次运行：分数文件的 <code>seed</code> 都是 0，只有一条。<code>a1_dreamer.json</code> 记到 93604 步（78 分钟），图只画到 60 分钟。</p></div>
+
+<h3 id="s32">3.2 UR5 多物体视觉拣放</h3>
+<figure class="pfig"><img src="daydreamer/fig5.webp" width="1595" height="358" alt="图 5：UR5 抓球放到另一个箱子的照片，以及学习曲线" loading="lazy"><figcaption><span class="lab">图 5 · 原文第 6 页 · CC BY 4.0，Wu 等，仅裁切</span>从第三人称相机图像定位三个球，抓起，放到另一个箱子。手臂可以在箱内和箱上方移动，抓到和放到对面才有稀疏奖励。Dreamer 几小时内学成。虚线是人类。</figcaption></figure>
+<p>仓储和物流里常见的任务。难点是奖励稀疏、要从像素推断物体位置、多个物体的动力学。输入是本体感觉（关节角、夹爪位置、末端笛卡尔位置）和第三人称 RGB。抓到（由夹爪未完全闭合判断）+1，在同一箱放下 −1，放到对面箱 +10。UR5 以 2 Hz 控制。动作是离散的：沿 X、Y、Z 增量移动末端和切换夹爪；Z 移动只在拿着物体时可用，到正确箱子上方夹爪自动打开。人类基线记录了 3 位操作者各 20 分钟的手柄遥控。</p>
+<p>Dreamer 8 小时内达到平均每分钟 2.5 个。起初奖励太稀疏，学得慢，2 小时后逐渐变好：先学会定位物体、靠近时切换夹爪，后来抓得准，还学会把物体从角落推出来。Rainbow 和 PPO 只学到短视行为：抓起来立刻放回原箱。作者推测它们需要更多经验，而真实世界收集不到。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 文中的频率和图的横轴对不上</span>
+<p>分数文件是 <code>(步数, 每回合分数)</code>，图的横轴是时间。我在一组“每小时步数”上把分数按图上的格子分箱，再和矢量路径读出的曲线做最小二乘，取残差最小的比例。这是拟合，分箱方式是我猜的，所以只看量级：</p>
+<div class="tablewrap"><table class="t-g"><thead><tr><th>任务</th><th class="n">文中频率</th><th class="n">文中频率对应步/小时</th><th class="n">拟合的步/小时</th><th class="n">相当于</th></tr></thead><tbody>
+<tr><td>A1 Dreamer / SAC</td><td class="n">20 Hz</td><td class="n">72000</td><td class="n">70800 / 70700</td><td class="n">19.7 Hz</td></tr>
+<tr><td>UR5 Dreamer / PPO</td><td class="n">2 Hz</td><td class="n">7200</td><td class="n">4004 / 4006</td><td class="n">1.11 Hz</td></tr>
+<tr><td>XArm Dreamer</td><td class="n">约 0.5 Hz</td><td class="n">1800</td><td class="n">2940</td><td class="n">0.82 Hz</td></tr>
+<tr><td>Sphero Dreamer</td><td class="n">2 Hz</td><td class="n">7200</td><td class="n">4500</td><td class="n">1.25 Hz</td></tr>
+</tbody></table></div>
+<p>A1 对得上，其余三个对不上。UR5 按 2 Hz 算，曲线和分数的均方根误差是 0.90 个/分钟，按 4000 步/小时是 0.15；XArm 按 1800 是 0.99，按 2940 是 0.08；Sphero 按 120 步/分钟是 0.15，按 75 是 0.07。最直接的证据是 UR5：<code>ur5_dreamer.json</code> 总共 39144 步，如果真是 2 Hz，只有 5.4 小时，撑不满图上的 8 小时。</p>
+<p>纵轴也能反推：UR5 和 XArm 的“个/分钟”约等于每回合分数 × 0.055，也就是每个物体 11 分、每分钟 0.6 回合，一回合 100 步对应 100 秒，约 1 Hz。这和横轴一致，和文中的 2 Hz 不一致。可能的原因是文中写的是指令频率，而手臂动作阻塞了循环（代码里 <code>control_rate_hz</code> 默认 20，真正的节拍由 <code>set_position</code> 决定），这只是我的猜测。</p>
+<p><b>文中的 2.5 个/分钟核对得上：</b>矢量路径最后一格（8.0 小时）是 2.48，最高一格 2.53。人类虚线读出来是 2.89，所以 Dreamer 是人类的 86%。PPO 最后一格 0.20，Rainbow 记到 5.18 小时、最后一格 0.067。</p></div>
+
+<h3 id="s33">3.3 XArm 视觉拣放</h3>
+<figure class="pfig"><img src="daydreamer/fig6.webp" width="1595" height="334" alt="图 6：XArm 抓软物体的照片，以及学习曲线" loading="lazy"><figcaption><span class="lab">图 6 · 原文第 7 页 · CC BY 4.0，Wu 等，仅裁切</span>第三人称 RealSense 相机给 RGB 和深度，加本体感觉，世界模型要学传感器融合。任务用软物体，在仿真器里很难建模，直接在真机上学就绕开了这个问题。Rainbow 收敛到在同一箱抓了又放的局部最优，Dreamer 不到 10 小时学成。</figcaption></figure>
+<p>XArm 是便宜的 7 自由度机械臂，约 0.5 Hz 控制。任务是定位并抓起一个软物体，在两个箱子之间来回移动。箱子不倾斜，所以用绳把物体连到夹爪上，这样不容易卡在角落，代价是动力学更复杂。稀疏奖励、离散动作和观测都和 UR5 相同，只多了深度图。</p>
+<p>10 小时内 Dreamer 达到平均每分钟 3.1 个，和人类相当；Rainbow 没学会。作者观察到它有时用绳子把物体从角落拉出来再抓。光照大变时（如日出的强烈阴影），表现先崩溃，再适应，几小时后超过原来，详见附录 A。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 3.1 是最高一格</span>
+<p>矢量路径读数：最高一格 3.12（8.97 小时），末两格 1.51 和 2.96（10.0 小时），人类虚线 3.06。所以“3.1”是峰值，曲线还在大幅波动。第一次超过 1 个/分钟是 8.28 小时，此前都低于 1，整段上升集中在最后不到 2 小时。Rainbow 全程最高 0.06，末格约 0。</p>
+<p>另外，<code>scores/xarm_long.csv</code> 有一次论文没有报告的 28.4 小时运行，带墙钟时间。按物体数除以真实分钟算，5 到 10 小时是 1.10 个/分钟，25 到 28.4 小时是 2.26 个/分钟。这次运行和图 6 不是同一次，不能直接比，但它提示：图 6 的换算（每分钟 60 步）比那次运行的中位频率（0.59 Hz，每分钟 36 步）乐观。</p></div>
+
+<h3 id="s34">3.4 Sphero 导航</h3>
+<figure class="pfig"><img src="daydreamer/fig7.webp" width="1595" height="366" alt="图 7：Sphero 小车驶向目标的俯视照片，以及学习曲线" loading="lazy"><figcaption><span class="lab">图 7 · 原文第 8 页 · CC BY 4.0，Wu 等，仅裁切</span>只有俯视 RGB，连续动作，导航到固定目标。要从像素定位自己，要从历史图像推断朝向（单张图有歧义），还要控制欠驱动电机，靠积累动量运动。Dreamer 不到 2 小时学成。</figcaption></figure>
+<p>Sphero Ollie 是圆柱形小车，两个电机，2 Hz 连续力矩控制。机器人对称，只有图像，所以朝向只能从历史推断。奖励是负的 L2 距离。目标固定，每 100 步结束回合，用一串高功率随机动作随机化位置。</p>
+<p>2 小时内 Dreamer 学会快速稳定地到达目标并留在附近，平均距离 0.15（单位是场地大小，按时间步平均）。专为图像连续控制设计的 DrQv2 表现相近，这和 Yarats 等 (2021) 在仿真里的结论一致。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 0.15 我在图和数据里都没找到</span>
+<p>图 7 矢量路径上，Dreamer 全程最低一格 0.194（125.5 分钟），最后一格 0.211，横轴画到 130 分钟。DrQv2 最低 0.145，最后 0.355。分数文件里 Dreamer 第 9000 步之后 9 个回合的平均距离是 0.272，单回合最好是 0.05。DrQv2 同样步数段是 0.256。我确认过蓝线对应 Dreamer：图例如此，并且用 <code>sphero_dreamer.json</code> 拟合蓝线的误差（0.07）小于拟合橙线（0.18）。</p>
+<p>所以“0.15”可能是用其他方式算的，比如某个窗口或评测，论文没说明。按我读到的数据，两条曲线末段噪声都很大，“相近”成立，0.15 我无法复现。</p></div>
+
+<div class="tablewrap"><table class="t-g"><thead><tr><th>实验</th><th>文中结果</th><th class="n">Dreamer 末格</th><th class="n">基线末格</th><th class="n">人类虚线</th></tr></thead><tbody>
+<tr><td>A1（平均奖励，最高 14）</td><td>1 小时走起来</td><td class="n">10.72</td><td class="n">SAC 7.91</td><td class="n">–</td></tr>
+<tr><td>UR5（个/分钟）</td><td>8 小时 2.5</td><td class="n">2.48</td><td class="n">PPO 0.20，Rainbow 0.067</td><td class="n">2.89</td></tr>
+<tr><td>XArm（个/分钟）</td><td>10 小时 3.1</td><td class="n">2.96（最高 3.12）</td><td class="n">Rainbow 0.00</td><td class="n">3.06</td></tr>
+<tr><td>Sphero（距离，低更好）</td><td>2 小时 0.15</td><td class="n">0.21（最低 0.19）</td><td class="n">DrQv2 0.35（最低 0.14）</td><td class="n">–</td></tr>
+</tbody></table></div>
+<p class="sub" style="color:var(--muted);font-size:13.5px">“文中结果”照录原文。后三列是我从 PDF 第 5 到 8 页矢量路径读出的，不是论文给的数。</p>
+
+<h2 id="s4"><span class="no">4</span>相关工作</h2>
+<p>现有的机器人学习大致三类：在域和动力学随机化下用大量仿真经验再部署；用机器人集群收集经验数据集；依靠专家示教或任务先验。设计仿真任务和收集示教都费时，这些方法也常需要专门处理离线经验、示教或仿真误差的算法。本文的实验说明，通过世界模型，直接从物理世界的奖励端到端学习对多种任务可行。</p>
+<p>真实世界里从零端到端学习的工作相对少。Visual Foresight 学视频预测模型做在线规划，但限于短视野，规划时要生成图像，计算很贵。Yang 等用模型预测落脚点并依靠领域特定控制器。SOLAR 从图像学隐动力学，做机械臂到达和推。Nagabandi 等 (2019) 从状态观测学动力学再规划灵巧操作。本文的区别是用一个算法和一套超参数覆盖了四种任务和模态。</p>
+
+<h2 id="s5"><span class="no">5</span>讨论</h2>
+<p>结论是，现代世界模型能让机器人在真实世界从零高效学习，运动、操作、导航都不用换超参数。四足 1 小时学会翻身、站起、行走，此前这需要大量仿真再迁移，或者参数化轨迹生成器加复位策略。两台机械臂 8 到 10 小时从像素和稀疏奖励学会拣放。</p>
+<p><b>局限。</b>在硬件上长时间学习会磨损机器人，可能需要人工干预或维修。要更多训练才能探明 Dreamer 和基线的极限。作者认为把快速真实世界学习和仿真器的优点结合起来处理更难的任务，是有影响的未来方向。</p>
+
+<h2 id="apA"><span class="no">A</span>适应</h2>
+<p>真实世界的环境条件和动力学都会变。Dreamer 不用改算法就能适应当前条件，这对持续学习（continual learning）是好迹象。四足抗推见第 3.1 节和图 8。</p>
+<p>XArm 靠近大窗户。实验在日落后进行以保持光照恒定。日出时表现按预期下降，但约 5 小时后恢复到原来水平，比从头训练快。图像显示强光线覆盖了场景，和训练时的观测差别很大。</p>
+<figure class="pfig"><img src="daydreamer/figA1.webp" width="1595" height="382" alt="图 A.1：夜间和日出时的观测图像，以及 XArm 学习曲线，标出日出和恢复" loading="lazy"><figcaption><span class="lab">图 A.1 · 原文第 13 页 · CC BY 4.0，Wu 等，仅裁切</span>左边两张是 Dreamer 接收的原始观测：夜间（训练时）和日出。像素差别很大，XArm 仍在约 5 小时内恢复并超过原来的表现。右边的曲线在第 10 小时前后有橙色虚线（日出），第 15 小时附近有绿色虚线（恢复）。</figcaption></figure>
+<div class="note" id="n11"><span class="lab">读者注 11 · 图 A.1 的“个/分钟”按真实时钟只有约四分之一</span>
+<p>图 A.1 的峰值约 9.2 个/分钟（这张图是位图，我按刻度读像素，在第 16.1 小时），是图 6 人类线 3.06 的 3 倍。仓库里的 <code>scores/xarm_adapt.csv</code> 看起来就是这次运行：步数结束在 45180，图上曲线结束在约 18.06 小时，合 2500 步/小时，起伏也对得上。这是我的判断，论文和仓库都没有明说。</p>
+<p>这个文件带墙钟时间，每回合 251 步（图 6 的 <code>xarm_dreamer.json</code> 是 101 步）。图 A.1 的纵轴大约是“每回合物体数 × 0.65”。如果沿用了 100 步回合的换算系数，而回合其实长 2.5 倍，就解释了这个放大。下面按物体总数除以真实分钟重算：</p>
+<div class="tablewrap"><table class="t-g"><thead><tr><th>阶段（墙钟）</th><th class="n">物体数</th><th class="n">真实 个/分钟</th></tr></thead><tbody>
+<tr><td>0 到 4 小时</td><td class="n">71.5</td><td class="n">0.30</td></tr>
+<tr><td>4 到 8.46 小时（日出线）</td><td class="n">230.6</td><td class="n">0.86</td></tr>
+<tr><td>8.46 到 12.63 小时（恢复线）</td><td class="n">97.4</td><td class="n">0.39</td></tr>
+<tr><td>12.63 到 14 小时</td><td class="n">138.3</td><td class="n">1.68</td></tr>
+<tr><td>14 到 16.12 小时</td><td class="n">194.7</td><td class="n">1.53</td></tr>
+</tbody></table></div>
+<div class="viz" id="c-adapt"><p class="cap">重画 · 不是原图。数据来自 scores/xarm_adapt.csv，每半小时的物体数（分数 ÷ 11）除以 30 分钟。两条竖线由图 A.1 的位置按 2500 步/小时换算到墙钟时间。可悬停看数值。</p></div>
+<p>结论的方向没变：下跌后确实恢复并超过了之前。但量级不同：真实峰值约 2 个/分钟，低于人类线；日出到恢复在墙钟上是 4.17 小时，图上的轴是 5.2 小时。csv 的中位频率是 0.76 Hz。这些都假定 11 分对应 1 个物体，分数文件的值大多是 11 的倍数，和代码的奖励一致。</p></div>
+
+<h2 id="apB"><span class="no">B</span>想象</h2>
+<p>可以在隐空间展开轨迹，再解码成图像，用来检查 actor 的意图。这只用于观察，不是学习所需。</p>
+<figure class="pfig"><img src="daydreamer/figB1.webp" width="1595" height="785" alt="图 B.1：UR5 和 XArm 在隐空间想象的轨迹解码后的图像序列" loading="lazy"><figcaption><span class="lab">图 B.1 · 原文第 13 页 · CC BY 4.0，Wu 等，仅裁切</span>每行是一条想象轨迹，每隔一帧取一张。上两行是 UR5，多物体带来更多视觉复杂度；作者指出第二行有一个静止的橙球变成了绿球。下两行是 XArm。</figcaption></figure>
+
+<h2 id="apC"><span class="no">C</span>相关工作详述</h2>
+<p><b>运动。</b>常见做法是在域和动力学随机化下用大量仿真数据训练，冻结策略再部署。Smith 等 (2021) 在仿真预训练再用真实数据微调。Yang 等 (2019) 学动力学模型做模型预测控制。Yang 等 (2022) 在真实世界训练运动策略，但需要仿真训练的恢复控制器。本文不用仿真器或复位策略。</p>
+<p><b>操作。</b>一类方法用机器人集群扩大经验，本文只用一台机器人，通过学到的世界模型并行化经验。另一类用专家示教或任务先验。James 等用少量示教帮助 Q 学习关注场景的重要部分。还有先用仿真器再迁移的方法。</p>
+<p><b>基于模型的 RL。</b>样本效率高，适合真实机器人。动力学模型可以用来规划，也可以像 Dreamer 这样当仿真器学策略。动作条件的视频预测直接预测高维观测，计算低效且容易漂移。Dreamer 在隐空间学动力学，展开高效，也不依赖高质量视觉重建。还有一些工作学不重建输入的隐动力学，作者认为这对视点移动和杂乱环境是有前途的方向。</p>
+
+<h2 id="apD"><span class="no">D</span>超参数</h2>
+<div class="tablewrap"><table class="t-g"><thead><tr><th>名称</th><th>符号</th><th class="n">值</th></tr></thead><tbody>
+<tr><td colspan="3"><b>通用</b></td></tr>
+<tr><td>回放容量（FIFO）</td><td>—</td><td class="n">10⁶</td></tr>
+<tr><td>开始学习</td><td>—</td><td class="n">10⁴</td></tr>
+<tr><td>批量</td><td>B</td><td class="n">32</td></tr>
+<tr><td>批长度</td><td>T</td><td class="n">32</td></tr>
+<tr><td>MLP 大小</td><td>—</td><td class="n">4 × 512</td></tr>
+<tr><td>激活</td><td>—</td><td class="n">LayerNorm + ELU</td></tr>
+<tr><td colspan="3"><b>世界模型</b></td></tr>
+<tr><td>RSSM 大小</td><td>—</td><td class="n">512</td></tr>
+<tr><td>隐变量个数</td><td>—</td><td class="n">32</td></tr>
+<tr><td>每个隐变量的类别数</td><td>—</td><td class="n">32</td></tr>
+<tr><td>KL 平衡</td><td>—</td><td class="n">0.8</td></tr>
+<tr><td colspan="3"><b>演员-评论家</b></td></tr>
+<tr><td>想象长度</td><td>H</td><td class="n">15</td></tr>
+<tr><td>折扣</td><td>γ</td><td class="n">0.95</td></tr>
+<tr><td>回报 λ</td><td>λ</td><td class="n">0.95</td></tr>
+<tr><td>目标更新间隔</td><td>—</td><td class="n">100</td></tr>
+<tr><td colspan="3"><b>所有优化器</b></td></tr>
+<tr><td>梯度裁剪</td><td>—</td><td class="n">100</td></tr>
+<tr><td>学习率</td><td>—</td><td class="n">10⁻⁴</td></tr>
+<tr><td>Adam ε</td><td></td><td class="n">10⁻⁶</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 附录 D 和机器人配置的差别，“同一套超参数”</span>
+<p>下面是 <code>configs.yaml</code> 四个机器人段覆盖后的值。论文说所有实验超参数相同，附录 D 也只给一列。</p>
+<div class="tablewrap"><table class="t-g"><thead><tr><th>项</th><th class="n">附录 D</th><th class="n">A1</th><th class="n">UR5</th><th class="n">XArm</th><th class="n">Sphero</th></tr></thead><tbody>
+<tr><td>γ</td><td class="n">0.95</td><td class="n">0.995</td><td class="n">0.995</td><td class="n">0.995</td><td class="n">0.995</td></tr>
+<tr><td>RSSM</td><td class="n">512</td><td class="n">256</td><td class="n">512</td><td class="n">512</td><td class="n">512</td></tr>
+<tr><td>开始学习</td><td class="n">10⁴</td><td class="n">5000</td><td class="n">2000</td><td class="n">2000</td><td class="n">1000</td></tr>
+<tr><td>熵目标</td><td class="n">没列</td><td class="n">0.5</td><td class="n">0.4</td><td class="n">0.4</td><td class="n">0.4</td></tr>
+</tbody></table></div>
+<p>γ 差别最大。有效视野 1/(1−γ)：0.95 是 20 步，0.995 是 200 步。按文中频率，200 步在 A1 上是 10 秒，在 XArm 上是 6.7 分钟（动画<a href="../interactives/daydreamer/index.html?scene=7&amp;p=0.9">第 7 幕</a>）。γ = 0.95 时机械臂要在 40 秒内看到 +10，这是否够用我没有试。<b>开始学习</b>的矛盾更硬：<code>sphero_dreamer.json</code> 整次运行只有 9929 步，小于 10⁴，按附录 D 根本不会开始学习。XArm 按拟合频率 2940 步/小时，10⁴ 要等 3.4 小时。所以附录 D 这两行不是实际运行值。</p>
+<p>我无法确认公开配置就是论文那次运行的配置，提交日期（2022-09-13）比 arXiv 晚两个半月，分数文件是一起提交的。其余各项（B、T、MLP、32 × 32、KL 0.8、λ、目标间隔、裁剪、学习率、ε、容量）在配置里和附录 D 一致。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · FIFO 从未淘汰</span>
+<p>容量 10⁶，分数文件最长的是 A1 的 93604 步，其余 XArm 长跑 59113、PPO 54500（PPO 不用这个缓存）、UR5 39144、XArm 30805、Sphero 9929。最大占用 9.4%。所以这些实验里“先进先出”只是个未触发的设置，所有数据一直都能被采到。按文中 20 Hz，A1 要连续跑 13.9 小时才填满。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 代码里有、附录 D 没列的项</span>
+<p>按 <code>dreamerv2plus</code> 的名字可以猜到它比 DreamerV2 多了东西。下面这些在 <code>configs.yaml</code> 和 <code>nets.py</code> 里，论文没写：奖励头和评论家用 <code>symlog</code> 分布；类别分布混入均匀分布 <code>unimix</code>（世界模型 0.01，演员在机器人配置里 0.1）；KL 的权重由 <code>wmkl</code> 自动调到目标 3.5，初值 0.1；权重衰减 10⁻²；终止头 <code>cont_head</code>（式 (1) 没有）；动作标准差下限 <code>actor.minstd: 0.1</code>。后续的 <a href="https://arxiv.org/abs/2301.04104">DreamerV3</a> 里能看到其中几项，这个对应关系是我的观察。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>读的是 <a href="https://github.com/danijar/daydreamer/tree/709016ce11c32dad1f24c4cc77afdf980d2a92a8">danijar/daydreamer 709016c</a>。没有运行，也没有安装任何依赖。算法在 <code>embodied/agents/dreamerv2plus/</code>，运行结构在 <code>embodied/run/</code>，机器人环境在 <code>embodied/envs/</code>，A1 的奖励在 <code>motion_imitation/envs/env_wrappers/rma_task.py</code>。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码</th><th>动画画的</th></tr></thead><tbody>
+<tr><td>actor 和 learner</td><td>线程</td><td>进程，ZeroMQ 加 checkpoint 文件</td><td>代码</td></tr>
+<tr><td>H</td><td>第 2 节 16；附录 D 15</td><td>15 步，16 个状态</td><td>代码，可调</td></tr>
+<tr><td>γ</td><td>0.95</td><td>0.995</td><td>都能选</td></tr>
+<tr><td>开始学习</td><td>10⁴</td><td>5000 / 2000 / 2000 / 1000</td><td>都能选</td></tr>
+<tr><td>A1 的 RSSM</td><td>512</td><td>256</td><td>代码</td></tr>
+<tr><td>r<sup>upr</sup></td><td>(ẑ·z − 1)/2</td><td>(ẑ·z + 1)/2</td><td>都能选</td></tr>
+<tr><td>髋的目标</td><td>−0.2</td><td>0</td><td>按偏差设的示意值</td></tr>
+<tr><td>门关时的速度项</td><td>0</td><td>5</td><td>代码</td></tr>
+<tr><td>策略损失</td><td>式 (4)，Reinforce 形式</td><td>连续用 backprop，离散用 reinforce</td><td>都有</td></tr>
+<tr><td>RGB 和深度融合</td><td>“融合”</td><td>通道维拼接后同一个卷积</td><td>代码</td></tr>
+<tr><td>控制频率</td><td>2 / 约 0.5 / 2 Hz</td><td>config 默认 20（实际由动作阻塞）；数据约 1.1 / 0.6–0.8 / 1.25 Hz</td><td>第 3、7 幕按文中值，第 10 幕直接用图上的时间</td></tr>
+</tbody></table></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">线程在代码里是两个进程</a>：回放走 ZeroMQ，权重每 20 秒同步；learner 的 <code>a1_sim</code> 只提供形状。</li>
+<li><a href="#n2">H = 16 和 H = 15，以及 16K 怎么来</a>：起点加 15 步是 16 个状态，32 × 32 × 16 = 16384。</li>
+<li><a href="#n3">式 (3) 和代码一致</a>。</li>
+<li><a href="#n4">式 (4) 只是一半</a>：连续动作走重参数化；η 自动调整，附录没列。</li>
+<li><a href="#n5">基线的输入</a>：公开代码里 Rainbow 没有深度，PPO 用预训练 R3M，论文都没明说。</li>
+<li><a href="#n6">式 (5) 和代码的三处差别</a>：首项符号应为 +；门关时速度项是 5；髋的目标是 0。</li>
+<li><a href="#n7">用奖励结构读图 4</a>：5 是底，9 是不前进的上限；日志里翻身比文中晚约 3 分钟。</li>
+<li><a href="#n8">频率和横轴对不上</a>：UR5 约 1.1 Hz（文中 2），XArm 约 0.82（文中 0.5），Sphero 约 1.25（文中 2）。2.5 个/分钟核对得上。</li>
+<li><a href="#n9">3.1 是最高一格</a>：末格 2.96，上升集中在最后不到 2 小时。</li>
+<li><a href="#n10">0.15 我没找到</a>：图上 Dreamer 最低 0.194。</li>
+<li><a href="#n11">图 A.1 的纵轴</a>：回合长 251 步，真实峰值约 2 个/分钟，图上约 9；恢复 4.17 小时，图上 5.2。</li>
+<li><a href="#n12">附录 D 和配置的差别</a>：γ 0.95 对 0.995；Sphero 全程 9929 步小于“开始学习 10⁴”。</li>
+<li><a href="#n13">FIFO 从未淘汰</a>：最大占用 9.4%。</li>
+<li><a href="#n14">代码里有、附录没列的项</a>：symlog、unimix、KL 自动调整等。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>这篇没有用公开数据集或标准基准，实验都在作者自己搭的真机上。下面是项目本身、方法和硬件的链接。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>角色</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://danijar.com/daydreamer">DayDreamer</a></td><td>本文</td><td><a href="https://github.com/danijar/daydreamer">代码</a>，<a href="https://www.youtube.com/watch?v=xAXvfVTgqr0">视频</a></td><td><a href="https://arxiv.org/abs/2206.14176">2206.14176</a></td></tr>
+<tr><td><a class="ds" href="dreamer.html">Dreamer</a></td><td>算法来源</td><td>本站精读</td><td><a href="https://arxiv.org/abs/1912.01603">1912.01603</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2010.02193">DreamerV2</a></td><td>实现的基础，离散码</td><td>–</td><td><a href="https://arxiv.org/abs/2010.02193">2010.02193</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1811.04551">PlaNet</a></td><td>RSSM 出处</td><td>–</td><td><a href="https://arxiv.org/abs/1811.04551">1811.04551</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1801.01290">SAC</a></td><td>A1 基线</td><td>–</td><td><a href="https://arxiv.org/abs/1801.01290">1801.01290</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1710.02298">Rainbow</a></td><td>UR5、XArm 基线</td><td>–</td><td><a href="https://arxiv.org/abs/1710.02298">1710.02298</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>UR5 基线</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2107.09645">DrQv2</a></td><td>Sphero 基线</td><td>–</td><td><a href="https://arxiv.org/abs/2107.09645">2107.09645</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2203.12601">R3M</a></td><td>代码里 PPO 的图像编码器</td><td>–</td><td><a href="https://arxiv.org/abs/2203.12601">2203.12601</a></td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/a1">Unitree A1</a></td><td>四足</td><td>厂商页</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.universal-robots.com/products/ur5e/">UR5</a></td><td>机械臂。链接是现行的 UR5e，论文没写子型号</td><td>厂商页</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.ufactory.cc/xarm-collaborative-robot/">XArm</a></td><td>7 自由度机械臂</td><td>厂商页</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://sphero.com/">Sphero</a></td><td>Ollie 小车。链接是公司主页，Ollie 没有找到单独的页面</td><td>厂商页</td><td>–</td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>读这篇的起因</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2206.14176 和官方代码后的整理，不是作者的官方内容。原图来自 Wu、Escontrela、Hafner、Goldberg、Abbeel 的论文，按 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 使用，只做了裁切和格式转换。“重画”的图只用了官方仓库分数文件里的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="daydreamer/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

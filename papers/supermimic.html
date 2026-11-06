@@ -87,8 +87,8 @@
 
 <h2 id="s2"><span class="no">2</span>相关工作</h2>
 <p><b>大规模动作跟踪。</b><a href="deepmimic.html">DeepMimic</a> 用无模型 RL 做出了生动的角色技能，PHC 把它推到大动作集并能恢复，SONIC 证明数据、策略容量和算力一起放大就能得到可上真机的通才。瓶颈就是算力，这正是本文要解决的。</p>
-<p><b>学到的可微动力学。</b><a href="supertrack.html">SuperTrack</a> 通过学到的可微代理优化动作控制策略；ControlVAE 联合学动力学、潜在技能和控制器；MoConVQ 用离散表示扩到几十小时数据；SuperDyno 扩到几万个片段。这些主要用于仿真角色。本文把这条线推到单 GPU 的大规模人形跟踪和真机部署：世界模型能看到仿真上下文，部署的策略只有带噪声的本体感觉和目标。</p>
-<p><b>基于模型的策略优化与部署。</b><a href="dreamer.html">Dreamer</a> 系列学潜变量动力学并在想象中做演员-评论家；TD-MPC 把短视野规划和终端价值结合；DayDreamer 直接在真机上学世界模型。<a href="shac.html">SHAC</a> 在可微仿真上做短视野演员-评论家，启发了本文带评论家的目标函数。<a href="rwm.html">RWM</a> 和 RWM-U 证明学到的神经仿真器里训练的策略能上真机，但它们在想象轨迹上用 PPO，而且世界模型是用其他策略的数据预先训好的。本文对回报直接求导，世界模型在训练中用自己策略收集的数据拟合。</p>
+<p><b>学到的可微动力学。</b><a href="supertrack.html">SuperTrack</a> 通过学到的可微代理优化动作控制策略；<a href="controlvae.html">ControlVAE</a> 联合学动力学、潜在技能和控制器；MoConVQ 用离散表示扩到几十小时数据；SuperDyno 扩到几万个片段。这些主要用于仿真角色。本文把这条线推到单 GPU 的大规模人形跟踪和真机部署：世界模型能看到仿真上下文，部署的策略只有带噪声的本体感觉和目标。</p>
+<p><b>基于模型的策略优化与部署。</b><a href="dreamer.html">Dreamer</a> 和 <a href="dreamerv3.html">DreamerV3</a> 这一系列学潜变量动力学并在想象中做演员-评论家；<a href="td-mpc.html">TD-MPC</a> 把短视野规划和终端价值结合；<a href="daydreamer.html">DayDreamer</a> 直接在真机上学世界模型。<a href="shac.html">SHAC</a> 在可微仿真上做短视野演员-评论家，启发了本文带评论家的目标函数。<a href="rwm.html">RWM</a> 和 RWM-U 证明学到的神经仿真器里训练的策略能上真机，但它们在想象轨迹上用 PPO，而且世界模型是用其他策略的数据预先训好的。本文对回报直接求导，世界模型在训练中用自己策略收集的数据拟合。</p>
 <p><b>可复用的动作表示与下游控制。</b>下表是原文表 1 的内容，比较各方法在三个阶段怎样训练。</p>
 <p class="tcap">表 1 · 各方法三个阶段的训练方式（照录原文；SuperMimic 和 SONIC 的三阶段是联合训练的）</p>
 <div class="tablewrap"><table class="t-cmp"><thead><tr><th>方法</th><th>模仿</th><th>潜变量</th><th>下游</th><th>任务信号</th><th>真机</th></tr></thead><tbody>

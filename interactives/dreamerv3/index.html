@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DreamerV3 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2301.04104 DreamerV3 的核心框架做成 10 幕 3D 动画：离散隐变量、symlog、two-hot、KL 平衡和 free bits、λ 回报、回报归一化、Reinforce 和穿过动力学的梯度对比，能当场计算的都在浏览器里算。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:112px;display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);max-width:330px;background:color-mix(in srgb,var(--bg2) 80%,transparent);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.ctl .row>span,.ctl .rng>span{min-width:3.6em;color:var(--fg)}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:1px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .rng{display:flex;gap:6px;align-items:center}
+.ctl input[type=range]{width:130px;accent-color:var(--accent)}
+.ctl output{font-family:var(--font-mono);font-size:12px;color:var(--fg);min-width:2.6em}
+.info .live{margin:6px 0 10px}
+.info .live p{margin:4px 0;font-size:12.5px;line-height:1.6}
+.info table.mini,.mini{width:100%;font-size:12.5px;border-collapse:collapse;margin:4px 0}
+.mini td,.mini th{padding:2px 5px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+.mini th{font-weight:500;color:var(--muted);background:none;white-space:nowrap}
+.mini td.n,.mini th.n{text-align:right;font-family:var(--font-mono);white-space:nowrap}
+.mini td.nw{white-space:nowrap}
+.mini tr.on td{background:var(--panel);color:var(--accent)}
+.info .eq-mini{font-family:var(--font-mono);font-size:12.5px;background:var(--panel);border-radius:6px;padding:6px 8px;margin:6px 0;overflow-x:auto}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+
+
+.ctl{top:auto;bottom:48px;left:10px;right:10px;max-width:none;flex-direction:row;flex-wrap:wrap;gap:3px 14px;padding:4px 8px}
+.ctl .row,.ctl .rng{gap:3px}
+.ctl .row>span,.ctl .rng>span{min-width:0;margin-right:3px}
+.ctl input[type=range]{width:96px}
+body.embed .ctl{top:auto;bottom:44px}
+.ctl .row button{padding:1px 6px;font-size:12px}
+.ctl .row>span{min-width:3em;font-size:12px}
+.info .src{margin-top:6px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="toy.js" defer></script>
+<script src="dreamerv3.js" defer></script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global',mtextInheritFont:true},options:{enableMenu:false}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/dreamerv3.html">返回精读</a><a href="../../papers/dreamerv3.html#algo">学习算法</a><a href="../../papers/dreamer.html">Dreamer V1</a><a href="../../papers/supermimic.html">SuperMimic</a><a href="https://arxiv.org/abs/2301.04104">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2301.04104 · DREAMERV3</p>
+<h1>一套超参数跑所有任务，靠的是这几个尺度技巧</h1>
+<p class="lead">一共 10 幕。第 1 幕是总览，第 2 幕是离散隐变量，第 3、4 幕是 symlog 和 two-hot，第 5 幕是 KL 平衡和 free bits，第 6 幕是想象和 λ 回报，第 7 幕是回报归一化，第 8 幕比较 Reinforce 和穿过动力学反传，第 9 幕是论文里的数，第 10 幕把 V1、V2、V3 和 SuperMimic 放在一起。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。第 2 到 8 幕的按钮和滑块改的是真实的计算：symlog、two-hot、KL、λ 回报、百分位和梯度估计都在你的浏览器里当场算（代码在 <a href="toy.js">toy.js</a>）。问题本身是玩具，下面列了哪些是玩具，哪些是论文里的数。第 1 幕的部件可以点。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">10 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和超参数</h2>
+<p class="sub">“论文”列是 arXiv v2 的说法（表 3、表 4 和 Methods），Nature 不同处写明。“代码”列读自 <a href="https://github.com/danijar/dreamerv3/tree/e01491fad6434b2245a3b8ca201dd7faedcc458c">danijar/dreamerv3 e01491f</a>（2026-10-04）的 <code>configs.yaml</code>、<code>rssm.py</code>、<code>agent.py</code>、<code>embodied/jax/</code>，我读了没有运行。形状按 200M 模型（d = 1024）。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">世界模型 φ</td></tr>
+<tr><td>W1</td><td>图像编码器</td><td>步长 2 卷积到 6×6 或 4×4，展平</td><td>默认 <code>strided: False</code>：核 5 卷积加 2×2 最大池化，4 级，通道 64×[2, 3, 4, 4] = 128, 192, 256, 256</td></tr>
+<tr><td>W2</td><td>向量编码器</td><td>先 symlog，3 层 MLP</td><td>3 层，1024，RMSNorm + SiLU</td></tr>
+<tr><td>W3</td><td>序列模型 h</td><td>分块 GRU，8d 维，8 块</td><td>8192 维，8 块；输入是 h、z、a 三路各 1024 维线性嵌入</td></tr>
+<tr><td>W4</td><td>编码器 q(z|h,x)</td><td>32 个分类没有写在 v2，见 v1 表 W.1</td><td>1 层 1024 后接 32×64 logits，unimix 1%</td></tr>
+<tr><td>W5</td><td>先验 p(z|h)</td><td>MLP</td><td>2 层 1024 后接 32×64 logits，unimix 1%</td></tr>
+<tr><td>W6</td><td>特征 s</td><td>h 和 z 拼接</td><td>8192 + 32×64 = 10240 维</td></tr>
+<tr><td>W7</td><td>图像解码器</td><td>反卷积，sigmoid</td><td>默认最近邻上采样加卷积，sigmoid，平方误差按像素求和</td></tr>
+<tr><td>W8</td><td>向量解码器</td><td>symlog 平方误差</td><td>3 层 1024，<code>symlog_mse</code></td></tr>
+<tr><td>W9</td><td>奖励头</td><td>1 层 MLP，symexp two-hot，输出权重初始化为 0</td><td>1 层 1024，255 桶，<code>outscale: 0</code></td></tr>
+<tr><td>W10</td><td>继续头</td><td>1 层 MLP，目标 c ∈ {0, 1}</td><td>1 层 1024，二值；目标乘 1 − 1/333（<code>contdisc: True</code>），于是回报递推里不再乘 γ</td></tr>
+<tr><td>W11</td><td>损失权重</td><td>β 预测 1，β 动力学 1，β 表征 0.1，free 1 nat，unimix 1%</td><td>同；KL 对 32 个分类求和后再和 1 取 max</td></tr>
+<tr class="grp"><td colspan="4">演员和评论家</td></tr>
+<tr><td>A1</td><td>演员 π</td><td>3 层 MLP，离散 1% unimix</td><td>3 层 1024。离散：categorical。连续：Normal(tanh(mean), σ)，σ 在 [0.1, 1]。输出缩放 0.01</td></tr>
+<tr><td>A2</td><td>评论家 v</td><td>3 层 MLP，symexp two-hot，输出权重初始化为 0</td><td>3 层 1024，255 桶，<code>outscale: 0</code></td></tr>
+<tr><td>A3</td><td>EMA 评论家</td><td>衰减 0.98，正则系数 1</td><td><code>slowvalue rate: 0.02</code>，<code>slowreg: 1.0</code>；回报用当前评论家（<code>slowtar: False</code>）</td></tr>
+<tr><td>A4</td><td>回放评论家损失</td><td>β = 0.3</td><td><code>repval: 0.3</code>，起点回报作为回放 λ 回报的末端</td></tr>
+<tr><td>A5</td><td>想象</td><td>H = 15，正文又写 T = 16</td><td><code>imag_length: 15</code>，每条 16 个状态，从 16×64 = 1024 个起点</td></tr>
+<tr><td>A6</td><td>λ，γ</td><td>0.95，0.997（1/(1−γ) = 333）</td><td>同；γ 实际通过继续头进入回报</td></tr>
+<tr><td>A7</td><td>回报归一化</td><td>EMA 衰减 0.99，第 95 减第 5 百分位，下限 1</td><td><code>retnorm</code> rate 0.01，分别对高低百分位做 EMA，再相减，limit 1，<code>debias: False</code></td></tr>
+<tr><td>A8</td><td>演员损失</td><td>式 (6)，Reinforce，η = 3×10⁻⁴</td><td>同，且乘累积继续权重 <code>weight</code>，式 (6) 没写这个权重</td></tr>
+<tr class="grp"><td colspan="4">数据和优化</td></tr>
+<tr><td>D1</td><td>批量</td><td>B = 16，T = 64</td><td>同</td></tr>
+<tr><td>D2</td><td>回放</td><td>5×10⁶，均匀采样加在线队列，把隐状态写回缓存</td><td><code>size: 5e6</code>，<code>online: True</code>，<code>fracs: uniform 1.0</code></td></tr>
+<tr><td>D3</td><td>优化器</td><td>LaProp，学习率 4×10⁻⁵，ε = 10⁻²⁰，β₁ = 0.9，β₂ = 0.99，AGC 0.3</td><td>学习率、ε、β₁、AGC 同；<code>beta2: 0.999</code>。前 1000 步线性升温</td></tr>
+<tr><td>D4</td><td>激活</td><td>RMSNorm + SiLU</td><td><code>norm: rms, act: silu</code></td></tr>
+<tr><td>D5</td><td>回放比例</td><td>Atari 32，DMLab 32，ProcGen 64（Nature 32），Atari100k 128，BSuite 1024，控制 512（Nature：Vision 256，Proprio 1024）</td><td>Atari 32，DMLab 32，ProcGen 64，Atari100k 256，BSuite 1024，Vision 256，Proprio 1024</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意，哪些是玩具</h2>
+<ul class="mine">
+<li><b>第 1 幕。</b>方块只是占位，大小不代表网络大小，只画了 3 个时间步和 5 个想象步（实际 64 步序列，每步出发想象 15 步）。</li>
+<li><b>第 2 幕。</b>每个分类的 logits 是种子固定的随机数，不是网络输出。类数、块数、维度和比特数是真实的。KL 用两个人工分类分布当场算，公式真实。</li>
+<li><b>第 3 幕（玩具）。</b>两层标量网络，初值和学习率是我选的。发散与否取决于学习率，只说明梯度尺度的差别，不能当 Dreamer 的曲线。</li>
+<li><b>第 4 幕。</b>255 个桶、two-hot 权重和对称求和是代码的真实算法。“训练”是直接在 logits 上做梯度下降，没有网络。</li>
+<li><b>第 5 幕（玩具）。</b>输入、解码器都是造的，隐变量只有一个 8 类分类，真实模型是 32 个分类的和。梯度是式 (3) 的真实梯度，学习率和步数是我选的。</li>
+<li><b>第 6 幕（玩具）。</b>r 和 v 是我写的数。递推公式是真实的。下面的不动点表用的是另一条 40 态的链。</li>
+<li><b>第 7 幕（玩具）。</b>回报批是造的（高斯加可选的 2% 离群值），赌博机是我造的三臂。这里的 S 和式 (7) 一样，但赌博机用的是臂之间的范围，不是百分位。优势归一化的除数是当前策略下优势的标准差。</li>
+<li><b>第 8 幕（玩具）。</b>动力学和奖励是我写的一维函数，没有网络。估计量的公式和代码里 <code>logpi * sg(adv)</code> 同一类。离散动作的直通梯度取 \(\partial\mu/\partial\theta\) 作为导数。</li>
+<li><b>第 9 幕。</b>柱子的数全部来自论文表格和矢量图，没有示意的数。</li>
+<li><b>第 10 幕。</b>方块只是占位，文字来自各自原文。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2301.04104v2、Nature 版和官方代码后的理解，不是作者的官方图。逐节内容和核算见<a href="../../papers/dreamerv3.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

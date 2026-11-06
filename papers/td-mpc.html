@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TD-MPC 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2203.04955 TD-MPC（ICML 2022）的中文精读：按原文章节逐节整理，含全部编号公式、结果表、原图、官方代码对照、和 SuperMimic 训练好策略的对比、11 幕 3D 动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-min{min-width:520px}.t-wide{min-width:680px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+pre.algo{font-family:var(--font-mono);font-size:13px;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto;white-space:pre;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="supermimic.html">SuperMimic 精读</a><a href="../interactives/td-mpc/index.html">3D 框架动画</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2203.04955v2 · cs.LG · 2022 年 7 月 19 日 · ICML 2022 · 中文精读</p>
+<h1>TD-MPC：用时序差分学一个只为规划服务的模型</h1>
+<p class="orig">Temporal Difference Learning for Model Predictive Control</p>
+<p>作者 Nicklas Hansen、Xiaolong Wang、Hao Su。单位 UC San Diego。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2203.04955">arXiv 原文</a><a href="https://arxiv.org/html/2203.04955">网页版</a><a href="https://arxiv.org/pdf/2203.04955">PDF</a><a href="https://proceedings.mlr.press/v162/hansen22a.html">PMLR</a><a href="https://nicklashansen.github.io/td-mpc">项目主页</a><a href="https://github.com/nicklashansen/tdmpc">官方代码</a><span>正文 9 页，附录到第 20 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>论文在 arXiv 上用的是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 许可，所以这里放了原图。全部 15 张图都来自 Hansen、Wang、Su 的这篇论文，我只做了裁剪和转成 webp，没有修改内容。文字是我用自己的话按原文顺序整理的，覆盖全部章节和附录 A 到 L。</p>
+<p>公式按原文编号，表格数字照录原文。标成“读者注”的框是整理时核算或对照发现的，不属于论文内容，页尾有汇总。其中“矢量读数”指用 <code>pdftocairo -svg</code> 取出图里的路径坐标，再用刻度线校准得到的数。</p>
+<p>代码对照用的是官方仓库 <a href="https://github.com/nicklashansen/tdmpc/tree/f4d85eca7419039b71bab2234ffc8aca378dd313">nicklashansen/tdmpc</a> 的 commit <code>f4d85ec</code>（2023-11-25，仓库最新，MIT 许可）。我只读了代码和它附带的结果 CSV，没有运行，也就没有复现论文的任何数字。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 预备</a><a href="#s3">3 TD-MPC</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 TOLD</a><a href="#s5">5 实验</a><a href="#s6">6 相关工作</a><a href="#s7">7 结论</a><a href="#aA">A 泛化</a><a href="#aB">B 对比</a><a href="#aC">C 预算</a><a href="#aD">D 目标</a><a href="#aE">E 探索</a><a href="#aF">F 实现</a><a href="#aG">G 基线</a><a href="#aH">H 推理</a><a href="#aI">I Meta-World</a><a href="#aJ">J 多模态</a><a href="#aK">K 指标</a><a href="#aL">L 可视化</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>数据驱动的 MPC（Model Predictive Control，模型预测控制：每一步对未来一小段做优化，只执行第一个动作，下一步重来）有两个吸引人的地方：学模型可能省样本，算得越多表现可能越好。难处也是两个：规划长了太贵，环境又很难学准。</p>
+<p>TD-MPC 的做法：用学到的潜空间模型规划一小段（默认 \(H=5\)），这一段之外的回报交给学到的终值函数 \(Q\)。模型和 \(Q\) 用时序差分（Temporal Difference，TD：用“这一步的奖励 + 下一步的估计值”当目标去回归）一起学。模型叫 TOLD（Task-Oriented Latent Dynamics，面向任务的潜动力学），它不重建观测，只预测奖励、价值和下一个潜状态。</p>
+<ul>
+<li><b>任务：</b>在 <a class="ds" href="https://github.com/google-deepmind/dm_control">DMControl</a> 和 <a class="ds" href="https://meta-world.github.io">Meta-World</a> 共 92 个任务上评测。</li>
+<li><b>高维：</b>解决了 Humanoid（21 维动作）和 Dog（38 维动作）的运动任务，论文称这是 Dog 的首个有记录的结果。</li>
+<li><b>计算：</b>默认设置单张 RTX3090 约 20 ms 一个决策步。</li>
+<li><b>图像：</b>同一套超参数，不专门调整，图像任务也接近当时最好水平。</li>
+</ul>
+<p>读完我认为最值得记住的三点：训练时模型只被奖励、价值和潜一致性约束，所以模型的好坏只按“对规划有没有用”算；执行时不信任任何一个单点估计，每一步都重新采样几百条序列；网络 \(\pi\) 不是最终控制器，它服务于 TD 目标和规划采样。论文和代码在几个地方不一致（<a href="#n3">读者注 3</a>、<a href="#n4">4</a>、<a href="#n5">5</a>），表 2 的 Humanoid Stand 一行和图 1 对不上（<a href="#n10">读者注 10</a>）。</p>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 只在 §2 提到 TD-MPC 一次，引用的是 ICML 这一版（它的文献 [17]，不是 TD-MPC2）。原话的意思是：TD-MPC 把短视野规划和终值预测结合起来。它没有说从 TD-MPC 拿了什么，同一段里它说启发自己带评论家自举目标的是 <a href="shac.html">SHAC</a>。我查了 SuperMimic 全文：“planning”只出现在 Dyna 那篇文献的标题里，它没有做规划。</p>
+<p>所以下面这张表不是“SuperMimic 改了什么”，而是我对比两篇得出的结构差别。最核心的一行：两者都解“短 \(H\) 步奖励 + \(\gamma^H\times\) 价值”这个目标，但 TD-MPC 在<b>每个决策步</b>对<b>这一条动作序列</b>用采样解，SuperMimic 在<b>训练时</b>对<b>策略参数</b>用梯度解。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>项目</th><th>TD-MPC</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>动作从哪来</td><td>每步跑 \(J\) 轮 MPPI，式 (3)(4)</td><td>\(a_t=\pi_\theta(o_t,g_t)\)，一次前向（§3.1）</td></tr>
+<tr><td>每决策步模型调用</td><td>\(d,R\)：537×5×6 = 16,110 次；\(Q,\pi\)：537×6 = 3,222 次（我的计算）。约 20 ms</td><td>部署不调用世界模型。50 Hz 控制；单次推理耗时我没找到</td></tr>
+<tr><td>\(H\) 的含义</td><td>5，推理时试探的长度</td><td>32，训练时反传的长度，部署时没有 \(H\)</td></tr>
+<tr><td>求导</td><td>规划不求导，模型只前向</td><td>穿过冻结的 \(f_\omega\) 做 BPTT，用到模型雅可比</td></tr>
+<tr><td>策略怎么学</td><td>最大化 \(Q(z,\pi(\mathrm{sg}(z)))\)，不穿过 \(d\)，式 (11)</td><td>最大化 32 步想象回报 + 终值，它的式 (2)</td></tr>
+<tr><td>模型预测什么</td><td>潜状态、奖励、价值；不预测观测，无解码器</td><td>显式状态 \(\hat s\)、观测 \(\hat{\bar o}\)、奖励、终止，它的式 (1)</td></tr>
+<tr><td>模型损失和策略</td><td>奖励、价值的梯度直接进 \(h,d\)，模型为任务塑形</td><td>分开：世界模型拟合模拟器转移，策略更新时冻结</td></tr>
+<tr><td>多步拟合</td><td>\(H=5\)，时间权重 \(\lambda=0.5\)</td><td>\(k=8\)，式 (1) 没有时间权重</td></tr>
+<tr><td>价值</td><td>\(Q(z,a)\)，1 步 TD，两个 \(Q\) 取小，EMA 目标网络，用回放的真实转移</td><td>\(V(\hat s,g,\xi)\)，GAE 式 \(\lambda\) 回报，无目标网络，只用想象转移</td></tr>
+<tr><td>收集数据</td><td>用规划收集（算法 2 第 4 行）</td><td>用策略加动作噪声收集</td></tr>
+<tr><td>相同的地方</td><td colspan="2">都是确定性模型，都在同一循环里边收集边拟合，都从回放缓存取多步窗口递推拟合，都用价值函数兜住短视野之外的回报。这些共同点两边都没有说是从对方来的</td></tr>
+<tr><td>验证</td><td>只在仿真里（这篇论文）</td><td>真机 Unitree G1（§4.4）</td></tr>
+</tbody></table></div>
+<p><b>这个差别意味着什么。</b>代价出现的时刻不同。TD-MPC 推理贵，好处是遇到没训练好的状态还能拿模型多算一步，图 6 里规划比 \(\pi\) 高 111 分就是这个收益。SuperMimic 一次前向，能力固定在 \(\theta\) 里，推理便宜到可以上真机 50 Hz。论文 §H 的 20 ms 是一张 RTX3090 上的数，机载能否跑这里没有证据。动画第 11 幕可以逐项切换，并让同一个玩具的两种执行方式并排跑。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>基于模型的强化学习大致有两条路：用模型规划（比学出来的策略好，但长视野贵）；用模型生成数据去训练无模型策略（省样本，但模型偏差会传给策略）。结果是它们在连续控制上长期没能明显胜过更简单的无模型方法。</p>
+<p>MPC 只优化一小段，所以便宜，代价是解是局部的。加一个终值函数，估计规划尽头之后的折扣回报，可以逼近全局解。难的是模型和价值函数都不容易学准。</p>
+<p>TD-MPC 的提法是：每个决策步用学到的模型估计短期奖励做轨迹优化，用学到的价值估计长期回报。论文举的例子：人形奔跑时，规划管精确的关节动作，价值管奔跑方向这种高层目标。</p>
+<p>主要技术贡献在模型的学法。作者认为把环境里的一切都建模很低效，比如光影。三个改动：</p>
+<ol>
+<li>潜表示纯粹从奖励学，忽略和任务无关的细节。</li>
+<li>奖励和 TD 目标的梯度穿过多步模型回传，改进长视野的预测，缓解误差累积。</li>
+<li>提出和观测模态无关的潜空间预测损失，保证表示的时间一致性，不需要预测状态或图像。</li>
+</ol>
+<figure class="pfig">
+<img src="td-mpc/fig1.webp" width="1032" height="1178" alt="图 1：上半部分是 TD-MPC 的决策循环示意，下半部分是 Humanoid 和 Dog 六个任务的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>上半是框架：观测编码成潜状态，在学到的模型上对轨迹做优化，用奖励和价值打分，把动作交给环境，得到奖励。下半是三种方法在 Humanoid Stand、Walk、Run（横轴到 3M）和 Dog Walk、Trot、Run（横轴到 5M）上的回报，5 次运行的均值，阴影是 95% 置信区间：SAC 蓝，带真实模拟器的 MPC 黑虚线，TD-MPC 红。</figcaption>
+</figure>
+<div class="note" id="n1"><span class="lab">读者注 1 · “最快 1M 步”和官方 CSV</span>
+<p>引言说 Humanoid 和 Dog “最快 1M 环境步”解决。官方仓库 <code>results/*.csv</code> 有这六个任务每 20k 步的 5 个种子。我算了 1M 步处的均值：Dog Walk 852，Humanoid Stand 865，Humanoid Walk 722，Dog Trot 584，Dog Run 323，Humanoid Run 185。最终值（Humanoid 3M，Dog 5M）分别是 932、923、885、861、535、357。所以“最快”这个词是准确的，这句话对 Stand 和 Dog Walk 成立，对两个 Run 任务不成立。</p>
+<p>矢量图里的 SAC 曲线没有在 3M 结束，路径一直延伸到约 10.2M，只是被坐标轴裁掉。读数：Humanoid Stand 上 SAC 在 3M 约 689，10M 约 883。这是图里隐藏的数据，不是论文报告的数字。</p>
+</div>
+
+<h2 id="s2"><span class="no">2</span>预备知识</h2>
+<p><b>问题设定。</b>无限时域 MDP，元组 \((\mathcal S,\mathcal A,\mathcal T,\mathcal R,\gamma,p_0)\)，状态和动作连续。目标是学映射 \(\Pi_\theta\)，最大化折扣回报 \(\mathbb E_{\Gamma\sim\Pi_\theta}[\sum_{t}\gamma^t r_t]\)。</p>
+<p><b>拟合 Q 迭代。</b>无模型 TD 方法用 \(Q_\theta\) 逼近最优状态-动作价值 \(Q^*\)，反复做回归：</p>
+\[\theta_{k+1}\leftarrow\arg\min_\theta\ \mathbb E_{(s,a,s')\sim\mathcal B}\,\|Q_\theta(s,a)-y\|_2^2\tag{1}\]
+<p>其中 \(y=\mathcal R(s,a)+\gamma\max_{a'}Q_{\theta^-}(s',a')\)，\(\mathcal B\) 是回放缓存，\(\theta^-\) 是在线参数的慢速滑动平均，更新为 \(\theta^-_{k+1}\leftarrow(1-\zeta)\theta^-_k+\zeta\theta_k\)。</p>
+<p><b>模型预测控制。</b>actor-critic 里 \(\Pi\) 是神经网络；控制领域里 \(\Pi\) 是一段轨迹优化程序。每步求有限时域的解，只执行第一个动作：</p>
+\[\Pi^{\mathrm{MPC}}_\theta(s_t)=\arg\max_{a_{t:t+H}}\ \mathbb E\Big[\sum_{i=t}^{H}\gamma^i\mathcal R(s_i,a_i)\Big]\tag{2}\]
+<p>这里的 \(\gamma\) 通常取 1，这和 Q 迭代不同。求解方式之一是不求导的交叉熵法（Cross-Entropy Method，CEM）：反复拟合一个对角高斯分布。式 (2) 不预测长期奖励，所以是短视的。已知价值函数时可以把它接在 \(s_{t+H}\) 上，这叫带终值函数的 MPC。</p>
+<p><b>记号。</b>论文用 \(\Pi_\theta\) 表示规划，\(\pi_\theta\) 表示策略网络；\(\theta\) 是在线参数，\(\theta^-\) 是目标参数。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · ζ 的方向，τ 的两个意思</span>
+<p>§2 的公式 \(\theta^-\leftarrow(1-\zeta)\theta^-+\zeta\theta\) 里，\(\zeta\) 是在线参数的份额。表 4 和附录 G 给 \(\zeta=0.99\)，并说比原来的 0.995 “更快”。按公式带入，目标网络每次取 99% 的在线参数，这不是“慢速平均”。代码里 <code>tau: 0.01</code>，<code>p_target.lerp_(p, tau)</code>，也就是 99% 留旧值。所以表 4 的 0.99 是留旧份额，§2 公式的方向写反了；“比 0.995 更快”只在留旧份额的意义下成立，这个是我的推断，和代码一致。</p>
+<p>另外 \(\tau\) 在 §3 是 MPPI 温度（0.5），在算法 2 第 19 行是目标网络系数。代码里分别是 <code>temperature</code> 和 <code>tau</code>。</p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>TD-Learning for MPC</h2>
+<p>框架由这些部分组成：用 MPPI（Model Predictive Path Integral，模型预测路径积分，Williams 等 2015）做规划 \(\Pi_\theta\)；学到的潜动力学 \(d_\theta\) 和奖励 \(R_\theta\)；终值 \(Q_\theta\)；帮助规划的策略 \(\pi_\theta\)。这一节只讲推理，训练放到 §4。</p>
+<p><b>MPPI。</b>它迭代地更新一族分布的参数，用估计回报前 \(k\) 条轨迹的重要性加权平均。这里的分布是随时间变化、对角协方差的多元高斯：每个未来时间步有一组独立的 \(\mu,\sigma\in\mathbb R^m\)。从初值 \((\mu^0,\sigma^0)\) 出发，采样 \(N\) 条轨迹，用模型 \(d_\theta\) 滚出，估计总回报：</p>
+\[\phi_\Gamma\triangleq\mathbb E_\Gamma\Big[\gamma^H Q_\theta(z_H,a_H)+\sum_{t=0}^{H-1}\gamma^t R_\theta(z_t,a_t)\Big]\tag{3}\]
+<p>其中 \(z_{t+1}=d_\theta(z_t,a_t)\)，\(a_t\sim\mathcal N(\mu^{j-1}_t,(\sigma^{j-1}_t)^2\mathrm I)\)。取前 \(k\) 个回报 \(\phi^\star_\Gamma\)，得到新参数：</p>
+\[\mu^j=\frac{\sum_{i=1}^k\Omega_i\Gamma^\star_i}{\sum_{i=1}^k\Omega_i},\qquad\sigma^j=\sqrt{\frac{\sum_{i=1}^k\Omega_i(\Gamma^\star_i-\mu^j)^2}{\sum_{i=1}^k\Omega_i}}\tag{4}\]
+<p>\(\Omega_i=e^{\tau\phi^\star_{\Gamma,i}}\)，\(\tau\) 是温度，控制加权的尖锐程度。迭代固定 \(J\) 次后，从最终分布采样一个动作序列。每个决策步都这样重做一次，只执行第一个动作。这叫滚动时域，结果等于一个反馈策略。</p>
+<p><b>热启动。</b>为了少迭代几轮，把上一步的 \(\mu\) 左移一格接着用；但方差总是从一个大值开始，避免陷入局部极小。</p>
+<pre class="algo">算法 1  TD-MPC（推理）
+输入：θ 网络参数；μ⁰, σ⁰ 初值；N, Nπ 采样和策略轨迹数；s_t, H
+1: z_t ← h_θ(s_t)
+2: for 每轮 j = 1..J
+3:    从 N(μʲ⁻¹, (σʲ⁻¹)²I) 采样 N 条长 H 的轨迹
+4:    用 π_θ, d_θ 采样 Nπ 条长 H 的轨迹
+5:    for 全部 N + Nπ 条轨迹 (a_t, ..., a_{t+H})，φ_Γ 从 0 开始
+6:       for t = 0..H−1
+7:          φ_Γ ← φ_Γ + γᵗ R_θ(z_t, a_t)     （奖励）
+8:          z_{t+1} ← d_θ(z_t, a_t)          （潜转移）
+9:       φ_Γ ← φ_Γ + γᴴ Q_θ(z_H, a_H)        （终值）
+10:   μʲ, σʲ ← 式 (4)，以及式 (5)
+11: 返回 a ~ N(μᴶ, (σᴶ)²I)</pre>
+<p><b>规划带来的探索。</b>DDPG 这类无模型方法靠往策略里加噪声来探索。规划本身带随机性，但作者发现 \(\sigma\) 衰减的速度在任务之间差别很大，太小就陷入局部最优。于是约束标准差：</p>
+\[\sigma^j=\max\Bigg(\sqrt{\frac{\sum_{i=1}^N\Omega_i(\Gamma^\star_i-\mu^j)^2}{\sum_{i=1}^N\Omega_i}},\ \epsilon\Bigg)\tag{5}\]
+<p>\(\epsilon\) 是线性衰减的常数。同样地，规划长度在训练早期从 1 线性增长到 \(H\)，因为这时模型还不准，规划会被模型偏差主导。</p>
+<p><b>策略引导的轨迹优化。</b>类似 MuZero 和 LOOP，TD-MPC 额外学一个 \(\pi_\theta\)，用它补充样本。结果有两种：轨迹差，就进不了前 \(k\)；轨迹好，就按回报分到影响。LOOP 靠 SAC 的最大熵目标探索，TD-MPC 的 \(\pi\) 是确定性的，所以像 DDPG 那样加线性退火的高斯噪声。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 算法 1 和代码 <code>plan()</code>、<code>estimate_value()</code> 的对照</span>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>项</th><th>论文</th><th>代码 f4d85ec</th></tr></thead><tbody>
+<tr><td>π 轨迹</td><td>第 4 行在循环内，每轮采样</td><td>循环外采一次，\(J\) 轮复用同一批动作</td></tr>
+<tr><td>终值动作</td><td>第 5 行序列有 \(H+1\) 个动作，式 (3) 用 \(a_H\)</td><td>序列 \(H\) 个动作；\(a_H=\pi(z_H)\) 加 0.05 噪声</td></tr>
+<tr><td>返回值</td><td>第 11 行从 \(\mathcal N(\mu^J,(\sigma^J)^2)\) 采样</td><td>按权重抽一条精英，取第一个动作；训练时再加 \(\sigma\) 噪声，评估时不加</td></tr>
+<tr><td>均值动量</td><td>式 (4) 没有；表 4 写 0.1</td><td><code>mean = 0.1*mean + 0.9*_mean</code></td></tr>
+<tr><td>σ 上限</td><td>式 (5) 只有下限</td><td>裁到 \([\epsilon,2]\)</td></tr>
+<tr><td>动作范围</td><td>没写</td><td>高斯样本裁到 \([-1,1]\)。\(\sigma^0=2\) 时第一轮大量样本落在边界上（我的推断）</td></tr>
+<tr><td>Q</td><td>单个</td><td>\(\min(Q_1,Q_2)\)</td></tr>
+<tr><td>数量</td><td>\(N=512\)，+5%</td><td>\(\lfloor0.05\times512\rfloor=25\)，共 537 条</td></tr>
+</tbody></table></div>
+<p>对得上的：热启动（<code>mean[:-1] = _prev_mean[1:]</code>，末格补 0），\(\sigma\) 每步重置为 2。Ω 的指数：代码减去精英最大值再归一化，和式 (4) 只差一个常数因子，结果相同。动画按代码画，第 7 幕可以切换 π 的两种采样方式。</p>
+</div>
+<div class="note" id="n4"><span class="lab">读者注 4 · π 的噪声并没有退火</span>
+<p>§3 和 §5 都说 \(\pi\) 的噪声按 \(\epsilon\) 从 0.5 退火到 0.05。代码里 <code>self.std</code> 只出现在 <code>_std.clamp_(self.std, 2)</code> 这一处。规划、TD 目标、策略更新里 \(\pi\) 的噪声都是 <code>cfg.min_std</code>，恒为 0.05，还被截断到 ±0.3（<code>TruncatedNormal.sample(clip=0.3)</code>）。也就是说这个版本的代码里，退火只作用于式 (5) 的下限。</p>
+<p>另外 <code>self.std</code> 只在 <code>update()</code> 里更新。前 5,000 个 seed 决策步用均匀随机动作，不规划也不更新。第一个规划回合还是初值 0.5，这回合结束后第一次 <code>update()</code>，\(\epsilon\) 直接到 0.41（\(0.5-0.45\times5000/25000\)）。</p>
+</div>
+
+<h2 id="i3d" style="border:0;margin-top:30px">3D 框架动画</h2>
+<div class="i3d">
+<p class="lab">11 幕 · 第 5 幕是算法 1 的现场计算</p>
+<p>N 和 H 可以拖，改了当场重跑。Q、π 在第 6、7、8 幕切换。世界是一个二维玩具，d、R 就是真实环境，Q 是值迭代算的，比任何学到的模型都准；它只说明算法的行为。</p>
+<iframe src="../interactives/td-mpc/index.html?embed=1&amp;scene=5" title="TD-MPC 3D 框架动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/td-mpc/index.html">全屏打开，含 11 幕列表、完整结构表和“哪些是示意”</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>面向任务的潜动力学模型 TOLD</h2>
+<p>TOLD 和终值函数一起用 TD 学习。它只建模环境里能预测奖励的部分，这是个容易得多的问题。支持连续动作、任意输入模态和稀疏奖励。</p>
+<p><b>组成。</b>训练时反复做两件事：用收集的数据改进 TOLD；用 TD-MPC 在线规划收集新数据。TOLD 有五个学习部件：</p>
+\[\begin{aligned}\text{表征：}&\ z_t=h_\theta(s_t)\\\text{潜动力学：}&\ z_{t+1}=d_\theta(z_t,a_t)\\\text{奖励：}&\ \hat r_t=R_\theta(z_t,a_t)\\\text{价值：}&\ \hat q_t=Q_\theta(z_t,a_t)\\\text{策略：}&\ \hat a_t\sim\pi_\theta(z_t)\end{aligned}\tag{6}\]
+<p>为了少受累积误差影响，这些量从预测出的未来潜状态上递推多步，梯度穿过时间回传。和以往工作不同，全部部件都是纯确定性的 MLP，没有 RNN 门控，也没有概率模型。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig2.webp" width="902" height="938" alt="图 2：TOLD 训练。三个时间步上 z 递推，后续观测走目标网络，每步预测价值、奖励和动作" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>从回放缓存取一段长 \(H\) 的轨迹，第一帧观测 \(s_0\) 由 \(h_\theta\) 编码成 \(z_0\)。之后 TOLD 递推出 \(z_1,z_2,\dots\)，并在每个潜状态上预测价值、奖励和动作。后面的观测由目标网络 \(h_{\theta^-}\) 编码（灰色），只用作训练目标。</figcaption>
+</figure>
+<p><b>目标函数。</b>从回放缓存采一段 \(\Gamma=(s_t,a_t,r_t,s_{t+1})_{t:t+H}\)，最小化按时间加权的目标：</p>
+\[\mathcal J(\theta;\Gamma)=\sum_{i=t}^{t+H}\lambda^{i-t}\mathcal L(\theta;\Gamma_i)\tag{7}\]
+<p>单步损失由三项组成：</p>
+\[\mathcal L(\theta;\Gamma_i)=c_1\underbrace{\|R_\theta(z_i,a_i)-r_i\|_2^2}_{\text{奖励}}\tag{8}\]
+\[+\,c_2\underbrace{\|Q_\theta(z_i,a_i)-(r_i+\gamma Q_{\theta^-}(z_{i+1},\pi_\theta(z_{i+1})))\|_2^2}_{\text{价值}}\tag{9}\]
+\[+\,c_3\underbrace{\|d_\theta(z_i,a_i)-h_{\theta^-}(s_{i+1})\|_2^2}_{\text{潜状态一致性}}\tag{10}\]
+<p>\(\lambda\) 让近处的预测权重更高。关键在于递推完全在潜空间做：只有第一帧走 \(h_\theta\)，三项的梯度都穿过时间回传。这和“先学模型、再学策略或价值”的做法不同。\(\theta^-\) 既用于价值目标，也用于一致性目标。</p>
+<p><b>TD 目标怎么算。</b>式 (9) 需要 \(\max_a Q_{\theta^-}\)，用规划来算太贵。所以学一个策略来近似，最小化：</p>
+\[\mathcal J_\pi(\theta;\Gamma)=-\sum_{i=t}^{t+H}\lambda^{i-t}Q_\theta(z_i,\pi_\theta(\mathrm{sg}(z_i)))\tag{11}\]
+<p>\(\mathrm{sg}\) 是停梯度算子，式 (11) 只对策略参数优化。作者观察到，复杂任务上 \(\pi\) 不如规划，但用来做价值学习足够了。</p>
+<p><b>潜状态一致性。</b>以前常用预测未来状态或像素作为丰富的学习信号。这个问题很难，它要求网络建模环境里的一切。这里改用式 (10)：让预测的 \(z_{t+1}\) 接近真实下一观测的潜表示 \(h_{\theta^-}(s_{t+1})\)，完全绕开观测预测。这个设计也让模型学习不依赖观测的模态。</p>
+<pre class="algo">算法 2  TOLD（训练）
+输入：θ, θ⁻ 随机初始化；η, τ, λ, B
+1: while 没累
+2:    // 用 TD-MPC 从 s₀ ~ p₀ 收集一回合
+3:    for t = 0...T
+4:       a_t ~ Π_θ(·|h_θ(s_t))
+5:       (s_{t+1}, r_t) ~ T(·|s_t, a_t), R(·|s_t, a_t)
+6:       B ← B ∪ (s_t, a_t, r_t, s_{t+1})
+7:    // 用 B 更新 TOLD
+8:    for 每回合的更新次数
+9:       {s_t, a_t, r_t, s_{t+1}}_{t:t+H} ~ B
+10:      z_t = h_θ(s_t)
+11:      J = 0
+12:      for i = t...t+H
+13:         r̂_i = R_θ(z_i, a_i)                 式 (8)
+14:         q̂_i = Q_θ(z_i, a_i)                 式 (9)
+15:         z_{i+1} = d_θ(z_i, a_i)              式 (10)
+16:         â_i = π_θ(z_i)                       式 (11)
+17:         J ← J + λ^{i−t} L(z_{i+1}, r̂_i, q̂_i, â_i)   式 (7)
+18:      θ ← θ − (1/H) η ∇_θ J
+19:      θ⁻ ← (1−τ)θ⁻ + τθ</pre>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 (7) 到 (11) 和代码 <code>update()</code> 的对照</span>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>项</th><th>论文</th><th>代码 f4d85ec</th></tr></thead><tbody>
+<tr><td>TD 目标的下一潜状态</td><td>式 (9) 写 \(z_{i+1}\)，按记法是 \(d\) 递推的结果</td><td><code>self.model.h(next_obs)</code>：<b>在线编码器重编真实观测</b>，不是递推的结果，也不是目标编码器</td></tr>
+<tr><td>TD 目标的 Q</td><td>单个 \(Q_{\theta^-}\)</td><td>\(\min(Q^-_1,Q^-_2)\)，动作用在线 \(\pi\) 加 0.05 噪声</td></tr>
+<tr><td>求和范围</td><td>式 (7) \(i=t\dots t+H\)，\(H+1\) 项</td><td>模型损失 \(H\) 项（<code>for t in range(horizon)</code>，附录 F 的伪代码也是）；策略损失 \(H+1\) 项</td></tr>
+<tr><td>一致性的尺度</td><td>式 (10) 是平方范数</td><td>对潜维度取平均，\(Z=50\) 时相当于每维系数 2/50</td></tr>
+<tr><td>优化</td><td>算法 2 一个 \(J\)，第 18 行一步</td><td>策略单独一个优化器单独一步；模型梯度乘 \(1/H\)，和第 18 行一致</td></tr>
+<tr><td>策略损失的 z</td><td>\(\mathrm{sg}(z_i)\)</td><td><code>zs</code> 里都是 detach 的递推潜状态，一致</td></tr>
+<tr><td>裁剪</td><td>没写</td><td>梯度范数 10；每项损失 clamp 到 \(10^4\)</td></tr>
+<tr><td>回放优先级</td><td>“按价值损失”</td><td>\(Q_1,Q_2\) 对目标的 L1 误差，按 \(\rho^t\) 累加</td></tr>
+</tbody></table></div>
+<p>第一行影响最实际。按代码，价值目标不依赖 \(d\) 的预测，这一路不受模型累积误差影响。动画第 3 幕有按钮对照。</p>
+</div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 玩具实验：挑选任务信息的是哪一项</span>
+<p>这是我自己的实验，不是论文内容。观测 6 维：\(x,v\) 决定奖励，另外四个是两对匀速旋转的干扰量，幅度 5，和动作、奖励都无关。按算法 2 训练一个极小的 TOLD（\(h,d\) 线性，\(R,Q\) 12 隐单元，3000 步），用留出数据上 \(z\) 对各量的线性回归 \(R^2\) 衡量表示留下了什么。三个种子的均值：</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>潜维度</th><th>损失</th><th>\(R^2(x)\)</th><th>\(R^2(v)\)</th><th>\(R^2\)(干扰)</th><th>3 步奖励 MSE</th></tr></thead><tbody>
+<tr><td>4</td><td>TOLD</td><td>0.959</td><td>0.508</td><td>0.686</td><td>0.089</td></tr>
+<tr><td>4</td><td>无一致性 \(c_3=0\)</td><td>1.000</td><td>0.964</td><td>0.512</td><td>0.041</td></tr>
+<tr><td>4</td><td>重建（带解码器）</td><td>0.007</td><td>0.015</td><td>0.999</td><td>0.129</td></tr>
+<tr><td>2</td><td>TOLD</td><td>0.034</td><td>0.006</td><td>0.485</td><td>0.126</td></tr>
+<tr><td>2</td><td>无一致性 \(c_3=0\)</td><td>1.000</td><td>0.979</td><td>0.010</td><td>0.006</td></tr>
+<tr><td>2</td><td>重建（带解码器）</td><td>0.010</td><td>0.014</td><td>0.500</td><td>0.125</td></tr>
+</tbody></table></div>
+<p>重建的结果符合论文的说法：容量被大幅度的干扰占满，任务量没有了。但表里还有一点论文没强调：<b>一致性损失本身不过滤</b>。匀速旋转的干扰一样好预测，\(Z=2\) 时它把容量让给了干扰，\(x\) 也没了。真正挑任务信息的是奖励和价值项。这和“一致性没用”不是一回事，论文附录 D 在 15 个任务上发现无正则平均更差。我的玩具动力学线性、状态也小，正则的好处体现不出来，不能外推。动画第 4 幕可以现场重跑。</p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>在 92 个任务上评测，覆盖稀疏奖励、高维状态和动作、图像观测、多模态、目标条件和多任务。回答三个问题：和最好的基于模型、无模型方法比如何；只看奖励的目标是否还能多任务和迁移；性能和规划算力的关系。</p>
+<p><b>实现细节。</b>全部组件确定性 MLP。\(\epsilon\) 在前 25k 决策步从 0.5 退火到 0.05（脚注：环境步不依赖动作重复，决策步依赖）。\(H=5\)，用价值损失作为优先级的 <a class="ds" href="https://arxiv.org/abs/1511.05952">PER</a> 采样。规划迭代 6 轮（Dog 8，Humanoid 12），\(N=512\)（再加 5% 来自 \(\pi\)），每轮用前 64 条算 \(\mu,\sigma\)。图像任务是 3 帧堆叠的 84×84 RGB，±4 像素平移增强。论文说这个实现大多数任务单 GPU 一小时内解决。</p>
+<p><b>基线。</b></p>
+<ul>
+<li><a class="ds" href="https://arxiv.org/abs/1801.01290">SAC</a>（<a href="https://github.com/denisyarats/pytorch_sac">Yarats 和 Kostrikov 的实现</a>）：最大熵无模型方法，主要比较对象。</li>
+<li><a class="ds" href="https://arxiv.org/abs/2008.10066">LOOP</a>：在 SAC 上加规划和学到的模型，和本文最相似。</li>
+<li>MPC:sim：用真实模拟器的 MPC。太贵，所以 \(H=10\)（本文 2 倍），200 条轨迹，4 轮（本文 6 轮）。</li>
+<li><a class="ds" href="https://arxiv.org/abs/2004.04136">CURL</a>、<a class="ds" href="https://arxiv.org/abs/2004.13649">DrQ</a>、<a class="ds" href="https://arxiv.org/abs/2107.09645">DrQ-v2</a>：无模型图像方法。</li>
+<li><a class="ds" href="https://arxiv.org/abs/1811.04551">PlaNet</a>、<a class="ds" href="https://arxiv.org/abs/1912.01603">Dreamer</a>、<a class="ds" href="https://arxiv.org/abs/2010.02193">Dreamer-v2</a>：用重建损失学模型，用 MPC 或策略选动作。</li>
+<li><a class="ds" href="https://arxiv.org/abs/1911.08265">MuZero</a>、<a class="ds" href="https://arxiv.org/abs/2111.00210">EfficientZero</a>：从奖励学潜动力学，用 MCTS（蒙特卡洛树搜索）做离散动作选择。</li>
+<li>消融：(i) \(h_\theta\) 换成恒等映射（状态预测）；(ii) 去掉式 (10)；(iii) 式 (10) 换成重建；(iv) 换成对比损失。</li>
+</ul>
+<figure class="pfig">
+<img src="td-mpc/fig3.webp" width="1378" height="1140" alt="图 3：15 个 DMControl 状态任务和它们平均的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 6 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>左上是 15 个任务的平均，其余是 Acrobot Swingup、Cartpole Swingup（含 Sparse）、Cheetah Run、Cup Catch、Finger Spin、Finger Turn Hard、Fish Swim、Hopper Hop、Quadruped Run、Quadruped Walk、Reacher Easy、Reacher Hard、Walker Run、Walker Walk。方法：SAC、LOOP、MPC:sim、TD-MPC（无潜）、TD-MPC（无正则）、TD-MPC。横轴到 500k，5 次运行，95% 置信区间。Quadruped 和 Acrobot 上提升最明显。</figcaption>
+</figure>
+<p><b>表 1</b> 是图像任务的 <a class="ds" href="https://arxiv.org/abs/2004.04136">DMControl 100k</a> 基准（均值 ± 标准差，10 次运行）。基线是专门为图像调过的，本文没有。MuZero 和 EfficientZero 用离散化动作，EfficientZero 在评测前额外做 20k 步梯度，其他方法不做。离散化带来维度爆炸，所以它们解不了动作 6 维的 Walker Walk 和 Cheetah Run。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>100k 环境步</th><th>SAC State</th><th>SAC Pixels</th><th>CURL</th><th>DrQ</th><th>PlaNet</th><th>Dreamer</th><th>MuZero*</th><th>Eff.Zero*</th><th>TD-MPC</th></tr></thead><tbody>
+<tr><td>Cartpole Swingup</td><td>812±45</td><td>419±40</td><td>597±170</td><td>759±92</td><td>563±73</td><td>326±27</td><td>219±122</td><td>813±19</td><td>770±70</td></tr>
+<tr><td>Reacher Easy</td><td>919±123</td><td>145±30</td><td>517±113</td><td>601±213</td><td>82±174</td><td>314±155</td><td>493±145</td><td>952±34</td><td>628±105</td></tr>
+<tr><td>Cup Catch</td><td>957±26</td><td>312±63</td><td>772±241</td><td>913±53</td><td>710±217</td><td>246±174</td><td>542±270</td><td>942±17</td><td>933±24</td></tr>
+<tr><td>Finger Spin</td><td>672±76</td><td>166±128</td><td>779±108</td><td>901±104</td><td>560±77</td><td>341±70</td><td>−</td><td>−</td><td>943±59</td></tr>
+<tr><td>Walker Walk</td><td>604±317</td><td>42±12</td><td>344±132</td><td>612±164</td><td>221±43</td><td>277±12</td><td>−</td><td>−</td><td>577±208</td></tr>
+<tr><td>Cheetah Run</td><td>228±95</td><td>103±38</td><td>307±48</td><td>344±67</td><td>165±123</td><td>235±137</td><td>−</td><td>−</td><td>222±88</td></tr>
+</tbody></table></div>
+<figure class="pfig">
+<img src="td-mpc/fig4.webp" width="1378" height="789" alt="图 4：12 个图像任务的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 7 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>12 个更难的图像任务，动作重复都是 2，数据量最多是表 1 的 30 倍。方法：CURL、DrQ、DrQ-v2、Dreamer-v2、TD-MPC。基线每个任务单独调超参数，TD-MPC 全部用同一套。结论：一直胜过 CURL 和 DrQ，和 DrQ-v2、Dreamer-v2 相当。</figcaption>
+</figure>
+<p><b>任务总计。</b>6 个 Humanoid、Dog；15 个状态任务（6 个稀疏奖励）；6 个 DMControl 100k；12 个 Dreamer 基准图像任务；2 个多模态四足；50 个目标条件 Meta-World，以及 10 任务同时学的 MT10。Humanoid 只跑 3M 步，以往通常 30M。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 92 这个数怎么来</span>
+<p>6 + 15 + 6 + 12 + 2 + 50 = 91，再把 MT10 算 1 个才是 92。这里面有重复的底层任务，比如 Finger Spin、Cup Catch 同时出现在状态和图像两组。这个数是“实验配置数”。</p>
+</div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 1 里谁最好</span>
+<p>不算 SAC State（它不看像素），每行最好的图像方法：Cartpole 813（EfficientZero），Reacher 952（EfficientZero），Cup 942（EfficientZero），Finger 943（TD-MPC），Walker 612（DrQ），Cheetah 344（DrQ）。TD-MPC 6 行里赢 1 行，且多数行误差区间互相重叠。论文的用词是“competitive”，准确。</p>
+</div>
+<p><b>和其他方法比。</b>多数任务胜过或持平，复杂任务上差距更大，作者称这是 Dog 任务的第一个有记录的结果。LOOP 和 SAC 接近。MPC:sim 在运动任务上不错，稀疏奖励上失败。EfficientZero 在低维动作上很强，但 MCTS 要把动作离散化，高维不可行；TD-MPC 能处理 Dog 的 38 维。Finger Turn Hard 这个难探索任务上不如 SAC 和 LOOP，说明更好的探索策略可能有用。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig5.webp" width="1020" height="817" alt="图 5：Meta-World 和多模态任务的曲线" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 8 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>上：50 个目标条件 Meta-World 任务的成功率，和 MT10 多任务。下：Quadruped Corridor 和 Obstacles，TD-MPC 融合本体感觉和第一人称相机；Blind 只有本体感觉，解不了；虚线是 MPC:sim。</figcaption>
+</figure>
+<p><b>多任务、多模态、泛化。</b>只看奖励的目标还能不能从任务之间受益？两个实验都说可以：MT10 共享一个策略，以及从 Walk 迁移到 Run（附录 A）。作者猜测相似任务的奖励结构相似，所以信息能共享，但无关任务上通用模型应该更占优。另一个好处是不依赖模态：同时编码本体和图像、把特征加起来就能解决多模态任务，看不到相机的智能体失败。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig6.webp" width="1030" height="375" alt="图 6：Quadruped Walk 上回报随规划长度和迭代次数的变化" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 8 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>训练好的智能体在 Quadruped Walk 上，左边改规划长度（迭代固定 6），右边改迭代次数（长度固定 5）。星号是默认设置，叉号是只用 \(\pi\)。5 次运行均值。</figcaption>
+</figure>
+<p><b>性能和计算预算。</b>复杂任务（Quadruped Walk，12 维动作）上，多规划一般更好；但推理时迭代次数减半（相对训练）没有明显掉分。要非常快可以扔掉规划直接用 \(\pi\)，但一般不如规划。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 6 的矢量读数</span>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>设置</th><th>1</th><th>3</th><th>5</th><th>7</th><th>9</th></tr></thead><tbody>
+<tr><td>H 变化（J = 6）</td><td>724.5</td><td>863.4</td><td>929.5</td><td>945.0</td><td>937.6</td></tr>
+<tr><td>J 变化（H = 5）</td><td>703.1</td><td>928.5</td><td>932.6</td><td>926.1</td><td>931.8</td></tr>
+</tbody></table></div>
+<p>默认设置（星号）942.2，\(\pi\) 830.9，规划比 \(\pi\) 高 111，约 12%。</p>
+<p>“迭代减半不掉分”：\(J=3\) 是 928.5，和 \(J=5\) 的 932.6、\(J=7\) 的 926.1 差不多，成立。但回报不掉不等于时间减半。耗时只测了 Quadruped Run（图 11）：\(J=3\) 是 12.9 ms，默认 20.4 ms，省 37%。见<a href="#n14">读者注 14</a>。</p>
+<p>星号和 H = 5 那个点是同一个设置，却画了 942.2 和 929.5 两个值，差 12.7。可以把这当成这张图的噪声尺度：H = 5 到 H = 9 的几个差别都比它小。官方 CSV 里 Quadruped Walk 在 500k 的均值是 931，和 929.5 那个点相近。</p>
+</div>
+<p><b>表 2 训练墙钟时间</b>（Walker Walk 解决线 940，Humanoid Stand 解决线 800，单张 RTX3090，5 次运行）。</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>小时</th><th>Walker SAC</th><th>LOOP</th><th>MPC:sim</th><th>TD-MPC</th><th>Humanoid SAC</th><th>TD-MPC</th></tr></thead><tbody>
+<tr><td>解决耗时</td><td>0.41</td><td>7.72</td><td>0.91</td><td>0.47</td><td>9.31</td><td>9.39</td></tr>
+<tr><td>每 500k 步</td><td>1.41</td><td>18.5</td><td>−</td><td>5.60</td><td>1.82</td><td>12.94</td></tr>
+</tbody></table></div>
+<p>论文的结论：Walker Walk 比 LOOP 快 16 倍，每 500k 步省 3.3 倍；两个任务上解决耗时都和 SAC 持平，同时样本效率高得多。这就消除了基于模型和无模型在解决耗时上的差距。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 2 的核算：Walker 对得上，Humanoid Stand 对不上</span>
+<p>16 倍（7.72 / 0.47 = 16.4）和 3.3 倍（18.5 / 5.60 = 3.30）都对。</p>
+<p>两行相除可以反推“解决时用了多少环境步”。Walker Walk TD-MPC：0.47 / 5.60 × 500k = 42k，官方 CSV 里 5 个种子都是在 40k 这个检查点首次过 940，对得上。</p>
+<p>Humanoid Stand TD-MPC：9.39 / 12.94 × 500k = <b>363k</b>。但官方 CSV 里 360k 处的均值只有 428，均值首次过 800 是在 800k；各种子首次过 800 的平均是 740k。图 1 的矢量读数同样是约 800k。按每 500k 步 12.94 小时算，800k 需要 20.7 小时，740k 需要 19.2 小时，都约是表里 9.39 的两倍。</p>
+<p>SAC 也有偏差，方向相同但小一些：9.31 / 1.82 × 500k = 2.56M，图 1 的 SAC 在这里约 660，首次过 800 约 3.34M（对应约 12.2 小时）。</p>
+<p>如果按这些换算，Humanoid Stand 上 TD-MPC 要比 SAC 慢约 1.7 倍，“持平”就不成立。我不知道差在哪：可能墙钟时间不随步数线性（但默认 \(H\) 只在前 25k 步变化），也可能那一行的 12.94 口径不同。论文没写解决耗时的计算方式。Walker Walk 上的结论不受影响。</p>
+</div>
+
+<h2 id="s6"><span class="no">6</span>相关工作</h2>
+<p><b>时序差分。</b>DDPG、SAC 学策略和价值，不学模型。QT-Opt 等也学 \(Q\)，但用无模型 CEM 代替或增强策略。本文联合学模型、价值和策略，用采样规划交互。</p>
+<p><b>基于模型的 RL。</b>常见做法是学一个环境模型用于规划，或者用它生成数据训练无模型算法。一些方法用视频预测学动力学；MOPO、MOReL 是离线设定；MuZero、EfficientZero 用奖励预测学潜动力学，其中 EfficientZero 的模型学法最接近本文，但 MCTS 不兼容连续动作。学习 MPC 的终值函数已有先例，作者说（就他们所知）自己是第一个在连续控制里用 TD 学习联合学模型和价值函数的。</p>
+<p><b>混合算法。</b>很多工作结合无模型和基于模型的成分，大多和本文正交。Clavera 等、Buckman 等、Lowrey 等用模型改进策略和价值学习。LOOP 用学到的状态预测模型扩展 SAC，并约束规划贴近 SAC 策略；本文用规划替换策略，学的是面向任务的潜模型。</p>
+
+<h2 id="s7"><span class="no">7</span>结论</h2>
+<p>TD-MPC 在模型的学法和用法上都很不同，已经能在多种连续控制任务上胜过基于模型和无模型方法，并且稍作修改就能在图像任务上达到当时最好水平。作者认为还有不少改进空间：更有创意地使用模型，更好的探索，模型结构上的创新。致谢提到 NSF 和 Meta、Qualcomm 的资助。</p>
+
+<h2 id="aA"><span class="no">A</span>模型泛化</h2>
+<p>看 TOLD 能否在相关任务之间迁移：在 Walker 和 Quadruped 的 Walk 上训练，再到 Run 上在线微调，所有超参数不变，只有初始化不同。整体微调明显收敛更快；再分别冻结 \(h_\theta\)，以及同时冻结 \(h_\theta,d_\theta\)。只冻结 \(h\) 几乎不损失，说明编码器学到的东西可迁移；同时冻结 \(d\)，收敛显著变慢，说明 \(d\) 更偏向任务专属。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig7.webp" width="949" height="515" alt="图 7：Quadruped Run 和 Walker Run 上微调实验的曲线" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 12 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>四条线：随机初始化，微调，微调并冻结 \(h_\theta\)，微调并冻结 \(h_\theta,d_\theta\)。5 次运行均值，95% 置信区间。</figcaption>
+</figure>
+
+<h2 id="aB"><span class="no">B</span>和以往工作的比较</h2>
+<p><b>表 3</b>：Compute 是作者对训练和推理相对算力的总体估计。“policy w/ CEM”表示推理主要靠策略，反之亦然。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>方法</th><th>模型目标</th><th>价值</th><th>推理</th><th>连续动作</th><th>算力</th></tr></thead><tbody>
+<tr><td>SAC</td><td>✗</td><td>✓</td><td>Policy</td><td>✓</td><td>Low</td></tr>
+<tr><td>QT-Opt</td><td>✗</td><td>✓</td><td>CEM</td><td>✓</td><td>Low</td></tr>
+<tr><td>MPC:sim</td><td>Ground-truth model</td><td>✗</td><td>CEM</td><td>✓</td><td>High</td></tr>
+<tr><td>POLO</td><td>Ground-truth model</td><td>✓</td><td>CEM</td><td>✓</td><td>High</td></tr>
+<tr><td>LOOP</td><td>State prediction</td><td>✓</td><td>Policy w/ CEM</td><td>✓</td><td>Moderate</td></tr>
+<tr><td>PlaNet</td><td>Image prediction</td><td>✗</td><td>CEM</td><td>✓</td><td>High</td></tr>
+<tr><td>Dreamer</td><td>Image prediction</td><td>✓</td><td>Policy</td><td>✓</td><td>Moderate</td></tr>
+<tr><td>MuZero</td><td>Reward/value pred.</td><td>✓</td><td>MCTS w/ policy</td><td>✗</td><td>Moderate</td></tr>
+<tr><td>EfficientZero</td><td>Reward/value pred. + contrast.</td><td>✓</td><td>MCTS w/ policy</td><td>✗</td><td>Moderate</td></tr>
+<tr><td>TD-MPC (ours)</td><td>Reward/value pred. + latent pred.</td><td>✓</td><td>CEM w/ policy</td><td>✓</td><td>Low</td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · “Low”和表 2</span>
+<p>表 3 把 TD-MPC 和 SAC 都标 Low。表 2 里每 500k 步的耗时，TD-MPC 是 SAC 的 4.0 倍（Walker，5.60 / 1.41）和 7.1 倍（Humanoid，12.94 / 1.82）。它只有按解决耗时算才可能和 SAC 同档，而 Humanoid 这一项见<a href="#n10">读者注 10</a>。表 3 写明是“总体估计”，这不算矛盾，但读的时候不要把 Low 理解成每步开销相同。</p>
+</div>
+
+<h2 id="aC"><span class="no">C</span>可变算力预算</h2>
+<p>补充图 6：动作维度高的任务（两个 Quadruped）规划和 \(\pi\) 的差距更大；动力学简单的任务（Cartpole）预算变化影响小。默认 \(H=5\)、6 轮在算力和性能之间平衡得不错。</p>
+<figure class="pfig">
+<img src="td-mpc/fig8.webp" width="1540" height="563" alt="图 8：四个任务的回报随规划长度和迭代次数变化" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>Quadruped Run（12 维）、Fish Swim（5 维）、Reacher Hard（2 维）、Cartpole Swingup Sparse（1 维）。蓝线改规划长度，绿线改迭代次数，星号是默认，叉号是 \(\pi\)。5 次运行均值。</figcaption>
+</figure>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 8 的矢量读数</span>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>任务（动作维）</th><th>默认</th><th>\(\pi\)</th><th>差</th><th>H=1</th><th>H=5</th><th>H=9</th><th>J=1</th><th>J=3</th><th>J=9</th></tr></thead><tbody>
+<tr><td>Quadruped Run (12)</td><td>811.9</td><td>669.4</td><td>142.5</td><td>760.5</td><td>796.8</td><td>787.3</td><td>629.0</td><td>757.5</td><td>805.3</td></tr>
+<tr><td>Fish Swim (5)</td><td>749.9</td><td>696.2</td><td>53.7</td><td>603.3</td><td>758.6</td><td>707.1</td><td>669.1</td><td>709.6</td><td>714.7</td></tr>
+<tr><td>Reacher Hard (2)</td><td>965.3</td><td>923.1</td><td>42.2</td><td>891.6</td><td>973.5</td><td>956.2</td><td>912.7</td><td>954.6</td><td>967.7</td></tr>
+<tr><td>Cartpole Sparse (1)</td><td>846.1</td><td>840.7</td><td>5.4</td><td>845.6</td><td>846.9</td><td>845.1</td><td>840.1</td><td>846.8</td><td>847.2</td></tr>
+</tbody></table></div>
+<p>差距随动作维度单调缩小，附录的说法成立（四个点加图 6）。这只是相关：动作维度和任务难度分不开。</p>
+<p>§H 说 Quadruped Run 从 \(H=5\) 降到 1 “没有显著下降”。读数是 760.5 对 796.8（或星号 811.9），差 4.6% 到 6.3%，比前面的噪声尺度略大。Fish Swim 上同样操作掉到 603，差 20%。这句话只对那个任务。</p>
+</div>
+
+<h2 id="aD"><span class="no">D</span>潜动力学目标</h2>
+<p>把式 (10) 换成：(i) 对比损失，采用 <a class="ds" href="https://arxiv.org/abs/2011.10566">SimSiam</a> 框架，投影是 2 隐藏层 MLP 输出 32 维，预测头 1 隐藏层，ELU，隐藏 256，投影和预测模块用 BatchNorm，\(c_3=100\)（原本是 2）略好；(ii) 重建，解码器镜像编码器，1 隐藏层 MLP，ELU。外加无正则基线。结论：重建和对比都比无正则好，本文的一致性损失结果最稳定。</p>
+<figure class="pfig">
+<img src="td-mpc/fig10.webp" width="1301" height="1076" alt="图 10：15 个任务上不同潜动力学目标的学习曲线" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 15 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>无正则、重建、对比、潜状态一致性（本文）。15 个状态任务和平均，5 次运行，95% 置信区间。</figcaption>
+</figure>
+
+<h2 id="aE"><span class="no">E</span>规划带来的探索</h2>
+<p>图 9 是 Humanoid 三个任务上规划末轮 \(\sigma\) 的平均值随训练的变化。\(\sigma\) 随训练下降，任务解决时收敛；越难的任务下降越慢，作者猜是奖励和价值估计的方差更大。所以框架本身能平衡探索和利用。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig9.webp" width="667" height="484" alt="图 9：Humanoid Stand、Walk、Run 上规划标准差随训练变化" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>矢量读数：2.8M 到 3M 步的平均，Stand 0.069，Walk 0.098，Run 0.134。这是各动作维度的平均，都高于 \(\epsilon\) 的终值 0.05，说明 \(\sigma\) 并没有全部贴在下限上。</figcaption>
+</figure>
+
+<h2 id="aF"><span class="no">F</span>实现细节</h2>
+<p>状态任务的 \(h_\theta\) 是单隐藏层 256 的 MLP；图像任务是 4 层 CNN，核 (7,5,3,3)，步长 2，每层 32 通道。其他部件都是 2 层 512 的 MLP。价值函数用 LayerNorm。\(R_\theta,Q_\theta\) 末层权重和偏置初始化为 0，减小训练早期的偏差，其他全连接层用正交初始化。更大的网络不一定更好。多任务时把 one-hot 任务向量拼到状态上；多模态时分别编码再相加。</p>
+<p>全部超参数见表 4，大部分沿用 SAC 实现的取值。动作重复按任务设定，见附录 H 的表 7。</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>表 4 超参数</th><th>值</th></tr></thead><tbody>
+<tr><td>折扣 γ</td><td>0.99</td></tr><tr><td>Seed steps</td><td>5,000</td></tr><tr><td>回放缓存</td><td>Unlimited</td></tr><tr><td>采样</td><td>PER (α = 0.6, β = 0.4)</td></tr>
+<tr><td>规划长度 H</td><td>5</td></tr><tr><td>初始 (μ⁰, σ⁰)</td><td>(0, 2)</td></tr><tr><td>Population size</td><td>512</td></tr><tr><td>Elite fraction</td><td>64</td></tr>
+<tr><td>Iterations</td><td>12 (Humanoid)，8 (Dog, pixels)，6 (otherwise)</td></tr><tr><td>Policy fraction</td><td>5%</td></tr><tr><td>Particles</td><td>1</td></tr><tr><td>Momentum</td><td>0.1</td></tr><tr><td>Temperature τ</td><td>0.5</td></tr>
+<tr><td>MLP hidden</td><td>512</td></tr><tr><td>Activation</td><td>ELU</td></tr><tr><td>Latent dim</td><td>100 (Humanoid, Dog)，50 (otherwise)</td></tr><tr><td>Learning rate</td><td>3e-4 (Dog, pixels)，1e-3 (otherwise)</td></tr><tr><td>Optimizer</td><td>Adam (β₁ = 0.9, β₂ = 0.999)</td></tr>
+<tr><td>Temporal λ</td><td>0.5</td></tr><tr><td>c₁</td><td>0.5</td></tr><tr><td>c₂</td><td>0.1</td></tr><tr><td>c₃</td><td>2</td></tr>
+<tr><td>Exploration ε</td><td>0.5 → 0.05 (25k steps)</td></tr><tr><td>Horizon schedule</td><td>1 → 5 (25k steps)</td></tr><tr><td>Batch size</td><td>2048 (Dog)，256 (pixels)，512 (otherwise)</td></tr><tr><td>ζ</td><td>0.99</td></tr><tr><td>Steps per gradient update</td><td>1</td></tr><tr><td>θ⁻ update frequency</td><td>2</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 参数量和配置文件</span>
+<p>附录写 Walker Run（\(S=24,A=6\)）总参数约 1,507,000。按附录的结构、\(Z=50\) 现算：\(h\) 19,250，\(d\) 317,490，\(R\) 292,353，\(\pi\) 291,846，两个 \(Q\) 各 293,377（含 LayerNorm 1,024），合计 <b>1,507,693</b>。对得上。</p>
+<p>配置文件 <code>cfgs/default.yaml</code> 和任务配置和表 4、7 对过：\(N\)、\(k\)、\(J\)（dog 8，humanoid 12，pixels 没有单独设 iterations，见下）、\(\tau\)、动量、\(c_{1:3}\)、\(\lambda\)、PER、lr、batch、动作重复都一致。<code>tau: 0.01</code> 对应 \(\zeta\)（<a href="#n2">读者注 2</a>）。不一致的两处：表 4 写像素任务 8 轮，<code>pixels.yaml</code> 里没有 <code>iterations</code>，默认 6；表 4 写缓存 Unlimited，<code>max_buffer_size</code> 是 1,000,000。“Elite fraction 64”是数量不是比例。<code>kappa: 0.1</code> 在 <code>src</code> 里没有被使用。</p>
+</div>
+<p><b>结构摘要</b>（\(S,Z,A\) 分别是状态、潜变量、动作维度；约 1,507,000 参数，Walker Run）：</p>
+<pre class="algo">h : Linear(S,256)  ELU  Linear(256,Z)
+d : Linear(Z+A,512) ELU Linear(512,512) ELU Linear(512,Z)
+R : Linear(Z+A,512) ELU Linear(512,512) ELU Linear(512,1)
+pi: Linear(Z,512)   ELU Linear(512,512) ELU Linear(512,A)
+Q1,Q2: Linear(Z+A,512) LayerNorm Tanh Linear(512,512) ELU Linear(512,1)</pre>
+<p>论文还给了类 PyTorch 的训练伪代码，是算法 2 的代码版：取一段，编码第一帧，for \(t\) in range(\(H\)) 递推，每步累加 \(\rho^t\) 加权的三项损失（\(\rho\) 就是 \(\lambda\)），最后加权求和、反传、更新目标。价值损失是两个 \(Q\) 的 MSE 之和。</p>
+
+<h2 id="aG"><span class="no">G</span>基线的详细说明</h2>
+<p>先在 DMControl 上调好本文方法和基线，再用同一套超参数跑 Meta-World。</p>
+<p><b>SAC。</b>用 Yarats 和 Kostrikov 的实现。除了 \(\zeta=0.99\)（原 0.995）和批大小 512（原 1024）外都是原值。</p>
+<p><b>LOOP。</b>官方实现，作者说就他们所知以前没有在 DMControl 和 Meta-World 上测过，所以尽力适配：\(\zeta=0.99\)，批从 256 增到 512，seed 步数从 10,000 降到 1,000。</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>表 5 SAC</th><th>值</th></tr></thead><tbody>
+<tr><td>γ</td><td>0.99</td></tr><tr><td>Seed steps</td><td>1,000</td></tr><tr><td>缓存</td><td>Unlimited</td></tr><tr><td>采样</td><td>Uniform</td></tr><tr><td>MLP hidden</td><td>1024</td></tr><tr><td>Activation</td><td>RELU</td></tr><tr><td>Latent dim</td><td>100 (Humanoid, Dog)，50 (otherwise)</td></tr><tr><td>Optimizer θ</td><td>Adam (β₁ = 0.9, β₂ = 0.999)</td></tr><tr><td>Optimizer α</td><td>Adam (β₁ = 0.5, β₂ = 0.999)</td></tr><tr><td>lr θ</td><td>3e-4 (Dog)，1e-3 (otherwise)</td></tr><tr><td>lr α</td><td>1e-4</td></tr><tr><td>Batch</td><td>2048 (Dog)，512 (otherwise)</td></tr><tr><td>ζ</td><td>0.99</td></tr><tr><td>Steps per gradient update</td><td>1</td></tr><tr><td>θ⁻ update frequency</td><td>2</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>表 6 LOOP 专属</th><th>值</th></tr></thead><tbody>
+<tr><td>Planning horizon</td><td>3</td></tr><tr><td>Population</td><td>100</td></tr><tr><td>Elite fraction</td><td>20%</td></tr><tr><td>Iterations</td><td>5</td></tr><tr><td>Policy fraction</td><td>5%</td></tr><tr><td>Particles</td><td>4</td></tr><tr><td>Momentum</td><td>0.1</td></tr><tr><td>MLP hidden</td><td>256</td></tr><tr><td>Activation</td><td>ELU/RELU</td></tr><tr><td>Ensemble</td><td>5</td></tr>
+</tbody></table></div>
+<p><b>MPC:sim。</b>用真实模拟器的原始 MPC，没有终值，所以非参数。规划实现同样是 MPPI，\(H=10\)，4 轮，每轮 \(N=200\)，用前 20（10%）更新，其他不变。局部解足够的运动任务上表现不错，稀疏奖励等任务上往往失败。</p>
+<p><b>无潜消融。</b>\(h_\theta\) 换成恒等映射，模型直接在状态空间前向预测，一致性退化成状态预测。和以往工作不同，奖励和价值的梯度仍然穿过模型，所以这是个更强的基线。</p>
+<p><b>无一致性。</b>\(c_3=0\)，只用奖励和价值损失，更接近 MuZero。其他基线的结果取自相关论文。</p>
+
+<h2 id="aH"><span class="no">H</span>推理时间</h2>
+<p>算力和推理时间大致线性。默认设置约 20 ms 每步，约 50 Hz，论文认为足够许多实时机器人应用（操作、导航，一定程度上的运动，假设有机载 GPU）。Quadruped Run 上 \(H\) 从 5 降到 1 约 12 ms。\(\pi\) 比规划差，但快接近 6 倍。</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>表 7 任务</th><th>动作重复</th></tr></thead><tbody><tr><td>Humanoid</td><td>2</td></tr><tr><td>Dog</td><td>2</td></tr><tr><td>Walker</td><td>2</td></tr><tr><td>Finger</td><td>2</td></tr><tr><td>Cartpole</td><td>8</td></tr><tr><td>Other (DMControl)</td><td>4</td></tr><tr><td>Meta-World</td><td>1</td></tr></tbody></table></div>
+<p>表 7 取自以往工作；DMControl Dreamer 基准全部用 2，Meta-World 不用动作重复。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig11.webp" width="947" height="344" alt="图 11：Quadruped Run 上每决策步毫秒数随规划长度和迭代次数变化" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 17 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>Quadruped Run，单张 RTX3090。左改规划长度，右改迭代次数，星号默认，叉号 \(\pi\)。</figcaption>
+</figure>
+<div class="note" id="n14"><span class="lab">读者注 14 · 图 11 的矢量读数和“接近 6 倍”</span>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>ms / 步</th><th>1</th><th>3</th><th>5</th><th>7</th><th>9</th></tr></thead><tbody>
+<tr><td>H 变化（J = 6）</td><td>11.7</td><td>16.1</td><td>20.7</td><td>21.7</td><td>22.8</td></tr>
+<tr><td>J 变化（H = 5）</td><td>7.7</td><td>12.9</td><td>18.0</td><td>23.1</td><td>28.3</td></tr>
+</tbody></table></div>
+<p>默认 20.4 ms；\(\pi\) 的叉号中心约 0.9 ms。“约 20 ms”和“约 12 ms”对得上。但 20.4 / 0.9 约 <b>23 倍</b>，不是正文说的“接近 6 倍”。要和 6 倍对上，\(\pi\) 得是 3.4 ms；叉号的外框大约只有 ±1.2 ms，也够不到。正文和图不一致，哪个对我无法判断。</p>
+<p>J 这条线非常线性，每轮约 2.6 ms，截距约 5 ms。H 这条线在 H = 5 之后变缓（每步约 0.5 ms，前面约 2.2 ms），不是正文说的“大致线性”，这一点比较奇怪：\(d,R\) 的调用次数和 \(H\) 成正比。可能是 GPU 批处理的缘故，论文没解释。</p>
+</div>
+
+<h2 id="aI"><span class="no">I</span>Meta-World</h2>
+<p>图 14 是 50 个任务中按字母序前 24 个的曲线（都是 v2，目标条件版本，比固定目标更难）。SAC 多数任务上不差，涉及复杂操作时 TD-MPC 省样本得多，比如 Bin Picking、Box Close、Hammer。多任务实验中，因为原论文报告的是各任务的最大成功率，这里也用同样的指标给出 SAC 基线（表 8），作者认为只跑 3M 步就和原论文接近。</p>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>表 8 任务（SAC，MT10）</th><th>最大成功率</th></tr></thead><tbody><tr><td>Window Close</td><td>1.00</td></tr><tr><td>Window Open</td><td>1.00</td></tr><tr><td>Door Open</td><td>1.00</td></tr><tr><td>Peg Insert Side</td><td>0.00</td></tr><tr><td>Drawer Open</td><td>0.85</td></tr><tr><td>Pick Place</td><td>0.00</td></tr><tr><td>Reach</td><td>1.00</td></tr><tr><td>Button Press Down</td><td>1.00</td></tr><tr><td>Push</td><td>0.00</td></tr><tr><td>Drawer Close</td><td>1.00</td></tr></tbody></table></div>
+<figure class="pfig">
+<img src="td-mpc/fig14.webp" width="1404" height="1749" alt="图 14：24 个 Meta-World 任务的成功率曲线" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 19 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>SAC 和 TD-MPC，横轴到 1M 环境步，5 次运行，95% 置信区间。TD-MPC 能解决 Basketball 这类 SAC 成功率很低的任务。</figcaption>
+</figure>
+
+<h2 id="aJ"><span class="no">J</span>多模态强化学习</h2>
+<p>两个自建的 3D 运动任务，同时给本体感觉和第一人称相机。Quadruped Corridor：沿走廊恒定目标速度前进，要看到墙并调整方向。Quadruped Obstacles：走廊里有挡视线、挡路的障碍物，要走之字形。</p>
+<figure class="pfig narrow">
+<img src="td-mpc/fig13.webp" width="738" height="474" alt="图 13：Corridor 和 Obstacles 两个任务的第一人称画面" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 18 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>上排走廊，下排障碍物，时间从左到右。</figcaption>
+</figure>
+
+<h2 id="aK"><span class="no">K</span>其他指标</h2>
+<p>用 <a class="ds" href="https://github.com/google-research/rliable">rliable</a> 工具包，给 15 个状态任务在 500k 步后的中位数、四分位均值（IQM，去掉首尾各 25% 后的均值）、均值，95% 置信区间用分层百分位自助法。</p>
+<figure class="pfig">
+<img src="td-mpc/fig12.webp" width="1328" height="289" alt="图 12：TD-MPC、LOOP、SAC 的聚合指标" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 18 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>三列分别是中位数、IQM、均值，5 个种子。</figcaption>
+</figure>
+<div class="note" id="n15"><span class="lab">读者注 15 · 图 12 的读数</span>
+<div class="tablewrap"><table class="t-min"><thead><tr><th>置信区间</th><th>中位数</th><th>IQM</th><th>均值</th></tr></thead><tbody>
+<tr><td>TD-MPC</td><td>845–872</td><td>863–879</td><td>783–808</td></tr>
+<tr><td>SAC</td><td>737–805</td><td>748–814</td><td>641–699</td></tr>
+<tr><td>LOOP</td><td>554–736</td><td>591–660</td><td>554–604</td></tr>
+</tbody></table></div>
+<p>用官方 CSV 重算 TD-MPC（15 个任务、5 种子、75 个数）：均值 796，中位数 865，IQM 865，都落在区间内，CSV 和这张图一致。</p>
+<p>§5 说 “LOOP 的表现和 SAC 接近”。这张图上 LOOP 在 IQM 和均值上的区间都低于 SAC，且不重叠。LOOP 的超参数是本文作者自己适配的（附录 G），这点要一起看。</p>
+</div>
+
+<h2 id="aL"><span class="no">L</span>任务可视化</h2>
+<p>图 15 是 TD-MPC 在七个任务上成功轨迹的关键帧，这些任务都在 1M 环境步内解决。回合长度 DMControl 1000，Meta-World 500。视频见<a href="https://nicklashansen.github.io/td-mpc">项目主页</a>。</p>
+<figure class="pfig">
+<img src="td-mpc/fig15.webp" width="1555" height="1838" alt="图 15：七个任务的成功轨迹关键帧" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 20 页 · Hansen 等 2022，CC BY 4.0，仅裁剪</span>从上到下：Dog Walk（38 维），Humanoid Walk（21 维），Quadruped Run（12 维），Finger Turn Hard，Bin Picking，Box Close，Hammer。</figcaption>
+</figure>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">“最快 1M 步”</a>：Stand、Dog Walk 成立，两个 Run 不成立；SAC 曲线隐藏到 10.2M。</li>
+<li><a href="#n2">ζ 和 τ</a>：§2 公式方向和 ζ = 0.99 相反，代码是 99% 留旧；τ 有两个意思。</li>
+<li><a href="#n3">算法 1 和代码</a>：π 只采一次，终值动作来自 π，返回精英动作，动量、σ 上限。</li>
+<li><a href="#n4">π 的噪声</a>：代码恒为 0.05，没有按 ε 退火。</li>
+<li><a href="#n5">式 (7)–(11) 和代码</a>：TD 目标用在线编码器重编，H 项还是 H+1 项，一致性按维度平均。</li>
+<li><a href="#n6">玩具 TOLD</a>：我的实验。重建被干扰占满；一致性本身不过滤，挑任务信息的是奖励和价值。</li>
+<li><a href="#n7">92 个任务</a>：91 + MT10。</li>
+<li><a href="#n8">表 1</a>：TD-MPC 赢 1 行，“competitive”准确。</li>
+<li><a href="#n9">图 6 读数</a>：规划比 π 高 111；同一设置两个值差 12.7。</li>
+<li><a href="#n10">表 2</a>：16×、3.3× 和 Walker 对得上；Humanoid Stand 反推 363k 步，CSV 和图 1 是 740k–800k。</li>
+<li><a href="#n11">表 3</a>：Low 和每步 4 到 7 倍的耗时。</li>
+<li><a href="#n12">图 8 读数</a>：差距随动作维度缩小；H = 1 的“无显著下降”只对 Quadruped Run。</li>
+<li><a href="#n13">参数和配置</a>：1,507,693 对得上；像素 8 轮和缓存 Unlimited 和配置不一致。</li>
+<li><a href="#n14">图 11 读数</a>：π 约 0.9 ms，23 倍不是“接近 6 倍”。</li>
+<li><a href="#n15">图 12 读数</a>：CSV 落在区间内；LOOP 区间低于 SAC。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>下面的地址都用脚本访问过，均返回 200（2026-11-06）。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>名字</th><th>是什么</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/dm_control">DMControl</a></td><td>DeepMind 连续控制任务集，状态和图像</td><td><a href="https://arxiv.org/abs/1801.00690">1801.00690</a></td></tr>
+<tr><td><a class="ds" href="https://meta-world.github.io">Meta-World</a></td><td>50 个机械臂操作任务（<a href="https://github.com/Farama-Foundation/Metaworld">代码</a>），含 MT10 多任务设定</td><td><a href="https://arxiv.org/abs/1910.10897">1910.10897</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1509.01149">MPPI</a></td><td>本文规划算法的来源</td><td>Williams 等 2015</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1811.01848">POLO</a></td><td>带学习价值的 MPC，真实模型</td><td>Lowrey 等</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1509.02971">DDPG</a></td><td>确定性策略，加噪声探索</td><td>Lillicrap 等</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1806.10293">QT-Opt</a></td><td>用 CEM 代替策略网络</td><td>Kalashnikov 等</td></tr>
+<tr><td><a class="ds" href="https://github.com/google-research/rliable">rliable</a></td><td>聚合指标工具</td><td><a href="https://arxiv.org/abs/2108.13264">2108.13264</a></td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>引用本文的论文，本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+<p>其他基线的链接在 <a href="#s5">§5</a> 第一次出现的位置。</p>
+
+<footer><p>精读是我读 arXiv 2203.04955 和官方代码后的整理，不是作者的官方内容。论文版权归作者所有，按 CC BY 4.0 许可使用，图片只做了裁剪。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

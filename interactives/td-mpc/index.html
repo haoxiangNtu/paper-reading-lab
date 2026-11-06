@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TD-MPC 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2203.04955 TD-MPC 的框架做成 11 幕 3D 动画：没有解码器的 TOLD、三项损失、当场计算的 MPPI 采样规划（可调样本数和规划长度）、终值函数、策略引导采样，和 SuperMimic 训练好策略的逐项对照。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;bottom:52px;right:10px;display:flex;gap:5px 6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl>*{pointer-events:auto}
+.ctl span,.ctl .hz{background:color-mix(in srgb,var(--bg2) 80%,transparent);padding:1px 6px;border-radius:6px;margin-left:6px}
+.ctl .hz{display:inline-flex;align-items:center;gap:6px;color:var(--fg);margin-left:6px}
+.ctl .hz b{color:var(--accent);min-width:2.4em;display:inline-block;text-align:right;font-family:var(--font-mono)}
+.ctl .hz input{width:130px;accent-color:var(--accent)}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="td-mpc.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/td-mpc.html">返回精读</a><a href="../../papers/td-mpc.html#s3">原文 §3</a><a href="../../papers/supermimic.html">SuperMimic 精读</a><a href="https://arxiv.org/abs/2203.04955">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2203.04955 · TD-MPC · ICML 2022</p>
+<h1>TD-MPC：每一步都用学到的模型重新规划</h1>
+<p class="lead">一共 11 幕。第 1 幕是两个循环；第 2 到 4 幕是 TOLD 模型：五个部件、三项损失、一个现场训练的小模型。第 5 到 9 幕是规划：MPPI 内部、终值函数、策略引导、滚动时域、探索下限。第 10 幕是论文的预算实验，第 11 幕和 <a href="../../papers/supermimic.html">SuperMimic</a> 的“训练好的策略”逐项对照。</p>
+<p class="howto">第 5、8 幕可以拖样本数 N 和规划长度 H，第 6、7、8 幕能切换 Q 和 π，算法 1 当场重跑。第 2 幕可以点部件，第 1 幕可以点站点。规划玩具是一个二维质点和 U 形墙，d、R 是真实环境，Q 来自值迭代；TOLD 玩具用手写自动微分真的训练。它们只说明机制，数值不能外推到论文的任务。第 9、10 幕的柱子是从原文矢量图读的真实数值。超参数来自论文表 4 和官方代码 <a href="https://github.com/nicklashansen/tdmpc/tree/f4d85eca7419039b71bab2234ffc8aca378dd313">nicklashansen/tdmpc@f4d85ec</a>。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构（论文式 6、表 4、表 7、附录 F；代码 tdmpc@f4d85ec）</h2>
+<p class="sub">“代码”表示论文没写、只有代码里有。玩具两节是我自己的设定，和论文无关。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">TOLD（S、Z、A 分别是状态、潜变量、动作维度）</td></tr>
+<tr><td>T1</td><td>h_θ（状态）</td><td>S → Z</td><td>MLP，隐藏 256，ELU。Z：Humanoid、Dog 100，其他 50</td></tr>
+<tr><td>T2</td><td>h_θ（像素）</td><td>3 帧 84×84 RGB → Z</td><td>4 层 CNN，核 (7,5,3,3)，步长 2，32 通道；±4 像素平移增强。代码：ReLU</td></tr>
+<tr><td>T3</td><td>d_θ</td><td>Z+A → Z</td><td>两层 512，ELU</td></tr>
+<tr><td>T4</td><td>R_θ</td><td>Z+A → 1</td><td>两层 512，ELU，末层初始化 0</td></tr>
+<tr><td>T5</td><td>Q_θ（两个）</td><td>Z+A → 1</td><td>512 + LayerNorm + Tanh，512 + ELU，末层初始化 0。代码：取 min</td></tr>
+<tr><td>T6</td><td>π_θ</td><td>Z → A</td><td>两层 512，ELU，代码：输出过 tanh；加噪 min_std = 0.05，截断 ±0.3</td></tr>
+<tr><td>T7</td><td>参数量</td><td>Walker Run</td><td>论文约 1,507,000；我算 1,507,693（h 19,250，d 317,490，R 292,353，π 291,846，Q 2×293,377）</td></tr>
+<tr class="grp"><td colspan="4">规划（表 4）</td></tr>
+<tr><td>P1</td><td>H</td><td></td><td>5；调度 1 → 5，25k 决策步</td></tr>
+<tr><td>P2</td><td>初值 (μ⁰, σ⁰)</td><td></td><td>(0, 2)；μ 每步热启动，σ 每步重置</td></tr>
+<tr><td>P3</td><td>N，k</td><td></td><td>512，64（表 4 的行名是 Elite fraction，值是数量）</td></tr>
+<tr><td>P4</td><td>J</td><td></td><td>6；Dog、像素 8；Humanoid 12</td></tr>
+<tr><td>P5</td><td>π 比例</td><td></td><td>5%；代码 ⌊0.05×512⌋ = 25，总数 537</td></tr>
+<tr><td>P6</td><td>τ，均值动量</td><td></td><td>0.5，0.1（式 4 没有动量，表 4 有）</td></tr>
+<tr><td>P7</td><td>ε</td><td></td><td>0.5 → 0.05，25k 决策步；代码：σ 裁到 [ε, 2]，π 噪声恒为 0.05</td></tr>
+<tr><td>P8</td><td>每决策步调用</td><td></td><td>d、R：537×5×6 = 16,110；Q、π：537×6 = 3,222；π 轨迹 25×5 = 125（我的计算）</td></tr>
+<tr class="grp"><td colspan="4">学习（表 4）</td></tr>
+<tr><td>L1</td><td>γ，λ</td><td></td><td>0.99，0.5</td></tr>
+<tr><td>L2</td><td>c₁, c₂, c₃</td><td></td><td>0.5, 0.1, 2</td></tr>
+<tr><td>L3</td><td>优化器</td><td></td><td>Adam (0.9, 0.999)；lr 1e-3，Dog、像素 3e-4；代码：梯度范数裁到 10</td></tr>
+<tr><td>L4</td><td>批大小</td><td></td><td>512；Dog 2048；像素 256</td></tr>
+<tr><td>L5</td><td>目标网络</td><td></td><td>ζ = 0.99，每 2 步更新一次（代码 τ = 0.01）</td></tr>
+<tr><td>L6</td><td>回放</td><td></td><td>PER α = 0.6，β = 0.4；seed 5,000 步。代码：容量上限 10⁶，优先级是 Q 的 L1 误差之和</td></tr>
+<tr><td>L7</td><td>动作重复</td><td></td><td>Humanoid、Dog、Walker、Finger 2；Cartpole 8；其他 DMControl 4；Meta-World 1</td></tr>
+<tr class="grp"><td colspan="4">规划玩具（第 1、5 到 11 幕，我设的）</td></tr>
+<tr><td>A1</td><td>世界</td><td>[−10,10]²</td><td>起点 (−7, 0.3)，目标 (7, 0)，半径 1；U 形墙，开口朝起点</td></tr>
+<tr><td>A2</td><td>d</td><td>(x, y), a → (x′, y′)</td><td>a ∈ [−1,1]²，步长 0.6，碰墙沿墙滑。这是真实环境，不是学的</td></tr>
+<tr><td>A3</td><td>R</td><td>(x′, y′) → r</td><td>稠密：−距离/10，圈内 +1；稀疏：圈内 1，其他 0</td></tr>
+<tr><td>A4</td><td>Q</td><td>V(x, y)</td><td>61×61 网格值迭代 450 次，γ = 0.99；“有误差”叠加振幅为取值范围 3% 的正弦扰动</td></tr>
+<tr><td>A5</td><td>π</td><td>(x, y) → a</td><td>对配对的 Q 单步贪心，16 个方向</td></tr>
+<tr><td>A6</td><td>规划</td><td></td><td>H、N 可调，J = 6，k = N/8，τ = 0.5，动量 0.1，ε = 0.05，和代码相同的流程</td></tr>
+<tr class="grp"><td colspan="4">TOLD 玩具（第 4 幕，我设的）</td></tr>
+<tr><td>B1</td><td>环境</td><td>6 维观测，1 维动作</td><td>v′ = 0.9v + 0.25a，x′ = x + 0.25v′；两对匀速旋转的干扰量；r = exp(−x²) − 0.02a²</td></tr>
+<tr><td>B2</td><td>网络</td><td></td><td>h、d 线性；R、Q 12 隐单元；π 8 隐单元；解码器线性（只在重建模式）</td></tr>
+<tr><td>B3</td><td>训练</td><td></td><td>H = 3，λ = 0.5，γ = 0.9，c = (0.5, 0.1, 2)，Adam 3e-3，批 8，3000 步，目标网络 τ = 0.01，每 2 步。一致性和重建除以维度</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕。</b>站点布局和小球速度是示意。中间的轨迹团是真算的，但位置缩放过。</li>
+<li><b>第 2 幕。</b>方块大小正比于参数量的立方根；连线只表示输入输出，不是真实的张量形状。</li>
+<li><b>第 3 幕。</b>小球的反传动画是示意。权重柱是 λⁱ 的真实值。</li>
+<li><b>第 4 幕。</b>小网络和环境都是我设的。结果来自真实的梯度下降，但不能推到论文任务，尤其是“c₃ = 0 最好”这件事不能。</li>
+<li><b>第 5 到 9、11 幕的世界。</b>世界是玩具，模型完全准确。真实的 TD-MPC 在潜空间规划，那里没有墙和位置这样的可视结构。轨迹只显示每轮的一部分样本（精英优先）。</li>
+<li><b>第 5 幕竖条。</b>高度按当轮最小到最大拉伸，轮和轮之间不能比。</li>
+<li><b>第 11 幕的右边。</b>玩具 π 不是 SuperMimic 的策略。</li>
+<li><b>第 9、10 幕真实数据。</b>来自矢量图，读数精度约 ±1；第 10 幕回报柱底不是 0。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2203.04955 和官方代码后的理解，不是作者的官方图。论文 CC BY 4.0，原图在<a href="../../papers/td-mpc.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

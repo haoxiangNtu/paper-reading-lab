@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ControlVAE 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2210.06063 ControlVAE 的框架做成 11 幕 3D 动画：状态条件先验、残差后验、世界模型、穿过世界模型的 VAE 回路、隐空间采样、MPC 和任务策略。第 2 到 10 幕在浏览器里现场训练一个玩具 ControlVAE。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.cap{right:10px}
+.ctl{position:absolute;left:10px;top:96px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:calc(100% - 20px);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;pointer-events:auto}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:1px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+body.embed .ctl{top:84px;gap:2px;font-size:11.5px}
+body.embed .ctl button{padding:0 6px}
+.live{border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin:4px 0 10px;background:var(--panel)}
+.live:empty{display:none}
+.live .lt{font-family:var(--font-mono);font-size:11.5px;color:var(--accent);margin:2px 0}
+.live dl{margin:2px 0 4px}
+.info .toy{border-left-color:var(--accent)}
+.info .toy b{color:var(--accent)}
+.minibox{margin:6px 0 10px}
+.minibox[hidden]{display:none}
+#mini{display:block;width:100%;height:150px;touch-action:none}
+.minileg{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px!important;font-family:var(--font-mono);margin:2px 0;color:var(--fg)}
+.minileg i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:5px}
+.minileg .mx{color:var(--muted)}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="controlvae.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/controlvae.html">返回精读</a><a href="../../papers/controlvae.html#s3">原文第 3 节</a><a href="https://arxiv.org/abs/2210.06063">arXiv</a><a href="https://github.com/heyuanYao-pku/Control-VAE">官方代码</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2210.06063 · CONTROLVAE</p>
+<h1>一个生成式控制器怎样穿过世界模型学出来</h1>
+<p class="lead">一共 11 幕。第 1 幕是总循环，第 2、3 幕是条件先验和残差后验，第 4 到 7 幕是训练循环，第 8 幕从隐空间采样，第 9 到 11 幕是在学好的技能空间上做任务控制。</p>
+<p class="howto">第 2 到 10 幕不是预先画好的：页面打开时，浏览器用固定种子真的训练一个<b>二维的玩具 ControlVAE</b>，算法 1 的三步全在跑。拖左边的隐空间可以放一个 z，KL、先验概率、下一状态都现算。按钮可以换先验、β、γ、w_z、N。玩具的结果不等于论文的结果，每一幕都标了。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：论文、官方代码和这个玩具</h2>
+<p class="sub">“代码”指 heyuanYao-pku/Control-VAE 提交 025684f。README 说它是重新实现。写“没写”的地方论文确实没给。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>部件</th><th>论文</th><th>官方代码</th><th>玩具</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">角色和表示</td></tr>
+<tr><td>状态 s</td><td>每个刚体 \(\bar x,\bar q,\bar v,\bar\omega,h\) 加根的上方向；旋转 6D</td><td>16×20+3 = 323 维（<code>decompose_obs</code>）</td><td>2 维：速度 u、转向 w</td></tr>
+<tr><td>动作 a</td><td>每个关节目标旋转，轴角</td><td>19×3 = 57 维</td><td>2 维：目标 u、目标 w</td></tr>
+<tr><td>隐变量 z</td><td>64 维，\(\sigma_p=\sigma_q=0.3\)</td><td>相同</td><td>2 维，σ = 0.3</td></tr>
+<tr><td>角色</td><td>20 个刚体，1.6 m，49.5 kg</td><td>20 个刚体；按 world.json 的质量和密度算得 49.55 kg（读者注 13）</td><td>无角色，小车</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>先验 \(\mu_p(s)\)</td><td>2 层 512，ELU，每层拼 \(s_t\)</td><td>3 层 512（读者注 7）</td><td>1 层 12，ELU</td></tr>
+<tr><td>后验 \(\mu_q(s_t,s_{t+1})\)</td><td>2 层 512，ELU，每层拼 \(s_{t+1}\)</td><td>3 层 512，每层拼目标状态</td><td>1 层 16，ELU</td></tr>
+<tr><td>策略 \(\mu_\pi(s,z)\)</td><td>MoE：6 个专家，每个 3 层 512；门控 2 层 64；每层拼 z，层归一化；\(\sigma_\pi=0.05\)</td><td>相同</td><td>1 层 20，ELU，无 MoE；\(\sigma_\pi=0.05\)</td></tr>
+<tr><td>世界模型 \(\mu_w(s,a)\)</td><td>4 层 512，ELU；动作转四元数；预测速度增量，前向欧拉</td><td>4 层 512；动作转 6D；相同的积分</td><td>1 层 24，ELU；预测 Δs</td></tr>
+<tr><td>任务策略 \(\mu_g(s,g)\)</td><td>3 层；航向 256，其他 512</td><td>航向 3 层 256</td><td>1 层 16</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>每轮收集</td><td>2048 状态；\(N_B=5\times10^4\)；最长 512 帧</td><td>相同；最短 26 帧才允许提前终止</td><td>96 步；缓存 40 条；最长 64，最短 12</td></tr>
+<tr><td>世界模型更新</td><td>每轮 8 次；\(N_w=512\)，\(T_w=8\)；lr 2e-3</td><td>相同；另有 weight decay 1e-3；L1 损失</td><td>每轮 8 次；批量 6，T = 8；Adam 3e-3；L1</td></tr>
+<tr><td>VAE 更新</td><td>每轮 8 次；\(N_{VAE}=512\)，\(T_{VAE}=24\)；lr 1e-5；RAdam；\(\gamma=0.95\)</td><td>相同；另外整体除以 T</td><td>每轮 8 次；批量 6，T = 10；Adam 3e-3；γ 相同</td></tr>
+<tr><td>β</td><td>每 500 轮增加，从 0.01 到 0.1</td><td>0.009 到 0.09，8 级，第 4000 轮到顶</td><td>0.01 到 0.1，9 级，第 72 轮到顶</td></tr>
+<tr><td>总量</td><td>20000 轮，约 50 小时</td><td><code>max_iteration</code> 20001</td><td>120 轮，不到 1 秒</td></tr>
+<tr class="grp"><td colspan="4">下游任务</td></tr>
+<tr><td>MPC</td><td>\(N=128,T=4\)</td><td>没有</td><td>相同</td></tr>
+<tr><td>任务策略训练</td><td>\(N_{ML}=256,T_{ML}=16\)，\(B_g\) 4096，\(w_z=20\)；每 72 步换目标</td><td>批量 512，T = 16，缓存 2000，<code>acs</code> 权重 20；每 96 步换目标（读者注 11）</td><td>批量 6，T = 16；w_z 可选 0、2、20</td></tr>
+<tr><td>技能控制</td><td>D 和 C 都是 2 层 256；lr 1e-4、0.01</td><td>没有</td><td>没有（第 11 幕只是结构图）</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、11 幕：</b>方块大小、摆放和小球的流动是我画的，表示数据流方向，不代表耗时或维度。连线来自原文图 2 和算法 2。</li>
+<li><b>第 2 到 10 幕的数字：</b>都是玩具现算，不是论文数据。玩具的仿真器是我写的一阶伺服加耦合阻力，学习器看不到公式，只看到转移。</li>
+<li><b>玩具省掉的：</b>数据平衡、MoE 结构、接触、摔倒、RAdam（用 Adam）。玩具的每轮规模比论文小很多，所以 β 的进度也按比例压缩了。</li>
+<li><b>小车：</b>地面上的小车和路径是玩具仿真器的真实输出，但没有任何角色模型，不代表原文的动作。真实动作见<a href="../../papers/controlvae.html#fig11">原文图 10、11</a>。</li>
+<li><b>隐空间曲面的高度：</b>正比于密度，上限截断为 3.6，方便和地面一起看。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2210.06063 和官方代码后的理解，不是作者的官方图。原文图的文字描述和核算都在<a href="../../papers/controlvae.html">精读页</a>。</p></footer>
+</div>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer></script>
+</body>
+</html>

@@ -20,6 +20,46 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/rwm-u.html">RWM-U：给世界模型加不确定性，离线训练上真机</a></p>
+<p class="en">Uncertainty-Aware Robotic World Model Makes Offline Model-Based Reinforcement Learning Work on Real Robots</p>
+<div class="meta"><span>arXiv 2504.16680</span><span>arXiv 2025</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">给 RWM 加集成不确定性，只用日志离线训练策略并部署到真机。</p>
+<div class="tags"><span class="pill">离线 MBRL</span><span class="pill">集成不确定性</span><span class="pill">MOPO-PPO</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/rwm-u.html">读精读 →</a><a href="interactives/rwm-u/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2504.16680">原文</a><a href="https://github.com/leggedrobotics/robotic_world_model">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/dreamerv3.html">DreamerV3：一套超参数跨领域</a></p>
+<p class="en">Mastering Diverse Domains through World Models</p>
+<div class="meta"><span>arXiv 2301.04104</span><span>Nature 2025</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">同一套超参数跨 8 个领域的世界模型智能体：symlog、two-hot、KL 平衡、回报归一化，演员全部改用 Reinforce。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">隐空间想象</span><span class="pill">Reinforce</span><span class="pill">CC BY 4.0 · 含原图</span><span class="pill rn">17 条读者注</span></div>
+<div class="links"><a class="go" href="papers/dreamerv3.html">读精读 →</a><a href="interactives/dreamerv3/index.html">10 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2301.04104">原文</a><a href="https://github.com/danijar/dreamerv3">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/td-mpc.html">TD-MPC：短视野规划接终值函数</a></p>
+<p class="en">Temporal Difference Learning for Model Predictive Control</p>
+<div class="meta"><span>arXiv 2203.04955</span><span>ICML 2022</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">每个决策步用学到的潜空间模型采样规划，H 步之外交给终值函数；模型不重建观测，只学奖励、价值和潜一致性。</p>
+<div class="tags"><span class="pill">基于模型 RL</span><span class="pill">MPC</span><span class="pill">潜动力学</span><span class="pill">CC BY 4.0 · 含原图</span><span class="pill rn">15 条读者注</span></div>
+<div class="links"><a class="go" href="papers/td-mpc.html">读精读 →</a><a href="interactives/td-mpc/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2203.04955">原文</a><a href="https://github.com/nicklashansen/tdmpc">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/daydreamer.html">DayDreamer：把 Dreamer 放到真机上学</a></p>
+<p class="en">DayDreamer: World Models for Physical Robot Learning</p>
+<div class="meta"><span>arXiv 2206.14176</span><span>CoRL 2022</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把 Dreamer 直接放到四台真实机器人上在线学习：actor 和 learner 解耦，从零学走路和视觉拣放，并用官方分数文件核对图上的数字。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">真机在线学习</span><span class="pill">多模态融合</span><span class="pill">CC BY 4.0 · 含原图</span><span class="pill rn">14 条读者注</span></div>
+<div class="links"><a class="go" href="papers/daydreamer.html">读精读 →</a><a href="interactives/daydreamer/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2206.14176">原文</a><a href="https://github.com/danijar/daydreamer">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/controlvae.html">ControlVAE：用世界模型训练生成式控制器</a></p>
+<p class="en">ControlVAE: Model-Based Learning of Generative Controllers for Physics-Based Characters</p>
+<div class="meta"><span>arXiv 2210.06063</span><span>SIGGRAPH Asia 2022</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">用可微世界模型训练状态条件 VAE 控制器，再冻结技能空间做下游任务。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">VAE</span><span class="pill">技能隐空间</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">17 条读者注</span></div>
+<div class="links"><a class="go" href="papers/controlvae.html">读精读 →</a><a href="interactives/controlvae/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2210.06063">原文</a><a href="https://github.com/heyuanYao-pku/Control-VAE">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/shac.html">SHAC：短窗口加评论家，让可微仿真真正好用</a></p>
 <p class="en">Accelerated Policy Learning with Parallel Differentiable Simulation</p>
 <div class="meta"><span>arXiv 2204.07137</span><span>ICLR 2022</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
@@ -145,7 +185,7 @@
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
 <tr><td><code>papers/supermimic.html</code></td><td>SuperMimic 精读</td></tr>
-<tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
+<tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
 <tr><td><code>papers/supermimic/charts.js</code></td><td>SuperMimic 精读页的折线图，数据点从原文矢量图读出，是重画的，不是原图</td></tr>
 <tr><td><code>papers/supermimic/*.webp</code></td><td>从 SuperMimic PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者</td></tr>
 <tr><td><code>interactives/supermimic/</code></td><td>SuperMimic 的 11 幕 3D 框架动画（<code>index.html</code>，精读页 §3.1 内嵌），three.js</td></tr>
