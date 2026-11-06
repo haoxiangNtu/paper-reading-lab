@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperDyno 现有材料整理（全文未读到） · Paper Reading Lab</title>
+<meta name="description" content="SuperDyno（Lei 等，ICLR 2025 World Models 工作坊）。论文全文没有读到，这一页只整理摘要、项目页存档和 SuperMimic、∇Mimic 的引用句，附 10 幕 3D 动画（含现场计算的玩具）和核算过的读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-a{min-width:520px}.t-b{min-width:820px}.t-c{min-width:560px}.t-links{min-width:560px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-axis{stroke:var(--muted);stroke-width:1}
+.viz-ref{stroke:var(--muted);stroke-width:1;stroke-dasharray:5 4}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:12.5px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2;color:var(--fg)}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.viz-table p{max-width:none;font-family:var(--font-mono);font-size:11.5px;overflow-wrap:anywhere;margin:4px 0}
+.hist2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.hist2{grid-template-columns:1fr}}
+.notes li{max-width:74ch}
+.st-ok{color:var(--accent);font-weight:600}.st-no{color:var(--note);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/superdyno/index.html">3D 动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">ICLR 2025 WORLD MODELS 工作坊 · 口头报告 · 现有材料整理，不是全文精读</p>
+<h1>SuperDyno：用可微神经动力学学可扩展的人形全身控制</h1>
+<p class="orig">Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics</p>
+<p>作者 Yu Lei、Zhengyi Luo、Tairan He、Jinkun Cao、Guanya Shi、Kris Kitani。没有查到 arXiv 编号。“SuperDyno”这个名字出现在项目页和 SuperMimic 里，工作坊标题里没有。</p>
+<div class="meta"><a href="https://openreview.net/forum?id=FPgKt7bA8w">OpenReview</a><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">PDF（OpenReview）</a><a href="https://iclr.cc/virtual/2025/37555">ICLR 页面</a><a href="https://mlanthology.org/iclrw/2025/lei2025iclrw-scalable/">ML Anthology</a><a href="https://web.archive.org/web/20260303123801/https://dynamics-humanoid.github.io/dynamics-humanoid/">项目页存档</a><a href="../interactives/superdyno/index.html">3D 动画</a></div>
+
+<div class="callout" id="sources">
+<p><b>论文全文没有读到。</b>这一页不是逐节精读，没有原文章节号，也没有编号公式。OpenReview 的 PDF 和论题页对脚本返回 403 或浏览器验证，我没有伪装客户端，也没有去找绕过它的镜像。如果你能在浏览器里下载这份 PDF 交给我，我可以把这一页改成真正的逐节精读。</p>
+<p>我实际读过的来源只有下表这些：</p>
+<div class="tablewrap"><table class="t-a">
+<thead><tr><th>来源</th><th>状态</th><th>读到了什么</th></tr></thead>
+<tbody>
+<tr><td><a href="https://mlanthology.org/iclrw/2025/lei2025iclrw-scalable/">ML Anthology</a></td><td class="st-ok">读了</td><td>完整摘要、作者、BibTeX</td></tr>
+<tr><td><a href="https://iclr.cc/virtual/2025/37555">ICLR 海报页</a>、<a href="https://iclr.cc/virtual/2025/10000107">口头报告页</a></td><td class="st-ok">读了</td><td>同一份摘要；工作坊 Oral #4；视频栏是空的</td></tr>
+<tr><td><a href="https://web.archive.org/web/20260303123801/https://dynamics-humanoid.github.io/dynamics-humanoid/">项目页的 Wayback 存档</a>（2026-03-03）</td><td class="st-ok">读了</td><td>文字、1 张 HTML 表、6 张图；2 段视频抽帧。其余视频没看</td></tr>
+<tr><td><a href="supermimic.html#s2">SuperMimic §2</a>、<a href="https://arxiv.org/html/2610.41654v1">∇Mimic</a></td><td class="st-ok">读了</td><td>只有引用句，见下一节</td></tr>
+<tr><td><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">OpenReview PDF</a>、<a href="https://openreview.net/forum?id=FPgKt7bA8w">论题页</a></td><td class="st-no">没读到</td><td>PDF 返回 403；论题页只给浏览器验证</td></tr>
+<tr><td><a href="https://dynamics-humanoid.github.io/dynamics-humanoid">项目页线上版</a></td><td class="st-no">没读到</td><td>2026-11-06 我访问时返回 404</td></tr>
+<tr><td>项目页的交互 3D 图（9 个 plot_*.html）</td><td class="st-no">没读到</td><td>Wayback 没有存，返回 404</td></tr>
+<tr><td>其他公开副本</td><td class="st-no">没找到</td><td>网页搜索、arXiv 标题检索都没有。OpenAlex 按标题过滤是 0 条。Semantic Scholar 接口两次都返回 429，这一路没查成</td></tr>
+</tbody></table></div>
+<p><b>图和许可。</b>项目页和摘要都没有写开放许可，所以按不开放处理：这里没有放原图，只有文字描述和“看原图”链接。标着“重画”的图是我从项目页 PNG 按网格线标定读出像素后画的，精度只到目测级。表格数字照录。</p>
+<p><b>代码。</b>没有找到官方代码。摘要页、ICLR 页和项目页存档都没有代码链接。GitHub 用户 <code>dynamics-humanoid</code> 下只有一个公开仓库 <code>cotraining-anonymous</code>（提交 f1d99a3），从文件列表和提交信息看，是另一个项目的答辩网站（扩散模型共训练的玩具视频和 sim2sim 图），和这篇无关。我只看了文件列表和提交信息，没有克隆。</p>
+<p>标成“读者注”的框是我核算或对照后写的，不属于论文。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#why">为什么用网络</a><a href="#i3d">3D 动画</a><a href="#act">激活函数</a><a href="#bench">AMASS 基准</a><a href="#dreamer">对比 DreamerV1</a><a href="#eval">动力学模型评估</a><a href="#tasks">稀疏奖励和迁移</a><a href="#scale">规模</a><a href="#unread">没读到的内容</a><a href="#notes">读者注汇总</a><a href="#links">链接核对</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>以下转述摘要。无模型强化学习能学会跟踪大型动捕库，但样本和训练时间的开销很大。作者学一个神经动力学模型，提出一个把监督学习和强化学习结合起来的框架，用来学可扩展的人形控制器。摘要报告四件事：比之前的方法样本效率更高、跟踪误差更低，并能扩展到几万段动作；中等规模的动力学模型就可以当作可微的神经仿真器，用于预测和策略优化；框架在稀疏奖励任务上有效；学到的动力学模型能迁移到不同任务。</p>
+<p>下面这张表把每句话和我能找到的证据对上。</p>
+<div class="tablewrap"><table class="t-a">
+<thead><tr><th>摘要的说法</th><th>我读到的证据</th></tr></thead>
+<tbody>
+<tr><td>监督学习和强化学习结合的框架</td><td>只有这一句。怎么结合没读到</td></tr>
+<tr><td>样本效率更高</td><td>只有训练天数和环境数，没有样本数，见<a href="#n7">读者注 7</a></td></tr>
+<tr><td>跟踪误差更低</td><td><a href="#bench">基准表</a>，但不是每列都最低，见<a href="#n5">读者注 5</a></td></tr>
+<tr><td>几万段动作</td><td>我读到的具体数字是 11313 + 140，见<a href="#n10">读者注 10</a></td></tr>
+<tr><td>中等规模模型可作可微仿真器</td><td>开环误差的一句话和两张直方图。“中等规模”的大小没读到</td></tr>
+<tr><td>稀疏奖励任务</td><td>只有两段视频，没有数字</td></tr>
+<tr><td>动力学模型可迁移</td><td>没有证据：项目页这一节被注释掉了</td></tr>
+</tbody></table></div>
+
+<h2 id="rel">和 SuperMimic 的关系</h2>
+<p>SuperMimic 的<a href="supermimic.html#s2">相关工作</a>里提到 SuperDyno 只有一句，原文是 “SuperDyno [14] scales differentiable neural dynamics to tens of thousands of motion clips”。接着它把 <a href="supertrack.html">SuperTrack</a>、<a href="controlvae.html">ControlVAE</a>、MoConVQ 和 SuperDyno 放在一起，说这些方法确立了学到的动力学加解析策略梯度对可扩展仿真角色控制的有效性。然后说 SuperMimic 把这个方向推进到单 GPU 训练大规模人形跟踪器，以及虚实迁移。</p>
+<p>所以从 SuperMimic 的文字能确定的只有：它把 SuperDyno 当作同一方向的前作，在规模这一点上引用它。它没有说自己具体从 SuperDyno 拿了哪个组件或改了哪个组件。全文没读到，我也不能替它做这个比较。</p>
+<p>可以并排放的只有下面几个来自各自来源的数字，它们的数据集和指标都不同，不能当作性能对比。</p>
+<div class="tablewrap"><table class="t-c">
+<thead><tr><th></th><th>SuperDyno</th><th><a href="supermimic.html">SuperMimic</a></th></tr></thead>
+<tbody>
+<tr><td>动作规模</td><td>摘要：几万段。项目页：训练 11313、测试 140</td><td>基准 129,514 段</td></tr>
+<tr><td>硬件和时间</td><td>单张 A6000，3 天（Ours*），2 天（Ours+*）</td><td>单 GPU 3 小时超过 SONIC 的回报；两张 GPU 9.8 小时零失败</td></tr>
+<tr><td>真机</td><td>没读到；项目页把“可以直接部署到真机”列为优势，没有给实验</td><td>Unitree G1</td></tr>
+<tr><td>激活函数</td><td>项目页比较了 SiLU 和 ReLU</td><td>我在它的文本里没搜到 SiLU、ELU 或 activation</td></tr>
+</tbody></table></div>
+<p>另一篇同期论文 ∇Mimic 把 SuperTrack、ControlVAE 和 Lei 等并列，说它们“train tracking controllers through learned dynamics”，并在参考文献里注明 SuperMimic 把它称为 SuperDyno。这也是一句话的转述。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 项目页和工作坊论文可能不是同一个版本</span><p>项目页的小标题是 “Paper ID: 15294 -- Rebuttal &amp; Supplementary Materials”。我由此推断它是给某次投稿的审稿回复（rebuttal）写的材料，不是工作坊论文的配套页。存档日期是 2026-03-03，晚于 ICLR 2025 工作坊。这一页所有表格数字都来自它，所以<b>可能和工作坊 PDF 里的数字不同</b>，我没有办法核对。那次投稿的会议名我没找到。</p></div>
+
+<h2 id="why">为什么用网络：项目页的论证</h2>
+<p>项目页第一节解释为什么选神经网络动力学，不选可微仿真器。</p>
+<p><b>策略对比。</b>三段视频，标题分别是参考动作、用 <a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a>（MuJoCo 的 JAX 版，可微分）的梯度、用神经网络的梯度。页面没有给数字。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 这组对比视频里是四足机器人</span><p>我抽帧看了后两段（<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_trot_apg_nolastact.mp4">MJX</a>、<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_superdyno1.mp4">神经网络</a>），各 4.08 秒，画面里是一台红色四足机器人，MJX 那段的文件名含 <code>trot</code> 和 <code>apg</code>。所以这组证据不是人形，也是单个任务。两段视频里机器人的运动不同，MJX 那段身体离初始位置更远，但没有数字，我不从这里下结论。</p></div>
+
+<h3>球和墙</h3>
+<p>简化问题：球从地面以速度 \(v\)、角度 \(\theta\) 发出，距离 \(L\) 处有一堵高 \(H\) 的墙，球碰墙就粘住。目标是选 \(\theta\) 让前进距离 \(x\) 最大，写成 \(\max x=f(\theta,v,H,L)\)。项目页的图给出：</p>
+\[
+t_{land}=\frac{2v\sin\theta}{g},\quad t_{hit}=\frac{L}{v\cos\theta},\quad y_{hit}=v\sin\theta\,t_{hit}-\frac12 g t_{hit}^2
+\]
+\[
+x=f(\theta)=\begin{cases}L, & t_{hit}\lt t_{land}\ \cap\ y_{hit}\lt H\\[2pt] \dfrac{v^2\sin 2\theta}{g}, & \text{else}\end{cases}
+\]
+<p>这里 \(y_{hit}\) 原图写的是 \(t\)，我按上下文写成 \(t_{hit}\)。这些式子没有原文编号，因为它们来自项目页的图，不是论文。</p>
+<div class="fig" id="fig-bw"><span class="lab">项目页图 · 球墙实验 · <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/ball_wall_example4.png">看原图 ↗</a></span><p>左边是地面上的绿色圆球，标了速度箭头 \(v\) 和角度 \(\theta\)，向右距离 \(L\) 处是一根黑色竖墙，高 \(H\)。两条绿色虚线抛物线，一条落在墙前方上空，一条越过墙。左上标重力 \(g\) 和坐标轴。右边是上面这组公式。</p></div>
+<p>设置：两个 MLP 去拟合这个函数，一个用 ReLU，一个用 SiLU。两者初始参数相同，用 <a class="ds" href="https://arxiv.org/abs/1908.03265">RADAM</a> 优化器（Adam 的一个变体，训练初期自动压小步长）训练 200 个 epoch，批量 \(B=300\)。<a class="ds" href="https://arxiv.org/abs/1702.03118">SiLU</a>（sigmoid-weighted linear unit）定义为 \(x\cdot\sigma(x)\)，处处可导，ReLU 在 0 点有折角。</p>
+<p>项目页的结论：学到的面比真值更光滑，所以梯度也更光滑。真值在这里代表可微仿真器。比如在 \(X(\theta,v)\) 切片上，真值面有一片梯度恒为零的区域，策略容易困在那里。页面放了 3 × 3 的交互 3D 图（三个切片乘真值、ReLU、SiLU），存档里没有这些图。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 我重算了这个例子</span><p><b>公式的形状</b>（\(v=12,L=8,H=2.5,g=9.81\)，这些取值是我选的）：平台不止一段。\(16.5°\) 到 \(36.1°\) 球上升途中撞墙，\(71.2°\) 到 \(73.5°\) 球下落途中撞墙，两段上 \(dx/d\theta\) 都恰好为 0。在 \(36.1°\) 处 \(x\) 从 8 跳到约 14.0。真正的最优解在 \(45°\)，\(x\approx14.68\)。</p>
+<p><b>梯度上升</b>（同一条规则走 80 步）：真值面从 8° 出发停在 16.5°，\(x=8\)；从 25° 出发原地不动；从 70° 出发能到 45°。这和项目页说的“困在梯度为零的地方”一致。</p>
+<p><b>重新拟合</b>（4→32→32→1，1500 样本，都是我选的，项目页没给）：学习率 0.005 时，ReLU 和 SiLU 从三个起点都到了 \(x\approx14.6\) 附近。SiLU 的梯度总变差（沿 θ 累加相邻梯度差的绝对值）约 0.43，ReLU 约 0.92，确实更平滑。但这个结果依赖拟合质量：学习率 0.002 时，SiLU 从 8° 出发也停在 \(x=8\)。网络拟合误差也不小，均方根约 2.8 到 3.0 米。所以我确认的是“这种现象可以出现”，不是“网络总能逃出局部最优”。这是一维优化的玩具，不能直接外推到人形。</p>
+<p>这一段可以在 <a href="../interactives/superdyno/index.html?scene=5">3D 动画第 5 幕</a>里切换起点看。</p></div>
+<h3>优缺点</h3>
+<p>项目页列的优势：梯度更光滑，能跳出局部最优，比仿真器更少出现梯度爆炸或消失；容易放大，天然支持并行；有助于域迁移，泛化能力强；可以直接部署到真机。缺点：长期预测不准；不清楚怎样从无结构的多模态数据里学习。除了第一项有球墙例子，其他几项页面只是列举，没有给实验。</p>
+
+<div class="i3d" id="i3d"><p class="lab">3D 动画 · 10 幕</p>
+<p>这不是论文架构的动画，因为架构没读到。第 1 幕区分读到和没读到的内容；第 2、4、5、6 幕是现场计算的玩具；第 3、7、8、9、10 幕是项目页的数字。</p>
+<iframe src="../interactives/superdyno/index.html?embed=1" title="SuperDyno 3D 动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/superdyno/index.html">打开完整页面</a>，那里有结构表和“哪些是示意”的清单。</p></div>
+
+<h2 id="act">激活函数的 2 × 2 比较</h2>
+<p>项目页的假设：SiLU 梯度更光滑，所以动力学模型用 SiLU 应当更好。下表都在 <a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a>（<a href="https://arxiv.org/abs/1904.03278">论文</a>，统一到 SMPL 人体模型的动捕数据集）上训练 24 小时。表里的 P、W 项目页没有展开，我推断 P 是策略，W 是世界模型。表上没写单位，也没写是在训练集还是测试集上评估。</p>
+<div class="tablewrap"><table class="t-a">
+<thead><tr><th></th><th>Success Rate</th><th>Global MPJPE</th><th>Local MPJPE</th><th>Acc</th><th>Vel</th></tr></thead>
+<tbody>
+<tr><td>P(SiLU) W(SiLU)</td><td>96.8</td><td>24.3</td><td>19.8</td><td>2.3</td><td>3.1</td></tr>
+<tr><td>P(SiLU) W(ReLU)</td><td>93.9</td><td>30.6</td><td>24.4</td><td>2.6</td><td>3.6</td></tr>
+<tr><td>P(ReLU) W(ReLU)</td><td>95.8</td><td>25.7</td><td>19.9</td><td>2.7</td><td>3.3</td></tr>
+<tr><td>P(ReLU) W(SiLU)</td><td>97.9</td><td>21.1</td><td>16.6</td><td>2.5</td><td>3.0</td></tr>
+</tbody></table></div>
+<p>MPJPE（mean per-joint position error）是每关节位置误差的平均。Global 在世界坐标下算，Local 一般指相对根节点算；这里的定义没读到。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 配对比较</span><p>固定 P，把 W 从 ReLU 换成 SiLU：P(SiLU) 时成功率 +2.9、Global −6.3、Local −4.6、Acc −0.3、Vel −0.5；P(ReLU) 时成功率 +2.1、Global −4.6、Local −3.3、Acc −0.2、Vel −0.3。5 个指标全部变好，和假设方向一致。没有重复实验和方差，所以差距多少算显著我判断不了。</p>
+<p>固定 W，把 P 从 SiLU 换成 ReLU：除 Acc 外都变好，Acc 在两组里都变差（2.6→2.7，2.3→2.5）。最好的组合是 P(ReLU) W(SiLU)，不是两个都用 SiLU。这和基准表说明里 “Our+ also changes the activation of policy network from SiLU to ReLU” 相符。项目页没有解释为什么策略这边 ReLU 更好。</p></div>
+
+<h2 id="bench">AMASS 模仿基准</h2>
+<p>项目页称 AMASS-Train* 和 AMASS-Test* 分别有 11313 和 140 段高质量动捕序列。FT 是 future tracks（字面是未来轨迹，具体怎么用没读到）。带 * 的结果在单张 NVIDIA A6000 上得到。Our+ 还把策略的激活函数从 SiLU 换成 ReLU。PULSE 是蒸馏方法，项目页说不能直接比。基线 <a href="https://arxiv.org/abs/2305.06456">PHC</a> 是 Luo 等的跟踪器，PHC+ 出自 <a href="https://arxiv.org/abs/2310.04582">PULSE</a> 那篇论文。</p>
+<div class="fig" id="fig-bench"><span class="lab">项目页图 · 基准表 · <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/benchmark.png">看原图 ↗</a></span><p>下表是这张图的数字。原图中 Ours* 整行加粗，PHC+* 和 Ours+* 两行在虚线之下。</p></div>
+<div class="tablewrap"><table class="t-b">
+<thead><tr><th rowspan="2">方法</th><th colspan="5">AMASS-Train*</th><th rowspan="2">时间</th><th colspan="5">AMASS-Test*</th></tr>
+<tr><th>Succ↑</th><th>E<sub>g-mpjpe</sub>↓</th><th>E<sub>mpjpe</sub>↓</th><th>E<sub>acc</sub>↓</th><th>E<sub>vel</sub>↓</th><th>Succ↑</th><th>E<sub>g-mpjpe</sub>↓</th><th>E<sub>mpjpe</sub>↓</th><th>E<sub>acc</sub>↓</th><th>E<sub>vel</sub>↓</th></tr></thead>
+<tbody>
+<tr><td>PHC</td><td>98.9</td><td>37.5</td><td>26.9</td><td>3.3</td><td>4.9</td><td>7 days</td><td>96.4</td><td>47.4</td><td>30.9</td><td>6.8</td><td>9.1</td></tr>
+<tr><td>PHC+</td><td>100</td><td>26.6</td><td>21.1</td><td>2.7</td><td>3.9</td><td>7+ days</td><td>99.2</td><td>36.1</td><td>24.1</td><td>6.2</td><td>8.1</td></tr>
+<tr><td>PULSE</td><td>99.8</td><td>39.2</td><td>35.0</td><td>3.1</td><td>5.2</td><td>None(distillation)</td><td>97.1</td><td>54.1</td><td>43.5</td><td>7.0</td><td>10.3</td></tr>
+<tr><td><b>Ours*</b></td><td><b>99.2</b></td><td><b>27.7</b></td><td><b>15.5</b></td><td><b>2.1</b></td><td><b>2.7</b></td><td><b>3 days</b></td><td><b>98.5</b></td><td><b>32.1</b></td><td><b>23.9</b></td><td><b>5.5</b></td><td><b>7.1</b></td></tr>
+<tr><td>Ours(FT)*</td><td>99.0</td><td>20.3</td><td>16.1</td><td>1.9</td><td>2.6</td><td>3 days</td><td>98.1</td><td>27.0</td><td>20.2</td><td>5.0</td><td>6.4</td></tr>
+<tr><td>PHC+*(env 3072)</td><td>98.4</td><td>30.9</td><td>23.6</td><td>2.4</td><td>3.6</td><td>2 days</td><td>97.8</td><td>30.5</td><td>23.5</td><td>5.6</td><td>8.0</td></tr>
+<tr><td>Ours+*(env 1024)</td><td>98.8</td><td>16.9</td><td>13.3</td><td>2.3</td><td>2.7</td><td>2 days</td><td>97.9</td><td>26.5</td><td>19.5</td><td>5.6</td><td>6.5</td></tr>
+</tbody></table></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 怎么读这张表</span><p><b>加粗不代表每列最优。</b>Ours* 在训练集成功率 99.2 低于 PHC+ 的 100 和 PULSE 的 99.8；训练集 E<sub>g-mpjpe</sub> 27.7 高于 PHC+ 的 26.6；测试集成功率 98.5 低于 PHC+ 的 99.2。它在 E<sub>mpjpe</sub>、E<sub>acc</sub>、E<sub>vel</sub> 和测试集 E<sub>g-mpjpe</sub> 上低于前三行。</p>
+<p><b>“7 天对 3 天”不是同一硬件。</b>只有带 * 的行明确在单张 A6000 上。PHC、PHC+、PULSE 三行没有星号，硬件没写。最接近同条件的是虚线下两行：都是 2 天，同一张卡。</p>
+<p><b>同条件下，测试集的优势比训练集小很多。</b>Ours+* 相对 PHC+*：训练集 E<sub>g-mpjpe</sub> 低 45.3%，E<sub>mpjpe</sub> 低 43.6%；测试集分别只低 13.1%、17.0%。Ours+* 从训练到测试 E<sub>g-mpjpe</sub> 涨了 56.8%（16.9→26.5），PHC+* 几乎不变（30.9→30.5）。测试集只有 140 段，波动可能不小。成功率两者接近（97.9 对 97.8），E<sub>acc</sub> 相同（5.6）。</p>
+<p><b>PHC+ 自身的两行也不单调。</b>7+ 天那行的测试集 E<sub>g-mpjpe</sub> 是 36.1，2 天的星号行是 30.5，训练更短反而更低，但成功率也更低（97.8 对 99.2）。如果 MPJPE 只在成功的序列上算，成功率低会让误差看起来更好。这只是我的推测，表里没写口径，我也没有查证 PHC 系列是不是这样算。不管原因是什么，都不宜单看一列。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 24 小时比 3 天的全局误差还低</span><p>如果 P(SiLU) W(SiLU) 就是 Ours*（这是我的推断，页面没有明说），那么 24 小时的 E<sub>g-mpjpe</sub> 是 24.3，3 天却是 27.7，同时成功率从 96.8 升到 99.2。可能的解释有：两张表的评估集不同，或者上面推测的成功序列口径。这两个解释我都核实不了。相对地，P(ReLU) W(SiLU) 从 24 小时（21.1，16.6）到 Ours+* 2 天（16.9，13.3）是单调变好的，前提同样是这两行对应同一配置。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · “样本效率更高”这里算不出来</span><p>摘要说样本效率明显更高。我读到的只有训练天数和环境数，没有总样本数或每秒步数。可以算的只有环境数之比：3072 / 1024 = 3，这是同样 2 天内并行环境数的差别。但实际样本数还取决于仿真速度和训练循环里世界模型占多少时间，所以 3 倍只是环境数之比，不是样本效率的倍数。全文里可能有这个数字。</p></div>
+
+<h2 id="dreamer">和 DreamerV1 比单段动作</h2>
+<p>项目页给了两张平均奖励曲线，在单段动作上过拟合。“DreamerV1 和 DreamerV3 在 AMASS 全集上的结果之后再补”，存档里没有这部分。<a href="dreamer.html">Dreamer</a> 和 <a href="dreamerv3.html">DreamerV3</a> 的精读在本站。</p>
+<div class="viz" id="c-standing"><p class="cap">重画 · Standing · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/dreamerv1_standing2.png">dreamerv1_standing2.png ↗</a>，每段取中位数，比原图光滑</p></div>
+<div class="viz" id="c-handball"><p class="cap">重画 · Handball · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/dreamerv1_handball.png">dreamerv1_handball.png ↗</a>，每段取中位数，比原图光滑</p></div>
+<p>按我的读数，Standing 上 SuperDyno 到约 4.4k 步时约 30.3，DreamerV1 到约 7.4k 步时约 21.9。Handball 上 SuperDyno 到约 3.8k 步时约 24.2，DreamerV1 到约 3.2k 步时约 5.3。原图横轴只写 Step，没有说一步是环境步还是梯度步，两条曲线是否同一单位也没写，所以这里只比终值。</p>
+
+<h2 id="eval">动力学模型评估</h2>
+<p>项目页说，训练好的动力学模型在 AMASS 训练集和测试集上都能稳定预测未来状态，每关节误差在 1.5 秒后小于 0.066 m。它还放了开环预测视频：红色是参考动作，蓝色是策略的跟踪，橙色是动力学模型的开环预测。开环指模型的输入来自自己上一步的输出，不看真实状态。</p>
+<div class="viz"><p class="cap">重画 · 标题 “Short Horizon World Eval MPJPE Distribution” · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_amass_train.png">训练集 ↗</a> 和 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_test.png">测试集 ↗</a>。纵轴改成了占比，方便两边比较</p>
+<div class="hist2"><div id="c-h-train"></div><div id="c-h-test"></div></div>
+<div class="viz-table"><p>训练集（约）：6165、4455、415、129、87、53，其余合计约 9</p><p>测试集：16、96、15、8、2、3</p></div></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 0.066 m 大概是第 2 根柱子的右端</span><p>我按 y 轴网格线标定读了柱高。测试集读出来是 16、96、15、8、2、3，都接近整数，合计正好 140，和测试集段数相同。训练集前 6 根合计约 11304，单像素约 17 段，和 11313 相符，余下约 9 段分布在图上看不清的长尾里（图上尾巴大约到 0.33）。所以每个样本应当是一段动作。</p>
+<p>柱宽约 1/30 m（15 根覆盖 0 到 0.5），第 2 根右端约 0.0667 m。所以我推断“小于 0.066 m”指的是这个分箱边界，不是所有动作的上限。按这个切分，约 93.9% 的训练动作和 80.0%（112 / 140）的测试动作落在里面。其余的误差更大，测试集最大的一档到 0.2 m。</p>
+<p>用分箱中点估算均值：训练集约 0.035 m，测试集约 0.058 m，测试集大约是训练集的 1.6 倍。众数也从第 1 根移到了第 2 根。另外两张图的标题只写 “Short Horizon”，1.5 秒来自正文，图上没有写时长。</p></div>
+
+<h2 id="tasks">稀疏奖励和迁移</h2>
+<p>项目页展示了两个稀疏奖励的下游任务：指定方向的速度跟踪、轨迹跟随。还有 AMASS 训练集、难度较高的动作、测试集的跟踪视频，以及 SuperDyno 和 PHC+ 做 Handball 动作的并排视频。全部是视频，没有数字，我没有逐段看。项目页说渲染的 <a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a> 网格直接来自仿真结果，没有后处理。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 迁移和 scaling law 在页面里是空的</span><p>项目页 HTML 源码的目录里有一段被注释掉的条目：Transfer Learning(Todos) 下面是任务级和环境级迁移，还有 A Glimpse into Scaling Law of Dynamics Model for Policy Learning(Todos)。页面正文没有这些节。摘要声称的“动力学模型可迁移到不同任务”，以及动力学模型大小和策略学习的关系，我在读过的来源里都找不到数据。全文可能有。这是“我没读到”，不是“论文没做”。</p></div>
+
+<h2 id="scale">规模</h2>
+<p>标题和摘要的重点是规模，SuperMimic 引用的也是这一点。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · “几万段”和 11313</span><p>摘要写 “scaling seamlessly to datasets with tens of thousands of motion clips”，SuperMimic 照用了这个说法。我读到的唯一具体数字是项目页的 AMASS-Train* 11313 段和 AMASS-Test* 140 段，合计 11453，够不上“几万”。这不算矛盾：全文可能用了更大的数据集，也可能按别的方式计数（比如切片）；项目页也可能和工作坊论文不是同一版本（<a href="#n1">读者注 1</a>）。我核对不了，所以只报告这个差距。作为参照，SuperMimic 的基准 129,514 段约是 11313 的 11.4 倍，但它们是不同的数据集和过滤流程。</p></div>
+
+<h2 id="unread">没读到的内容</h2>
+<p>下面这些问题读者很可能想问，我读过的来源里都没有答案。它们不等于论文没写。</p>
+<ul>
+<li>动力学模型的结构：层数、宽度、参数量，“中等规模”到底多大。</li>
+<li>状态和动作的表示，模型预测什么，是否像 <a href="supertrack.html">SuperTrack</a> 那样预测加速度再积分。</li>
+<li>监督学习和强化学习如何结合：各自的损失、权重、更新顺序，是否用评论家，梯度穿过模型滚动多少步。</li>
+<li>动力学模型的训练数据来源和训练时机，是预训练再冻结还是和策略一起训练。</li>
+<li>仿真器、角色模型（项目页只提到渲染用 SMPL 网格）、控制频率。</li>
+<li>总样本数、每秒步数、消融实验。</li>
+<li>稀疏奖励和迁移实验的数字。</li>
+<li>“几万段”具体用了哪个数据集。</li>
+</ul>
+<p>因此这一页和本站其他精读不一样：没有原文章节、没有编号公式和算法。拿到 PDF 后，这些部分才能补上。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>都是我核算或对照后写的，不属于论文。表格数字来自项目页存档，读数来自它的 PNG。</p>
+<ol class="notes">
+<li><a href="#n1">版本问题</a>：项目页是审稿回复材料，数字可能和工作坊 PDF 不同。</li>
+<li><a href="#n2">对比视频是四足</a>：MJX 对神经网络的视频不是人形，也没有数字。</li>
+<li><a href="#n3">重算球墙</a>：平台有两段；真值面会卡住；网络能否逃出依赖拟合质量。</li>
+<li><a href="#n4">激活函数配对</a>：W 换 SiLU 五项全好；最好的是 P(ReLU) W(SiLU)。</li>
+<li><a href="#n5">基准表</a>：加粗不等于每列最优；同硬件下测试集优势明显缩小。</li>
+<li><a href="#n6">24 小时对 3 天</a>：全局误差不单调，原因核实不了。</li>
+<li><a href="#n7">样本效率</a>：现有数字算不出来。</li>
+<li><a href="#n8">0.066 m</a>：大概是分箱边界，覆盖训练集约 94%、测试集 80%。</li>
+<li><a href="#n9">迁移和 scaling law</a>：项目页这两节被注释掉，没有数据。</li>
+<li><a href="#n10">几万段</a>：我读到的具体数字是 11313 + 140。</li>
+</ol>
+
+<h2 id="links">链接核对</h2>
+<p>状态码是我脚本访问时的结果（2026-11-06）。</p>
+<div class="tablewrap"><table class="t-links">
+<thead><tr><th>名称</th><th>用途</th><th>地址</th><th>状态</th></tr></thead>
+<tbody>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a></td><td>数据集</td><td>amass.is.tue.mpg.de；论文 arxiv.org/abs/1904.03278</td><td>200；200</td></tr>
+<tr><td><a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a></td><td>人体模型</td><td>smpl.is.tue.mpg.de</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a></td><td>可微仿真器</td><td>mujoco.readthedocs.io</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2305.06456">PHC</a></td><td>基线</td><td>arxiv.org/abs/2305.06456</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2310.04582">PULSE</a></td><td>基线，PHC+ 的出处</td><td>arxiv.org/abs/2310.04582</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1908.03265">RAdam</a></td><td>优化器</td><td>arxiv.org/abs/1908.03265</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1702.03118">SiLU</a></td><td>激活函数</td><td>arxiv.org/abs/1702.03118</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">OpenReview PDF</a></td><td>论文全文</td><td>openreview.net</td><td>403（脚本）；我没有绕过</td></tr>
+</tbody></table></div>
+
+<footer><p>这一页是我读摘要和项目页存档后的整理，不是作者的官方内容，也不是全文精读。原文和原图版权归作者，这里没有放原图。“重画”的图只用了从项目页 PNG 读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="superdyno/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

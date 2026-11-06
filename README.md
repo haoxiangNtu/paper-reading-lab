@@ -8,6 +8,10 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control（[arXiv 2511.07820](https://arxiv.org/abs/2511.07820)，Science Robotics 2026，SuperMimic 引用） | [sonic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/sonic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/sonic/index.html) | 把动作跟踪放大到 128 卡、1 亿帧、42M 参数，并用 FSQ 通用 token 接上规划器、遥操作和 VLA。 | 18 条 |
+| Perpetual Humanoid Control for Real-time Simulated Avatars（[arXiv 2305.06456](https://arxiv.org/abs/2305.06456)，ICCV 2023，SuperMimic 引用） | [phc 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/phc.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/phc/index.html) | 不加外力模仿 AMASS 98.9%：动作越练越难就新建 primitive 并冻结旧的，再用 composer 组合，摔倒能自己爬起走回去。 | 25 条 |
+| MoConVQ: Unified Physics-Based Motion Control via Scalable Discrete Representations（[arXiv 2310.10198](https://arxiv.org/abs/2310.10198)，SIGGRAPH 2024，SuperMimic 引用） | [moconvq 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/moconvq.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/moconvq/index.html) | 把几十小时动作压成离散索引、再用物理解码回来，穿过世界模型训练，并接上 GPT 和大语言模型。 | 18 条 |
+| Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics（[OpenReview](https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf)，ICLR 2025 Workshop，SuperMimic 引用） | [superdyno 整理页，全文未读](https://haoxiangntu.github.io/paper-reading-lab/papers/superdyno.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/superdyno/index.html) | 全文未读到，只整理摘要和项目页存档：可微神经动力学把人形跟踪扩展到大规模动作库。不是逐节精读。 | 10 条 |
 | Uncertainty-Aware Robotic World Model Makes Offline Model-Based Reinforcement Learning Work on Real Robots（[arXiv 2504.16680](https://arxiv.org/abs/2504.16680)，arXiv 2025，SuperMimic 引用） | [rwm-u 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rwm-u.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rwm-u/index.html) | 给 RWM 加集成不确定性，只用日志离线训练策略并部署到真机。 | 18 条 |
 | Mastering Diverse Domains through World Models（[arXiv 2301.04104](https://arxiv.org/abs/2301.04104)，Nature 2025，SuperMimic 引用） | [dreamerv3 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/dreamerv3.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/dreamerv3/index.html) | 同一套超参数跨 8 个领域的世界模型智能体：symlog、two-hot、KL 平衡、回报归一化，演员全部改用 Reinforce。 | 17 条 |
 | Temporal Difference Learning for Model Predictive Control（[arXiv 2203.04955](https://arxiv.org/abs/2203.04955)，ICML 2022，SuperMimic 引用） | [td-mpc 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/td-mpc.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/td-mpc/index.html) | 每个决策步用学到的潜空间模型采样规划，H 步之外交给终值函数；模型不重建观测，只学奖励、价值和潜一致性。 | 15 条 |
@@ -36,6 +40,36 @@
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
 | [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
+
+## SONIC 读后要点
+
+- 放大的收益要看失败率：三轴分别降 3.2、5.3、3.0 倍；只做单轴实验，没有交叉。
+- 通用 token 让换输入不必重训。
+- 存活不等于跟上速度：命令 5 m/s，实际 2.07 m/s。
+- 公布的默认模型解码器约 1018 万参数，不是 42M 结构。
+- v4 正文的成功判据比 v1–v3、Data S1 和官方代码少了一项根朝向。
+
+## PHC 读后要点
+
+- 单网络学大动作库会边学边忘，图 7 的阶梯是直接证据。
+- 消融最大一跳来自渐进训练（66.2 → 86.9）。
+- 恢复靠屏蔽非根目标，退化成 point-goal。
+- 代码的 composer 噪声加在权重上，Σwμ 不归一，和式 (5)(6) 不同。
+- README 后来报单 primitive 99.9%（未验证）。
+
+## MoConVQ 读后要点
+
+- 残差量化用 4096 个码向量表示 512⁸ 种组合，离散索引因此能接 GPT 和 LLM。
+- 解码器含仿真器，不可导；训练时换成世界模型，再用直通估计跨过量化。
+- 相比 ControlVAE：无先验，编码器不看仿真状态，转向下游改用监督学习。
+- 干净数据上连续 VAE 更准；图 17 里加噪声后带残差的 VQ 超过它。
+
+## SuperDyno 读后要点
+
+- 全文未读到，下面只来自摘要和项目页存档。
+- 摘要只说结合监督学习和强化学习，具体组合方式没读到。
+- 球墙例子：真值面有梯度为零的平台，会卡住梯度上升。
+- 动力学模型用 SiLU 时五项指标全部变好，最好组合是 P(ReLU) W(SiLU)。
 
 ## RWM-U 读后要点
 
@@ -124,7 +158,7 @@ SuperMimic 只学一个可微世界模型，从仿真器记录的转移拟合，
 - **“25”在图 A.1 上读不到。**矢量图读数都是整数，3 小时附近是 27、31、30、24，整条曲线没有 25。
 - **“一次迭代”的含义对不上。**点距反推每次迭代约 105 毫秒，和图 5(a) 的速度放在一起，更像每次迭代 0.4 次更新，而不是“每次迭代都更新”。
 - **窗口外才是大头。**γ³² = 0.725，折扣回报约 73% 在 32 步之外，全靠评论家；但 32 步的误差数据论文一个也没给。
-- **判据不对称。**SONIC 被含倾斜项的判据评判，它自己的判据没有朝向项，影响多大论文没报告。
+- **判据不同。**SONIC 按 SuperMimic 的判据评测，影响多大论文没报告。论文说 SONIC 自己的判据没有朝向项，这只对 SONIC v4 正文成立：v1–v3、Data S1 和官方代码都有朝向项，公布配置训练时还更严。
 
 ## 3D World Simulator 读后要点
 
@@ -189,8 +223,8 @@ index.html          论文列表与写法约定
 papers/supermimic.html       SuperMimic 精读
 papers/supermimic/charts.js  精读页的折线图，数据从原文矢量图读出，是重画的
 papers/supermimic/*.webp     从 PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者
-papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
-interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}/  对应的 3D 框架动画
+papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
+interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}/  对应的 3D 框架动画
 interactives/supermimic/     SuperMimic 的 11 幕 3D 框架动画（精读页内嵌）
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperDyno 现有材料的 3D 动画 · Paper Reading Lab</title>
+<meta name="description" content="SuperDyno（ICLR 2025 World Models 工作坊）。全文没有读到，这份 10 幕动画只用摘要和项目页存档里的内容，并明确标出哪些是玩具、哪些没读到。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:118px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);max-width:min(72%,620px)}
+.ctl[hidden]{display:none}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+.warnbox{border-left:3px solid var(--note);background:var(--panel);padding:8px 12px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14.5px;max-width:78ch}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'},options:{enableMenu:false}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="superdyno.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/superdyno.html">返回页面</a><a href="../../papers/supermimic.html">SuperMimic 精读</a><a href="../../papers/supertrack.html">SuperTrack</a><a href="../../papers/controlvae.html">ControlVAE</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · ICLR 2025 WORLD MODELS 工作坊 · SUPERDYNO</p>
+<h1>只用读到的材料讲 SuperDyno：动力学网络、梯度、规模</h1>
+<p class="lead">一共 10 幕。论文全文没有读到（OpenReview 的 PDF 对脚本返回 403，我没有绕过），所以这不是论文架构的动画。第 1 幕说明来源，第 2、3 幕是动力学模型的开环误差，第 4、5 幕是项目页的球墙实验，第 6 幕是梯度来源的玩具，第 7 到 9 幕是项目页的结果，第 10 幕是规模。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。第 1 幕可以直接点方框跳转，其余各幕左上角可以切换。<b>第 2、4、5、6 幕是在这个页面里现场计算的玩具。</b></p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">10 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">结构表：读到的每个量和它的来源</h2>
+<p class="sub">“没读到”的意思是我读过的来源里没有，全文可能写了。这里不替论文补。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>内容</th><th>来源</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">框架</td></tr>
+<tr><td>F1</td><td>神经动力学模型</td><td>“medium-sized”，可作可微的神经仿真器；层数、宽度、输入输出没读到</td><td>摘要</td></tr>
+<tr><td>F2</td><td>监督 + 强化</td><td>“结合”；损失、权重、更新顺序没读到</td><td>摘要</td></tr>
+<tr><td>F3</td><td>激活函数</td><td>比较了 P、W 各用 SiLU 或 ReLU</td><td>项目页表格</td></tr>
+<tr><td>F4</td><td>开环预测</td><td>每关节误差小于 0.066 m，1.5 秒后</td><td>项目页文字</td></tr>
+<tr class="grp"><td colspan="4">规模和硬件</td></tr>
+<tr><td>S1</td><td>动作段数</td><td>“tens of thousands”；AMASS-Train* 11313，AMASS-Test* 140</td><td>摘要；项目页</td></tr>
+<tr><td>S2</td><td>硬件</td><td>带 * 的行：单张 NVIDIA A6000</td><td>项目页</td></tr>
+<tr><td>S3</td><td>环境数和时间</td><td>Ours+ 1024、PHC+ 3072，都是 2 天；Ours 3 天；PHC 7 天；PHC+ 7+ 天</td><td>项目页基准表</td></tr>
+<tr class="grp"><td colspan="4">球墙实验</td></tr>
+<tr><td>B1</td><td>目标</td><td>\(\max x=f(\theta,v,H,L)\)，球碰墙粘住</td><td>项目页</td></tr>
+<tr><td>B2</td><td>拟合</td><td>两个 MLP：ReLU、SiLU，相同初始参数；RADAM；200 epoch；批量 300</td><td>项目页</td></tr>
+<tr class="grp"><td colspan="4">这一页自己的玩具（不是论文内容）</td></tr>
+<tr><td>T1</td><td>球墙网络</td><td>4→32→32→1；1500 样本；学习率 0.005；θ 0 到 90°，v 5 到 15，H 1 到 4，L 3 到 12；g = 9.81</td><td>我选的</td></tr>
+<tr><td>T2</td><td>滑块 W</td><td>3→24→24→2，SiLU；回归下一状态的增量；视野 16 步，dt = 0.05</td><td>我选的</td></tr>
+<tr><td>T3</td><td>滑块策略</td><td>3 个参数的线性反馈；RL 用对偶扰动，每次 8 对；混合时各占一半，每次 2 对</td><td>我选的</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意，哪些是算的</h2>
+<ul class="mine">
+<li><b>第 1 幕。</b>方框的布局是我按来源分类的，不是论文的架构图。</li>
+<li><b>第 2、6 幕。</b>现算的玩具：一维滑块、线性策略。它不是人形，不是论文的网络，也不是论文组合监督和强化的方式。“各一半”是我的写法。</li>
+<li><b>第 3 幕。</b>柱高从项目页的 PNG 按网格线标定读出。测试集读数是整数且合计 140。训练集读数约 ±20，第 7 根以后太矮，合并成约 9，由总数 11313 差出。</li>
+<li><b>第 4 幕。</b>公式来自项目页的图，v、L、H 的取值是我选的。</li>
+<li><b>第 5 幕。</b>重新计算的玩具。项目页的交互图没有被存档，我看不到作者的面。学习率试过三档，结果依赖它，见右侧说明。</li>
+<li><b>第 7、8 幕。</b>数字照录项目页。柱子的动画是长出来的，没有额外含义。</li>
+<li><b>第 9 幕。</b>从 PNG 的像素颜色读出，每段取中位数和分位数，精度只到目测级。</li>
+<li><b>第 10 幕。</b>“几万”的两条虚线边界是我选的。</li>
+</ul>
+</section>
+<footer><p>图解是我读摘要和项目页存档后的理解，不是作者的官方图。论文全文没有读到。</p></footer>
+</div>
+</body>
+</html>

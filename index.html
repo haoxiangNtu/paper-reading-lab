@@ -20,6 +20,38 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/sonic.html">SONIC：数据、模型、算力一起放大</a></p>
+<p class="en">SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control</p>
+<div class="meta"><span>arXiv 2511.07820</span><span>Science Robotics 2026</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把动作跟踪放大到 128 卡、1 亿帧、42M 参数，并用 FSQ 通用 token 接上规划器、遥操作和 VLA。</p>
+<div class="tags"><span class="pill">动作跟踪</span><span class="pill">PPO</span><span class="pill">FSQ</span><span class="pill">CC BY-SA 4.0 · 含原图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/sonic.html">读精读 →</a><a href="interactives/sonic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2511.07820">原文</a><a href="https://github.com/NVlabs/GR00T-WholeBodyControl">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/phc.html">PHC：新建 primitive，摔倒能爬起来</a></p>
+<p class="en">Perpetual Humanoid Control for Real-time Simulated Avatars</p>
+<div class="meta"><span>arXiv 2305.06456</span><span>ICCV 2023</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">不加外力模仿 AMASS 98.9%：动作越练越难就新建 primitive 并冻结旧的，再用 composer 组合，摔倒能自己爬起走回去。</p>
+<div class="tags"><span class="pill">人形控制</span><span class="pill">PMCP</span><span class="pill">失败恢复</span><span class="pill">CC BY-NC-SA 4.0 · 含原图</span><span class="pill rn">25 条读者注</span></div>
+<div class="links"><a class="go" href="papers/phc.html">读精读 →</a><a href="interactives/phc/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2305.06456">原文</a><a href="https://github.com/ZhengyiLuo/PHC">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/moconvq.html">MoConVQ：离散表示接上 GPT 和大语言模型</a></p>
+<p class="en">MoConVQ: Unified Physics-Based Motion Control via Scalable Discrete Representations</p>
+<div class="meta"><span>arXiv 2310.10198</span><span>SIGGRAPH 2024</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">把几十小时动作压成离散索引、再用物理解码回来，穿过世界模型训练，并接上 GPT 和大语言模型。</p>
+<div class="tags"><span class="pill">VQ-VAE</span><span class="pill">残差量化</span><span class="pill">物理角色</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/moconvq.html">读精读 →</a><a href="interactives/moconvq/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2310.10198">原文</a><a href="https://github.com/heyuanYao-pku/MoConVQ">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/superdyno.html">SuperDyno（全文未读）：可微神经动力学</a></p>
+<p class="en">Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics</p>
+<div class="meta"><span>OpenReview</span><span>ICLR 2025 Workshop</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
+<p class="d">全文未读到，只整理摘要和项目页存档：可微神经动力学把人形跟踪扩展到大规模动作库。不是逐节精读。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">全文未读</span><span class="pill">文字描述图</span><span class="pill rn">10 条读者注</span></div>
+<div class="links"><a class="go" href="papers/superdyno.html">读整理页 →</a><a href="interactives/superdyno/index.html">10 幕 3D 框架动画</a><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">原文</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/rwm-u.html">RWM-U：给世界模型加不确定性，离线训练上真机</a></p>
 <p class="en">Uncertainty-Aware Robotic World Model Makes Offline Model-Based Reinforcement Learning Work on Real Robots</p>
 <div class="meta"><span>arXiv 2504.16680</span><span>arXiv 2025</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
@@ -185,7 +217,7 @@
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
 <tr><td><code>papers/supermimic.html</code></td><td>SuperMimic 精读</td></tr>
-<tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
+<tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
 <tr><td><code>papers/supermimic/charts.js</code></td><td>SuperMimic 精读页的折线图，数据点从原文矢量图读出，是重画的，不是原图</td></tr>
 <tr><td><code>papers/supermimic/*.webp</code></td><td>从 SuperMimic PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者</td></tr>
 <tr><td><code>interactives/supermimic/</code></td><td>SuperMimic 的 11 幕 3D 框架动画（<code>index.html</code>，精读页 §3.1 内嵌），three.js</td></tr>
