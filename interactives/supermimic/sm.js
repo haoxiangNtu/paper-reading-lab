@@ -556,8 +556,8 @@
     for (let i = 0; i < 8; i++) for (let j = 0; j < 18; j++) { setI(ppo, i * 18 + j, [ppoX + i * cw, cw * (j + 0.5), 0], cw * 0.9); colI(ppo, i * 18 + j, hex3(COL.grad)); } done(ppo);
     const sm2 = block(cw * 0.9, cw * 1.19, cw * 0.9, COL.pi, [ppoX + 3.2, cw * 1.19 / 2, 0], { edges: false }); G.add(sm2);
     G.add(lab('SONIC：128 张 L40 × 168 小时\n= 21,504 GPU·h', [12.5, 23.5, 0], { size: 28, border: 'rgba(224,93,93,.8)' }));
-    const l1 = lab('SuperMimic：1 张 H100 × 3 小时\n= 3 个方块', [smX - 1.2, 7.6, 0], { size: 24, border: 'rgba(56,209,255,.8)' }); G.add(l1);
-    G.add(L.line([[smX, 0.5, 0], [smX - 1.0, 6.5, 0]], COL.pi, { opacity: 0.9 }));
+    const l1 = lab('SuperMimic：1 张 H100 × 3 小时\n= 3 个方块', [smX - 3.2, 6.2, 0], { size: 24, border: 'rgba(56,209,255,.8)' }); G.add(l1);
+    G.add(L.line([[smX, 0.5, 0], [smX - 2.6, 5.2, 0]], COL.pi, { opacity: 0.9 }));
     const lP = lab('受控对比（同一任务 LAFAN1）', [ppoX + 1.8, 12.3, 0], { size: 24 }), l2 = lab('PPO-Sim：8 卡 × 18 小时 = 144\n只到回报 0.72', [ppoX + 0.2, 9.8, 0], { size: 23, border: 'rgba(255,122,89,.8)' }), l3 = lab('SuperMimic：1.2\n回报 0.82', [ppoX + 5.0, 4.2, 0], { size: 23, border: 'rgba(56,209,255,.8)' }); G.add(lP, l2, l3);
     G.add(L.line([[ppoX + 0.5, 3.0, 0], [ppoX + 0.3, 8.5, 0]], COL.grad, { opacity: 0.7 }), L.line([[ppoX + 3.2, 0.3, 0], [ppoX + 4.6, 3.2, 0]], COL.pi, { opacity: 0.8 }));
     return { update(p) {
