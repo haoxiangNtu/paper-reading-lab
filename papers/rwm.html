@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RWM 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2501.10100 Robotic World Model 的中文精读：按原文章节逐节整理，含全部编号公式、结果表、图的文字描述、从矢量图读出的数据、与官方代码的对照、11 幕 3D 框架动画和 17 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-wide{min-width:640px}.t-s8{min-width:420px}.t-s8 td,.t-s8 th{text-align:right}.t-s8 td:first-child,.t-s8 th:first-child{text-align:left}
+.hl{font-weight:700;color:var(--accent)}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+pre.alg{font-family:var(--font-mono);font-size:13px;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto;white-space:pre-wrap}
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-axis{stroke:var(--muted);stroke-width:1}
+.viz-ref{stroke:var(--muted);stroke-width:1;stroke-dasharray:5 4}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:12.5px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.viz-table p{max-width:none;font-family:var(--font-mono);font-size:11.5px;overflow-wrap:anywhere;margin:4px 0}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/rwm/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2501.10100v5 · cs.RO · 2025 年 1 月首发，2025 年 12 月 14 日 v5 · 预印本 · 中文精读</p>
+<h1>RWM：一个神经网络仿真器，在里面训练的策略能直接上真机</h1>
+<p class="orig">Robotic World Model: A Neural Network Simulator for Robust Policy Optimization in Robotics</p>
+<p>作者 Chenhao Li、Andreas Krause、Marco Hutter，均来自 ETH Zurich。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2501.10100">arXiv 原文</a><a href="https://arxiv.org/html/2501.10100">网页版</a><a href="https://arxiv.org/pdf/2501.10100">PDF</a><a href="https://sites.google.com/view/roboticworldmodel">项目主页</a><a href="https://github.com/leggedrobotics/robotic_world_model">官方代码</a><span>正文 10 页，参考文献和附录到第 21 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇用的是默认的非独占分发许可，没有授权翻译或转载，所以这里不做逐字翻译，也不放原图。我用自己的话按原文顺序覆盖全部章节和附录。每张图写清画了什么，“看原图”打开 arXiv 网页版的对应位置。公式按原文编号，表格数字照录原文。</p>
+<p>标着“重画”的折线图不是原图，是我从原文矢量图读出数据后画的，可以悬停看数值。标成“读者注”的框是我核算或对照发现的内容，不属于论文，页尾有汇总。</p>
+<p><b>代码。</b>作者公开了官方代码，我读过但没有运行：<a href="https://github.com/leggedrobotics/robotic_world_model">robotic_world_model</a>（commit 82147f9，2026-10-29）、<a href="https://github.com/leggedrobotics/rsl_rl_rwm">rsl_rl_rwm</a>（18eebcd，2026-01-26，算法本体）、<a href="https://github.com/leggedrobotics/robotic_world_model_lite">robotic_world_model_lite</a>（13a798e，2026-04-08，离线版）。代码只有 ANYmal D 平地这一个任务，配置和论文表格有多处不同，下文逐条写出。代码晚于论文版本，也同时服务于后续论文 <a class="ds" href="https://arxiv.org/abs/2504.16680">RWM-U</a>，所以代码和论文不一致时，不能断定论文的实验用的是哪一种。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-2">3.2 自回归训练</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 策略优化</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 轨迹预测</a><a href="#s4-2">4.2 抗噪</a><a href="#s4-3">4.3 跨任务</a><a href="#s4-4">4.4 策略与真机</a><a href="#s5">5 局限</a><a href="#s6">6 结论</a><a href="#a1">A.1 任务</a><a href="#a2">A.2 网络</a><a href="#a3">A.3 训练参数</a><a href="#a4">A.4 补充实验</a><a href="#a5">A.5 伦理</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>RWM 学一个世界模型，也就是预测“做了这个动作之后下一步的观测是什么”的网络，让策略可以在它里面训练，不用碰仿真器或真机。它的输入输出都是低维本体量（基座速度、关节角等），模型是 GRU 加几个 MLP 头。两个做法是它的主要内容：</p>
+<ul>
+<li><b>自回归训练。</b>训练时把模型自己的预测喂回去，连续预测 N 步再算损失。论文把这和 GRU 读历史合起来叫“双重自回归”。</li>
+<li><b>MBPO-PPO。</b>在模型里滚一百步的想象轨迹，再用普通 PPO 更新策略。梯度不穿过模型。</li>
+</ul>
+<p>主要结果：ANYmal D 上，同一个模型单步训练的预测误差是 3.99，自回归训练是 0.47（图 S8）。15 个任务上它基本都是最低的（图 4）。用 MBPO-PPO 训练的速度跟踪策略直接部署到 <a class="ds" href="https://www.anybotics.com/robotics/anymal/">ANYmal D</a> 和 <a class="ds" href="https://www.unitree.com/g1">Unitree G1</a> 真机，真实跟踪奖励 0.90 ± 0.04，和仿真器里训练的 PPO 的 0.90 ± 0.03 相同（表 1）。同样设定下，穿过模型求导的 SHAC 基线和 DreamerV3 都没能产出可部署的策略。</p>
+<p>读完我认为最值得记住的三点：单步和自回归的差距主要在训练窗口之外才显现，第 8 步两者还差不多（<a href="#n10">读者注 10</a> 前后的图）；这篇的“在想象里训练”依赖预训练，而且数据全部来自仿真，它在有仿真器时并不省时间（表 1）；公开代码和论文表格有多处不一致，其中想象时不用历史这一处比较重要（<a href="#n6">读者注 6</a>）。</p>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 2 页 · <a href="https://arxiv.org/html/2501.10100#S0.F1">看原图 ↗</a></span><p>一组按时间排开的渲染帧，时间轴标到 7 秒。每个环境上下两行或三行：上行是 RWM 自回归想象出来的机器人姿态，下行是仿真器真值。ANYmal D 和 Unitree G1 还多一行真机部署照片。</p></div>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 在相关工作的“基于模型的策略优化与部署”一段（<a href="supermimic.html#s2">§2</a>）提到 RWM 和 RWM-U，说了三件事：它们证明了在学到的神经仿真器里训练的策略可以迁移到实体机器人；两者都用 PPO 在想象轨迹上优化策略，而 SuperMimic 对回报穿过学到的动力学求导；两者都用其他策略的轨迹预训练世界模型，而 SuperMimic 在训练过程中用自己策略收集的数据拟合模型。原文只有这几句，SuperMimic 没有声明使用 RWM 的代码。它和 RWM 的共同点和差别如下，“共同点”是我的对比，不是 SuperMimic 写的。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th></th><th>RWM</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>模型拟合</td><td>N = 8 步自回归，反传穿过预测</td><td>k = 8 步自回归，反传穿过预测（相同的思路）</td></tr>
+<tr><td>模型结构</td><td>GRU 256 × 2 ＋ MLP 128 头，输出高斯均值和方差</td><td>确定性 MLP 2048 × 3，以仿真上下文 ξ 为条件</td></tr>
+<tr><td>策略的梯度</td><td>PPO 似然比，模型只产生数据</td><td>BPTT，穿过模型的雅可比，H = 32</td></tr>
+<tr><td>接触和终止</td><td>代码里 <code>round()</code> 成硬值，PPO 不需要导数</td><td>终止概率连乘成软权重 ĉ，保持可导</td></tr>
+<tr><td>模型数据</td><td>预训练 ＋ 在线微调（单环境）</td><td>只用自己策略在线收集，每 GPU 4096 个环境</td></tr>
+<tr><td>想象长度</td><td>论文 100 步，代码每轮 24 步</td><td>32 步，加评论家</td></tr>
+<tr><td>对“穿过模型求导”的结论</td><td>SHAC 基线在腿足接触下失败（§4.4）</td><td>在人形全身跟踪上成功，方差更低</td></tr>
+</tbody></table></div>
+<p>最后一行看起来矛盾。两篇用的模型、目标、评论家和梯度处理都不同，论文也都没有做隔离这些因素的实验，所以不能据此判断谁对。见<a href="#n13">读者注 13</a>。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · SuperMimic 的说法核对过，有一处需要补充</span>
+<p><b>“用 PPO 在想象轨迹上优化”：属实。</b>论文算法 1 第 7 行写的是“用 PPO 或其他 RL 算法”，实验用 PPO。代码把这一点写得很确定：<code>imagine()</code> 的全部滚动都在 <code>torch.inference_mode()</code> 里（mbpo_on_policy_runner.py:189），不生成计算图。之后 <code>update()</code> 只对存下来的观测重新算 \(\log\pi_\theta\) 和价值（mbpo_ppo.py:405-408, 453-458）。模型对 θ 的导数在这条路径上不存在。</p>
+<p><b>“用其他策略的轨迹预训练”：属实，但只说了一半。</b>A.4.3 确认了预训练数据来自“为相似任务训练、动力学有变化”的策略。不过它也说预训练只有运动任务需要，操作任务不需要；并且预训练之后 RWM 还会用当前策略在单个环境里收集的数据继续微调（算法 1 第 3、4 行）。所以严格的对比是“预训练加少量在线微调”和“从头全部在线”。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>很多机器人策略部署后就不再学习，真机上产生的数据白白浪费。PPO、SAC 这类无模型方法需要的交互量太大，没法直接在真机上用，所以需要样本效率高的方法。世界模型是一条路：用环境的预测模型模拟动力学，在里面规划或优化策略，这常被称为“在想象里学习”。它在操作、导航、运动上都有应用。</p>
+<p>难处在真实动力学有非线性、随机性和部分可观。现有方法常加领域相关的归纳偏置，比如结构化状态表示或手工网络结构，这限制了它们的通用性。本文想要一个不靠这些、长程预测准确的通用框架，再用 PPO 做策略优化，并部署到仿真和真机。作者认为这是第一个在学到的神经仿真器上可靠训练策略、不用领域知识、部署到硬件且性能损失很小的框架。</p>
+<p>贡献有三条：能做长自回归滚动的网络结构和训练框架；覆盖多种机器人任务的评测，并和现有世界模型比较；一个利用世界模型的高效策略优化框架，在四足和人形硬件上验证。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>机器人世界模型</h3>
+<p>视觉方向有 Visual Foresight 系列，学视觉动力学用于规划。还有在世界模型里完整训练 RL 智能体的工作（Ha 和 Schmidhuber 的 World Models，以及 DIAMOND）。为了让黑盒模型泛化得更好，很多工作嵌入物理或结构知识：落足点动力学、物体不变性、颗粒介质交互、频域参数化（FLD）、刚体动力学、半结构化拉格朗日模型。这些效果好，但依赖领域知识。潜空间模型是另一条路，代表是 PlaNet 和 Dreamer，也已用于真机（DayDreamer 等）。</p>
+<h3 id="s2-2"><span class="no">2.2</span>基于模型的强化学习</h3>
+<p>MBRL 用学到的模型模拟交互。<a class="ds" href="https://arxiv.org/abs/1805.12114">PETS</a> 用概率集成；PlaNet 在潜空间规划；<a class="ds" href="https://arxiv.org/abs/1912.01603">Dreamer</a> 加上演员-评论家；Transformer 和 VAE 变体改进生成能力；<a class="ds" href="https://arxiv.org/abs/2203.04955">TD-MPC</a> 和 <a class="ds" href="https://arxiv.org/abs/2310.16828">TD-MPC2</a> 结合 MPC。</p>
+<p>混合路线里，<a class="ds" href="https://arxiv.org/abs/1906.08253">MBPO</a> 用模型产生数据，再用无模型更新，并强调只在模型可信时依赖它。<a class="ds" href="https://arxiv.org/abs/2005.13239">MOPO</a> 把这个框架扩展到离线。另一条线用一阶梯度优化策略，即 <a class="ds" href="https://arxiv.org/abs/2204.07137">SHAC</a> 和 AHAC。本文说自己的框架把 MBPO 和 PPO 结合，跑在长自回归滚动上。</p>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<h3 id="s3-1"><span class="no">3.1</span>强化学习和世界模型</h3>
+<p>问题写成部分可观马尔可夫决策过程（POMDP，智能体只能看到观测，看不到完整状态）：\((\mathcal S,\mathcal A,\mathcal O,T,R,O,\gamma)\)。转移核 \(p(s_{t+1}\mid s_t,a_t)\)，奖励 \(R:\mathcal S\times\mathcal A\times\mathcal S\to\mathbb R\)，观测按 \(p(o_t\mid s_t)\) 发出。策略 \(\pi_\theta:\mathcal O\to\mathcal A\) 最大化 \(\mathbb E_{\pi_\theta}[\sum_{t\ge0}\gamma^t r_t]\)。</p>
+<p>世界模型的训练通常是三步循环：从真实环境收集数据，用数据训练模型，在模型模拟的环境里优化策略。RWM 属于这一类，主要的改动是加入历史上下文和自回归训练，用来应对误差累积、部分可观和不连续动力学。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>自监督自回归训练</h3>
+<p>模型 \(p_\phi\) 的输入是最近 \(M\) 步的观测-动作对，输出下一步观测的分布 \(p(o_{t+1}\mid o_{t-M+1:t},a_{t-M+1:t})\)。预测是自回归的（把模型自己的输出当下一步的输入）：预测出来的 \(o'_{t+1}\) 接到历史后面，再配上下一个动作 \(a_{t+1}\) 继续预测，共 \(N\) 步。第 \(k\) 步的预测写成：</p>
+<div class="eq"><div class="m">\[ o'_{t+k}\sim p_\phi\bigl(\,\cdot\mid o_{t-M+k:t},\,o'_{t+1:t+k-1},\,a_{t-M+k:t+k-1}\bigr) \]</div><span class="no">(1)</span></div>
+<p>特权信息 \(c\)（如接触）也用类似方式预测。它提供额外的学习目标，让隐状态编码对长程预测有用的信息。作者认为这样训练让模型提前见到使用时会遇到的分布。总损失是多步预测误差：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\frac1N\sum_{k=1}^{N}\alpha^k\Bigl[\mathcal L_o\bigl(o'_{t+k},o_{t+k}\bigr)+\mathcal L_c\bigl(c'_{t+k},c_{t+k}\bigr)\Bigr] \]</div><span class="no">(2)</span></div>
+<p>\(\mathcal L_o,\mathcal L_c\) 度量预测和真值的差距，\(\alpha\) 是衰减系数。训练数据用大小 \(M+N\) 的滑动窗口从轨迹上切。为了让梯度穿过自回归预测，用了重参数化技巧（把采样写成“均值加标准差乘噪声”，样本对参数可导）。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 5 页 · <a href="https://arxiv.org/html/2501.10100#S3.F2">看原图 ↗</a></span><p>两张并排的时间展开图，都以历史长度 3 为例。(a) 自回归训练，预测长度 N = 2：从步 t 出发的一行和从步 t+1 出发的一行，历史是真值，第二步的输入是虚线箭头连过来的第一步预测，每步都有损失 \(L_o\)。(b) 教师强制：每步输入都是真值，每行只有一个预测。教师强制（teacher forcing，训练时输入总用真值）可看成 N = 1 的特例，可以并行，所以快。许多流行结构默认这样训练。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 符号和衰减</span><p>图 2 的图注把历史长度写成 \(H=3\)，正文和表格都用 \(M\)。这是同一个量。式 (2) 的 \(\alpha\) 在表 S10 里取 1.0，所以实际没有衰减，等于 8 步等权。代码也一样：各步损失直接取平均（system_dynamics.py compute_state_loss），没有 α 这个参数。</p></div>
+<p>结构上，框架本身不限定网络，RWM 用 GRU，因为它能保留长历史且适合低维输入。网络输出下一观测高斯分布的均值和标准差。论文提出“双重自回归”：</p>
+<ul><li><b>内层：</b>在历史长度 M 内，每个历史步之后更新一次 GRU 隐状态。</li><li><b>外层：</b>在预测长度 N 内，把预测的观测喂回网络。</li></ul>
+<p>结构见图 S6。</p>
+<div class="fig" id="figS6"><span class="lab">图 S6 · 原文第 16 页 · <a href="https://arxiv.org/html/2501.10100#A1.F6">看原图 ↗</a></span><p>和图 2(a) 同样的两行时间展开，在观测和动作上方多了一排隐状态 \(h_{t-2},h_{t-1},h_t,h_{t+1}\)，用横向箭头串起来。这就是内层。观测行里虚线把预测 \(o'\) 接回下一步输入，这是外层。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · “内层自回归”就是 GRU 的标准前向</span><p>代码里只有一行 <code>x, self.hidden_states = self.rnn(x, self.hidden_states)</code>（rnn.py），首次把 32 帧一起送入，之后每次送 1 帧。没有额外机制。所以“双重自回归”的实际内容是：一个 RNN，加上外层把预测喂回。这是我的理解。论文在 §4.3 也提到 RSSM 用自回归训练后能达到接近的水平（没给数字），这和“外层才是主要因素”的读法相容，但论文没有做只去掉内层的对照。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 分布的作用：训练时采样，想象时不采样</span>
+<p>式 (1) 和式 (3) 写的是 \(o'\sim p_\phi\)。代码里两处用法不同：</p>
+<ul><li><b>训练：</b>把重参数化的样本 \(\mu+\sigma\epsilon\) 喂回下一步（system_dynamics.py:217），不 detach，所以梯度确实穿过多步。</li>
+<li><b>想象和评测：</b><code>forward()</code> 只返回 μ（system_dynamics.py:115-120），不采样。所以想象里动力学这一步是确定的，随机性来自策略动作和附加的观测噪声。</li></ul>
+<p>损失的默认分支也不是高斯负对数似然，而是样本对真值的平方和（<code>loss_type="mse"</code>，system_dynamics.py:270, 282）。取期望得 \(\mathbb E\lVert\mu+\sigma\epsilon-o\rVert^2=\lVert\mu-o\rVert^2+\lVert\sigma\rVert^2\)，这个目标总想把 σ 压小，不会把它拟合成真实的噪声水平。另外还有一项 bound 损失（权重 1），把 log σ 的上下界往一起拉。<code>gaussian_nll</code> 分支存在，但没有调用它的地方。论文只说 \(\mathcal L_o\) “度量差距”，没写形式。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 特权头在代码里是教师强制的</span><p>论文说特权信息“也用类似方式”自回归预测。代码有两个独立 GRU：状态 GRU 吃自己的预测，特权 GRU 的输入在每一步都是<b>真实观测</b>（system_dynamics.py:261）。而想象时特权 GRU 收到的是预测观测（<code>forward</code> 共用同一个输入）。所以接触和终止头在训练和使用时的输入分布不同，这正是论文批评教师强制的那种不匹配。这份代码是否就是论文实验的版本，我没法确认。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>框架拆成 11 幕。第 5 幕可以切换单步和自回归，右边是当场训练的玩具。第 3 幕切历史长度，第 6 幕切噪声，第 9 幕切方法、长度和接触，并当场算 PPO 和 BPTT 的梯度。柱子和曲线用的是原文读数，玩具已经标明。</p>
+<iframe src="../interactives/rwm/index.html?embed=1&amp;scene=5" title="RWM 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/rwm/index.html">全屏打开，还有完整结构表 ↗</a></p>
+</div>
+
+<h3 id="s3-3"><span class="no">3.3</span>在学到的世界模型上优化策略</h3>
+<p>框架受 MBPO 和 Dyna（Sutton 提出的“用模型生成经验来学习”）启发。想象时，动作由策略根据模型预测的观测产生：</p>
+<div class="eq"><div class="m">\[ a'_{t+k}\sim\pi_\theta\bigl(\,\cdot\mid o'_{t+k}\bigr) \]</div><span class="no">(3)</span></div>
+<p>其中 \(o'_{t+k}\) 按式 (1) 自回归得到。奖励从预测的观测和特权信息计算。回放缓存 \(\mathcal D\) 汇集单个智能体的真实交互，模型按 §3.2 在上面训练。想象智能体从 \(\mathcal D\) 的样本初始化，用模型滚 \(T\) 步，轨迹交给 RL 算法。</p>
+<pre class="alg" id="alg1">算法 1  用 RWM 优化策略（<a href="https://arxiv.org/html/2501.10100#alg1">看原文 ↗</a>）
+1: 初始化策略 π_θ、世界模型 p_φ、回放缓存 D
+2: for 学习迭代 = 1, 2, ... do
+3:    用 π_θ 与环境交互，把观测-动作对存入 D
+4:    用从 D 采样的数据，按式 (2) 自回归训练 p_φ
+5:    用从 D 采样的观测初始化想象智能体
+6:    用 π_θ 和 p_φ 按式 (3) 滚动 T 步想象轨迹
+7:    用 PPO 或其他 RL 算法更新 π_θ
+8: end for</pre>
+<p>PPO 用在学到的模型上有特别的麻烦：策略会利用模型的误差，而 PPO 需要的长滚动又放大误差。论文把这种用法叫 MBPO-PPO，称它能在一百多步自回归滚动上成功优化策略，远超 MBPO、Dreamer、TD-MPC 这类方法的通常长度。</p>
+<div class="fig" id="figS7"><span class="lab">图 S7 · 原文第 17 页 · <a href="https://arxiv.org/html/2501.10100#A1.F7">看原图 ↗</a></span><p>一行“环境交互”的观测动作序列，下面进入回放缓存，上方分出“想象滚动” \(o'_{t+1},o'_{t+2},\dots,o'_{t+T}\)。展示真实交互产生数据，想象滚动产生策略更新用的轨迹。</p></div>
+<p><b>和穿过模型求导的精确差别。</b>两种做法的前向都一样，都在模型里滚轨迹。差在策略的梯度：</p>
+<div class="eq"><div class="m">\[ g_{\rm PPO}=\mathbb E\Bigl[\sum_t\nabla_\theta\log\pi_\theta(a_t\mid o'_t)\,\hat A_t\Bigr] \]</div><span class="no"></span></div>
+<div class="eq"><div class="m">\[ g_{\rm BPTT}=\nabla_\theta\sum_t\gamma^t r(o'_t,a_t),\quad \frac{\partial o'_{t+1}}{\partial\theta}=\frac{\partial f}{\partial o}\frac{\partial o'_t}{\partial\theta}+\frac{\partial f}{\partial a}\frac{\partial a_t}{\partial\theta} \]</div><span class="no"></span></div>
+<p>第一个式子是策略梯度。PPO 的裁剪在比值等于 1 时不起作用，所以第一次更新的梯度就是它。\(\hat A_t\)（优势，这一步比平均好多少）只是一个算好的数，模型只通过这个数和 \(o'_t\) 的数值影响梯度。第二个式子里有模型的雅可比 \(\partial f/\partial o\)，而且逐步连乘。因此 PPO 不需要模型可导，也不怕 <code>round()</code> 这种硬判定，但估计方差大；BPTT 方差小，但模型的导数必须可信，长链和硬接触都会出问题。这段公式是我写的，论文没有列出；第 9 幕可以在玩具上看到这些差别。注意 RWM 在<b>训练模型自己</b>时是穿过模型反传的（§3.2），差别只在策略这一步。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 公开代码在想象时没有用上 32 帧历史</span>
+<p>论文的结构和表 S10 都依赖 M = 32 的上下文。图 S8 显示 M = 1、N = 8 时 e 是 10.58，M = 32 时 0.47。而 rsl_rl_rwm 的 <code>imagine()</code> 是这样写的（mbpo_on_policy_runner.py:188-193）：</p>
+<ul><li>每轮开头 <code>self.alg.system_dynamics.reset()</code>，把隐状态清成 None，也就是零。</li>
+<li>循环里的条件是 RNN 且 <code>self.env.unwrapped.common_step_counter &gt; 0</code>，就只保留最后一帧。这个计数器是真实环境的步数，而真实收集在 <code>imagine()</code> 之前已经跑过（Isaac Lab 每个 step 加 1），所以条件从第一步起就成立。<code>prepare_imagination()</code> 取出的 32 帧历史在第一步就被截成 1 帧。</li>
+<li>环境结束后补新起点时，也只取最后一帧（第 201 行）。</li></ul>
+<p>按这份代码，GRU 每 24 步从零开始，只有想象过程中积累的上下文。环境类里其实有一个 <code>imagination_common_step_counter</code>，也许是原本想用的变量；离线版 <code>policy_training.py:65</code> 用的是环境自己从 0 开始的计数器，第一步会读满 32 帧，也不会每轮清零。这是我读代码得到的结论，没有运行验证，影响多大不知道，也不能推断论文实验有同样的问题。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 代码里 PPO 的小批混了少量真实数据</span><p>算法 1 和 A.4.3 都说策略“纯粹在想象里”学。在线代码的 <code>update(imagination=True)</code> 用 <code>mini_batch_generator_combined</code>（mbpo_ppo.py:309, 348）把真实存储和想象存储的小批拼在一起。按配置，真实 10 × 24 = 240 条，想象 8192 × 24 = 196,608 条，真实样本约占 0.12%。比例很小，但确实不是纯想象。离线版没有这一步。</p></div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>实验在 <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a> 和真机上进行。先看自回归预测的准确度，再比较网络结构和跨任务误差，最后用 MBPO-PPO 训练策略并部署。</p>
+<h3 id="s4-1"><span class="no">4.1</span>自回归轨迹预测</h3>
+<p>模型训练设定 M = 32，N = 8，控制频率 50 Hz。论文说预测轨迹和真值在所有观测变量上都吻合，超过训练窗口后依然如此，并把这归功于双重自回归。M 和 N 的选择见 A.4.1。</p>
+<div class="fig" id="fig3a"><span class="lab">图 3(a) · 原文第 7 页 · <a href="https://arxiv.org/html/2501.10100#S4.F3">看原图 ↗</a></span><p>三行曲线，分别是 v、ω、q（各 3、3、12 条），横轴 t 到 200。实线真值，虚线预测，t = 32 处有竖线，之后开始预测。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · e 没有定义；两句话关于数据来源对不上</span>
+<p><b>e 的定义。</b>全文只叫“相对自回归预测误差”，没给公式。代码里（mbpo_ppo.py:254）是 \(e=\mathrm{mean}\bigl(\sum_i|\hat o_i-o_i|\,/\,\sum_i|o_i|\bigr)\)，按每步求比值再平均，在<b>归一化后</b>的观测上算，长度 400 步。分母依赖固定的归一化常数。这不能保证就是论文图上的 e，但数量级一致。</p>
+<p><b>数据来源。</b>§4 开头说这个分析用“速度跟踪策略产生的仿真数据”学模型，§4.1 又说用 ANYmal D <b>硬件</b>上采的轨迹评估。可以都成立（仿真训练、硬件评估），但全文没有其他地方提到硬件轨迹，图 3 图注也没说，A.4.4 又说训练都在仿真。v1 里同样写的是 hardware，所以不是后来改动造成的。我没法判断真实情况。</p>
+<p><b>评测代码的动作错位。</b>缓存第 j 帧存的是 \(s_j\) 和上一动作 \(a_{j-1}\)（post-step 的 last_action）。训练用 <code>action_batch[:, i+1:M+i+1]</code>，配对是 \((s_j,a_j)\)。评测 <code>system_dynamics_autoregressive_prediction</code> 用同一下标（mbpo_ppo.py:286-290），配对变成 \((s_j,a_{j-1})\)，晚了一步。这只影响记录的误差，不影响策略训练。图 3(b) 第一步的 e 就有 0.16，这和错位相容，但我没运行，不能确认因果。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>噪声下的稳健性</h3>
+<p>自回归时，小偏差会把模型带到没训练过的区域。这里对观测和动作都加高斯噪声，比较 RWM 和一个同样自回归训练、同样 M、N 的 MLP。论文的结论是 RWM 在所有噪声水平上都有明显优势，MLP 随步数增长发散得更快，并把这归因于双重自回归。</p>
+<div class="fig" id="fig3b"><span class="lab">图 3(b) · 原文第 7 页 · <a href="https://arxiv.org/html/2501.10100#S4.F3">看原图 ↗</a></span><p>横轴 t，纵轴 e，范围 0 到 2。六档噪声（0.0、0.1、0.2、0.4、0.5、0.8）各一条黄色（RWM）和灰色（MLP）曲线，带同色阴影。t = 32 之前都是 0。低噪声的灰线后段超出纵轴。下面是我重画的其中四条，纵轴放大到 5，超出原图的部分用阴影带补全。</p></div>
+<div class="viz"><p class="cap">重画 · 图 3(b) 的四条曲线 · 数据读自原文第 7 页矢量路径（阴影带上下界中点）· 可悬停</p><div id="c-f3"></div></div>
+<div class="tablewrap"><table class="t-s8"><thead><tr><th>无噪声，读数</th><th>t=32（第 1 步）</th><th>t=39（第 8 步）</th><th>t=64</th><th>t=82</th><th>t=132</th><th>t=199</th></tr></thead><tbody>
+<tr><td>RWM</td><td>0.161</td><td>0.233</td><td>0.361</td><td>0.465</td><td>0.504</td><td>0.509</td></tr>
+<tr><td>MLP</td><td>0.193</td><td>0.261</td><td>0.498</td><td>0.823</td><td>2.663</td><td>4.599</td></tr>
+</tbody></table></div>
+<p>这组读数说明，差距几乎都在训练窗口之外：第 8 步只差 12%，到 t = 199 差 9 倍。RWM 在 t ≈ 100 以后基本走平。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 噪声曲线有一部分是度量本身带来的</span><p>代码计算带噪误差时，目标也是<b>加过噪声的轨迹</b>（mbpo_ppo.py:257-260）：预测和含噪目标比。即使预测完美也不是 0。读数和这一点相符：第 1 步的 e 随噪声从 0.161（0）涨到 0.946（0.8），这个时候模型还没有累积任何误差。到 0.8 噪声，RWM 和 MLP 在 t = 199 分别是 1.07 和 1.22，只差 14%，第一步几乎一样（0.946 和 0.957）。所以“高噪声下优势”主要看差值和走势，不宜只看绝对值。这假设图用的是这份代码的算法，论文没写。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 图 3(b) 的阴影带不是统计量</span><p>矢量路径里，12 条阴影带每一条在每个 t 上，下界除以上界都等于 2/3（实测 0.6663 到 0.6669），且中点和实线在可见处吻合。也就是说阴影带恰好是均值的 ±20%，全程不变。任何种子方差或轨迹方差都不会这样。图注和正文没有说明这个带是什么，读图时不应把它当作不确定性。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>跨机器人环境的通用性</h3>
+<p>和 MLP、RSSM（Dreamer 系列的循环状态空间模型）、Transformer 比较，所有模型给相同上下文。同时比较 RWM 的教师强制版（RWM-TF）和自回归版（RWM-AR）。论文说 RWM-AR 在所有环境上误差最低，在腿足这类复杂任务上差距尤其大。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 8 页 · <a href="https://arxiv.org/html/2501.10100#S4.F4">看原图 ↗</a></span><p>15 个任务的分组柱状图，每组 5 根，带误差棒。任务从操作排到腿足，名称用的是 Isaac Lab 的任务（Reach、Lift、Open-Drawer、Repose-Cube，以及各机型的速度跟踪）。下表是矢量柱的读数。</p></div>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>任务</th><th>MLP</th><th>RSSM</th><th>Transformer</th><th>RWM-TF</th><th>RWM-AR</th><th>TF / AR</th></tr></thead><tbody>
+<tr><td>Reach-UR10</td><td>2.67</td><td>1.05</td><td>0.65</td><td>1.15</td><td class="hl">0.65</td><td>1.8</td></tr>
+<tr><td>Reach-Franka</td><td>3.70</td><td>1.11</td><td>0.63</td><td>0.92</td><td class="hl">0.52</td><td>1.8</td></tr>
+<tr><td>Lift-Cube-Franka</td><td>4.43</td><td>2.45</td><td>0.91</td><td>1.37</td><td class="hl">0.68</td><td>2.0</td></tr>
+<tr><td>Open-Drawer-Franka</td><td>5.49</td><td>2.37</td><td>1.99</td><td>1.84</td><td class="hl">0.74</td><td>2.5</td></tr>
+<tr><td>Repose-Cube-Allegro</td><td>5.98</td><td>3.10</td><td>2.66</td><td>3.48</td><td class="hl">0.81</td><td>4.3</td></tr>
+<tr><td>Velocity-Unitree-A1</td><td>6.01</td><td>3.20</td><td>3.03</td><td>3.68</td><td class="hl">0.65</td><td>5.7</td></tr>
+<tr><td>Velocity-Unitree-Go1</td><td>6.84</td><td>3.51</td><td>2.82</td><td>3.19</td><td class="hl">0.64</td><td>5.0</td></tr>
+<tr><td>Velocity-Unitree-Go2</td><td>7.03</td><td>3.08</td><td>2.76</td><td>3.05</td><td class="hl">0.80</td><td>3.8</td></tr>
+<tr><td>Velocity-Anymal-B</td><td>7.40</td><td>3.45</td><td>3.60</td><td>3.49</td><td class="hl">0.59</td><td>5.9</td></tr>
+<tr><td>Velocity-Anymal-C</td><td>7.38</td><td>3.76</td><td>3.95</td><td>3.77</td><td class="hl">0.69</td><td>5.5</td></tr>
+<tr><td>Velocity-Anymal-D</td><td>7.85</td><td>3.96</td><td>2.91</td><td>3.99</td><td class="hl">0.47</td><td>8.5</td></tr>
+<tr><td>Velocity-Spot</td><td>6.60</td><td>2.00</td><td>3.91</td><td>4.24</td><td class="hl">0.76</td><td>5.6</td></tr>
+<tr><td>Velocity-Cassie</td><td>8.85</td><td>5.92</td><td>4.27</td><td>6.03</td><td class="hl">0.77</td><td>7.8</td></tr>
+<tr><td>Velocity-H1</td><td>7.55</td><td>3.91</td><td>5.59</td><td>5.86</td><td class="hl">0.81</td><td>7.2</td></tr>
+<tr><td>Velocity-G1</td><td>9.84</td><td>6.08</td><td>4.76</td><td>6.33</td><td class="hl">0.90</td><td>7.0</td></tr>
+</tbody></table></div>
+<p>基线都按常规用教师强制训练。论文补充：自回归训练可以用在任何结构上。RSSM 用自回归训练后水平接近 GRU，但作者为了简单和计算效率选 GRU。Transformer 的多步反传显存吃不消，难以做自回归。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 图 4 的读数</span>
+<p><b>对得上：</b>Anymal-D 的 RWM-TF 3.99 和 RWM-AR 0.47，与图 S8 上 M = 32 时 N = 1、N = 8 的数字完全相同。说明图 S8 就是这个任务。</p>
+<p><b>“所有环境都最低”差一点点：</b>Reach-UR10 上 RWM-AR 和 Transformer 都读出 0.65，误差棒也重合（0.63–0.67，0.62–0.68）。其他 14 个任务确实最低。</p>
+<p><b>比较不完全同条件：</b>基线是教师强制，RWM-AR 是自回归，这张图的 RWM-AR 对 RSSM 差距包含了训练方式的差别。RSSM 的自回归结果论文没给数字。代码里也没有 RSSM、Transformer、SHAC、Dreamer 的实现（<code>_create_base</code> 只接受 mlp 和 rnn），所以这些基线无法复现。除 ANYmal D 平地外的任务配置也没放出来。</p></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>策略学习和硬件迁移</h3>
+<p>用 MBPO-PPO 训练 ANYmal D 和 Unitree G1 的目标条件速度跟踪策略。基线是 SHAC（穿过世界模型一阶求导）和 <a class="ds" href="https://arxiv.org/abs/2301.04104">DreamerV3</a>（潜空间模型加演员-评论家）。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 8 页 · <a href="https://arxiv.org/html/2501.10100#S4.F5">看原图 ↗</a></span><p>四张小图，左两张 ANYmal D，右两张 G1：每个机器人一张模型误差 e，一张回报 r，都带阴影。回报图里实线是仿真器报告的真实回报（只用于评估），虚线是模型估计的回报（用于训练）。下面重画。</p></div>
+<div class="viz"><p class="cap">重画 · 图 5 ANYmal D 的 e · 读自原文第 8 页矢量路径，61 个采样点 · 可悬停</p><div id="c-eA"></div></div>
+<div class="viz"><p class="cap">重画 · 图 5 ANYmal D 的 r · 同上</p><div id="c-rA"></div></div>
+<div class="viz"><p class="cap">重画 · 图 5 Unitree G1 的 e · 同上</p><div id="c-eG"></div></div>
+<div class="viz"><p class="cap">重画 · 图 5 Unitree G1 的 r · 同上</p><div id="c-rG"></div></div>
+<p>论文的解读：MBPO-PPO 的模型误差显著下降。SHAC 误差高且波动，因为一阶梯度不适合接触带来的不连续动力学，不准的梯度造成混乱行为，混乱行为又给模型提供低质量数据。Dreamer 的规划长度短，长程依赖处理不好，只部分收敛。MBPO-PPO 的预测回报起初高于真实回报（策略在利用模型的乐观误差），之后靠拢。</p>
+<p>真机：SHAC 和 Dreamer 训练中崩溃，没有可部署的策略。MBPO-PPO 的策略零次迁移（zero-shot，部署后不再训练或调参）到 ANYmal D 和 G1，能跟踪速度命令，并能抵抗冲击和地形变化。视频在项目主页。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 5 的数字</span>
+<div class="tablewrap"><table class="t-s8"><thead><tr><th>末 10% 迭代的均值</th><th>SHAC</th><th>Dreamer</th><th>MBPO-PPO</th></tr></thead><tbody>
+<tr><td>ANYmal e</td><td>18.5</td><td>4.04</td><td>0.29</td></tr><tr><td>ANYmal r 真实</td><td>−2.96</td><td>11.2</td><td>20.9</td></tr><tr><td>ANYmal r 估计</td><td>−15.9</td><td>13.4</td><td>21.4</td></tr>
+<tr><td>G1 e</td><td>7.49</td><td>10.2</td><td>4.44</td></tr><tr><td>G1 r 真实</td><td>约 −0.6（末值）</td><td>4.56</td><td>20.5</td></tr><tr><td>G1 r 估计</td><td>11.2</td><td>9.48</td><td>26.2</td></tr>
+</tbody></table></div>
+<p><b>和正文有出入：</b>G1 上 SHAC 的模型误差（7.49）低于 Dreamer（10.2）。正文说 SHAC 误差高且波动，这只符合 ANYmal 这张。</p>
+<p><b>迭代数：</b>G1 的横轴到 10000，表 S11 的最大迭代数写 2500，且没有区分机器人。</p>
+<p><b>G1 的模型明显不如 ANYmal：</b>G1 末段 e = 4.44，是图 4 中 G1 的 RWM-AR（0.90）的约 5 倍；估计回报比真实高 28%。ANYmal 只高 2.6%。这说明 §4.4 里“预测准确”对 G1 的成立程度弱一些。两张图的 e 是否同一计算方式，论文没写。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · SHAC 为什么失败，这里只是假设</span>
+<p>论文把失败归因于接触不连续，但没有隔离实验：没有光滑任务上的 SHAC 对照，SHAC 基线的代码也没公开，H、评论家、梯度裁剪都没写。相反的证据来自<a href="supermimic.html">SuperMimic</a>，它在同样有接触的人形任务上用 BPTT 成功。差别至少有：确定性模型（RWM 训练时喂采样），软存活权重（公开代码里 RWM 的接触和终止是 <code>round()</code>，导数为 0，如果 SHAC 基线也这样用，求导就看不到这些项），梯度裁剪和 H = 32。</p>
+<p>页面第 9 幕的玩具里，这两种情况都能复现：硬接触 T = 100 时 BPTT 均值 −0.027 ± 0.013，参考值约 −0.001，PPO 是 −0.0015 ± 0.0042；加上离散罚分后，BPTT 的数和不加时一样，它看不到这一项。无接触时 BPTT 的批间标准差比 PPO 小 8 倍以上（T = 32 时 16 倍，T = 100 时 8 倍）。这只说明机制可能存在，玩具不能证明 RWM 的 SHAC 就是因此失败的。</p></div>
+
+<h2 id="s5"><span class="no">5</span>局限</h2>
+<p>论文承认，策略虽然超过其他 MBRL 方法，但仍不如调好的、跑在高保真仿真器上的无模型 RL。MBRL 的优势在仿真不准或不可得的场景。</p>
+<div class="tablewrap" id="t1"><table class="t-wide"><caption>表 1：和无模型方法比较（<a href="https://arxiv.org/html/2501.10100#S5.T1">看原表 ↗</a>）</caption><thead><tr><th>方法</th><th>RWM 预训练</th><th>MBPO-PPO</th><th>PPO</th></tr></thead><tbody>
+<tr><td>状态转移</td><td>6M</td><td>−</td><td>250M</td></tr>
+<tr><td>总训练时间</td><td>50 min</td><td>5 min</td><td>10 min</td></tr>
+<tr><td>单步推理时间</td><td>−</td><td>1 ms</td><td>1 ms</td></tr>
+<tr><td>真实跟踪奖励</td><td>−</td><td>0.90 ± 0.04</td><td>0.90 ± 0.03</td></tr>
+</tbody></table></div>
+<p>模型在策略优化前用仿真数据预训练，从头训练依然困难，因为策略在探索时会利用模型误差。在线微调还需要额外交互，直接在硬件上安全学习也还是难题。安全约束和不确定性估计是后续要做的。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 1 算一算</span>
+<ul><li><b>想象量：</b>表 S11 给 4096 × 100 × 2500 = 1.024 × 10⁹ 条想象转移，是 PPO 250M 的 4.1 倍。表 1 的“−”没有计入这些，也没有计入在线的真实转移。</li>
+<li><b>PPO 的 250M：</b>和 Isaac Lab 默认 4096 环境 × 24 步 × 2500 迭代 = 245.76M 接近。这是我的推断，论文没写。</li>
+<li><b>“不如”和表格：</b>正文说比不过高保真无模型 RL，表里真实奖励相同。差距如果存在，不在这一行。论文没给其他指标。</li>
+<li><b>总耗时：</b>55 分钟对 10 分钟。有仿真器时 RWM 慢 5.5 倍，也用了更多想象转移。它省的是真实世界交互，而这一点本文并没有真正做到，见 A.4.4。</li>
+<li><b>预训练时长的三个说法：</b>表 1 是 50 分钟，表 S10 约 1 小时，图 S8 在 M=32、N=8 是 1.07 小时（64 分钟）。差别不大，但不是同一个数。</li>
+<li><b>5 分钟不太好解释：</b>预训练每次迭代约 50 min / 2500 = 1.2 s。MBPO-PPO 每次迭代 5 min / 2500 = 0.12 s，却要包含算法 1 里的模型更新、40.96 万步想象和 PPO。可能模型更新小很多，或者不计入，论文没写。</li>
+<li><b>代码的预训练量：</b>Pretrain 配置是 Isaac Lab 默认 4096 环境 × 24 步 × 2000 次 ≈ 197M 转移，和表 1 的 6M 差 33 倍。6M 用什么配置得到，论文没写。</li></ul></div>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>RWM 靠双重自回归和历史上下文，不用领域归纳偏置，在多种任务上取得比 RSSM 和 Transformer 更低的自回归误差。MBPO-PPO 利用长滚动的保真度训练策略，并零次部署到 ANYmal D 和 G1。</p>
+
+<h2 id="a1"><span class="no">A.1</span>任务表示</h2>
+<h3 id="a1-1">A.1.1 观测和动作空间</h3>
+<p>世界模型的观测包括机体坐标系下的基座线速度 v、角速度 ω、重力向量 g，以及关节位置 q、速度 q̇、力矩 τ。特权信息用于提供额外学习目标。动作是关节位置目标。</p>
+<div class="tablewrap"><table class="t-wide"><caption>表 S2：世界模型观测空间</caption><thead><tr><th>项</th><th>符号</th><th>ANYmal D</th><th>Unitree G1</th></tr></thead><tbody>
+<tr><td>基座线速度</td><td>v</td><td>0:3</td><td>0:3</td></tr><tr><td>基座角速度</td><td>ω</td><td>3:6</td><td>3:6</td></tr><tr><td>投影重力</td><td>g</td><td>6:9</td><td>6:9</td></tr><tr><td>关节位置</td><td>q</td><td>9:21</td><td>9:38</td></tr><tr><td>关节速度</td><td>q̇</td><td>21:33</td><td>38:67</td></tr><tr><td>关节力矩</td><td>τ</td><td>33:45</td><td>67:96</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-wide"><caption>表 S3：世界模型特权信息空间</caption><thead><tr><th>ANYmal D</th><th>维度</th><th>Unitree G1</th><th>维度</th></tr></thead><tbody>
+<tr><td>膝接触</td><td>0:4</td><td>身体接触</td><td>0:26</td></tr><tr><td>足接触</td><td>4:8</td><td>足高度</td><td>26:28</td></tr><tr><td></td><td></td><td>足速度</td><td>28:30</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-wide"><caption>表 S4：动作空间</caption><thead><tr><th>项</th><th>符号</th><th>ANYmal D</th><th>Unitree G1</th></tr></thead><tbody>
+<tr><td>关节位置目标</td><td>q*</td><td>0:12</td><td>0:29</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-wide"><caption>表 S5：策略观测空间</caption><thead><tr><th>项</th><th>符号</th><th>ANYmal D</th><th>Unitree G1</th></tr></thead><tbody>
+<tr><td>基座线速度</td><td>v</td><td>0:3</td><td>0:3</td></tr><tr><td>基座角速度</td><td>ω</td><td>3:6</td><td>3:6</td></tr><tr><td>投影重力</td><td>g</td><td>6:9</td><td>6:9</td></tr><tr><td>速度命令</td><td>c</td><td>9:12</td><td>9:12</td></tr><tr><td>关节位置</td><td>q</td><td>12:24</td><td>12:41</td></tr><tr><td>关节速度</td><td>q̇</td><td>24:36</td><td>41:70</td></tr><tr><td>上一动作</td><td>a′</td><td>36:48</td><td>70:99</td></tr>
+</tbody></table></div>
+<h3 id="a1-2">A.1.2 奖励函数</h3>
+<p>总奖励是下列各项之和，权重见表 S6。</p>
+<div class="eq"><div class="m">\[ r_{v_{xy}}=w_{v_{xy}}e^{-\lVert c_{xy}-v_{xy}\rVert_2^2/\sigma_{v_{xy}}^2},\ \ \sigma_{v_{xy}}=0.25;\qquad r_{\omega_z}=w_{\omega_z}e^{-\lVert c_z-\omega_z\rVert_2^2/\sigma_{\omega_z}^2},\ \ \sigma_{\omega_z}=0.25 \]</div><span class="no"></span></div>
+<div class="eq"><div class="m">\[ r_{v_z}=w_{v_z}\lVert v_z\rVert_2^2,\quad r_{\omega_{xy}}=w_{\omega_{xy}}\lVert\omega_{xy}\rVert_2^2,\quad r_{q_\tau}=w_{q_\tau}\lVert\tau\rVert_2^2,\quad r_{\ddot q}=w_{\ddot q}\lVert\ddot q\rVert_2^2,\quad r_{\dot a}=w_{\dot a}\lVert a'-a\rVert_2^2 \]</div><span class="no"></span></div>
+<div class="eq"><div class="m">\[ r_{fa}=w_{fa}t_{fa},\quad r_c=w_c c_u,\quad r_g=w_g g_{xy}^2,\quad r_{fc}=w_{fc}h_{fc},\quad r_{q_d}=w_{q_d}\lVert q-q_0\rVert_1 \]</div><span class="no"></span></div>
+<p>依次是：线速度和角速度跟踪（指数形式）、竖直速度、横滚俯仰角速度、关节力矩、关节加速度、动作变化率、足空中时间、不期望接触数、姿态水平、摆动足离地高度、关节偏离默认姿态。</p>
+<div class="tablewrap"><table class="t-wide"><caption>表 S6：奖励权重</caption><thead><tr><th>符号</th><th>ANYmal D</th><th>Unitree G1</th><th>符号</th><th>ANYmal D</th><th>Unitree G1</th></tr></thead><tbody>
+<tr><td>\(w_{v_{xy}}\)</td><td>1.0</td><td>1.0</td><td>\(w_{\omega_z}\)</td><td>0.5</td><td>0.5</td></tr>
+<tr><td>\(w_{v_z}\)</td><td>−2.0</td><td>−2.0</td><td>\(w_{\omega_{xy}}\)</td><td>−0.05</td><td>−0.05</td></tr>
+<tr><td>\(w_{q_\tau}\)</td><td>−2.5e−5</td><td>−2.5e−5</td><td>\(w_{\ddot q}\)</td><td>−2.5e−7</td><td>−2.5e−7</td></tr>
+<tr><td>\(w_{\dot a}\)</td><td>−0.01</td><td>−0.05</td><td>\(w_{fa}\)</td><td>0.5</td><td>0.0</td></tr>
+<tr><td>\(w_c\)</td><td>−1.0</td><td>−1.0</td><td>\(w_g\)</td><td>−5.0</td><td>−5.0</td></tr>
+<tr><td>\(w_{fc}\)</td><td>0.0</td><td>1.0</td><td>\(w_{q_d}\)</td><td>0.0</td><td>−1.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 奖励和观测：表和代码的差别</span>
+<ul><li><b>关节加速度的下标：</b>想象奖励里 <code>joint_acc = (joint_vel - self.last_obs["policy"][:, 12:24]) / step_dt</code>（在线和离线三份文件都是）。按表 S5 和代码自己拼接的顺序，12:24 是关节<b>位置</b>，速度是 24:36。所以这一项减的是位置。权重 −2.5e−7 很小，但这确实改变了想象里的奖励。按代码阅读得出，没运行。</li>
+<li><b>站立项：</b>表 S6 中 ANYmal 的 \(w_{q_d}=0\)。代码加了 <code>stand_still</code>，权重 −1.0，只在命令接近 0 时生效。</li>
+<li><b>接触名称：</b>表 S3 写“膝”，代码是 <code>.*THIGH</code>（大腿）。</li>
+<li><b>文字和表：</b>A.1.1 描述策略观测时没提“上一动作”，表 S5 有它。观测维度 48 和 99 都和表的分量对得上。</li>
+<li><b>策略没有力矩：</b>模型预测 τ（用于奖励），策略观测里没有。这符合部署时的传感配置。</li></ul></div>
+
+<h2 id="a2"><span class="no">A.2</span>网络结构</h2>
+<h3 id="a2-1">A.2.1 RWM</h3>
+<div class="tablewrap"><table class="t-wide"><caption>表 S7：RWM 结构</caption><thead><tr><th>部件</th><th>类型</th><th>隐藏层</th><th>激活</th></tr></thead><tbody><tr><td>基座</td><td>GRU</td><td>256, 256</td><td>−</td></tr><tr><td>头</td><td>MLP</td><td>128</td><td>ReLU</td></tr></tbody></table></div>
+<h3 id="a2-2">A.2.2 基线</h3>
+<div class="tablewrap"><table class="t-wide"><caption>表 S8：基线结构</caption><thead><tr><th>网络</th><th>参数</th><th>值</th></tr></thead><tbody>
+<tr><td rowspan="2">MLP</td><td>隐藏层</td><td>256, 256</td></tr><tr><td>激活</td><td>ReLU</td></tr>
+<tr><td rowspan="5">RSSM</td><td>类型</td><td>GRU</td></tr><tr><td>隐藏大小</td><td>256</td></tr><tr><td>层数</td><td>2</td></tr><tr><td>潜变量维度</td><td>64</td></tr><tr><td>先验 / 类别数</td><td>categorical / 32</td></tr>
+<tr><td rowspan="6">Transformer</td><td>类型</td><td>decoder</td></tr><tr><td>维度</td><td>64</td></tr><tr><td>头数</td><td>8</td></tr><tr><td>层数</td><td>2</td></tr><tr><td>上下文长度</td><td>32</td></tr><tr><td>位置编码</td><td>sinusoidal</td></tr>
+</tbody></table></div>
+<h3 id="a2-3">A.2.3 MBPO-PPO</h3>
+<div class="tablewrap"><table class="t-wide"><caption>表 S9：策略和价值函数结构</caption><thead><tr><th>网络</th><th>类型</th><th>隐藏层</th><th>激活</th></tr></thead><tbody><tr><td>策略</td><td>MLP</td><td>128, 128, 128</td><td>ELU</td></tr><tr><td>价值函数</td><td>MLP</td><td>128, 128, 128</td><td>ELU</td></tr></tbody></table></div>
+
+<h2 id="a3"><span class="no">A.3</span>训练参数</h2>
+<p>实现基于 PyTorch 2.4.0 和 CUDA 12.6，在 NVIDIA RTX 4090 上训练。</p>
+<div class="tablewrap"><table class="t-wide"><caption>表 S10：RWM 训练参数（A.3.1）。“代码”列是我加的，取自 AnymalDFlatPPOPretrainRunnerCfg</caption><thead><tr><th>参数</th><th>符号</th><th>值</th><th>代码</th></tr></thead><tbody>
+<tr><td>步长（秒）</td><td>Δt</td><td>0.02</td><td>0.02（4 × 5 ms，Isaac Lab 默认）</td></tr><tr><td>最大迭代</td><td>−</td><td>2500</td><td>2000</td></tr><tr><td>学习率</td><td>−</td><td>1e−4</td><td class="hl">1e−3</td></tr><tr><td>权重衰减</td><td>−</td><td>1e−5</td><td class="hl">0.0</td></tr><tr><td>批量</td><td>−</td><td>1024</td><td class="hl">20 批 × 5000</td></tr><tr><td>历史长度</td><td>M</td><td>32</td><td>32</td></tr><tr><td>预测长度</td><td>N</td><td>8</td><td>8</td></tr><tr><td>预测衰减</td><td>α</td><td>1.0</td><td>无此参数，等价 1.0</td></tr><tr><td>大约训练小时</td><td>−</td><td>1</td><td>−</td></tr><tr><td>种子数</td><td>−</td><td>5</td><td>−</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-wide"><caption>表 S11：MBPO-PPO 训练参数（A.3.2）。“代码”列取自 AnymalDFlatPPOFinetuneRunnerCfg</caption><thead><tr><th>参数</th><th>符号</th><th>值</th><th>代码</th></tr></thead><tbody>
+<tr><td>想象环境数</td><td>−</td><td>4096</td><td class="hl">8192</td></tr><tr><td>每轮想象步数</td><td>−</td><td>100</td><td class="hl">24（单条最长 256）</td></tr><tr><td>步长（秒）</td><td>Δt</td><td>0.02</td><td>0.02</td></tr><tr><td>缓存大小</td><td>|D|</td><td>1000</td><td>1000（每环境）</td></tr><tr><td>最大迭代</td><td>−</td><td>2500</td><td>2000，含前 500 次只训模型</td></tr><tr><td>学习率</td><td>−</td><td>0.001</td><td>0.001</td></tr><tr><td>权重衰减</td><td>−</td><td>0.0</td><td>−</td></tr><tr><td>学习轮数</td><td>−</td><td>5</td><td>5</td></tr><tr><td>小批数</td><td>−</td><td>4</td><td>4</td></tr><tr><td>KL 目标</td><td>−</td><td>0.01</td><td>0.01</td></tr><tr><td>折扣</td><td>γ</td><td>0.99</td><td>0.99</td></tr><tr><td>裁剪范围</td><td>ε</td><td>0.2</td><td>0.2</td></tr><tr><td>熵系数</td><td>−</td><td>0.005</td><td>0.005</td></tr><tr><td>种子数</td><td>−</td><td>5</td><td>−</td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 这些差别怎么看</span><p>动画默认按论文的值画，第 4、8 幕可切到代码。代码里有而论文没写的还有：GAE λ = 0.95，价值系数 1.0，梯度范数裁剪 1.0，在线环境数 10（论文说单个），模型预热 500 次迭代（A.4.3 提到但没给数），固定的归一化常数。代码目前只有 ANYmal D 平地配置，G1 的表和奖励无法对照。100 步想象和 0.02 s 相当于 2 秒，\(\gamma^{100}=0.366\)，所以论文这组设定下约 37% 的权重还在窗口外，由价值函数自举补上。</p></div>
+
+<h2 id="a4"><span class="no">A.4</span>补充实验和讨论</h2>
+<h3 id="a4-1">A.4.1 双重自回归机制</h3>
+<div class="fig" id="figS8"><span class="lab">图 S8 · 原文第 18 页 · <a href="https://arxiv.org/html/2501.10100#A1.F8">看原图 ↗</a></span><p>两张 5 × 5 的热力图，横轴 M，纵轴 N，格子里印着数字。左边是误差 e，右边是训练小时。下表抄自图上印的数字。</p></div>
+<div class="tablewrap"><table class="t-s8"><thead><tr><th>e</th><th>M=1</th><th>M=2</th><th>M=8</th><th>M=16</th><th>M=32</th></tr></thead><tbody>
+<tr><td>N=32</td><td>1.50</td><td>0.74</td><td>0.49</td><td>0.48</td><td>0.47</td></tr><tr><td>N=16</td><td>2.52</td><td>1.51</td><td>0.49</td><td>0.52</td><td>0.53</td></tr><tr><td>N=8</td><td>10.58</td><td>4.57</td><td>0.54</td><td>0.50</td><td class="hl">0.47</td></tr><tr><td>N=2</td><td>21.78</td><td>6.38</td><td>5.44</td><td>2.46</td><td>1.91</td></tr><tr><td>N=1</td><td>79.03</td><td>27.14</td><td>14.88</td><td>8.20</td><td>3.99</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-s8"><thead><tr><th>小时</th><th>M=1</th><th>M=2</th><th>M=8</th><th>M=16</th><th>M=32</th></tr></thead><tbody>
+<tr><td>N=32</td><td>1.97</td><td>1.96</td><td>2.04</td><td>2.01</td><td>2.27</td></tr><tr><td>N=16</td><td>1.01</td><td>1.08</td><td>1.25</td><td>1.44</td><td>1.58</td></tr><tr><td>N=8</td><td>1.00</td><td>1.03</td><td>1.06</td><td>1.06</td><td class="hl">1.07</td></tr><tr><td>N=2</td><td>0.70</td><td>0.72</td><td>0.78</td><td>0.91</td><td>1.05</td></tr><tr><td>N=1</td><td>0.52</td><td>0.56</td><td>0.58</td><td>0.59</td><td>0.62</td></tr>
+</tbody></table></div>
+<p>论文的解读：M 越大误差越低，但超过某点后趋于平缓。N 的作用是决定性的，增大它能提升长程精度，代价是训练时间，因为大 N 只能顺序计算。N = 1 时可以高度并行，最快，但自回归性能差。M = 32、N = 8 是兼顾两者的选择。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 这张表还能看出什么</span>
+<ul><li><b>M 的提升并不“一直”：</b>N = 16 这一行从 M = 8 到 32 是 0.49、0.52、0.53，反而略升。把 M、N 都 ≥ 8 的 9 个格子放一起，都在 0.47 到 0.54 之间，差别可能在种子波动内（这张图没给方差）。</li>
+<li><b>N 从 8 到 32 没收益：</b>M = 32 时都是 0.47，训练时间 1.07 变 2.27 小时。</li>
+<li><b>N 从 2 到 8 几乎不要钱：</b>M = 32 时时间只从 1.05 到 1.07 小时（多 2%），e 从 1.91 到 0.47。所以“N 显著增加训练时间”主要发生在 16 以上。</li>
+<li><b>两个方向可以互相弥补：</b>M = 1、N = 32 的 e = 1.50，好于 M = 32、N = 2 的 1.91。只读一帧但训练得很长，也能比读满历史但只预测两步要好。</li></ul></div>
+<h3 id="a4-2">A.4.2 想象滚动的可视化</h3>
+<div class="fig" id="figS9"><span class="lab">图 S9 · 原文第 20 页 · <a href="https://arxiv.org/html/2501.10100#A1.F9">看原图 ↗</a></span><p>若干机器人上下两行的渲染帧，时间标到 6 秒，上行想象，下行真值。坐标和箭头标记表示预测和实测的末端位姿、基座速度。</p></div>
+<h3 id="a4-3">A.4.3 碰撞处理和模型预训练</h3>
+<p>预训练和在线微调中，基座触地就终止并重置环境。RWM 用特权头显式预测这种终止，想象时把预测的终止当作回合结束，影响 PPO 的回报和价值。</p>
+<p>预训练用为相似任务训练、动力学有变化的策略所产生的仿真数据。策略在想象里从头学，模型用单环境的在线数据微调。预训练必要有两个原因：在线数据太少，只来自一个环境，从头训练会严重过拟合且很慢；不成熟的策略常常摔倒，产生的转移价值低。如果只用这些数据训练模型，想象会变得混乱。</p>
+<p>预训练不要求最优策略的数据，用次优策略的数据做预热（warm up）就能显著稳定训练。这种预训练只有运动任务需要，因为有不连续动力学和环境终止，操作实验不需要。代码的路径也对应这样：先 <code>Init</code> 任务训练一个粗糙地形、不同奖励权重的 PPO 策略，<code>Pretrain</code> 收集并训练模型，<code>Finetune</code> 里在线微调和训策略。</p>
+<h3 id="a4-4">A.4.4 真实世界在线学习的困难</h3>
+<p>作者承认，直接在真机上做策略训练才能最好地体现方法的优势，这还没有做。几个障碍：在线学习时策略会利用模型误差，平均发生 20 次以上碰撞，这在真机上会造成损坏；自动化需要能把机器人复位的恢复策略，这对 ANYmal D 和 G1 这样的大平台很难；微调模型用的特权信息（比如接触力）在真机上不一定测得到。因此，他们用带动力学偏移的单个仿真环境来近似真实约束。后续工作在处理这些问题（<a class="ds" href="https://arxiv.org/abs/2504.16680">RWM-U</a> 是同一组作者的离线方向，本页不展开）。</p>
+<h2 id="a5"><span class="no">A.5</span>伦理和社会影响</h2>
+<p>研究不涉及人类被试和敏感数据，也不用第三方数据集。作者提到正面用途（医疗、救灾、物流）和潜在风险（监控、执法、对劳动力的冲击）。为降低安全风险，策略训练全部在仿真中，部署限于验证过的策略，失败事件被显式建模。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。涉及代码的条目都是读代码得到的，没有运行。</p>
+<ol class="notes">
+<li><a href="#n1">SuperMimic 的说法核对</a>：PPO 和预训练都属实；补充了在线微调和“只有运动任务需要”。</li>
+<li><a href="#n2">符号和衰减</a>：图 2 用 H，正文用 M；α = 1.0 等于没有衰减。</li>
+<li><a href="#n3">内层自回归</a>：就是 GRU 的标准前向。</li>
+<li><a href="#n4">分布的作用</a>：训练采样、想象用均值；默认损失把 σ 往下压。</li>
+<li><a href="#n5">特权头</a>：代码里训练时吃真值，是教师强制。</li>
+<li><a href="#n6">想象不用历史</a>：公开代码每轮清隐状态并只留最后一帧。</li>
+<li><a href="#n7">PPO 小批</a>：代码混入约 0.12% 真实样本。</li>
+<li><a href="#n8">e 的定义和数据来源</a>：论文没定义 e；硬件还是仿真说法不一；评测代码动作错一位。</li>
+<li><a href="#n9">噪声曲线</a>：误差对含噪目标算，第 1 步就有 0.95。</li>
+<li><a href="#n10">阴影带</a>：12 条全程恰好是均值 ±20%，不是统计量。</li>
+<li><a href="#n11">图 4</a>：和图 S8 对得上；Reach-UR10 是平手；基线不可复现。</li>
+<li><a href="#n12">图 5</a>：G1 上 SHAC 的 e 低于 Dreamer；横轴 10000 对表里 2500；G1 估计回报偏高 28%。</li>
+<li><a href="#n13">SHAC 失败的原因</a>：论文没有隔离实验，和 SuperMimic 的结果需要对照看。</li>
+<li><a href="#n14">表 1</a>：想象 10.24 亿转移没计入；总耗时 55 对 10 分钟；5 分钟不好解释。</li>
+<li><a href="#n15">奖励</a>：关节加速度减的是位置（下标 12:24）；其他小差别。</li>
+<li><a href="#n16">参数差别</a>：学习率等多处和表不同；γ¹⁰⁰ = 0.366。</li>
+<li><a href="#n17">图 S8</a>：N 从 2 到 8 只多 2% 时间；N 从 8 到 32 没收益。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>2026 年 11 月 6 日用脚本检查。ANYbotics 的 ANYmal 页对脚本返回 403，我没法确认，浏览器应该能打开。其余都返回 200。</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>名称</th><th>是什么</th><th>链接</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://sites.google.com/view/roboticworldmodel">RWM 主页</a></td><td>视频</td><td><a href="https://arxiv.org/abs/2501.10100">2501.10100</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/leggedrobotics/robotic_world_model">robotic_world_model</a></td><td>Isaac Lab 扩展，官方</td><td>82147f9</td></tr>
+<tr><td><a class="ds" href="https://github.com/leggedrobotics/rsl_rl_rwm">rsl_rl_rwm</a></td><td>算法本体，官方</td><td>18eebcd</td></tr>
+<tr><td><a class="ds" href="https://github.com/leggedrobotics/robotic_world_model_lite">robotic_world_model_lite</a></td><td>离线版，官方</td><td>13a798e</td></tr>
+<tr><td><a class="ds" href="https://github.com/isaac-sim/IsaacLab">Isaac Lab</a></td><td>仿真和任务</td><td><a href="https://isaac-sim.github.io/IsaacLab/">文档</a></td></tr>
+<tr><td><a class="ds" href="https://www.anybotics.com/robotics/anymal/">ANYmal D</a></td><td>四足机器人</td><td>脚本 403，未确认</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>人形机器人</td><td></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2504.16680">RWM-U</a></td><td>后续：不确定性和离线</td><td><a href="https://arxiv.org/abs/2504.16680">2504.16680</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>策略优化</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1906.08253">MBPO</a></td><td>框架来源</td><td><a href="https://arxiv.org/abs/1906.08253">1906.08253</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2204.07137">SHAC</a></td><td>一阶梯度基线</td><td><a href="https://arxiv.org/abs/2204.07137">2204.07137</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2301.04104">DreamerV3</a></td><td>基线</td><td><a href="https://arxiv.org/abs/2301.04104">2301.04104</a></td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>引用本文的论文</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2501.10100v5 和官方代码后的整理，不是作者的官方内容；原文和原图版权归作者所有，这里不放原图。“重画”的折线图只用了从原文矢量图读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="rwm/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

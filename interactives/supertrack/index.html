@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SuperTrack 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="SuperTrack（ACM TOG 2021）的核心框架做成 11 幕 3D 动画：缓存和环境、局部坐标、世界模型预测加速度再积分、N 步滚动训练、PD 偏移、穿过世界模型反传、和 PPO 比较。玩具两连杆上现场训练并计算梯度。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:118px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);max-width:min(66%,560px)}
+.ctl[hidden]{display:none}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+.below table{width:100%}
+.eq-mini{font-family:var(--font-mono);font-size:12px;background:var(--panel);border-radius:6px;padding:5px 8px;margin:6px 0;overflow-wrap:anywhere}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="supertrack.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/supertrack.html">返回精读</a><a href="../../papers/supertrack.html#s3">原文第 3 节</a><a href="../../papers/supertrack.html#s5">对比 PPO</a><a href="https://doi.org/10.1145/3478513.3480527">DOI</a><a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf">作者 PDF</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · ACM TOG 2021 · SUPERTRACK</p>
+<h1>把物理仿真换成一个能求导的网络，跟踪就变成监督学习</h1>
+<p class="lead">一共 11 幕。第 1、2 幕是总循环和环境，第 3 幕是局部坐标，第 4、5 幕是世界模型怎样预测和怎样训练，第 6、7 幕是策略和穿过世界模型的反传，第 8 幕是完整训练，第 9、10 幕和 PPO 比较，第 11 幕是局限和 SuperMimic 改了什么。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。第 1 幕可以直接点方框跳转，第 3、5、6、7、8、9、10、11 幕左上角可以切换。<b>第 4 到 9 幕是真的在算：</b>一个二维两连杆的仿真器、世界模型和策略都写在这页的 JavaScript 里，现场训练，梯度现场反传并和有限差分对照。这是玩具，不能外推到人形。第 10 幕的曲线从原文矢量图读出。作者没有公开代码。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步（论文表 1 到表 3、算法 1 和 2）</h2>
+<p class="sub">维度按 B = 20、J = 19（表 2）。写“没写”的地方，论文确实没给，这一页不替它补。“我算的”是按论文的式子做的加法。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>输入 → 输出</th><th>结构或数值</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">状态表示（§3.2、§3.3）</td></tr>
+<tr><td>R1</td><td>世界状态 X</td><td>x<sup>p</sup> 3B、ẋ<sup>p</sup> 3B、x<sup>r</sup> 4B、ẋ<sup>r</sup> 3B</td><td>S 和 K 同样的表示；四元数</td></tr>
+<tr><td>R2</td><td>Local(X)，式 (1)–(7)</td><td>X → x<sup>lp</sup> 3B、ẋ<sup>lp</sup> 3B、x<sup>lr</sup> 6B、ẋ<sup>lr</sup> 3B、x<sup>h</sup> B、x<sup>up</sup> 3</td><td>16B + 3 = 323 维（我算的）。按动作库的均值和标准差归一化</td></tr>
+<tr><td>R3</td><td>PD 目标 T</td><td>t 4J、ṫ 3J</td><td>ṫ = k̇<sup>t</sup>，Havok 和 Bullet 上设为 0</td></tr>
+<tr class="grp"><td colspan="4">世界模型 W（算法 1）</td></tr>
+<tr><td>W1</td><td>网络</td><td>Local(P), T → ẍ<sup>lp</sup> 3B、ẍ<sup>lr</sup> 3B</td><td>5 个隐藏层 × 1024，ELU。输出 120 维（我算的）。T 进网络前的编码没写，直接拼 7J 时输入 456 维</td></tr>
+<tr><td>W2</td><td>转世界系和积分</td><td>式 (8)–(12)</td><td>半隐式欧拉。写死、可导</td></tr>
+<tr><td>W3</td><td>窗口训练</td><td>S, T → 世界空间 L1</td><td>N<sub>W</sub> = 8；批量 2048；学习率 0.001；RAdam</td></tr>
+<tr class="grp"><td colspan="4">策略 Π（算法 2）</td></tr>
+<tr><td>P1</td><td>网络</td><td>Local(P), Local(K) → o 3J</td><td>5 × 1024，ELU。输入 646、输出 57 维（我算的）</td></tr>
+<tr><td>P2</td><td>偏移到目标</td><td>t = exp(α/2 · ô) ⊗ k<sup>t</sup></td><td>α = 120（单位没写）；σ = 0.1</td></tr>
+<tr><td>P3</td><td>窗口训练</td><td>S₀, K → 局部空间 L1 ＋ 正则</td><td>N<sub>Π</sub> = 32；批量 1024；学习率 0.0001；RAdam。各项权重的具体值没写</td></tr>
+<tr class="grp"><td colspan="4">环境和调度（§3.1、§3.6、§5.3）</td></tr>
+<tr><td>E1</td><td>环境</td><td>256 个角色</td><td>PhysX（也试 Havok、Bullet）；240 Hz，20 次约束迭代；动作 60 Hz</td></tr>
+<tr><td>E2</td><td>回合</td><td>RSI 复位</td><td>最长 512 帧；至少 48 帧且头高偏差超过 25 cm 终止</td></tr>
+<tr><td>E3</td><td>缓存</td><td>S, K, T</td><td>循环缓存约 150,000 样本；约 5000 样本/秒</td></tr>
+<tr><td>E4</td><td>训练</td><td>每次迭代 W 一步、Π 一步</td><td>约 10,000 次开始平衡（约 2 小时）；完整约 10 到 20 万次（约 20 到 40 小时，GTX 1070）</td></tr>
+<tr class="grp"><td colspan="4">PPO 基线（§5.1 表 3）</td></tr>
+<tr><td>B1</td><td>策略和评论家</td><td>同样的状态和动作表示</td><td>2 × 256，ELU；策略学习率 0.0001，评论家 0.001；约 25 万参数（我算的），ST 的策略约 492 万</td></tr>
+<tr><td>B2</td><td>PPO 超参</td><td></td><td>γ = 0.99；GAE-λ = 0.95；样本 8192；批量 512；σ = 0.2；α = 120</td></tr>
+<tr class="grp"><td colspan="4">玩具（这一页第 4 到 9 幕，不是论文内容）</td></tr>
+<tr><td>T1</td><td>仿真器</td><td>二维两连杆，基座固定</td><td>质量 1 kg、长 0.5 m、kp 30、kd 3；240 Hz 子步；每帧 1/60 秒；代码里只把它当黑箱</td></tr>
+<tr><td>T2</td><td>W</td><td>18 + 2 → 6</td><td>2 × 32，ELU，约 1900 参数；N<sub>W</sub> = 8；预测加速度，再按式 (8)–(12) 的二维版积分</td></tr>
+<tr><td>T3</td><td>Π</td><td>36 → 2</td><td>2 × 32，ELU，约 2300 参数；N<sub>Π</sub> = 32；Adam；每次迭代 W 一步、Π 一步；共 1000 次</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意，哪些是算的</h2>
+<ul class="mine">
+<li><b>第 2 幕的小人。</b>小人的摇摆和复位时刻是我排的，只满足 48 到 512 帧的规则。写入累计数按论文 5000 样本/秒算。</li>
+<li><b>第 3 幕的角色。</b>20 个方块是手摆的姿态，不是论文的角色，也不是网络的输出。局部坐标和 two-axis 是页面现算的。</li>
+<li><b>第 4 到 9 幕。</b>全部是现算，但对象是玩具：二维、两个连杆、没有接触、动作是我写的正弦。数字每次打开页面重算（种子固定，同一浏览器结果相同），具体数值换浏览器可能略有差别。</li>
+<li><b>第 9 幕。</b>似然比估计只是 PPO 所用那一类估计的最简形式，没有评论家和裁剪，不是 PPO。</li>
+<li><b>第 10 幕。</b>原文矢量图的读数，每条曲线分 50 段求平均后重画，所以比原图光滑。</li>
+<li><b>试过但没放进来的。</b>我也在玩具上试了预测速度对预测加速度、绝对目标对偏移。玩具上几乎看不出差别，它太简单，那两个消融只看第 10 幕的原文数据。</li>
+</ul>
+</section>
+<footer><p>图解是我读 SuperTrack（<a href="https://doi.org/10.1145/3478513.3480527">doi:10.1145/3478513.3480527</a>）后的理解，不是作者的官方图。原图见<a href="https://theorangeduck.com/media/uploads/other_stuff/SuperTrack.pdf">作者主页的 PDF</a>，版权归作者和 ACM。逐节内容和核算见<a href="../../papers/supertrack.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>
