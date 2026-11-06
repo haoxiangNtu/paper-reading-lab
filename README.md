@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training（[arXiv 2507.13097](https://arxiv.org/abs/2507.13097)，ICRA 2026，CC BY-SA 4.0） | [GraspGen 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/graspgen/index.html) | 扩散生成抓取，再用见过生成器错误的判别器打分；含代码核对和它为什么不是 GAN | 23 条 |
 | SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control（[arXiv 2511.07820](https://arxiv.org/abs/2511.07820)，Science Robotics 2026，SuperMimic 引用） | [sonic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/sonic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/sonic/index.html) | 把动作跟踪放大到 128 卡、1 亿帧、42M 参数，并用 FSQ 通用 token 接上规划器、遥操作和 VLA。 | 18 条 |
 | Perpetual Humanoid Control for Real-time Simulated Avatars（[arXiv 2305.06456](https://arxiv.org/abs/2305.06456)，ICCV 2023，SuperMimic 引用） | [phc 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/phc.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/phc/index.html) | 不加外力模仿 AMASS 98.9%：动作越练越难就新建 primitive 并冻结旧的，再用 composer 组合，摔倒能自己爬起走回去。 | 25 条 |
 | MoConVQ: Unified Physics-Based Motion Control via Scalable Discrete Representations（[arXiv 2310.10198](https://arxiv.org/abs/2310.10198)，SIGGRAPH 2024，SuperMimic 引用） | [moconvq 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/moconvq.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/moconvq/index.html) | 把几十小时动作压成离散索引、再用物理解码回来，穿过世界模型训练，并接上 GPT 和大语言模型。 | 18 条 |
@@ -31,7 +32,7 @@
 
 ## 架构专题与交互图解
 
-这五篇整理原理、网络与代码核对，未宣称逐节覆盖论文全文，也未复现模型实验。两份独立自绘交互网页已迁入本站，Grasp++ 与 GraspGen 的交互图直接嵌入阅读页，均可通过 GitHub Pages 访问；原 Sites 私有链接保留在各阅读页的相关链接中。
+这四篇整理原理、网络与代码核对，未宣称逐节覆盖论文全文，也未复现模型实验。两份独立自绘交互网页已迁入本站，Grasp++ 的交互图直接嵌入阅读页（GraspGen 已升级为逐节精读，见上表），均可通过 GitHub Pages 访问；原 Sites 私有链接保留在各阅读页的相关链接中。
 
 | 论文 | 架构笔记 | 本站交互图解 | 核对重点 |
 |---|---|---|---|
@@ -39,7 +40,14 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
-| [GraspGen](https://arxiv.org/abs/2507.13097), ICRA 2026 | [架构与训练原理](papers/graspgen.html) | [页内训练交互](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html#training) | PTv3 / cat_attn；On-Generator；为什么不是传统 GAN |
+
+## GraspGen 读后要点
+
+- D 学成功/失败，G 只回归噪声，D 的梯度不回 G，所以不是 GAN。
+- On-Generator 的价值在于 D 见过生成器的碰撞错误：AUC 0.947 对离线 0.886。
+- `cat_attn` 序列长为 1，注意力权重恒为 1；空间注意力在 PTv3 里。
+- T=10 时平移 ᾱ 只到 0.927，训练从未覆盖推理起点 N(0,I)。
+- 公开判别器脚本实际全是离线数据。
 
 ## SONIC 读后要点
 
@@ -237,7 +245,7 @@ papers/foundationpose.html  FoundationPose 架构专题
 papers/wapr.html            WAPR 架构专题
 papers/tro-grasp.html       T(R,O) Grasp 架构专题
 papers/tro-grasp-plus-plus.html  Grasp++ 与原版逐层对比
-papers/graspgen.html        GraspGen 与 GAN 的区别、网络与训练
+papers/graspgen.html        GraspGen 逐节精读（原图在 papers/graspgen/，动画在 interactives/graspgen/）
 assets/grasp-lab.css        新增架构图样式
 assets/grasp-lab.js         网络 / 训练切换与尺寸计算
 interactives/foundationpose-wapr/  位姿估计对比交互图解

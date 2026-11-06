@@ -1,45 +1,147 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GraspGen：扩散生成、成功率判别与 GAN 的区别 · Paper Reading Lab</title><meta name="description" content="详细拆解 NVIDIA GraspGen：PTv3 点云编码、扩散噪声网络、判别器、On-Generator 训练，以及为什么这不是传统 GAN。"><link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="../assets/grasp-lab.css"><script src="../assets/grasp-lab.js" defer></script></head>
-<body><div class="wrap lab-wrap" id="top"><header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="tro-grasp-plus-plus.html">T(R,O) Grasp++</a><a href="foundationpose.html">FoundationPose</a><a href="../index.html#architecture">全部架构专题</a></nav></header>
-<div class="lab-hero"><p class="lab-kicker">ARCHITECTURE STUDY · 03 / GENERATE &amp; EVALUATE</p><h1>GraspGen<br>生成抓取，再判断它能否成功</h1><p class="orig">A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training</p><p class="lead">NVIDIA 的这篇工作确实有 Generator 和 Discriminator。但 Generator 学的是扩散去噪，Discriminator 学的是抓取成功 / 失败。两者分别训练；没有“让生成器欺骗判别器”的对抗更新。</p><div class="meta"><span>NVIDIA · 2025 预印本 / ICRA 2026</span><a href="https://arxiv.org/html/2507.13097v1">论文 v1</a><a href="https://graspgen.github.io/">项目</a><a href="https://github.com/NVlabs/GraspGen">代码</a><span>核对：2026-10-27</span></div></div>
-<div class="lab-stats"><div><strong>6-DOF</strong><span>单个夹爪的空间位姿</span></div><div><strong>DDPM + D</strong><span>扩散生成与成功率评分</span></div><div><strong>On-Generator</strong><span>用生成器实际产生的抓取训练 D</span></div></div>
-<div class="callout"><p><b>先纠正一个容易混淆的点：</b>“有生成器、有判别器”不足以判定是 GAN。要看判别目标、损失函数，以及判别器的梯度是否用于更新生成器。GraspGen 论文 §3.1 明确说明评分器不参与扩散模型训练。</p><p>本页是架构专题，图均为重新绘制。尺寸主要按官方 Franka 训练脚本与提交 <code>2dd8852e1be6</code> 追踪，不默认所有发布权重都用相同配置；未复现实验。</p></div>
-<nav class="toc" aria-label="目录"><a href="#pipeline">完整流程</a><a href="#generator">生成器结构</a><a href="#discriminator">判别器结构</a><a href="#training">On-Generator</a><a href="#gan">和 GAN 的区别</a><a href="#compare">对比 Grasp++</a><a class="rn" href="#audit">实现核对</a><a href="#sources">来源</a></nav>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GraspGen：扩散生成、成功率判别与 GAN 的区别 · Paper Reading Lab</title><meta name="description" content="arXiv 2507.13097 GraspGen 的中文逐节精读：含附录、公式、全部结果表和原图，23 条读者注，11 幕当场计算的 3D 动画；同时保留 PTv3、噪声头、判别器、On-Generator 的结构拆解，以及为什么这不是传统 GAN。"><link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="../assets/grasp-lab.css"><script src="../assets/grasp-lab.js" defer></script>
+<style>
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){.i3d iframe{height:900px}}
+.lab-wrap .pfig figcaption{max-width:78ch}
+.t-wide{min-width:660px}
+.notes li{max-width:78ch;margin:8px 0}
+.algo{border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:12px 16px;margin:16px 0;font-size:14.5px}
+.algo ol{margin:6px 0 2px}
+.algo .lab{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.lab-wrap h3[id],.lab-wrap h2[id]{scroll-margin-top:12px}
+</style></head>
+<body><div class="wrap lab-wrap" id="top"><header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a><nav><a href="../interactives/graspgen/index.html">3D 框架动画</a><a href="tro-grasp-plus-plus.html">T(R,O) Grasp++</a><a href="foundationpose.html">FoundationPose</a><a href="../index.html#architecture">全部架构专题</a></nav></header>
 
-<h2 id="pipeline"><span class="no">01</span>生成器、判别器与运动规划各做什么</h2>
-<figure class="lab-figure"><h3>从物体点云到可执行的抓取</h3><div class="lab-flow"><div class="lab-row"><div class="lab-box obj"><strong>实例分割后的目标点云</strong><small>单视角部分点云或多视角 / 完整几何。分割和深度属于上游模块。</small></div><div class="lab-box"><strong>随机噪声 + 扩散时间 t</strong><small>每个候选是一份 3 维平移 + 3 维轴角</small></div><div class="lab-box robot"><strong>指定夹爪的模型</strong><small>Franka Panda、Robotiq-2F-140、吸盘分别训练；没有逐连杆 URDF 图输入。</small></div></div><div class="lab-arrow">点云中心化；按 κ 缩放；PTv3 编码几何</div><div class="lab-box obj"><strong>Generator · 条件扩散网络</strong><small>反复预测平移与旋转噪声 → DDPM 采样 → 多个 6-DOF 抓取候选</small></div><div class="lab-arrow">候选的来源不决定标签：生成的抓取也可以成功</div><div class="lab-box good"><strong>Discriminator · 抓取成功率评分器</strong><small>物体编码 + 候选位姿 → MLP → sigmoid 分数 → 排序 / 过滤</small></div><div class="lab-arrow">高分仍不意味着机械臂一定可达、路径无碰撞</div><div class="lab-box env"><strong>场景碰撞检查 + 机械臂 IK / 运动规划</strong><small>论文真实系统使用 cuRobo 与 NVBlox；在候选目标中寻找可执行方案。</small></div></div><figcaption>图 1 · 物体中心的抓取生成与系统级执行。周围环境不是原始 GraspGen 的独立 ER 编码分支；场景约束主要由后续检查和规划处理。</figcaption></figure>
+<div class="lab-hero"><p class="lab-kicker">逐节精读 · 含代码核对与 3D 动画 / GENERATE &amp; EVALUATE</p><h1>GraspGen<br>生成抓取，再判断它能否成功</h1><p class="orig">GraspGen: A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training</p>
+<p>作者 Adithyavairavan Murali、Balakumar Sundaralingam、Yu-Wei Chao、Wentao Yuan*、Jun Yamada*、Mark Carlson、Fabio Ramos、Stan Birchfield、Dieter Fox*、Clemens Eppner*（* 表示工作在 NVIDIA 期间完成）。</p>
+<p class="lead">NVIDIA 的这篇工作确实有 Generator 和 Discriminator。但 Generator 学的是扩散去噪，Discriminator 学的是抓取成功 / 失败。两者分别训练；没有“让生成器欺骗判别器”的对抗更新。</p><div class="meta"><span>NVIDIA · arXiv 2025-07-17 / ICRA 2026</span><a href="https://arxiv.org/abs/2507.13097">arXiv</a><a href="https://arxiv.org/html/2507.13097v1">论文 v1</a><a href="https://arxiv.org/pdf/2507.13097">PDF</a><a href="https://graspgen.github.io/">项目</a><a href="https://github.com/NVlabs/GraspGen">代码</a><span>核对：2026-11-06</span></div></div>
+<div class="lab-stats"><div><strong>6-DOF</strong><span>单个夹爪的空间位姿</span></div><div><strong>DDPM + D</strong><span>扩散生成与成功率评分</span></div><div><strong>On-Generator</strong><span>用生成器实际产生的抓取训练 D</span></div></div>
+<div class="callout"><p><b>先纠正一个容易混淆的点：</b>“有生成器、有判别器”不足以判定是 GAN。要看判别目标、损失函数，以及判别器的梯度是否用于更新生成器。GraspGen 论文 §3.1 明确说明评分器不参与扩散模型训练。</p>
+<p><b>关于这份精读。</b>这一页原来是架构专题，现在按原文顺序逐节覆盖全文和附录 6.1 到 6.10；架构拆解保留在对应章节里，旧链接的锚点都还能用。论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布（<a href="https://arxiv.org/abs/2507.13097">abs 页</a>标注），所以插图是从原文 PDF 裁切的原图，只裁切、转格式，没有其他改动，这些图片继续按 CC BY-SA 4.0 提供。PDF 第 1 页页脚另有一行“© 2025 NVIDIA. All rights reserved.”，和 abs 页不同，我按 abs 页的许可处理。框图 A 到 D 和动画是我重新画的。</p>
+<p><b>代码。</b>读的是 <a href="https://github.com/NVlabs/GraspGen">NVlabs/GraspGen</a> 提交 <code>2dd8852e1be6</code>（2026-06-21，“Add Grasp Mixture of Experts”）。2026-11-06 克隆时它就是 HEAD，和旧页固定的提交相同，所以旧页的代码引用不用换。尺寸主要按官方 Franka 训练脚本追踪，不默认所有发布权重都用相同配置。代码和权重都没有运行，未复现实验。代码是 NVIDIA 非商业许可，这里没有复制。</p>
+<p>标成“读者注”的框是我核算或对照后写的，不属于论文。写“没写”是论文确实没写，写“没找到”是我没找到。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录"><a href="#tldr">速览</a><a href="#abstract">摘要</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 GraspGen</a><a href="#pipeline">完整流程</a><a href="#i3d">3D 框架动画</a><a href="#s3-1">3.1 扩散生成</a><a href="#generator">生成器结构</a><a href="#s3-2">3.2 评估</a><a href="#discriminator">判别器结构</a><a href="#training">On-Generator</a><a href="#gan">和 GAN 的区别</a><a href="#s3-3">3.3 数据集</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 仿真</a><a href="#s4-2">4.2 On-Gen 分析</a><a href="#s4-3">4.3 消融</a><a href="#s4-4">4.4 多夹爪</a><a href="#s4-5">4.5 真机</a><a href="#s5">5 结论与局限</a><a href="#s6">6 附录</a><a href="#compare">对比 Grasp++</a><a class="rn" href="#audit">实现核对</a><a class="rn" href="#notes">读者注汇总</a><a href="#sources">来源</a></nav>
+
+<h2 id="tldr">速览</h2>
+<p>GraspGen 输入一个分割好的物体点云，输出一批 6-DOF 夹爪位姿和每个位姿的成功分数。它由三块组成：</p>
+<ul>
+<li><b>生成器。</b>PTv3 把点云压成一个 512 维向量，条件扩散网络去噪 10 步，生成 B 个抓取。</li>
+<li><b>判别器。</b>复用生成器的编码器，加一个 MLP，给每个候选打 sigmoid 分数。</li>
+<li><b>On-Generator 训练配方。</b>判别器不是在离线数据上训练，而是在“生成器自己采样、再放进仿真贴标签”的数据上训练，所以它见过生成器真实会犯的错。这是论文最主要的新东西。</li>
+</ul>
+<p>论文的主要数字：Franka-ACRONYM 上精度-覆盖率 AUC 0.947，M2T2 0.636；FetchBench 任务成功率 41.2%，M2T2 33.4%，Oracle 49.4%；真机总体 81.3%，AnyGrasp 63.7%，M2T2 52.6%。消融：On-Generator 0.947 对离线 0.886。</p>
+<p>读完我核出的主要问题：</p>
+<ul>
+<li>代码在 T = 10 时平移调度器的 \(\bar\alpha\) 最后只到 0.927，训练时平移从未接近纯噪声，而推理却从 \(\mathcal N(0,I)\) 开始（<a href="#n5">读者注 5</a>）。</li>
+<li>公开的判别器脚本没有 On-Generator 数据时会静默退回 100% 离线，有数据时也是 50/50 混合，不是论文最好的那条曲线（<a href="#n7">读者注 7</a>）。</li>
+<li>文中几个“提升百分比”彼此不一致：对 M2T2 的 AUC 优势写过 48% 和 37%，PTv3 的 5.3 mm 和表 5 算出来的 6.0 mm 不同，表 5 的 PTv3 行和表 4 的 6D 行一字不差（<a href="#n19">读者注 19</a>、<a href="#n14">14</a>）。</li>
+<li>Robotiq 的公开脚本和发布配置用的是 PointNet++，不是 PTv3（<a href="#n15">读者注 15</a>）。</li>
+</ul>
+
+<h2 id="abstract">摘要</h2>
+<p>6-DOF 抓取是基础能力，但学习方法仍然不是开箱即用，换夹爪、换真实环境都容易出问题。作者沿用“把物体中心的抓取生成看作迭代扩散过程”这条路线，提出 GraspGen：一个 Diffusion-Transformer 生成器，配一个高效判别器来打分和过滤。判别器用新的 On-Generator 配方训练。为了覆盖更多物体和夹爪，作者放出一个超过 5300 万个抓取的仿真数据集。结果是：单物体仿真跨夹爪优于已有方法，<a class="ds" href="https://github.com/princeton-vl/FetchBench-CORL2024">FetchBench</a>（<a href="https://arxiv.org/abs/2406.11793">论文</a>）上达到最好水平，带噪声视觉输入的真机上表现也好。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>抓取研究进展很多：数据生成（<a class="ds" href="https://github.com/NVlabs/acronym">ACRONYM</a>，<a href="https://arxiv.org/abs/2011.09584">论文</a>）、跨形态泛化、触觉、杂乱环境、语言提示、真实世界 RL。但作为通用子程序还不够可靠。FetchBench 里最好的系统成功率低于 20%；<a href="https://arxiv.org/abs/2401.12202">OK-Robot</a> 记录了 375 次试验里 30 次由抓取模型造成的失败（8%），论文说这些模型在评估中准确率约 60%；RAM 里 Robo-ABC 的基线低于 50%。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · “低于 20%”和论文自己的图 4</span><p>30/375 = 8.0%，算术没问题。但引言说 FetchBench 上 SOTA 低于 20%，而 §4.1 图 4 里 Contact-GraspNet 任务成功率 26.1%、抓取成功率 34.2%，M2T2 是 33.4%、43.3%。两者应当不矛盾：§4.1 用的是场景的真值碰撞网格，排除了感知带来的碰撞建模误差，引言引的是 FetchBench 原文的结果。这是我的解释，论文没有把两组数放在一起说明。读 §4.1 的数时要记住它们比原 benchmark 的条件更宽松。</p></div>
+<p><b>为什么不是开箱即用。</b>模型式方法要精确物体位姿，未知物体不行；有的方法要多视角扫描单个物体，杂乱场景里不现实；接触点表示（Contact-GraspNet、<a href="https://arxiv.org/abs/2311.00926">M2T2</a>）难以推广到非对称平行夹爪以外的形态，作者还说它们的分数质量相对差。</p>
+<p><b>为什么回到物体中心。</b>杂乱场景方法往往要仿真整个场景或人工采集真实数据，难以扩展到桌面以外，也说不清合成的杂乱是否代表真实分布；而它们做目标抓取时还是依赖实例分割。既然 <a href="https://arxiv.org/abs/2408.00714">SAM2</a> 这类基础模型已经把分割做得不错，作者认为世界中心模型的必要性下降了，可以重新强调物体中心模型，训练和推理都更简单。</p>
+<p><b>贡献。</b>两点。其一，一个能跨形态（3 种夹爪）、跨可观测性（部分 / 完整点云）、跨复杂度（单物体 / 杂乱）、跨 sim/real 的系统。其二，一个训练配方（算法 1），其中判别器用 On-Generator 数据监督。作者说此前使用 6-DOF 抓取判别器的工作（<a href="https://arxiv.org/abs/1905.10520">6-DOF GraspNet</a>、<a href="https://arxiv.org/abs/2402.02989">DexDiffuser</a> 等）都没这样做。此外改进了推理时间和显存，放出 5300 万抓取的数据集。</p>
+<figure class="pfig narrow"><img src="graspgen/fig1.webp" width="776" height="997" alt="雷达图：六个轴分别是 Robotiq 140F、吸盘、Franka Panda、真机杂乱、真机单物体、FetchBench，GraspGen 的多边形最大" loading="lazy"><figcaption><span class="lab">图 1（雷达图，原文第 1 页，无图注）</span>六个轴：Robotiq 140F、吸盘、Franka Panda（物体中心），FetchBench（杂乱），真机单物体和真机杂乱。GraspGen（绿）在每个轴都最大。没有放进表格的方法也列在图例里：M2T2、DexDiffuser、Contact-GraspNet、SE3-Diff、AnyGrasp。各轴的指标在附录 §6.3 说明：物体中心用 AUC，FetchBench 和真机用成功率，吸盘只比生成器的覆盖率。这张图在 PDF 里没有编号和图注，§6.3 称它“Sec. 1 的雷达图”，下一张带编号的是图 2。</figcaption></figure>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>6-DOF 抓取。</b>通常写成位姿检测问题，分抓取采样（GS）和抓取分析（GA）两部分。GS 用生成模型：自回归、VAE、扩散（<a href="https://arxiv.org/abs/2209.03855">SE(3)-DiffusionFields</a> 等）。GA 通常是判别器打分排序。也有单模型同时做两件事的，比如 <a href="https://arxiv.org/abs/2103.14127">Contact-GraspNet</a> 的接触点表示和 M2T2 的 transformer 扩展。输入可以是点云、隐式表示或体素。GraspGen 要求物体中心的点云。</p>
+<p><b>应用。</b>杂乱场景的目标抓取、动态抓取、语言引导操作都把 6-DOF 抓取网络当子模块。作者因此把框架设计成模块：直接以物体点云为输入，省去训练时对整个场景的建模；既支持单视角，也支持多视角。</p>
+<p><b>机器人里的扩散模型。</b>已用于视觉运动策略、抓取、运动规划、重排、场景生成。最接近的两篇：SE(3)-DiffusionFields 提出把 6-DOF 对跖抓取写成扩散过程（已知物体，无点云输入）；DexDiffuser 推广到灵巧手和点云观测，并加了判别器。GraspGen 在此之上给出新的大规模多夹爪数据集，并同时改进 GA 和 GS。</p>
+
+<h2 id="s3"><span class="no">3</span>GraspGen</h2>
+<p>目标是生成<b>大量且空间上分散</b>的成功抓取。要分散，是因为杂乱场景里很多本来能成功的抓取够不到或会碰撞，运动规划器在推理时要把它们滤掉，候选只有足够分散才能剩下一些。实际要的是物体的 top-K，所以生成后还要打分排序（§3.2）。</p>
+
+<h3 id="pipeline">生成器、判别器与运动规划各做什么</h3>
+<figure class="lab-figure"><h3>从物体点云到可执行的抓取</h3><div class="lab-flow"><div class="lab-row"><div class="lab-box obj"><strong>实例分割后的目标点云</strong><small>单视角部分点云或多视角 / 完整几何。分割和深度属于上游模块。</small></div><div class="lab-box"><strong>随机噪声 + 扩散时间 t</strong><small>每个候选是一份 3 维平移 + 3 维轴角</small></div><div class="lab-box robot"><strong>指定夹爪的模型</strong><small>Franka Panda、Robotiq-2F-140、吸盘分别训练；没有逐连杆 URDF 图输入。</small></div></div><div class="lab-arrow">点云中心化；按 κ 缩放；编码几何（Franka 用 PTv3）</div><div class="lab-box obj"><strong>Generator · 条件扩散网络</strong><small>反复预测平移与旋转噪声 → DDPM 采样 → 多个 6-DOF 抓取候选</small></div><div class="lab-arrow">候选的来源不决定标签：生成的抓取也可以成功</div><div class="lab-box good"><strong>Discriminator · 抓取成功率评分器</strong><small>物体编码 + 候选位姿 → MLP → sigmoid 分数 → 排序 / 过滤</small></div><div class="lab-arrow">高分仍不意味着机械臂一定可达、路径无碰撞</div><div class="lab-box env"><strong>场景碰撞检查 + 机械臂 IK / 运动规划</strong><small>论文真实系统使用 cuRobo 与 NVBlox；在候选目标中寻找可执行方案。</small></div></div><figcaption>图 A（重画）· 物体中心的抓取生成与系统级执行。周围环境不是原始 GraspGen 的独立 ER 编码分支；场景约束主要由后续检查和规划处理。</figcaption></figure>
 <p>它预测的是<b>夹爪基座的空间姿态</b>，不是一段动作轨迹，也不是多指灵巧手的整套关节运动。三种夹爪的结果展示了方法适用范围，但不意味着一个统一权重可零样本接收任意新夹爪。</p>
 
-<h2 id="generator"><span class="no">02</span>生成器：点云编码器与噪声预测头分开看</h2>
+<div class="i3d" id="i3d"><p class="lab">自己画的 · 11 幕 3D 框架动画（第 6 到 11 幕的抓取由页面当场训练的小网络产生）</p>
+<p>分割和部分点云、PTv3 序列化、噪声头、两个调度器、可调步数的玩具去噪、判别器、On-Generator 与离线的切换、EMD、和 GAN 的区别、规划器筛选和论文结果。这是平面上的玩具，不是 GraspGen 的权重。</p>
+<iframe src="../interactives/graspgen/index.html?embed=1" title="GraspGen 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/graspgen/index.html">全屏打开，还有完整结构表 ↗</a></p></div>
+
+<h2 id="s3-1"><span class="no">3.1</span>用扩散模型生成抓取</h2>
+<p>对一个具体物体，抓取分布是连续且高度多峰的，适合生成模型。扩散模型的做法是训练时给数据逐步加噪，推理时反过来从噪声生成数据。</p>
+<p><b>为什么用 DDPM。</b>SE(3)-DiffusionFields 学的是能量模型，配分数匹配 Langevin 动力学（SMLD），采样时要计算能量网络的对数概率梯度，慢。作者改用 <a href="https://arxiv.org/abs/2006.11239">DDPM</a>：一个迭代去噪过程，经验上更快也更好实现，<a href="https://arxiv.org/abs/2011.13456">这两种范式也已被证明等价</a>。</p>
+<p><b>SE(3) 上怎么做。</b>DDPM 针对欧氏空间 \(\mathbb R^n\)，旋转不是欧氏的。和 SE3-Diff 一样，把 SE(3) 分解成 \(SO(3)\times\mathbb R^3\)，在 \(\mathbb R^3\) 和 SO(3) 的李代数上做扩散。李代数向量就是轴角：方向是旋转轴，长度是旋转角，它住在普通的 \(\mathbb R^3\) 里。噪声预测网络以点云编码为条件，所以是条件扩散。</p>
+<p><b>平移归一化。</b>网络喜欢归一化的输入输出。旋转有界 \([-\pi,\pi]\)，平移无界，且依赖物体尺度和姿态。作者不搜参，而是从数据统计算一个倍数：</p>
+\[\kappa=\frac{1}{\frac1N\sum_{i=0}^{N}\big(\max(t_i)-\min(t_i)\big)}\]
+<p>其中 \(t_i\) 是物体 \(i\) 的全部正样本抓取 \(\mathcal G_i^+\) 的平移。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · κ 的公式和代码</span><p>论文求和从 0 到 N 而除以 N，差一项，应是笔误。\(\max(t_i)-\min(t_i)\) 也没说是向量还是标量。代码 <code>calculate_dataset_kappa</code> 给出了答案：每个物体算每轴的范围（3 个数），全部物体全部轴一起求平均，再取倒数。</p><p>代码还做了论文没说的一件事：<b>点云也乘 κ</b>（<code>depth = self.kappa * depth</code>），不只是抓取平移。所以 PTv3 的 <code>grid_size = 0.01</code> 是 κ 尺度下的，换回米，Franka 约 3.06 mm。</p><p>反算平均范围（我的算术）：Franka \(1/3.27=30.6\) cm，Robotiq \(1/2.02217=49.5\) cm，吸盘 \(1/3.764=26.6\) cm。三个 κ 出自 runs 脚本和发布的 yml。</p></div>
+<p><b>物体编码。</b>此前的 6-DOF 抓取论文多用 PointNet++。作者说就所知没有生成式抓取论文用过点云 transformer，这里用 <a href="https://arxiv.org/abs/2312.10035">PointTransformerV3</a>。PTv3 先把点序列化成结构化格式，再在上面跑 transformer，绕开了以往层次化点云处理里最耗时的近邻球查询。</p>
+<figure class="pfig"><img src="graspgen/fig2.webp" width="1600" height="694" alt="图 2：物体点云经序列化和物体编码器；噪声和扩散时间经 MLP 与位置编码；三者拼接后过三层注意力输出抓取；物体嵌入和抓取再进 MLP 输出分数" loading="lazy"><figcaption><span class="lab">图 2 · 原文第 4 页 · <a href="https://arxiv.org/html/2507.13097v1#S3.F2">看网页版</a></span>下半是噪声预测网络：噪声 [B×4×4] 过 MLP，时间 [B×1] 过位置编码，和物体嵌入拼接后穿过 3 个注意力块，得到抓取。上半是判别器：物体点云 [1×N×3] 序列化，进带雪花（冻结）标记的物体编码器，再和抓取 [B×4×4] 一起进 MLP，输出分数 [B×1]。</figcaption></figure>
+<p><b>扩散网络。</b>点云和抓取都先移到点云均值中心。推理时采样 B 个噪声，反复执行反向过程。作者经超参数搜索发现 \(T=10\) 步够用：图像扩散常跑几百步，他们猜测抓取只有 3+3 维，远低于图像（224×224 超过 5 万维），所以简单。损失是预测噪声和真实噪声的差：</p>
+\[L=\big\|\epsilon-\varphi(t,\tilde g,\mathcal X)\big\|_2^2\]
+<p>\(\varphi\) 是噪声预测网络，\(\mathcal X\) 是物体点云。训练时随机取 \(t\in[0,T]\)，给真值抓取 \(g\in\mathcal G^+\) 加噪得 \(\tilde g=g+\epsilon\)。时间和抓取分别过位置编码和 MLP。作者发现平移和旋转<b>各用一个调度器</b>跑两个去噪过程比单个 DDPM 好。判别器分开训练，不参与扩散训练。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 公式写得比代码简单</span><p>论文写 \(\tilde g=g+\epsilon\)，这只是示意。代码走的是 DDPM 标准形式 \(\tilde g=\sqrt{\bar\alpha_t}\,g+\sqrt{1-\bar\alpha_t}\,\epsilon\)（<code>add_noise</code>）。\(t\) 也不是 \([0,T]\)，而是整数 0 到 9（<code>torch.randint(0, 10, …)</code>）。旋转还额外除了 π，把轴角缩放到大约 \([-1,1]\)。损失的差异见<a href="#audit">实现核对</a>。</p></div>
+
+<h3 id="generator">生成器：点云编码器与噪声预测头分开看</h3>
 <h3>先把姿态表示和归一化说清楚</h3>
 <p>论文把 SE(3) 分为平移 ℝ³ 和旋转 SO(3)，使用旋转的李代数向量表示。所核对脚本设置 <code>r3_so3</code>，所以网络样本维度为 6。另一种可选的 <code>r3_6d</code> 表示需要 3+6=9 个数，但仍描述六自由度刚体位姿。</p>
-<p>点云和抓取先转到物体点云的均值中心附近，再用数据统计得到的 κ 调整平移尺度。Franka 示例脚本取 κ=3.27；这不是所有夹爪和所有数据通用的常数。旋转、平移分开使用噪声调度器，也不代表有两个完全独立的去噪网络。</p>
+<p>点云和抓取先转到物体点云的均值中心附近，再用数据统计得到的 κ 同时缩放点云坐标和抓取平移（<a href="#n2">读者注 2</a>）。Franka 示例脚本取 κ=3.27；这不是所有夹爪和所有数据通用的常数（Robotiq 2.02217，吸盘 3.764）。旋转、平移分开使用噪声调度器，也不代表有两个完全独立的去噪网络。</p>
 
 <h3>PTv3：在点云里做局部空间注意力</h3>
 <p>Point Transformer V3 将三维点按空间填充顺序序列化，在序列分组内计算注意力，再分层池化。GraspGen 使用其 <code>cls_mode=True</code> 分支，最终按物体求均值，得到一个 512 维全局描述。几何关系在 PTv3 内建模；传给下游噪声头的是全局向量。</p>
 <div class="tablewrap"><table><thead><tr><th>PTv3 阶段</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody><tr><td>输出通道</td><td>32</td><td>64</td><td>128</td><td>256</td><td>512</td></tr><tr><td>Transformer block 数</td><td>2</td><td>2</td><td>2</td><td>6</td><td>2</td></tr><tr><td>注意力头数</td><td>2</td><td>4</td><td>8</td><td>16</td><td>32</td></tr><tr><td>阶段间 stride</td><td>—</td><td>2</td><td>2</td><td>2</td><td>2</td></tr></tbody></table></div>
-<p>代码默认序列化顺序包含 Z-order、Hilbert 及其变体；各阶段 patch size 配置为 1024，实际分组还受输入点数影响。它没有固定输出 25 个 patch 供图网络读取，因此不能沿用 T(R,O) Grasp 的 token 数来画这张图。</p>
+<p>代码默认序列化顺序包含 Z-order、Hilbert 及其变体；各阶段 patch size 配置为 1024，实际分组还受输入点数影响（代码取 1024 和实际点数的较小值，点数不足 1024 时一个物体只有一组，组内注意力就是这个物体上的全局注意力）。它没有固定输出 25 个 patch 供图网络读取，因此不能沿用 T(R,O) Grasp 的 token 数来画这张图。</p>
 
 <h3>噪声头：三个 512 维向量，沿通道拼成 1536</h3>
-<figure class="lab-figure"><h3>Franka 脚本的 cat_attn 路径</h3><div class="lab-row"><div class="lab-box obj"><strong>物体点云 → 512</strong><small>PTv3 五阶段 → 按物体 mean pooling</small></div><div class="lab-box robot"><strong>带噪抓取 → 512</strong><small>6 → Linear 512 → ReLU → Linear 512</small></div><div class="lab-box env"><strong>时间 t → 512</strong><small>Sinusoidal 512 → Linear 2048 → Mish → Linear 512</small></div></div><div class="lab-arrow">沿特征维拼接：512 + 512 + 512 = 1536</div><div class="lab-band"><span class="lab-kicker">SEQUENCE = 1 · CHANNEL = 1536</span><div class="lab-chain"><div class="lab-box"><strong>Self-Attention</strong><small>8 头，每头 192 维；残差 + LayerNorm</small></div><span>→</span><div class="lab-box"><strong>FFN</strong><small>1536 → 512 → 1536；GELU；残差 + LayerNorm</small></div></div><p class="lab-source">以上 block 重复 3 次；每个抓取候选位于 batch 轴。</p></div><div class="lab-arrow">MLP 输出：1536 → 768 → 384 → 6；中间使用 ReLU</div><div class="lab-row"><div class="lab-box"><strong>ε̂ translation · 3</strong><small>平移调度器：scaled_linear</small></div><div class="lab-box"><strong>ε̂ rotation · 3</strong><small>旋转调度器：squaredcos_cap_v2</small></div><div class="lab-box good"><strong>更新候选位姿</strong><small>两个调度器使用同一噪声头输出的不同分量</small></div></div><figcaption>图 2 · 按 generator.py、model_utils.py、scripts/config.yaml 与 train_graspgen_franka_panda_gen.sh 追踪。脚本设训练与推理均为 10 个扩散时间步；不要套用其他扩散论文的“1000 训练步 / 10 采样步”。</figcaption></figure>
-<div class="note"><span class="lab">读者注 · 这里的 token 数很关键</span><p>在此 <code>cat_attn</code> 路径，三个向量沿通道拼接，然后 <code>unsqueeze(0)</code> 得到 [1, batch, 1536]。MultiheadAttention 使用序列优先布局，因此序列长为 1，不是 3，也不是候选数量。单个 token 的 softmax 只有一个元素，其注意力权重为 1。</p><p>所以不能把它解释为“在这个头里，抓取查询动态挑选多个物体 patch”。PTv3 仍有空间注意力；噪声头保留投影、残差、归一化与 FFN 等运算。这里的判断只针对公开脚本选中的路径，不把仓库里的可选 <code>cross_attn</code> 分支当成论文实验默认配置。</p></div>
-<p class="lab-source">这是静态形状分析，属于阅读者对代码的推导，没有运行权重或验证该实现对性能的贡献。</p>
+<figure class="lab-figure"><h3>Franka 脚本的 cat_attn 路径</h3><div class="lab-row"><div class="lab-box obj"><strong>物体点云 → 512</strong><small>PTv3 五阶段 → 按物体 mean pooling</small></div><div class="lab-box robot"><strong>带噪抓取 → 512</strong><small>6 → Linear 512 → ReLU → Linear 512</small></div><div class="lab-box env"><strong>时间 t → 512</strong><small>Sinusoidal 512 → Linear 2048 → Mish → Linear 512</small></div></div><div class="lab-arrow">沿特征维拼接：512 + 512 + 512 = 1536</div><div class="lab-band"><span class="lab-kicker">SEQUENCE = 1 · CHANNEL = 1536</span><div class="lab-chain"><div class="lab-box"><strong>Self-Attention</strong><small>8 头，每头 192 维；残差 + LayerNorm</small></div><span>→</span><div class="lab-box"><strong>FFN</strong><small>1536 → 512 → 1536；GELU；残差 + LayerNorm</small></div></div><p class="lab-source">以上 block 重复 3 次；每个抓取候选位于 batch 轴。</p></div><div class="lab-arrow">MLP 输出：1536 → 768 → 384 → 6；中间使用 ReLU</div><div class="lab-row"><div class="lab-box"><strong>ε̂ translation · 3</strong><small>平移调度器：scaled_linear</small></div><div class="lab-box"><strong>ε̂ rotation · 3</strong><small>旋转调度器：squaredcos_cap_v2</small></div><div class="lab-box good"><strong>更新候选位姿</strong><small>两个调度器使用同一噪声头输出的不同分量</small></div></div><figcaption>图 B（重画）· 按 generator.py、model_utils.py、scripts/config.yaml 与 train_graspgen_franka_panda_gen.sh 追踪。脚本设训练与推理均为 10 个扩散时间步；不要套用其他扩散论文的“1000 训练步 / 10 采样步”。按层算（我的算术）噪声头约 3690 万参数，其中三个注意力块 3306 万，不含 PTv3。</figcaption></figure>
+<div class="note" id="n4"><span class="lab">读者注 4 · 这里的 token 数很关键</span><p>在此 <code>cat_attn</code> 路径，三个向量沿通道拼接，然后 <code>unsqueeze(0)</code> 得到 [1, batch, 1536]。MultiheadAttention 使用序列优先布局，因此序列长为 1，不是 3，也不是候选数量。单个 token 的 softmax 只有一个元素，其注意力权重为 1。</p><p>所以不能把它解释为“在这个头里，抓取查询动态挑选多个物体 patch”。PTv3 仍有空间注意力；噪声头保留投影、残差、归一化与 FFN 等运算。这里的判断只针对公开脚本选中的路径，不把仓库里的可选 <code>cross_attn</code> 分支当成论文实验默认配置。这三个发布配置（Franka、Robotiq、吸盘的 yml）都是 <code>cat_attn</code>。</p><p>另外论文图 2 把噪声和抓取都标成 [B×4×4]，代码进网络的是 [B, 6]。</p><p class="lab-source">这是静态形状分析，属于阅读者对代码的推导，没有运行权重或验证该实现对性能的贡献。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 平移调度器在 10 步里几乎不加噪</span><p>论文只说两个调度器分开更好。代码（<code>generator.py</code>）平移用 <code>scaled_linear</code>，旋转用 <code>squaredcos_cap_v2</code>，都<b>没有传 beta_start、beta_end</b>，所以取 diffusers 默认值 \(10^{-4}\) 到 \(0.02\)（requirements 钉在 0.11.1，我读了这个版本的源码）。这个默认范围本来配 1000 步。余弦调度不用这两个数，所以不受影响。按公式算（我的算术）：</p>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>t</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th></tr></thead><tbody><tr><td>平移 \(\bar\alpha_t\)</td><td>.9999</td><td>.9993</td><td>.9978</td><td>.9949</td><td>.9902</td><td>.9834</td><td>.9740</td><td>.9618</td><td>.9463</td><td>.9274</td></tr><tr><td>旋转 \(\bar\alpha_t\)</td><td>.9721</td><td>.8987</td><td>.7869</td><td>.6475</td><td>.4938</td><td>.3408</td><td>.2031</td><td>.0940</td><td>.0241</td><td>.00002</td></tr></tbody></table></div>
+<p>也就是平移最大噪声时 \(\tilde g=0.963\,g+0.270\,\epsilon\)，信号还在。而推理从 \(\mathcal N(0,I)\) 开始（<code>torch.randn</code>），平移的起点比训练时的输入分散得多。旋转则是真正的纯噪声。所以两个调度器不只是形状不同，最终的 \(\bar\alpha\) 差了 4 个量级。</p>
+<p>反向更新 \(x_{t-1}=c_0\hat x_0+c_t x_t\)，平移的 \(c_t\) 从 0.73 降到 t=0 时的 0，所以最终结果基本由各步预测的 \(\hat x_0\) 决定，初始噪声会被冲掉，模型因此仍可能工作。但这时第一步的网络是在它没见过的输入上外推，再靠 <code>clip_sample</code> 把 \(\hat x_0\) 裁到 \([-1,1]\)。</p>
+<p>发布的三个 yml 都是 10 步、compositional，所以不是脚本独有。我没有运行权重，不能说这影响了多少，也不知道作者是否有意，<b>论文没提</b>。论文说的“outliers far away from the object”和“低似然噪声样本”也许和这有关，这是猜测。玩具（<a href="#i3d">第 5、6 幕</a>）里 T = 10 时：代码调度成功 63.3%，碰撞 100 个、太远 323 个；两路都用余弦成功 68.3%，碰撞 249 个、太远 33 个（各 1500 个样本）。玩具只说明这个选择会改变错误的类型，不能外推。</p></div>
+<p>玩具的 T 扫描（代码调度，成功率）：T = 2 28.3%，T = 5 59.9%，T = 10 63.3%，T = 20 68.4%，T = 50 67.6%。方向和论文“T = 10 够用”一致，但这只是三维玩具。</p>
 
-<h2 id="discriminator"><span class="no">03</span>判别器到底判别什么？</h2>
+<h2 id="s3-2"><span class="no">3.2</span>用 On-Generator 训练做抓取评估</h2>
+<p>只用成功样本训练的生成模型，因拟合误差会产生假阳性，所以需要在执行前打分、排序、过滤。此前的工作也用单独学习的判别器。作者提出两点改进。</p>
+<p><b>On-Generator 训练。</b>仿真到真实的抓取模型通常在离线的成功集 \(\mathcal G^+\) 和失败集 \(\mathcal G^-\) 上训练。但生成模型的分布 \(\hat{\mathcal G}\) 和离线数据不同，作者认为原因是采样方式：例如 ACRONYM 的失败抓取从不碰撞物体，而扩散模型生成的有些抓取轻微碰撞（拟合误差），还有些是离物体很远的离群点（低似然的噪声样本）。作者假设用 On-Generator 数据训练判别器能消除这些失败模式。做法：在训练集上跑生成器推理（约 7K 物体，每个 2K 样本），用和离线数据相同的流程仿真标注，规模和原离线数据接近。</p>
+<div class="algo"><span class="lab">算法 1 · GraspGen 训练配方</span><ol>
+<li>输入：物体数据集 \(\mathcal O\)，抓取数据集 \(\{\mathcal G^+,\mathcal G^-\}\)</li>
+<li>计算平移归一化：\(\kappa\leftarrow\mathrm{trans\_norm}(\mathcal G^+)\)</li>
+<li>训练生成器：\(\pi^{gen}\leftarrow\mathrm{train\_DDPM}(\mathcal O,\mathcal G^+,\kappa)\)</li>
+<li>采样 On-Generator 数据：\(\hat{\mathcal G}\sim\pi^{gen}(\mathcal O)\)</li>
+<li>标注：\(\{\hat{\mathcal G}^+,\hat{\mathcal G}^-\}\leftarrow\mathrm{simulate}(\mathcal O,\hat{\mathcal G})\)</li>
+<li>训练判别器：\(\pi^{dis}\leftarrow\mathrm{train\_classifier}(\{\hat{\mathcal G}^+,\hat{\mathcal G}^-\},\pi^{gen},\kappa)\)</li>
+<li>返回 \((\pi^{gen},\pi^{dis},\kappa)\)</li></ol></div>
+<p>注意第 3 行只用 \(\mathcal G^+\)，第 6 行的输入是 \(\hat{\mathcal G}\)。算法写的是判别器<b>只</b>用 On-Generator 数据；\(\mathcal G^-\) 在算法里作为输入出现但没有被任何一步使用。</p>
+<p><b>高效评估。</b>此前的判别器（6-DOF GraspNet、Lum 等）有自己的物体编码器，从头训练。这里复用生成阶段的编码器，加一个 MLP 接物体嵌入和抓取位姿，输出 sigmoid 分数。另一个决定是怎么组合两者：6-DOF GraspNet 把抓取变成夹爪上的几个点，和物体点云拼接，带分割标记过 PointNet；这里直接把物体嵌入和 \(SO(3)\times\mathbb R^3\) 的抓取表示拼接。判别器和生成器分开训练，只有最后的 MLP 从头训练，用二元交叉熵；生成器的编码器冻结复用。</p>
+
+<h3 id="discriminator">判别器到底判别什么？</h3>
 <p>判别器回答的是：“对这个物体，在这个位姿抓下去，会不会成功？”它不判断抓取是数据集中的“真样本”还是生成器产生的“假样本”。生成器采样的成功抓取是正例，失败抓取是负例。</p>
-<figure class="lab-figure"><h3>一个很直接的条件分类器</h3><div class="lab-two"><div class="lab-box obj"><strong>物体形状 · 512</strong><small>论文配方：从生成器复用、冻结物体编码器</small></div><div class="lab-box robot"><strong>候选抓取 · 512</strong><small>6 → 512 → ReLU → 512</small></div></div><div class="lab-arrow">拼接 1024 维；每个候选搭配同一个物体描述</div><div class="lab-box"><strong>1024 → 512 → 256 → 1</strong><small>中间 ReLU；输出 logit，sigmoid 后作为成功分数</small></div><div class="lab-arrow">训练：仿真 / 解析评估产生成功或失败标签</div><div class="lab-box good"><strong>Binary Cross Entropy</strong><small>公开脚本另用损失最大的 75% 样本求平均；这是训练中的难样本选择。</small></div><figcaption>图 3 · MLP 与 top-k BCE 依照 discriminator.py。这里的“75%”不是部署时保留 75% 最高分抓取，二者不能混淆。</figcaption></figure>
+<figure class="lab-figure"><h3>一个很直接的条件分类器</h3><div class="lab-two"><div class="lab-box obj"><strong>物体形状 · 512</strong><small>论文配方：从生成器复用、冻结物体编码器</small></div><div class="lab-box robot"><strong>候选抓取 · 512</strong><small>6 → 512 → ReLU → 512</small></div></div><div class="lab-arrow">拼接 1024 维；每个候选搭配同一个物体描述</div><div class="lab-box"><strong>1024 → 512 → 256 → 1</strong><small>中间 ReLU；输出 logit，sigmoid 后作为成功分数</small></div><div class="lab-arrow">训练：仿真 / 解析评估产生成功或失败标签</div><div class="lab-box good"><strong>Binary Cross Entropy</strong><small>公开脚本另用损失最大的 75% 样本求平均；这是训练中的难样本选择。</small></div><figcaption>图 C（重画）· MLP 与 top-k BCE 依照 discriminator.py。这里的“75%”不是部署时保留 75% 最高分抓取，二者不能混淆。</figcaption></figure>
 <p>相比为每个候选都把夹爪控制点和物体点云拼成一个大点云重新编码，先得到可复用的物体描述再接轻量 MLP，能减少重复计算与中间特征。论文的“21 倍更省显存”是特定判别器比较条件下的结果，不是整个机器人系统在任意设置下都省 21 倍。</p>
 <p>另需区分<b>复用训练出的编码器权重</b>与<b>部署中 G / D 只做一次物体编码</b>。公开组合模型分别实例化生成器和判别器，forward 先调用 G，再调用 D；本页不会据论文的 reuse 一词声称所有发布路径都共享同一缓存张量。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · “只有最后的 MLP 从头训练”</span><p>§3.2 写“只有最后的 MLP 层从头训练”。代码里从头训练的是两个部分：把抓取编码成 512 维的 <code>sample_encoder</code>（\(6\to512\to512\)）和 <code>prediction_head</code>（\(1024\to512\to256\to1\)），合计约 92 万参数（我的算术）。大意没错，字面上不止一层。</p>
+<p>冻结也不是自动的，要显式给 <code>checkpoint_object_encoder_pretrained</code>。runs 脚本没传（配置默认 null）。发布的 yml 不同：Franka 写 <code>graspgen_franka_panda_gen.pth</code>，Robotiq 和吸盘写 null。所以至少从配置看，Franka 走论文配方，其他两个不是。我没有下载权重去比较编码器参数是否真的相同。</p></div>
 
-<h2 id="training"><span class="no">04</span>On-Generator：让判别器见到生成器真正会犯的错</h2>
+<h3 id="training">On-Generator：让判别器见到生成器真正会犯的错</h3>
 <p>离线随机采样得到的失败抓取，与模型实际生成的失败抓取未必一样。例如离线数据已过滤穿入物体的抓取，而扩散模型可能产生“只差几毫米、却轻微穿模”的候选。只训练离线失败集，评分器可能恰好不认识这些错误。</p>
 <figure class="lab-figure"><h3>三阶段训练，不是交替对抗</h3><div class="lab-controls" data-switch><button type="button" data-target="stage-g" aria-controls="stage-g" aria-pressed="true">1 · 训练 G</button><button type="button" data-target="stage-label" aria-controls="stage-label" aria-pressed="false">2 · 重新采样与标注</button><button type="button" data-target="stage-d" aria-controls="stage-d" aria-pressed="false">3 · 训练 D</button></div>
 <div id="stage-g" data-panel><div class="lab-chain"><div class="lab-box good"><strong>离线成功抓取 G⁺</strong><small>目标物体几何作为条件</small></div><span>→</span><div class="lab-box"><strong>加噪并预测噪声</strong><small>优化扩散去噪目标</small></div><span>→</span><div class="lab-box obj"><strong>得到生成器 G</strong><small>这里没有判别器损失</small></div></div><p>先学习成功抓取分布。推理时，G 能生成多个合理但不保证全部有效的候选。</p></div>
 <div id="stage-label" data-panel hidden><div class="lab-chain"><div class="lab-box obj"><strong>已经训练好的 G</strong><small>在训练对象上生成候选</small></div><span>→</span><div class="lab-box env"><strong>执行仿真 / 标签评估</strong><small>观察抓取稳定性</small></div><span>→</span><div class="lab-box good"><strong>生成样本的正负标签</strong><small>成功 ĝ⁺；失败 ĝ⁻</small></div></div><p>论文算法对约 7K 物体、每个 2K 候选重新评估。标签依据物理成功，而非样本来自哪里；采样与仿真这条数据链不是反向传播链。</p></div>
 <div id="stage-d" data-panel hidden><div class="lab-chain"><div class="lab-box good"><strong>ĝ⁺ 与 ĝ⁻</strong><small>匹配实际生成器的输出分布</small></div><span>→</span><div class="lab-box"><strong>训练抓取分类器</strong><small>论文冻结复用的形状编码器</small></div><span>→</span><div class="lab-box env"><strong>获得 D 的评分能力</strong><small>G 不通过 D 的梯度更新</small></div></div><p>更接近对生成器误差做有针对性的质量评估。论文配方没有增加“让 G 骗过 D”的后续训练阶段。</p></div>
-<figcaption>图 4 · 根据论文 Algorithm 1 重新组织。On-Generator 指训练样本的来源与匹配分布；不表示“on-policy RL”，也不自动意味着 GAN。</figcaption></figure>
+<figcaption>图 D（重画）· 根据论文 Algorithm 1 重新组织。On-Generator 指训练样本的来源与匹配分布；不表示“on-policy RL”，也不自动意味着 GAN。代码里这批数据确实叫 onpolicy，但那只是变量名。</figcaption></figure>
+<div class="note" id="n7"><span class="lab">读者注 7 · 公开脚本实际训练的是什么</span><p>判别器脚本的 <code>RATIO=[0.25, 0.24, 0.00, 0.01, 0.00, 0.25, 0.25]</code> 对应 7 类样本：离线正、离线负、碰撞难例、自由空间、回撤难例、on-policy 正、on-policy 负（<code>MAPPING_ID2NAME</code>）。这说明两件事：</p>
+<ul><li><b>脚本没传 <code>onpolicy_dataset_dir</code>（默认 null）。</b>这时 <code>load_discriminator_batch_with_stratified_sampling</code> 把 on-policy 两份并回离线，不报错。实际比例是 50% 正、49% 负、1% 自由空间，<b>全部是离线数据</b>。README 也写明 On-Generator 尚未随判别器训练发布。</li>
+<li><b>即使给了数据，也是 50/50 混合。</b>对应图 6 的 0.942 那条线，不是论文说“最高”的纯 On-Generator 0.947。算法 1 写的却是纯 On-Generator。两者差 0.005，影响不大，但复现时应当知道。</li></ul>
+<p>README 说 On-Generator 会在数据生成仓库放出时发布；<a href="https://github.com/NVlabs/GraspDataGen">GraspDataGen</a> 已在 2025-09-30 放出，同一条说明还在。另外 <code>generate_negative_hardnegatives</code>（扰动正样本造碰撞负例）已经实现，但比例设成 0；只有 1% 的自由空间负例，注释写的是“去掉模型的离群点”。这两类可以看作用离线手段模拟生成器错误的尝试，最后作者选了 On-Generator。这最后一句是我的推断。</p></div>
 
-<h2 id="gan"><span class="no">05</span>为什么它不是 GAN？看梯度流就清楚了</h2>
+<h2 id="gan"><span class="no">辨析</span>为什么它不是 GAN？看梯度流就清楚了</h2>
 <div class="tablewrap"><table><thead><tr><th>问题</th><th>经典 GAN</th><th>GraspGen</th></tr></thead><tbody><tr><td>D 的标签</td><td>真实数据 / 生成数据</td><td>抓取成功 / 失败</td></tr><tr><td>G 的学习信号</td><td>通过 D 的可微评分，学习使生成样本被判为真</td><td>已知加噪过程的噪声监督</td></tr><tr><td>D 是否参与 G 的训练</td><td>是，对抗目标使两者耦合</td><td>论文明确分别训练，D 不参与扩散训练</td></tr><tr><td>训练关系</td><td>围绕对抗目标交替优化</td><td>先训练 G → 采样 → 评估标签 → 训练 D</td></tr><tr><td>推理用途</td><td>通常主要使用 G 生成</td><td>G 提候选，D 排序和过滤，规划器检查可执行性</td></tr></tbody></table></div>
 <div class="lab-two"><section><h3>经典 GAN 的关键反馈</h3><div class="lab-equation">z → Gθ(z) → Dφ(Gθ(z))
       ↑          │
@@ -53,22 +155,214 @@ D：s = Dφ(x, ĝ)
    标签 y 来自抓取评估，优化 BCE(s,y)
 
 没有 BCE → G 的训练梯度箭头。</div></section></div>
-<p><b>读者判断：</b>将它称为“带成功率判别器的扩散抓取框架”更准确。它与 GAN 共享了生成、判别的词汇，但 On-Generator 的重点是修正评分器训练数据与实际候选之间的分布偏移。</p>
-<p class="lab-source">GraspGen 依据 <a href="https://arxiv.org/html/2507.13097v1#S3.S1">§3.1</a>、<a href="https://arxiv.org/html/2507.13097v1#S3.S2">§3.2 / Algorithm 1</a>；经典 GAN 对照参见 <a href="https://arxiv.org/abs/1406.2661">Goodfellow 等的原始论文</a>。上面的 GAN 目标是常用非饱和生成器目标，不是声称 GraspGen 使用它。</p>
+<p><b>读者判断：</b>将它称为“带成功率判别器的扩散抓取框架”更准确。它与 GAN 共享了生成、判别的词汇，但 On-Generator 的重点是修正评分器训练数据与实际候选之间的分布偏移。动画<a href="#i3d">第 10 幕</a>把同一批玩具样本按两种方式标注：GAN 全标“假”，GraspGen 按仿真结果，约三分之二是正例。</p>
+<p class="lab-source">GraspGen 依据 <a href="https://arxiv.org/html/2507.13097v1#S3.SS1">§3.1</a>、<a href="https://arxiv.org/html/2507.13097v1#S3.SS2">§3.2 / Algorithm 1</a>；代码里 <code>train.model_name</code> 也是 diffusion 和 discriminator 分开跑。经典 GAN 对照参见 <a href="https://arxiv.org/abs/1406.2661">Goodfellow 等的原始论文</a>。上面的 GAN 目标是常用非饱和生成器目标，不是声称 GraspGen 使用它。</p>
 
-<h2 id="compare"><span class="no">06</span>和 T(R,O) Grasp++ 怎么选？</h2>
-<div class="tablewrap"><table><thead><tr><th>维度</th><th>GraspGen</th><th>T(R,O) Grasp++</th></tr></thead><tbody><tr><td>输出对象</td><td>单个夹爪的刚体位姿</td><td>所有手部连杆的位姿，再 IK</td></tr><tr><td>条件输入</td><td>目标物体点云；特定夹爪权重</td><td>目标 + 环境点云 + 连杆几何与运动学</td></tr><tr><td>网络核心</td><td>PTv3 + 扩散噪声头 + 单独评分器</td><td>PointNet++ / VQ + OR/ER/RR 图去噪</td></tr><tr><td>环境处理</td><td>多样候选，后续碰撞 / 可达性筛选</td><td>生成时已有环境条件；仍需运动学和执行检查</td></tr><tr><td>候选质量</td><td>On-Generator 数据训练 D</td><td>图条件直接学习可行抓取分布，无同等独立 D 主线</td></tr><tr><td>跨硬件</td><td>论文框架支持三类夹爪，分别训练</td><td>统一模型覆盖多种已训练灵巧手，有限变体泛化证据</td></tr></tbody></table></div>
+<h2 id="s3-3"><span class="no">3.3</span>数据集</h2>
+<p>数据集是一批物体网格、6D 夹爪变换和二值成功标签，流程沿用 ACRONYM。ACRONYM 基于 <a class="ds" href="https://shapenet.org/">ShapeNetSem</a>，这里换成许可更宽松、更大更多样的 <a class="ds" href="https://objaverse.allenai.org/">Objaverse</a>（<a href="https://arxiv.org/abs/2212.08051">论文</a>）：选和 <a class="ds" href="https://www.lvisdataset.org/">LVIS</a>（<a href="https://arxiv.org/abs/1908.03195">论文</a>）1,156 个类别重合、CC BY 许可的网格，共 36,366 个；为了和 ACRONYM 规模对齐，再随机选 8,515 个。每个物体在网格周围均匀采样 2K 个抓取，在 Isaac 仿真器里握住物体做摇晃，摇晃后仍有稳定接触就算成功。Franka Panda 和 Robotiq-2F-140 用这个流程；30 mm 吸盘用解析模型标注（Mahler 等）。每种夹爪约 1700 万个抓取。数据集在 <a class="ds" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GraspGen">HuggingFace</a>（CC BY 4.0，见 README）。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 抓取总数对不上</span><p>8,515 × 2,000 = 1703 万，和“每夹爪约 1700 万”一致；× 3 = 5109 万。但摘要和表 3 写 5310 万（表 3 的 53.1M），README 写“over 57 million”。三个数我都复算不出彼此，差异的来源论文没解释。我没有下载数据集去数。ACRONYM 那行没问题：8,872 × 2,000 = 1774 万（表 3 的 17.7M）。</p></div>
+
+<h2 id="s4"><span class="no">4</span>实验评估</h2>
+<h3 id="s4-1">4.1 仿真结果</h3>
+<p><b>基线。</b>接触点架构 M2T2、Contact-GraspNet；扩散架构 DexDiffuser、SE3-Diffusion Fields；以及 <a href="https://arxiv.org/abs/2212.08333">AnyGrasp</a>。SE3-Diff 是作者重新实现的，有两点不同：用 PointNet++ 处理未知物体点云，用 DDPM 而非 SMLD 训练；它不给抓取打分，所以用近似对数似然代替。DexDiffuser 原本面向灵巧手，这里只保留位姿输入。VAE 基线跳过，理由是已在别的论文里被证明较差。</p>
+<p><b>单物体完整点云。</b>测试集 815 个物体，每个 2K 个抓取，共 160 万次执行（815 × 2000 = 163 万，对得上）。所有模型用同样的训练集和划分。M2T2 只用一个 transformer token，因为只有一个物体。流程和 §3.3 相同，抓取用孤立的自由漂浮夹爪尝试。这里用 ACRONYM 的 Franka 数据，GraspGen 数据集的结果在附录。Contact-GraspNet 跳过（M2T2 论文已比过）。AnyGrasp 因许可限制只能部署在注册机器上，没法在集群跑，所以只比了真机。</p>
+<figure class="pfig narrow"><img src="graspgen/fig3.webp" width="900" height="660" alt="图 3：精度-覆盖率曲线，GraspGen AUC 0.94668，M2T2 0.63592，DexDiffuser 0.34356，SE3-Diff 0.19957" loading="lazy"><figcaption><span class="lab">图 3 · 原文第 6 页</span>Franka-ACRONYM 上的精度-覆盖率曲线。图例：GraspGen AUC 0.94668，M2T2 0.63592，DexDiffuser 0.34356，SE3-Diff 0.19957。</figcaption></figure>
+<p><b>指标。</b>精度是仿真成功率；覆盖率衡量空间多样性，是真值正样本集 \(\mathcal G^+\) 被预测抓取匹配上的比例，匹配用 1 cm 的最近邻。GraspGen 比基线的 AUC 高超过 48%。有判别的方法（GraspGen、DexDiffuser、M2T2）都胜过纯生成的 SE3-Diff，说明判别器重要；判别器质量也关键：GraspGen 因 On-Generator 比 DexDiffuser 打分更好；M2T2 只在正样本上训练，只区分接触点好坏，所以更差。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · AUC 能从矢量图复算，它不是归一化的</span><p>图 3 是矢量图。我用 <code>pdftocairo -svg</code> 取出曲线顶点，按坐标轴标定后做梯形积分，结果和图例吻合：M2T2 0.6357（图例 0.63592），DexDiffuser 0.3435（0.34356），SE3-Diff 0.1994（0.19957）。GraspGen 的曲线在覆盖率 0.188 以前被坐标轴上边界截掉了，积分 0.7586 加上 0.188 × 1.0 得 0.9466（图例 0.94668）。</p><p>所以 AUC 是把精度从 0 积分到曲线实际结束的覆盖率，不除以范围。一个精度高但覆盖率只到 0.7 的方法分数会被压低。这是合理的，因为 §3 要多样性，但读数时要知道：AUC 同时是精度和覆盖率的成绩，不能读成“成功率”。“超过 48%”是相对值：0.94668 / 0.63592 = 1.489。</p>
+<p>代码有一个不同：<code>metrics.compute_recall</code> 默认半径是 2 cm，只比较平移，论文写 1 cm。这个函数是训练时的监控指标。我在仓库里搜 coverage 没有找到画这张图的评估脚本，所以不能断定两者不一致。</p></div>
+<p><b>杂乱场景的任务级评估。</b>FetchBench 模拟从感知、抓取检测、碰撞世界建模到运动规划的全流程：Franka Panda，100 个场景，每场景 60 个任务，共 6K 次抓取执行。为了只看抓取检测，运动规划（<a href="https://arxiv.org/abs/2310.17274">cuRobo</a>）用场景真值碰撞网格。Oracle 规划器用数据集真值抓取，表示没有感知和模型问题时的上限。两个指标：任务成功率（抓取并放好）和抓取成功率（只算抓起来），后者总是更高。Oracle 也只有约 65% 和 49%：很多场景能抓却没有无碰撞退路；有些超出现有规划器的能力；有些物体姿态复杂，稳定抓取够不到。这些超出本文范围。GraspGen 超过 Contact-GraspNet 和 M2T2 16.9% 和 7.8%。</p>
+<figure class="pfig"><img src="graspgen/fig4.webp" width="1582" height="476" alt="图 4：FetchBench 六组柱状图，比较 Oracle、Contact-GraspNet、M2T2、GraspGen 部分点云和完整点云" loading="lazy"><figcaption><span class="lab">图 4 · 原文第 6 页 · <a href="https://arxiv.org/html/2507.13097v1#S4.F4">看网页版</a></span>数值见下表。</figcaption></figure>
+<div class="tablewrap"><table class="t-wide"><thead><tr><th>方法（%）</th><th>总体任务</th><th>总体抓取</th><th>篮内</th><th>货架</th><th>桌面</th><th>抽屉</th></tr></thead><tbody>
+<tr><td>Oracle</td><td>49.4</td><td>65.3</td><td>60.7</td><td>59.2</td><td>72.4</td><td>75.0</td></tr>
+<tr><td>Contact-GraspNet</td><td>26.1</td><td>34.2</td><td>32.8</td><td>24.5</td><td>46.2</td><td>44.8</td></tr>
+<tr><td>M2T2</td><td>33.4</td><td>43.3</td><td>40.9</td><td>38.0</td><td>49.4</td><td>51.3</td></tr>
+<tr><td>GraspGen（部分点云）</td><td>39.1</td><td>51.1</td><td>48.9</td><td>47.6</td><td>59.0</td><td>51.7</td></tr>
+<tr><td>GraspGen（完整点云）</td><td>41.2</td><td>53.3</td><td>48.1</td><td>49.3</td><td>63.5</td><td>53.9</td></tr></tbody></table></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 图 4 和正文的数</span><p>数值是 PDF 柱顶的文字，顺序按柱的颜色对图例。</p><p>正文写 Oracle 任务成功率 49.2%，图上是 49.4%，差一点。“16.9% 和 7.8%”正文没说是哪个指标。我在表上试了各种差值，能同时算出这两个数的是<b>部分点云的抓取成功率</b> 51.1：51.1 − 34.2 = 16.9，51.1 − 43.3 = 7.8。所以它们是百分点，不是相对值；量的是抓取成功率，不是任务成功率（任务成功率上，完整点云比两个基线高 15.1 和 7.8）。这个对应是我反推的。</p><p>“篮内”一列 GraspGen 部分点云 48.9 高于完整点云 48.1，其余各列完整更高。</p></div>
+<p><b>对遮挡的敏感性。</b>此前的工作要么用单视角部分点云，要么用融合多视角的完整点云。图 5：只在部分点云上训练的 GraspGen 在完整点云上表现差，反之亦然；按 50-50 混合训练，两种都能泛化。</p>
+<figure class="pfig"><img src="graspgen/fig5.webp" width="1177" height="427" alt="图 5：左为完整点云测试，右为单视角点云测试；三条曲线分别是在完整、部分、两者混合上训练" loading="lazy"><figcaption><span class="lab">图 5 · 原文第 7 页</span>测试在完整点云（左）和单视角点云（右）。图例为训练数据。左：完整 0.94152，部分 0.88342，两者 0.93955。右：完整 0.54540，部分 0.74664，两者 0.80596。</figcaption></figure>
+<div class="note" id="n11"><span class="lab">读者注 11 · “表现差”并不对称</span><p>部分点云训练的模型在完整点云上还有 0.883，只比最好的低 0.058；完整点云训练的模型在部分点云上掉到 0.545，低 0.261。真正差的是后一个。更有意思的是右图：混合训练 0.806 高于只用部分点云训练的 0.747，即使测试全是部分点云。论文没有解释，可能是完整点云帮生成器学到了整体形状。这是我的猜测。公开脚本的 <code>prob_point_cloud = 0.5</code> 对应混合训练。</p></div>
+
+<h3 id="s4-2">4.2 On-Generator 训练分析</h3>
+<p>On-Generator 让模型认识自己的失败模式。作者先证明分布确实有偏移：用 Earth Mover's Distance（EMD，把一个分布搬成另一个的最小代价，§6.8）分别量正样本和负样本，覆盖整个训练集（约 7K 物体）。图 6 左：偏移明显不为零，负样本更大，因为失败抓取的空间（远的、碰撞的都算）比成功抓取（必须贴近物体表面）大得多。这个偏移说明判别器应当专门学习生成器的分布。</p>
+<figure class="pfig"><img src="graspgen/fig6.webp" width="1140" height="461" alt="图 6：左为 On-Generator 与离线数据集之间的 EMD 直方图，正样本集中在约 0.25，负样本集中在约 0.4；右为三种训练集的精度-覆盖率曲线" loading="lazy"><figcaption><span class="lab">图 6 · 原文第 7 页</span>左：EMD 分布，正样本峰在 0.25 附近，负样本峰在 0.4 附近。右：判别器训练集的消融，On-Generator AUC 0.947，离线 0.886，两者混合 0.942。</figcaption></figure>
+<p>只用 On-Generator 数据训练的模型最好，只用离线的最差（AUC 低 6.5%）。作者的假设：On-Generator 更好地捕捉了扩散模型的假阳性。比如生成器会产生轻微碰撞的抓取，而离线数据只含无碰撞的；拟合误差也会带来小的平移或旋转偏差，导致抓取不稳。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 这个消融和玩具</span><p>“低 6.5%”：\((0.947-0.886)/0.947=6.4\%\)，若除以 0.886 是 6.9%，绝对差 0.061。三条线差别只在第三位时（0.947 对 0.942）没有误差棒，不能说两者有显著差异。图 6 左也没有画同分布两次采样的对照，所以 EMD 的底噪不知道；代码 <code>dataset_utils.py</code> 里算了 <code>off-off-pos</code> 这类键，说明作者是知道这一点的。</p>
+<p>动画<a href="#i3d">第 8、9 幕</a>在玩具上当场复现了这个因果：离线负样本不碰撞（我按论文描述构造的），于是离线判别器把碰撞候选排到最前面。5 个随机种子：离线 AUC 0.38 到 0.59，top-100 里碰撞 41 到 76 个；On-Gen 0.76 到 0.94，碰撞 0 到 8 个；混合 0.78 到 0.91。EMD 也是负样本更大。两点限制：离线负样本的构造本身就决定了方向，所以它演示的是论文的解释，不是独立证据；玩具里混合 5 次有 4 次好于纯 On-Gen，和论文相反，这说明 0.947 对 0.942 这种差别在玩具上看不出。</p></div>
+
+<h3 id="s4-3">4.3 消融实验</h3>
+<p><b>判别器。</b>和 SOTA 架构（6-DOF GraspNet）比，AUC 高 6.7%，显存少 21 倍，见 §6.6.2。</p>
+<p><b>平移归一化。</b>作者发现性能和倍数呈凸关系（图 7）。网格搜索能找到最优值，但按 §3.1 公式算出来的正好落在一个局部最优，是可靠的替代。Franka 是 κ = 3.27。</p>
+<figure class="pfig narrow"><img src="graspgen/fig7.webp" width="963" height="427" alt="图 7：三个小图，横轴 κ，分别是平移误差、旋转误差、召回" loading="lazy"><figcaption><span class="lab">图 7 · 原文第 8 页 · <a href="https://arxiv.org/html/2507.13097v1#S4.F7">看网页版</a></span>Franka-ACRONYM 上，κ（横轴 1 到 5）对平移误差、旋转误差和召回的影响。</figcaption></figure>
+<div class="note" id="n13"><span class="lab">读者注 13 · 图 7 的读数</span><p>折线是矢量的，顶点坐标可读，每条线 6 个点，横坐标算出来是 κ = 1, 2, 3, 3.27, 4, 5（第 4 个点确实在 3.27）。按刻度标定：</p>
+<div class="tablewrap"><table><thead><tr><th>κ</th><th>1</th><th>2</th><th>3</th><th>3.27</th><th>4</th><th>5</th></tr></thead><tbody><tr><td>平移误差（m）</td><td>.0512</td><td>.0342</td><td>.0321</td><td>.0317</td><td>.0325</td><td>.0342</td></tr><tr><td>旋转误差（rad）</td><td>1.651</td><td>1.638</td><td>1.639</td><td>1.636</td><td>1.642</td><td>1.645</td></tr><tr><td>召回</td><td>.790</td><td>.820</td><td>.835</td><td>.842</td><td>.840</td><td>.806</td></tr></tbody></table></div>
+<p>三个指标确实都在 3.27 处最好，但只比了 6 个值。旋转误差的整个变化范围只有 0.015 rad，纵轴截得很紧，且在 κ = 2 到 3 之间并不单调，谈不上凸。还有一个对不上：这里旋转误差约 1.64 rad（94°），表 4 同样是 Franka、Lie Algebra 却是 0.535 rad。平移（3.17 对 3.008 cm）和召回（0.842 对 84.86%）都接近，唯独旋转差 3 倍。代码里有考虑夹爪对称的开关（<code>consider_symmetry</code>），也许是一个开了一个没开，但论文没写，这是猜测。</p></div>
+<p><b>旋转表示。</b>6D、欧拉角、李代数表现相当，见 §6.6.3。</p>
+<p><b>点云编码器。</b>PTv3 比 <a href="https://arxiv.org/abs/1706.02413">PointNet++</a> 明显好：平移误差少 5.3 mm，召回高 4%，见 §6.6.4。</p>
+
+<h3 id="s4-4">4.4 多夹爪表现</h3>
+<p>GraspGen 在所有夹爪上都最好，但具体表现因形态而异。Franka 仿真优于 M2T2 37%（图 3），Robotiq 仿真（44%）和真机（57%）差距更大。作者认为 M2T2 的接触点表示为对称、非自适应夹爪设计，对 Robotiq-2F-140 这种自适应夹爪吃力。GraspGen 在三种夹爪上都胜过 SE3-Diff。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 37%、44%、57% 用的不是同一种算法</span><p>同一张图 3，§4.1 说高 48%，§4.4 说 37%。我算（括号里第一个是绝对差，第二个是相对值）：</p>
+<ul><li>Franka：0.94668 对 0.63592（0.311，48.9%）。37% 我凑不出来。</li>
+<li>Robotiq：0.68873 对 0.24265（0.446，184%）。44% 是绝对差。</li>
+<li>真机：81.3% 对 52.6%（28.7 个百分点，54.6%）。57% 不是总体的差，倒是货架一列的差（71.4 − 14.3 = 57.1）；§4.5 又写 28%。</li></ul>
+<p>§6.4 说 Robotiq 上“almost double”，实际是 2.84 倍。结论方向都没问题，这些具体的百分比不宜引用，直接引原始的 AUC 和成功率。还要注意图 9 里的 SE3-Diff 配的是 GraspGen 判别器（0.43190），而图 3 的 SE3-Diff 用近似似然（0.19957），两张图的 SE3-Diff 不是一回事。</p></div>
+
+<h3 id="s4-5">4.5 真机评估</h3>
+<p>硬件：UR10 机械臂，一个外参标定过的 RealSense D435 俯视桌面。运动规划 cuRobo 跑在 Jetson 上，<a href="https://arxiv.org/abs/2311.00626">nvblox</a> 做避碰。SAM2 在 6000 Ada 上做实例分割，<a href="https://arxiv.org/abs/2501.09898">FoundationStereo</a> 估计深度。评估的是在 GraspGen Robotiq-2F-140 数据集上训练的模型，完全在仿真里训练。</p>
+<p>对比 M2T2（仿真里最好的竞争者）和 AnyGrasp（在真实彩色点云上训练的杂乱抓取框架，因许可限制没在仿真里比）。都用发布的权重和配置，但各有调整：M2T2 点云绕 z 转 90°，加一个覆盖工作空间的 3D 框裁剪，以匹配其训练分布；AnyGrasp 沿相机 z 轴加平移，因其训练数据在固定相机深度采集。不做非极大值抑制效果更好，大概因为规划器擅长处理目标集。作者说不做这些修改就得不到稳定的预测。所有模型都输出抓取和分数，取 top-100 作为规划目标，规划器滤掉碰撞和无 IK 解的。</p>
+<p>四种设置：孤立物体、桌面多物体、篮内、货架。</p>
+<figure class="pfig"><img src="graspgen/fig8.webp" width="1600" height="464" alt="图 8：左为 FetchBench 仿真中多种杂乱场景，右为真机的桌面、篮内和货架场景" loading="lazy"><figcaption><span class="lab">图 8 · 原文第 9 页 · <a href="https://arxiv.org/html/2507.13097v1#S4.F8">看网页版</a></span>左是仿真（FetchBench），右是真机的四种设置。</figcaption></figure>
+<div class="tablewrap" id="tab1"><table class="t-wide"><caption>表 1：真机抓取成功率</caption><thead><tr><th rowspan="2">方法</th><th rowspan="2">孤立物体</th><th colspan="3">杂乱</th><th rowspan="2">总体</th></tr><tr><th>桌面</th><th>篮内</th><th>货架</th></tr></thead><tbody>
+<tr><td><b>GraspGen</b></td><td><b>90.5%</b></td><td><b>83.3%</b></td><td><b>80.0%</b></td><td><b>71.4%</b></td><td><b>81.3%</b></td></tr>
+<tr><td>M2T2</td><td>81.0%</td><td>75.0%</td><td>40.0%</td><td>14.3%</td><td>52.6%</td></tr>
+<tr><td>AnyGrasp</td><td>85.7%</td><td>83.3%</td><td>42.9%</td><td>42.9%</td><td>63.7</td></tr></tbody></table></div>
+<p>GraspGen 总体 81.3%，比 M2T2 和 AnyGrasp 高 28% 和 17.6%。货架和篮内最难，cuRobo 因运动学和碰撞限制滤掉大部分抓取，所以模型既要泛化到这些环境，又要有足够的覆盖率，这样滤完还有得选。M2T2 和 AnyGrasp 都是场景中心模型，只用桌面杂乱数据训练，到了复杂环境就不泛化。M2T2 还对一些小物体不产生抓取，可能因为场景级点云在小物体上分辨率太低。更多例子见附录。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 1 的样本量和总体分</span><p><b>总体是四列的算术平均</b>，我验算三行都吻合：81.25、52.575、63.7（AnyGrasp 那格原文没有 %）。所以四种场景权重相同，不是按试验次数加权。</p>
+<p><b>论文没写试验次数。</b>如果成功率是整数次除以同一分母，能反推最小分母（一行内三种方法共用，我的枚举）：孤立 21 次（19、17、18），桌面 12 次（10、9、10），货架 7 次（5、1、3）。篮内三个数 80.0、40.0、42.9 要 35 次才能共用分母（28、14、15），否则 AnyGrasp 用了 7 次而另两个用 5 次的倍数。所以货架的 71.4% 很可能是 7 次里 5 次，单格的置信区间很宽。这是反推，不是论文给的数。</p>
+<p>差值：81.3 − 52.6 = 28.7，正文写 28；81.3 − 63.7 = 17.6 正确。</p>
+<p><b>对比并不完全对称。</b>§6.4 透露真机 M2T2 用的不是 Robotiq 模型，而是 Franka 模型加 −10 cm 偏移，因为 Robotiq 版太差。§4.5 只说用“发布的权重和配置”。</p>
+<p><b>真机模型的骨干。</b>公开的 Robotiq 脚本（<code>BACKBONE="pointnet"</code>）和发布 yml（<code>obs_backbone: pointnet</code>）都是 PointNet++，而 Franka 和吸盘是 PTv3。论文的主线是 PTv3，但表 1 那个 Robotiq 模型用什么骨干，论文没写。所以“PTv3 带来的提升”不能直接搬到真机结果上。</p></div>
+
+<h2 id="s5"><span class="no">5</span>结论与局限</h2>
+<p>GraspGen 是改进了扩散模型的 6-DOF 抓取生成框架，在多种物体和三种夹爪上验证，优于基线，在 FetchBench 上达到最好。作者希望它成为下游应用的基础。</p>
+<p>局限：依赖深度和实例分割的质量；对方盒类物体预测不好，作者认为用更多方盒数据（下一版打算做）能解决；计算量大，数据生成和训练约需 NVIDIA V100 8-GPU 节点 3K GPU 小时。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 算力说法</span><p>“3K GPU 小时”没有拆分数据生成和训练。README 的估计是 8 × A100 节点上生成器 3K epoch 约 40 小时、判别器约 90 小时，合计约 1040 GPU·小时，这只是训练一轮（我的算术）。论文说 V100，README 说实验在 A100 上跑。公开脚本是 <code>NGPU=1</code>、<code>NEPOCH=5000</code>，用时要自己换算。</p></div>
+
+<h2 id="s6"><span class="no">6</span>附录</h2>
+<h3 id="s6-1">6.1 抓取预测的定性可视化</h3>
+<p>表 2 是真机实验的定性结果。GraspGen 的预测更集中在目标物体，覆盖率更大。M2T2 有时对目标物体完全不出抓取（第 2 行的甜椒），特别是小物体：场景中心模型里小物体上点太少，这在场景级推理里无法避免。M2T2 还会在环境中产生假阳性，可能渗入相邻目标的接触掩码。分割后真实物体点云上的更多预测见图 12。</p>
+<figure class="pfig"><img src="graspgen/tab2.webp" width="1600" height="1913" alt="表 2：四行场景，左为 RGB 和分割掩码，中为 GraspGen 的绿色抓取，右为 M2T2 的蓝色抓取" loading="lazy"><figcaption><span class="lab">表 2 · 原文第 16 页</span>从上到下：货架、篮内、桌面、孤立物体（前三行是杂乱）。左列目标物体标红；中列 GraspGen（绿色，只对目标）；右列 M2T2（场景中心，浅蓝是所有物体的预测，深蓝是目标物体的）。</figcaption></figure>
+<figure class="pfig"><img src="graspgen/fig12.webp" width="1600" height="383" alt="图 12：五个真实物体分割点云上的抓取预测" loading="lazy"><figcaption><span class="lab">图 12 · 原文第 19 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F12">看网页版</a></span>叠加在真实物体分割部分点云上的抓取预测。</figcaption></figure>
+
+<h3 id="s6-2">6.2 数据集统计</h3>
+<div class="tablewrap" id="tab3"><table class="t-wide"><caption>表 3：和已有抓取数据集的比较（+ve / −ve：正 / 负样本；作者注明改编自 MultiGripperGrasp 的论文）</caption><thead><tr><th>数据集</th><th>年</th><th>夹爪数</th><th>物体数</th><th>抓取数</th><th>标签</th><th>合成方法</th><th>代码+数据</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://www.tugraz.at/index.php?id=40231">HO-3D</a>（<a href="https://arxiv.org/abs/1907.01481">论文</a>）</td><td>2020</td><td>1（人手）</td><td>10</td><td>78K</td><td>只有正</td><td>人类演示</td><td>✓</td></tr>
+<tr><td><a class="ds" href="https://github.com/dougsm/egad">EGAD</a>（<a href="https://arxiv.org/abs/2003.01314">论文</a>）</td><td>2020</td><td>1（2 指）</td><td>2,331</td><td>233K</td><td>只有正</td><td>进化算法</td><td>✓</td></tr>
+<tr><td>DDG（<a href="https://arxiv.org/abs/2002.01530">论文</a>）</td><td>2020</td><td>1（5 指）</td><td>500</td><td>50K</td><td>只有正</td><td>GraspIt + 改进 Q1</td><td>✗</td></tr>
+<tr><td><a class="ds" href="https://dex-ycb.github.io/">DexYCB</a>（<a href="https://arxiv.org/abs/2104.04631">论文</a>）</td><td>2021</td><td>1（人手）</td><td>20</td><td>582K</td><td>只有正</td><td>人类演示</td><td>✓</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/acronym">Acronym</a></td><td>2021</td><td>1（2 指）</td><td>8,872</td><td>17.7M</td><td>正和负</td><td>Flex</td><td>✓</td></tr>
+<tr><td>UniGrasp（<a href="https://arxiv.org/abs/1910.10900">论文</a>）</td><td>2020</td><td>12（2 和 3 指）</td><td>1000</td><td>2M+</td><td>只有正</td><td>接触点网络 + FastGrasp</td><td>✓</td></tr>
+<tr><td><a class="ds" href="https://pku-epic.github.io/DexGraspNet/">DexGraspNet</a>（<a href="https://arxiv.org/abs/2210.02697">论文</a>）</td><td>2023</td><td>1（5 指）</td><td>5,355</td><td>1.3M</td><td>只有正</td><td>可微抓取</td><td>✓</td></tr>
+<tr><td>Fast-Grasp’D（<a href="https://arxiv.org/abs/2306.08132">论文</a>）</td><td>2023</td><td>3（3 到 5 指）</td><td>2,350</td><td>1M</td><td>只有正</td><td>可微抓取</td><td>✗</td></tr>
+<tr><td><a class="ds" href="https://github.com/tengyu-liu/GenDexGrasp">GenDexGrasp</a>（<a href="https://arxiv.org/abs/2210.00722">论文</a>）</td><td>2023</td><td>5（2 到 5 指）</td><td>58</td><td>436K</td><td>只有正</td><td>可微抓取</td><td>✓</td></tr>
+<tr><td><a class="ds" href="https://irvlutd.github.io/MultiGripperGrasp/">MultiGripperGrasp</a>（<a href="https://arxiv.org/abs/2403.09841">论文</a>）</td><td>2024</td><td>11（2 到 5 指和人手）</td><td>345</td><td>30.4M</td><td>分级</td><td>GraspIt + Isaac Sim</td><td>✓</td></tr>
+<tr><td><b>GraspGen</b></td><td><b>2025</b></td><td><b>3（2 指和吸盘）</b></td><td><b>8,515</b></td><td><b>53.1M</b></td><td><b>正和负</b></td><td><b>采样 + Isaac Sim</b></td><td><b>✓</b></td></tr></tbody></table></div>
+
+<h3 id="s6-3">6.3 雷达图的指标</h3>
+<p>物体中心的仿真用精度-覆盖率 AUC（Franka 见图 3，Robotiq 见图 9）。吸盘没训练 M2T2（接触点表示不能直接用），只比较 GraspGen 和 SE3-Diff 生成器的覆盖率。FetchBench 和真机用抓取成功率（图 4、表 1）。所以雷达图的不同轴量纲不同，只能一个轴一个轴读。</p>
+
+<h3 id="s6-4">6.4 Robotiq-2F-140 上的基线比较</h3>
+<p>图 9：GraspGen 大幅领先，AUC “几乎是 M2T2 的两倍”。M2T2 的接触点表示为对称、非自适应夹爪设计，不能直接迁移到 Robotiq-2F-140。因为 Robotiq 版 M2T2 太差，真机实验（表 1）改用 Franka 版 M2T2，加固定平移偏移（沿 z −10 cm）。</p>
+<figure class="pfig narrow"><img src="graspgen/fig9.webp" width="1293" height="1102" alt="图 9：Robotiq-2F-140 上的精度-覆盖率曲线，GraspGen 0.68873，SE3-Diff 配 GraspGen 判别器 0.43190，M2T2 0.24265" loading="lazy"><figcaption><span class="lab">图 9 · 原文第 17 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F9">看网页版</a></span>GraspGen 0.68873，M2T2 0.24265，SE3-Diff + GraspGen 判别器 0.43190。</figcaption></figure>
+
+<h3 id="s6-5">6.5 吸盘的基线比较</h3>
+<div class="tablewrap" id="tab6"><table><caption>表 6：吸盘基线比较（原文第 21 页）</caption><thead><tr><th>方法</th><th>平移误差 (cm)</th><th>旋转误差 (rad)</th><th>覆盖率 (%)</th></tr></thead><tbody><tr><td>GraspGen</td><td>7.79</td><td>1.83</td><td>73.1</td></tr><tr><td>SE3-Diff</td><td>6.12</td><td>1.87</td><td>38.5</td></tr></tbody></table></div>
+<p>吸盘沿接近方向对称，所以旋转误差大。GraspGen 的 L2 平移误差略高，但覆盖率大得多。作者把学习难度从难到易排成 Franka、吸盘、Robotiq，归因于夹爪复杂度：吸盘对称，Robotiq 欠驱动。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · “Robotiq 最容易”和 AUC 相反</span><p>原文这句是 hardest to easiest：Franka、suction、Robotiq。但 GraspGen 自己的 AUC 是 Franka 0.947（图 3）或 0.909（图 10b，GraspGen-Franka 数据）远高于 Robotiq 0.689（图 9）。论文没说“学习难度”用什么量。要么排序写反了，要么指的是别的量（比如误差）。而且紧接着解释“Robotiq 欠驱动”听起来更像是难的理由。我没有办法判断，只能说它和论文给出的 AUC 不一致。表 6 原文表头第一列写的是“Object Encoder”，实际是方法名，这里改了。</p></div>
+
+<h3 id="s6-6">6.6 其他消融</h3>
+<p id="s6-6-1"><b>6.6.1 数据集。</b>为了说明 GraspGen 数据集可比，用算法 1 分别在 ACRONYM 和 GraspGen-Franka 上训练，各在两个测试集上测。ACRONYM 训练的模型略好，甚至在 GraspGen 的测试集上也是。作者猜测原因是仿真器不同（ACRONYM 用 Flex，这里用 PhysX）和形状数据集不同（ShapeNet 对 Objaverse）。</p>
+<figure class="pfig"><img src="graspgen/fig10.webp" width="1600" height="641" alt="图 10：左为 ACRONYM 测试集，右为 GraspGen-Franka 测试集，两条曲线分别是两个训练集" loading="lazy"><figcaption><span class="lab">图 10 · 原文第 18 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F10">看网页版</a></span>(a) ACRONYM 测试集：ACRONYM 训练 0.94668，GraspGen 训练 0.84343。(b) GraspGen-Franka 测试集：ACRONYM 训练 0.91190，GraspGen 训练 0.90912。</figcaption></figure>
+<p id="s6-6-2"><b>6.6.2 判别器。</b>和 6-DOF GraspNet 的判别器架构比（图 11）。AUC 高 6.7%，判别分数的 mAP 高 5.87%，同批大小显存少 21 倍。原因：6-DOF GraspNet 把抓取 \(g\in SE(3)\) 变成抓取点云 \(X\in\mathbb R^{N\times3}\)（\(N=5\)，夹爪上的预定义点），带分割标记（区分夹爪和物体）输入 PointNet++，显存按 \(\mathcal O(N\times B)\) 增长。GraspGen 直接传位姿，按 \(\mathcal O(B)\) 增长，也不复制点云；还复用了编码器（网络中最大的部分）的权重，不再训练。</p>
+<figure class="pfig narrow"><img src="graspgen/fig11.webp" width="1207" height="495" alt="图 11：三组柱状图，比较 6-DOF GraspNet 和 GraspGen 的 AUC、mAP 和显存" loading="lazy"><figcaption><span class="lab">图 11 · 原文第 18 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F11">看网页版</a></span>抓取性能、判别性能、显存使用三组对比。</figcaption></figure>
+<div class="note" id="n18"><span class="lab">读者注 18 · 图 11 的柱高</span><p>柱子是矢量矩形，按刻度读（我的读数）：AUC 0.839 对 0.896，相对高 6.8%，和 6.7% 相符；mAP 0.872 对 0.933，相对高 7.0%，差 0.061，和 5.87% 略有出入；显存 34,053 对 1,611 MiB，比值 21.1，相符。</p>
+<p>批大小论文没写，所以 34 GB 这个绝对值无从比较。\(N=5\) 也解释不了 21 倍：\(\mathcal O(N\times B)\) 里的 \(N\) 只有 5。6-DOF GraspNet 那边是把物体点云和夹爪点一起按候选复制，所以真正的倍数来自点云大小，这是我的理解，论文的 \(N\) 只数了夹爪点。这个数比较的也只是判别器阶段。公开的组合模型里 G 和 D 各有一个编码器实例（见<a href="#discriminator">判别器结构</a>）。</p></div>
+<p id="s6-6-3"><b>6.6.3 旋转表示。</b>比较三种（表 4）。所有输入先缩放到 \([-1,1]\)。6D 表示是拼接旋转矩阵的前两列。三者表现相当，说明适当的归一化才是大规模抓取数据上扩散学习的关键。其他实验都用李代数。</p>
+<div class="tablewrap" id="tab4"><table><caption>表 4：旋转表示的消融（原文第 19 页）</caption><thead><tr><th>表示</th><th>范围</th><th>平移误差 (cm)</th><th>旋转误差 (rad)</th><th>覆盖率 (%)</th></tr></thead><tbody>
+<tr><td>6D</td><td>[−1, 1]</td><td>3.126 (± 0.0372)</td><td>0.557 (± 0.003)</td><td>84.86 (± 0.301)</td></tr>
+<tr><td>欧拉角</td><td>[−π, π]</td><td>3.047 (± 0.0045)</td><td>0.541 (± 0.001)</td><td>84.78 (± 0.142)</td></tr>
+<tr><td><b>李代数</b></td><td>[−π, π]</td><td><b>3.008 (± 0.0200)</b></td><td><b>0.535 (± 0.002)</b></td><td><b>84.86 (± 0.096)</b></td></tr></tbody></table></div>
+<p id="s6-6-4"><b>6.6.4 点云编码器。</b>PointNet++ 仍是机器人里最常用的骨干。PTv3 带来明显提升（表 5）：平移误差少 5.3 mm，召回高 4%。作者猜测数据规模越大差距越大。</p>
+<div class="tablewrap" id="tab5"><table><caption>表 5：生成器骨干的消融（原文第 19 页）</caption><thead><tr><th>物体编码器</th><th>平移误差 (cm)</th><th>旋转误差 (rad)</th><th>覆盖率 (%)</th></tr></thead><tbody>
+<tr><td>PointNet++</td><td>3.724 (± 0.0221)</td><td>0.637 (± 0.0011)</td><td>79.15 (± 0.114)</td></tr>
+<tr><td><b>PointTransformerV3</b></td><td><b>3.126 (± 0.0372)</b></td><td><b>0.557 (± 0.003)</b></td><td><b>84.86 (± 0.301)</b></td></tr></tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 4 和表 5 对不上文字</span><p><b>表 5 的 PTv3 行和表 4 的 6D 行完全相同</b>，连误差棒都一样（3.126 ± 0.0372，0.557 ± 0.003，84.86 ± 0.301）。所以这个骨干消融看来是在 6D 表示上做的，而 §6.6.3 写“其他实验都用李代数”。如果两个骨干都用 6D，比较本身还成立，但和文字不一致。表 5 的 PointNet++ 行用什么表示没写。</p>
+<p><b>§4.3 和 §6.6.4 的数和表 5 不同。</b>3.724 − 3.126 = 0.598 cm，约 <b>6.0 mm</b>，正文两处都写 5.3 mm。84.86 − 79.15 = <b>5.71</b> 个百分点，正文写 4%。若拿李代数那行（3.008）算差值是 7.2 mm，更不对。</p>
+<p>表 4 的范围一列：6D 写 \([-1,1]\)，其他写 \([-\pi,\pi]\)，而正文说全部缩放到 \([-1,1]\)；代码 <code>matrix_to_rt</code> 对轴角和欧拉角确实除了 π。表里写的应是缩放前的自然范围。论文也说李代数和 6D 的覆盖率相同，均值差异都在误差棒的几倍以内，说它们“相当”是公道的。</p></div>
+
+<h3 id="s6-7">6.7 FetchBench 实验的细节</h3>
+<p>作者在 Isaac Sim 里重新实现 FetchBench。只比较抓取生成，所以不依赖规划器差异，用场景真值碰撞网格。Oracle 用 “FetchMeshCurobo”，Contact-GraspNet 用 “FetchMeshCuroboPtdCGNBeta”，后者只尝试一次，不重试。原文这一段的括号没有闭合，也没说 M2T2 和 GraspGen 用哪个配置，这里如实留空。</p>
+
+<h3 id="s6-8">6.8 EMD 的计算（图 6）</h3>
+<p>要量生成器数据 \(\hat{\mathcal G}\) 和训练集 \(\mathcal G\) 的偏移。对同一物体，从两边各抽 500 个抓取。对任意 \(g_i\in\mathcal G,\ g_j\in\hat{\mathcal G}\)，距离取 SE3-Diff 的代价：</p>
+\[d(g_i,g_j)=\|t_i-t_j\|+\big\|\mathrm{LogMap}(\mathbf R_i^{-1}\mathbf R_j)\big\|\tag{1}\]
+<p>然后解线性指派问题，也就是找使总距离最小的一一配对。重复 5 次随机子采样，平均得到这个物体的分数。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 式 (1) 把米和弧度直接相加</span><p>代码 <code>compute_pose_distance_batch</code> 和 <code>compute_pose_emd</code> 与式 (1) 一致，文档写“位置和旋转等权重”。但平移的单位是米，旋转的单位是弧度，直接相加意味着 1 cm 的平移和 0.01 rad（约 0.6°）的旋转代价相同，旋转的分量因此占比很重。读图 6 左的 EMD（0.25 到 0.4）要带上这一点，它不能换算成“差几厘米”。论文没讨论权重，这只是提醒。</p></div>
+
+<h3 id="s6-9">6.9 Sim2Real 的数据增强</h3>
+<p>噪声和增强对 sim2real 很关键。每次训练迭代对点云做：点云中心化后随机旋转；随机相机视点；随机子采样点；模拟实例分割误差。</p>
+<p>SAM2 这样的分割模型虽好，有时会在物体边界溢出，投到 3D 就成了明显的离群点。图 13 左（直立的橙色盘子）里，模型以高置信度在离群区域生成抓取，这可能让机器人撞上桌子或墙。训练时用 Scene Synthesizer 把物体放在支撑面上，渲染分割掩码再膨胀，造出人工离群点。图 13 右是这样训练后的结果，离群点被忽略。</p>
+<figure class="pfig narrow"><img src="graspgen/fig13.webp" width="1200" height="768" alt="图 13：左边模型在右下角离群点上也生成抓取，右边的模型忽略了这些离群点" loading="lazy"><figcaption><span class="lab">图 13 · 原文第 20 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F13">看网页版</a></span>没有（左）和有（右）分割噪声增强的模型。注意右下角的离群点在右图被忽略。</figcaption></figure>
+<div class="note" id="n21"><span class="lab">读者注 21 · 这些增强在公开代码里的情况</span><p>随机旋转（<code>rotation_augmentation</code>）、部分点云（<code>prob_point_cloud</code>）、子采样都能在代码里找到。分割误差只找到一半：<code>renderer.py</code> 里定义了 <code>add_noise_to_random_object_region</code>，但我在 <code>grasp_gen</code> 和 <code>scripts</code> 下没找到调用它的地方，也没搜到 dilate 掩码的代码。这是“我没找到”，不是确认没有。部署侧另有一个论文没提的步骤：<code>grasp_server</code> 默认 <code>remove_outliers=True</code>，推理前用 kNN 距离（阈值 0.014）去掉离群点，所以公开推理路径对离群点有第二道防线。</p></div>
+
+<h3 id="s6-10">6.10 推理参数调节</h3>
+<p>模型训练好后，用户要选两个超参数：过滤阈值和扩散采样数量。图 14 看批大小（横轴）和阈值对过滤后精度的影响。阈值很低（低于 0.5）时精度差，符合预期。阈值提高后，留下的抓取变少，精度也会降低。高阈值要配大批量才好。</p>
+<figure class="pfig narrow"><img src="graspgen/fig14.webp" width="1057" height="802" alt="图 14：横轴批大小 5 到 1000，纵轴 Precision@Threshold，七条线对应阈值 0.2 到 0.97" loading="lazy"><figcaption><span class="lab">图 14 · 原文第 21 页 · <a href="https://arxiv.org/html/2507.13097v1#S6.F14">看网页版</a></span>按眼读（这张图是位图）：阈值 0.2 约 0.65、0.5 约 0.70，都和批大小无关；0.8 从约 0.72 到约 0.78；0.9 从约 0.57 到 0.78；0.95 从约 0.37 到 0.71；0.97 从约 0.22 到 0.58。</figcaption></figure>
+<div class="note" id="n22"><span class="lab">读者注 22 · 为什么阈值越高精度反而低</span><p>一般来说，判别器有用的话，阈值越高，留下的越准。图 14 在小批量时相反：阈值 0.97、批 5 只有约 0.22。作者的解释是留下的少了。这个说法要成立，“没有抓取留下”必须算作精度 0。这样算的话，这条指标在小批量时量的其实主要是“有没有候选过阈值”，不是留下的那些好不好。论文没写空集怎么算，这是我的推断。</p><p>实际用法上，大批量（1000）时 0.8 到 0.9 的阈值约 0.78，到顶了。代码的默认是采 200，取 top-100，并不用阈值。玩具（<a href="#i3d">第 7 幕</a>）可以切换阈值和批大小看同样的权衡，但玩具里过滤后的精度是非空集上算的，没有这个问题。</p></div>
+
+<h2 id="compare"><span class="no">对比</span>和 T(R,O) Grasp++ 怎么选？</h2>
+<p>这一节不是论文内容，是读两篇后的比较。</p>
+<div class="tablewrap"><table><thead><tr><th>维度</th><th>GraspGen</th><th>T(R,O) Grasp++</th></tr></thead><tbody><tr><td>输出对象</td><td>单个夹爪的刚体位姿</td><td>所有手部连杆的位姿，再 IK</td></tr><tr><td>条件输入</td><td>目标物体点云；特定夹爪权重</td><td>目标 + 环境点云 + 连杆几何与运动学</td></tr><tr><td>网络核心</td><td>PTv3（发布的 Robotiq 配置是 PointNet++）+ 扩散噪声头 + 单独评分器</td><td>PointNet++ / VQ + OR/ER/RR 图去噪</td></tr><tr><td>环境处理</td><td>多样候选，后续碰撞 / 可达性筛选</td><td>生成时已有环境条件；仍需运动学和执行检查</td></tr><tr><td>候选质量</td><td>On-Generator 数据训练 D</td><td>图条件直接学习可行抓取分布，无同等独立 D 主线</td></tr><tr><td>跨硬件</td><td>论文框架支持三类夹爪，分别训练</td><td>统一模型覆盖多种已训练灵巧手，有限变体泛化证据</td></tr></tbody></table></div>
 <h3>GraspGen 的优势</h3><ul><li><b>模块清楚：</b>生成器负责多样性，评分器专门学习筛出实际模型的错误；对任意下游规划器提供多候选目标。</li><li><b>物体中心的输入：</b>不必把训练环境固定成一种桌面场景，能与不同分割、深度和场景重建模块连接。</li><li><b>夹爪类型覆盖较广：</b>同一方法形式可处理平行夹爪、适应性夹爪和吸盘；公开了训练 / 推理基础设施与数据。</li></ul>
 <h3>需要注意的限制</h3><ul class="lab-limits"><li><b>不直接替代灵巧手模型。</b>没有输出多连杆配合的网络结构；不能拿 GraspGen 的 6-DOF 抓取指标与 Grasp++ 多指抓取成功率直接比较。</li><li><b>几何分割错误会传下去。</b>遮挡、深度噪声、错误实例分割都会影响目标点云；部分点云能力不是恢复隐藏几何的保证。</li><li><b>生成时缺少完整环境条件。</b>狭窄货架或箱内可能大量候选因碰撞或无 IK 解被过滤，多样性和规划质量都很重要。</li><li><b>评分器依赖生成分布。</b>如果大幅更换 G 或改变采样分布，原 On-Generator 数据可能不再充分覆盖新错误；这是由训练设计推导的工程注意点。</li></ul>
-<p>论文真实机器人实验报告总体 81.3%：隔离物体 90.5%、桌面杂乱 83.3%、篮内 80.0%、货架 71.4%。这些数字来自作者的 Robotiq 系统、数据与对照设置，不能推出“所有场景公认最好”，更不能与另一篇的 87.96% 横向直接排名。</p>
+<p>论文真实机器人实验报告总体 81.3%：隔离物体 90.5%、桌面杂乱 83.3%、篮内 80.0%、货架 71.4%。这些数字来自作者的 Robotiq 系统、数据与对照设置，不能推出“所有场景公认最好”，更不能与另一篇的 87.96% 横向直接排名。样本量很可能也小（<a href="#n15">读者注 15</a>）。</p>
 
-<h2 id="audit"><span class="no">07</span>论文、脚本与发布模型需要分别核对</h2>
-<details class="lab-audit" open><summary>论文的均方去噪目标与脚本实际损失不同</summary><p>论文写平方 L2 噪声损失。示例生成训练脚本打开 <code>loss_l1_pos / loss_l1_rot</code>，但函数内部调用 <code>torch.linalg.norm</code>，默认计算 L2 范数再平均，没有平方。变量名含 l1 不代表实际在算 L1。本页在公式中标明论文目标，并没有把代码值当成完全相同的复现配方。</p></details>
-<details class="lab-audit"><summary>“冻结复用编码器”需要显式配置</summary><p>判别器类仅在设置了有效 <code>checkpoint_object_encoder_pretrained</code> 时载入并冻结编码器。所核对 Franka 判别训练脚本没有传这个参数，配置默认 null。故按脚本直接训练不能自动视为论文的冻结编码器配方；这也不证明发布权重一定没采用论文配方。</p></details>
-<details class="lab-audit"><summary>On-Generator 全流程不能从示例脚本自动推定</summary><p>当前 README 仍说明 On-Generator 判别训练尚未发布；单物体教程也明确跳过这一部分。仓库已经有数据生成工具和相关数据字段，但这不等于完整论文配方已由该示例复现。发布吸盘 checkpoint 的说明还指出它未采用 On-Generator 训练。</p></details>
+<h2 id="audit"><span class="no">核对</span>论文、脚本与发布模型需要分别核对</h2>
+<details class="lab-audit" open><summary>论文的均方去噪目标与脚本实际损失不同</summary><p>论文写平方 L2 噪声损失。示例生成训练脚本打开 <code>loss_l1_pos / loss_l1_rot</code>，但函数内部调用 <code>torch.linalg.norm</code>，默认计算 L2 范数再平均，没有平方。变量名含 l1 不代表实际在算 L1。平移和旋转各算一项，权重都是 1。本页在公式中标明论文目标，并没有把代码值当成完全相同的复现配方。发布的三个 yml 也是这组开关。</p></details>
+<details class="lab-audit"><summary>“冻结复用编码器”需要显式配置</summary><p>判别器类仅在设置了有效 <code>checkpoint_object_encoder_pretrained</code> 时载入并冻结编码器。所核对 Franka 判别训练脚本没有传这个参数，配置默认 null。故按脚本直接训练不能自动视为论文的冻结编码器配方。发布配置上：Franka 的 yml 指向生成器权重，Robotiq 和吸盘是 null（见<a href="#n6">读者注 6</a>）。权重本身我没有比较。</p></details>
+<details class="lab-audit"><summary>On-Generator 全流程不能从示例脚本自动推定</summary><p>当前 README 仍说明 On-Generator 判别训练尚未发布；单物体教程也明确跳过这一部分。仓库已经有数据生成工具和相关数据字段，但这不等于完整论文配方已由该示例复现。发布吸盘 checkpoint 的说明还指出它未采用 On-Generator 训练。没有 on-policy 数据时脚本静默退回离线（见<a href="#n7">读者注 7</a>）。</p></details>
 <details class="lab-audit"><summary>cat_attn、cross_attn、cat 不是同一结构</summary><p>本页展开的是官方 Franka 脚本选择的 <code>cat_attn</code>。仓库还实现 MLP 拼接路径和 cross-attention 路径；不能挑最复杂的类定义，直接宣称论文全部实验都用它。尤其要跟踪 PyTorch 注意力的 sequence / batch 轴。</p></details>
 <details class="lab-audit"><summary>GraspGen 与 GraspGen-X 是不同工作</summary><p>本页讨论 arXiv 2507.13097。官方仓库还链接了后续 <a href="https://github.com/NVlabs/GraspGenX">GraspGen-X</a>，其跨夹爪设计不能反向归到这篇原始 GraspGen 上。后续 MoE 等新增接口也不自动成为原论文的主架构。</p></details>
+<details class="lab-audit"><summary>PTv3 不是三个发布配置的共同点（本次新增）</summary><p>Franka 和吸盘是 PTv3，Robotiq 的 runs 脚本和发布 yml 都是 PointNet++。Franka 的 G 训练点数是 3500，D 是 2048，发布 yml 推理是 2048。见<a href="#n15">读者注 15</a>。</p></details>
+<div class="note" id="n23"><span class="lab">读者注 23 · 这一页和 2026-10-27 旧版相比改了什么</span><p>我把旧页的每条结构和数字声明都对照了论文和提交 <code>2dd8852</code>。张量形状、层数、头数、stride、κ、T、top-k、参数开关、表 1 数字<b>全部核对通过</b>，没有结构性错误。旧页的 token 注和 GAN 辨析原样保留。改动如下：</p>
+<ul>
+<li><b>错的：</b>§3.1、§3.2 的网页版锚点原来写 <code>#S3.S1</code>、<code>#S3.S2</code>，arXiv 网页里不存在，打开只会停在页首。改成 <code>#S3.SS1</code>、<code>#S3.SS2</code>。</li>
+<li><b>不完整：</b>“用 κ 调整平移尺度”。代码把点云也乘 κ，已写明（读者注 2）。</li>
+<li><b>不完整：</b>对比表里“网络核心 PTv3”。发布的 Robotiq 配置是 PointNet++，已加注（读者注 15）。流程图箭头从“PTv3 编码几何”改成“编码几何（Franka 用 PTv3）”。</li>
+<li><b>补证据：</b>“也不证明发布权重一定没采用论文配方”换成了发布 yml 的实际内容：Franka 指向生成器权重，另外两个 null（读者注 6）。</li>
+<li><b>补证据：</b>“κ 不是通用常数”加上了 Robotiq 和吸盘的值；“实际分组受点数影响”写明了代码的取法。</li>
+<li><b>过时：</b>callout 里“图均为重新绘制”。现在插图有原文裁切，已改写，并标明旧框图是重画（图 A 到 D）。核对日期和页眉标签也改了。</li>
+</ul>
+<p>没有删除任何旧内容。旧的 8 个带编号小节并入了论文顺序，锚点不变：pipeline、generator、discriminator、training、stage-g、stage-label、stage-d、gan、compare、audit、sources。</p></div>
 
-<h2 id="sources"><span class="no">08</span>来源与关联阅读</h2>
-<ul class="lab-source-list"><li><a href="https://arxiv.org/html/2507.13097v1">论文 v1</a>：§3.1 生成、§3.2 On-Generator、Algorithm 1、§4.5 真实系统；<a href="https://graspgen.github.io/">官方项目页</a>；<a href="https://research.nvidia.com/labs/lpr/publication/murali2026graspgen/">NVIDIA 论文页</a>。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/generator.py">固定提交 · generator.py</a>：归一化、两种 scheduler、DiffusionNoisePredictionNet；<a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/model_utils.py">model_utils.py</a>：AttentionLayer 与 FFN。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/ptv3/ptv3.py">ptv3.py</a>：五阶段、分类模式 mean pooling；<a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/discriminator.py">discriminator.py</a>：位姿 MLP、冻结条件与 top-k BCE。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/runs/train_graspgen_franka_panda_gen.sh">Franka G 脚本</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/runs/train_graspgen_franka_panda_dis.sh">Franka D 脚本</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/scripts/config.yaml">共享配置</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/README.md">同提交发布说明</a>。</li><li><a href="tro-grasp-plus-plus.html">本站 Grasp++ 逐层对比</a> · <a href="tro-grasp.html">原版 T(R,O) Grasp</a> · <a href="foundationpose.html">FoundationPose</a>。位姿估计输出物体 pose，抓取生成输出夹爪 / 手的抓取配置，两类任务不能合并排名。</li></ul>
-<footer><p>Paper Reading Lab · 原创架构图与阅读分析；论文和代码版权归各自作者。<a href="../index.html#architecture">返回论文列表</a> · <a href="#top">回到顶部</a></p></footer></div></body></html>
+<h2 id="notes"><span class="no">汇总</span>读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">§1：</a>“FetchBench 低于 20%”和图 4 的 26.1%、33.4% 不是同一条件，§4.1 用了真值碰撞网格。</li>
+<li><a href="#n2">§3.1：</a>κ 的公式有差一项的笔误；代码把点云也乘 κ；三种夹爪的平均范围是 30.6、49.5、26.6 cm。</li>
+<li><a href="#n3">§3.1：</a>\(\tilde g=g+\epsilon\) 是示意，代码用标准 DDPM，t 是 0 到 9。</li>
+<li><a href="#n4">§3.1：</a>cat_attn 的序列长是 1，注意力权重恒为 1。真正的空间注意力在 PTv3。</li>
+<li><a href="#n5">§3.1：</a>T = 10 时平移 \(\bar\alpha\) 只到 0.927，训练从未覆盖推理起点 \(\mathcal N(0,I)\)；旋转到 2.4×10⁻⁵。</li>
+<li><a href="#n6">§3.2：</a>从头训练的不止最后一层；冻结要显式配置，发布配置三个夹爪不同。</li>
+<li><a href="#n7">§3.2：</a>公开判别器脚本没有 On-Gen 数据时静默退回离线，有数据时也是 50/50 混合。</li>
+<li><a href="#n8">§3.3：</a>抓取总数 5109 万（算）、5310 万（表 3）、5700 万（README）对不上。</li>
+<li><a href="#n9">§4.1：</a>图 3 的 AUC 能从矢量图复算到第三位；它不归一化，同时奖励覆盖率。</li>
+<li><a href="#n10">§4.1：</a>Oracle 49.2 对 49.4；16.9% 和 7.8% 反推是部分点云抓取成功率的百分点差，不是任务成功率。</li>
+<li><a href="#n11">§4.1：</a>图 5 不对称：部分点云训练在完整上还有 0.883，反过来只有 0.545；混合在部分点云上优于纯部分。</li>
+<li><a href="#n12">§4.2：</a>0.947 对 0.942 没有误差棒，EMD 没有对照；玩具复现了离线的失败方向，但不是独立证据。</li>
+<li><a href="#n13">§4.3：</a>图 7 只有 6 个 κ；旋转误差约 1.64 rad，表 4 是 0.535 rad，论文没解释。</li>
+<li><a href="#n14">§4.4：</a>对 M2T2 的优势写过 48%、37%；44% 是绝对差，57% 恰是货架一列的差；“almost double”实为 2.84 倍。</li>
+<li><a href="#n15">§4.5：</a>总体是四列平均；反推货架可能只有 7 次；真机 M2T2 用 Franka 模型；公开的 Robotiq 是 PointNet++。</li>
+<li><a href="#n16">§5：</a>3K GPU 小时没拆分，README 的训练估计约 1040 GPU·小时。</li>
+<li><a href="#n17">§6.5：</a>“Robotiq 最容易学”和 AUC 0.689 相反。</li>
+<li><a href="#n18">§6.6.2：</a>图 11 读数 34,053 对 1,611 MiB，21 倍相符；N = 5 解释不了 21 倍；批大小没写。</li>
+<li><a href="#n19">§6.6：</a>表 5 的 PTv3 行等于表 4 的 6D 行；5.3 mm 实为 6.0 mm，4% 实为 5.71。</li>
+<li><a href="#n20">§6.8：</a>式 (1) 把米和弧度直接相加。</li>
+<li><a href="#n21">§6.9：</a>分割误差增强在公开代码里只找到一个没被调用的函数；推理有论文未提的 kNN 去离群点。</li>
+<li><a href="#n22">§6.10：</a>阈值越高精度越低，大概是空集算 0。</li>
+<li><a href="#n23">核对：</a>相对旧版的改动清单。结构声明全部通过，错的只有两个锚点。</li>
+</ol>
+
+<h2 id="sources"><span class="no">来源</span>来源与关联阅读</h2>
+<ul class="lab-source-list"><li><a href="https://arxiv.org/html/2507.13097v1">论文 v1</a>：<a href="https://arxiv.org/html/2507.13097v1#S3.SS1">§3.1 生成</a>、<a href="https://arxiv.org/html/2507.13097v1#S3.SS2">§3.2 On-Generator、Algorithm 1</a>、<a href="https://arxiv.org/html/2507.13097v1#S4.SS5">§4.5 真实系统</a>；<a href="https://graspgen.github.io/">官方项目页</a>；<a href="https://research.nvidia.com/labs/lpr/publication/murali2026graspgen/">NVIDIA 论文页</a>。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/generator.py">固定提交 · generator.py</a>：归一化、两种 scheduler、DiffusionNoisePredictionNet；<a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/model_utils.py">model_utils.py</a>：AttentionLayer 与 FFN。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/ptv3/ptv3.py">ptv3.py</a>：五阶段、分类模式 mean pooling；<a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/models/discriminator.py">discriminator.py</a>：位姿 MLP、冻结条件与 top-k BCE。</li><li><a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/runs/train_graspgen_franka_panda_gen.sh">Franka G 脚本</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/runs/train_graspgen_franka_panda_dis.sh">Franka D 脚本</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/scripts/config.yaml">共享配置</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/README.md">同提交发布说明</a> · <a href="https://github.com/NVlabs/GraspGen/blob/2dd8852e1be60f5f9d277fafcc621835cdf59110/grasp_gen/dataset/dataset.py">dataset.py</a>：κ 和样本比例。</li><li><a href="https://huggingface.co/adithyamurali/GraspGenModels">发布权重的配置</a>：我只读了 3 个 yml 和模型卡，没有下载权重。<a href="https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/schedulers/scheduling_ddpm.py">diffusers 0.11.1 scheduling_ddpm.py</a>：默认 β 和步进公式。</li><li><a href="tro-grasp-plus-plus.html">本站 Grasp++ 逐层对比</a> · <a href="tro-grasp.html">原版 T(R,O) Grasp</a> · <a href="foundationpose.html">FoundationPose</a>。位姿估计输出物体 pose，抓取生成输出夹爪 / 手的抓取配置，两类任务不能合并排名。</li></ul>
+<footer><p>依据 arXiv 2507.13097v1 的 PDF 和官方代码整理的中文精读。原文：Adithyavairavan Murali 等，《GraspGen: A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training》，以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布。图 1 到 14 和表 2 取自原文 PDF，只做了裁切和格式转换，继续按 CC BY-SA 4.0 提供。框图 A 到 D、动画和读者注是我写的。代码版权归 NVIDIA，这里没有复制。<a href="../index.html#architecture">返回论文列表</a> · <a href="#top">回到顶部</a></p></footer></div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body></html>
