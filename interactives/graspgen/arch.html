@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GraspGen 网络结构拆解：PTv3、噪声头、判别器 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2507.13097 GraspGen 的两个网络拆成 11 幕 3D 结构：PTv3 的体素化、空间填充曲线序列化、切块注意力、Block 内部、池化和全局平均，噪声头和去噪循环，判别器结构和打分，训练时梯度往哪走。序列化码、分块、各阶段点数都对一个玩具杯子当场算。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:100px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);pointer-events:none}
+.ctl[hidden]{display:none}
+.ctl .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap;pointer-events:auto}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+#hud{position:absolute;right:10px;top:122px;background:color-mix(in srgb,var(--bg2) 90%,transparent);border:1px solid var(--line);border-radius:8px;pointer-events:none}
+#hud[hidden]{display:none}
+.below table{width:100%}
+.gloss dt{font-weight:600;margin-top:10px}
+.gloss dd{margin:2px 0 0 0;max-width:78ch;color:var(--fg)}
+body.embed .ctl{top:82px;font-size:11.5px}
+body.embed #hud{top:100px}
+body.embed .ae .cap,body.embed .cap{font-size:13px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="arch.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/graspgen.html">返回精读</a><a href="../../papers/graspgen.html#generator">生成器结构</a><a href="../../papers/graspgen.html#discriminator">判别器结构</a><a href="index.html">框架动画（11 幕）</a><a href="https://arxiv.org/abs/2312.10035">PTv3 论文</a><a href="https://github.com/NVlabs/GraspGen">代码</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">结构拆解 · arXiv 2507.13097 · GRASPGEN</p>
+<h1>把 PTv3、噪声头和判别器一层一层拆开</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览。第 2 到 7 幕只讲 PTv3：体素化、空间填充曲线、切块注意力、一个 Block 的内部、池化和五个阶段、最后的全局平均。第 8、9 幕是噪声头和 10 步去噪循环。第 10 幕是判别器和打分。第 11 幕讲训练时梯度往哪里走。</p>
+<p class="howto">每一幕自动循环，可以暂停、拖进度条、拖动画面旋转、滚轮缩放。方块可以点，第 3、4 幕的体素和点也可以点。左上角有切换。结构和形状读自官方代码（提交 <code>2dd8852</code>）。序列化码、分块、各阶段点数是对一个<b>玩具杯子</b>当场算的；去噪轨迹用的是真实的调度公式，但“噪声头”是一个直接知道答案的替身；判别器分数是示意。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 结构图，可拖动旋转"></div>
+    <div class="bar top-left">
+      <div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div>
+    </div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <canvas id="hud" hidden></canvas>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 画面画不出来。右侧和下面每一幕的文字说明内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite">
+    <p class="tag mono" id="infoTag">—</p>
+    <h2 id="infoTitle">—</h2>
+    <div id="infoBody"></div>
+  </aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，点一行右侧会显示那一幕的完整说明。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="gloss">几个词</h2>
+<dl class="gloss">
+<dt>PTv3（Point Transformer V3）</dt><dd>Wu 等人 CVPR 2024 的点云网络（<a href="https://arxiv.org/abs/2312.10035">arXiv 2312.10035</a>）。GraspGen 只用它的编码器部分（<code>cls_mode=True</code>），把一团点变成一个 512 维向量。</dd>
+<dt>序列化（serialization）</dt><dd>给每个点算一个整数码（空间填充曲线上的编号），按码排序，三维点云就变成一条一维序列。“结构化格式”指的就是这条排好序的序列：之后可以像切文本一样按固定长度切块。</dd>
+<dt>空间填充曲线</dt><dd>一条走遍立方体每一格的折线。Z 曲线（Morton 码）把 x、y、z 的二进制位交错；Hilbert 曲线每层会旋转翻转，相邻编号总是相邻格子。trans 版先交换 x、y 再算，得到另一条曲线。</dd>
+<dt>patch（块）</dt><dd>排好序的序列每 K 个点一块，块内做自注意力。K = min(批内最少点数, 1024)。</dd>
+<dt>xCPE</dt><dd>每个 Block 开头的一层 3×3×3 稀疏卷积，按格子找邻居，把局部位置信息写进特征。GraspGen 关掉了相对位置编码（RPE），所以位置主要靠它和输入坐标进来。</dd>
+<dt>池化（SerializedPooling）</dt><dd>码右移 3 位就是父格（八叉树上一层），同一父格的点合成一个。每阶段格子边长翻倍。</dd>
+</dl>
+
+<h2 id="mine">哪些是当场算的，哪些是示意</h2>
+<ul class="mine">
+<li><b>当场算：</b>第 2 到 6 幕的格坐标、depth、四种序列化码和排序、相邻比例、分块和补齐、换序后组员留下的比例、球查询邻居数、各阶段点数和块数，都是页面对玩具杯子用和代码相同的规则算出来的。Hilbert 码按 <code>serialization/hilbert.py</code> 的 Skilling 算法重写成 JS，我验证了 1 到 4 位时相邻编号都是面相邻的格子。</li>
+<li><b>当场算：</b>参数量（PTv3 每个 Block 40C² + 17C，全编码器约 3866 万；噪声头约 3692 万；判别器头约 92 万）是我按层的形状算的，没有加载权重。第 8 幕的正弦时间编码按 <code>SinusoidalPosEmb</code> 的公式算。第 9 幕的 ᾱ、c₀、cₜ、σ 按 diffusers 0.11.1 DDPMScheduler 的公式算。</li>
+<li><b>玩具：</b>杯子是我造的几何（半径 4 cm、高 10 cm、带把手，2000 个表面点），不是传感器数据。第 9 幕的 16 个目标抓取是我放的，“噪声头”是直接知道目标的替身（ε̂ 由目标反推），所以轨迹只展示调度器怎么一步步更新，不展示网络会犯的错。第 10 幕的分数和“仿真标签”是规则造的。</li>
+<li><b>示意：</b>第 5、7、8 幕方块的大小和亮度、第 7 幕柱子里的颜色（随机数），都不是激活值。PTv3 和噪声头都没有在页面里运行。</li>
+<li><b>我的推断：</b>没有 RPE 时，块内注意力对点的先后不敏感，所以随机打乱序（shuffle_orders）只在物体被切成多块时才影响结果；越往深层点越少，这个杯子从第 2 阶段起整个物体只有一块。</li>
+</ul>
+</section>
+<footer><p>图解是我读 PTv3 论文、arXiv 2507.13097 和官方代码后的理解，不是作者的官方图。论文以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布；GraspGen 代码是 NVIDIA 非商业许可，这里只引用文件名、行号和配置键，没有复制代码。完整结构表在<a href="index.html#arch">框架动画页</a>，逐节内容在<a href="../../papers/graspgen.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>
