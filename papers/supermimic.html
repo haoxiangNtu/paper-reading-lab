@@ -88,6 +88,7 @@
 <h2 id="s2"><span class="no">2</span>相关工作</h2>
 <p><b>大规模动作跟踪。</b><a href="deepmimic.html">DeepMimic</a> 用无模型 RL 做出了生动的角色技能，<a href="phc.html">PHC</a> 把它推到大动作集并能恢复，<a href="sonic.html">SONIC</a> 证明数据、策略容量和算力一起放大就能得到可上真机的通才。瓶颈就是算力，这正是本文要解决的。</p>
 <p><b>学到的可微动力学。</b><a href="supertrack.html">SuperTrack</a> 通过学到的可微代理优化动作控制策略；<a href="controlvae.html">ControlVAE</a> 联合学动力学、潜在技能和控制器；<a href="moconvq.html">MoConVQ</a> 用离散表示扩到几十小时数据；<a href="superdyno.html">SuperDyno</a> 扩到几万个片段。这些主要用于仿真角色。本文把这条线推到单 GPU 的大规模人形跟踪和真机部署：世界模型能看到仿真上下文，部署的策略只有带噪声的本体感觉和目标。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · “几万个片段”来自 SuperDyno 的摘要（2026-11-09 补）</span><p>SuperDyno 的摘要写“tens of thousands of motion clips”，但它的引言写“ten thousand clips”，表 1 实际用的是 AMASS 清洗后的 11313 段训练、140 段测试。所以“扩到几万个片段”照抄了摘要，按正文应是一万一千多段。详见 <a href="superdyno.html">SuperDyno 精读</a>。</p></div>
 <p><b>基于模型的策略优化与部署。</b><a href="dreamer.html">Dreamer</a> 和 <a href="dreamerv3.html">DreamerV3</a> 这一系列学潜变量动力学并在想象中做演员-评论家；<a href="td-mpc.html">TD-MPC</a> 把短视野规划和终端价值结合；<a href="daydreamer.html">DayDreamer</a> 直接在真机上学世界模型。<a href="shac.html">SHAC</a> 在可微仿真上做短视野演员-评论家，启发了本文带评论家的目标函数。<a href="rwm.html">RWM</a> 和 <a href="rwm-u.html">RWM-U</a> 证明学到的神经仿真器里训练的策略能上真机，但它们在想象轨迹上用 PPO，而且世界模型是用其他策略的数据预先训好的。本文对回报直接求导，世界模型在训练中用自己策略收集的数据拟合。</p>
 <p><b>可复用的动作表示与下游控制。</b>下表是原文表 1 的内容，比较各方法在三个阶段怎样训练。</p>
 <p class="tcap">表 1 · 各方法三个阶段的训练方式（照录原文；SuperMimic 和 SONIC 的三阶段是联合训练的）</p>
@@ -405,6 +406,7 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
 <li><a href="#n16">对比方法的一点疑问</a>：PPO-Sim 没说调过参。</li>
 <li><a href="#n17">没有的东西</a>：没有官方代码；demo 不可用于提取。</li>
 <li><a href="#n19">“沿用 BeyondMimic”没写全的地方</a>：倾斜终止用的是 BeyondMimic 代码版而非论文版；根部刚体、摩擦写法、观测结构也和原设定不同，没有标成改动。</li>
+<li><a href="#n20">“几万个片段”来自 SuperDyno 的摘要</a>：正文和表 1 是 11313 段。</li>
 </ol>
 
 <h2 id="links">链接表</h2>
