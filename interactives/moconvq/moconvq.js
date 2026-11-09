@@ -273,7 +273,7 @@ const Toy = (function () {
     { n: 10, part: '§4.3 MoConGPT', title: '两个方向的自回归：先按时间，再按层', sub: '从索引分布采样，解码回运动', dur: 16, cam: [0, 1.08, 33, [1.1, 6.2, 0]],
       html: LIVE + '<p>式 16：temporal 变换器 \\(f(I^{&lt;k})\\) 聚合过去的码，depth 变换器在同一时刻逐层预测 \\(I^k_d\\)。如果摊平成一条长序列，长度是 \\(K\\times N\\)，论文说代价按长度的平方增长。</p><p>下面网格的每一列是一个时刻，每一行是一层，亮的格子是正在预测的索引，橙线是条件。采样完送进解码器，下面那条是仿真器走出来的角度。</p>' +
         toyB('这里<b>没有变换器</b>：我用计数表估计 \\(p(I^k_d|I^{k-1}_d,I^k_{d-1})\\)，只是为了让“采索引 → 解码”真的跑起来。结构是式 16 的，模型不是。') + src('式 15 至 17 · 图 3 · §5.4 · 代码 <code>rq_trans_fixsum.py</code>') },
-    { n: 11, part: '§4.4 接入大语言模型', title: '索引当文字：一串数字就是一段运动', sub: '切三个原文例子，数字都是原文的', dur: 15, cam: [0, 1.12, 34, [0, 6, 0]],
+    { n: 11, part: '§4.4 接入大语言模型', title: '索引当文字：一串数字就是一段运动', sub: '切三个原文例子，数字都是原文的', dur: 15, cam: [0, 1.12, 28, [0, 6, 0]],
       html: LIVE + '<p>给 Claude-2 一个文件，1600 行，每行一句动作描述加上它的 VQ 索引（只用第 0 层）。不微调，直接问。模型回答一串数字，交给物理解码器。</p><p>一个索引是 4 帧，也就是 0.2 秒。所以“走很久”在附录 B.1 里是 4 遍 5 个索引，一共 4 秒。</p><p>解码这一步只用第 0 层，相当于原文图 17 的绿色那个模型（没有残差层），精度明显低于 8 层。</p>' +
         guess('方块摆放和每段的颜色是我画的。这里没有实际解码：我没有下载预训练权重，也没跑代码。数字和每段的说明全部抄自原文图 4 和附录 B。') + src('§4.4 · §5.5 · 图 4 · 图 12 · 图 13 · 附录 B') },
   ];
@@ -331,8 +331,10 @@ const Toy = (function () {
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 33, PICKS = [], dragFn = null, dragPlane = null, dragInv = null, api = null;
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.0125) * refDist / 22, size: o.size || 26, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.0125) * refDist / 22, size: LSZ(o.size || 26, o.scale || 0.0125), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   function block(w, h, d, color, pos, o = {}) { const m = L.box(w, h, d, color, { edgeOpacity: 0.3, ...o }); m.position.set(...pos); m.userData.c = hex3(color); return m; }
@@ -411,7 +413,7 @@ const Toy = (function () {
     for (let i = 0; i + 1 < P.length; i++) wire(G, [P[i], P[i + 1]], 0x8ea2c4);
     const fb = [[12, y - 1.2, 0], [12, y - 2.3, 0], [7, y - 2.3, 0], [7, y - 1.2, 0]]; wire(G, fb, COL.grad, { opacity: 0.8 }); G.add(lab('sₜ 自回归', [9.5, y - 3.1, 0], { size: 20 }));
     const tok = lab('索引 I = (122, 222, …, 77)', [-4.5, y - 2.6, 0.2], { size: 22, border: '#f2c14e' }); G.add(tok);
-    const dn = [['跟踪：编码器 + 解码器', -11.5, 8], ['转向：出 v，再量化', -5.2, 3], ['MoConGPT：出索引', 0.8, 9], ['LLM：只用 I₀', 7, 10]].map(([t, x, g]) => { const m = block(5.2, 0.9, 1.5, 0x2b3650, [x, y + 6.2, -3]); m.userData.go = g; PICKS.push(m); G.add(m, lab(t, [x, y + 6.2, -2], { size: 21 })); wire(G, [[x, y + 5.7, -3], [-4.5, y + 1.3, 0]], 0xf2c14e, { opacity: 0.3 }); return m; });
+    const dn = [['跟踪：编码器 + 解码器', -11.5, 8], ['转向：出 v，再量化', -5.2, 3], ['MoConGPT：出索引', 0.8, 9], ['LLM：只用 I₀', 7, 10]].map(([t, x, g]) => { const m = block(5.2, 0.9, 1.5, 0x2b3650, [x, y + 6.2, -3]); m.userData.go = g; PICKS.push(m); G.add(m, lab(t.replace('：', '：\n'), [x, y + 6.2, -2], { size: 21 })); wire(G, [[x, y + 5.7, -3], [-4.5, y + 1.3, 0]], 0xf2c14e, { opacity: 0.3 }); return m; });
     G.add(lab('下游任务接在码上，解码器冻结', [-2, y + 7.6, -3], { size: 22 }));
     const a = stream(G, 6, COL.code), b = stream(G, 6, COL.pi), c = stream(G, 3, COL.grad, 0.13);
     return { update(p) {
@@ -633,7 +635,7 @@ const Toy = (function () {
     const body = block(.36, 1, .36, COL.white, [0, .5, 0]); G.add(body);
     const tau = [1 / 3, 2 / 3, 1], gp = .5, gr = 2, Tm = [.3, .6, .9];
     const mk = (c, r) => tau.map(() => marker(G, c, r)), Pi_ = mk(COL.sim, .22), Uu = mk(COL.enc, .22), Bl = mk(COL.code, .3), lines = [poly(G, 4, COL.sim, 1), poly(G, 4, COL.enc, 1), poly(G, 4, COL.code, 1)], heads = tau.map(() => [poly(G, 2, COL.code, 1), poly(G, 2, COL.sim, .9), poly(G, 2, COL.enc, .9)]), goal = marker(G, COL.grad, .28);
-    G.add(lab('灰 gᵖⁱ（手写）', [-5.2, .1, HALF + .7], { size: 21 }), lab('蓝 gᵘ（用户）', [0, .1, HALF + .7], { size: 21 }), lab('金 g（式 14）', [5.2, .1, HALF + .7], { size: 21 }));
+    G.add(lab('灰 gᵖⁱ（手写）', [-5.2, .1, HALF + .7], { size: 12 }), lab('蓝 gᵘ（用户）', [0, .1, HALF + .7], { size: 12 }), lab('金 g（式 14）', [5.2, .1, HALF + .7], { size: 12 })); /* these sit close to the camera; LSZ lifts size 12 to ~17 px on screen */
     const pw = tau.map(t => Math.pow(t, gp)), rw = tau.map(t => Math.pow(t, gr));
     chart({ log: false, xlabel: '未来帧 0.3 / 0.6 / 0.9 秒', xname: 't =', x: i => Tm[i] + ' s', series: [{ name: 'τ^0.5 位置', data: pw }, { name: 'τ² 朝向', data: rw }] });
     return { ctl: [{ label: '速度', items: ['1.5 m/s', '3.5 m/s'], get: () => U.sp9, set: i => { U.sp9 = i; } }, { label: '', items: ['清除目标'], get: () => -1, set: () => { U.goal = null; } }],
@@ -695,7 +697,7 @@ const Toy = (function () {
     const ex = EX[U.ex11], seq = []; ex.ph.forEach((ph, i) => ph[1].forEach(v => seq.push([v, i]))); const per = Math.min(18, Math.max(14, Math.ceil(Math.sqrt(seq.length * 4.5)))), rowsN = Math.ceil(seq.length / per), cell = 1.45, ytop = 5.4, xs = -cell * (per - 1) / 2;
     const File_ = block(4.2, 1.3, 1.2, COL.data, [-9.5, 8.4, 0]), Llm = block(4.2, 1.3, 1.2, COL.wm, [0, 8.4, 0]), Dec = block(4.2, 1.3, 1.2, COL.pi, [9.5, 8.4, 0]); G.add(File_, Llm, Dec, lab('1600 行\n描述 + VQ 索引', [-9.5, 8.4, .7], { size: 20 }), lab('Claude-2\n100k 上下文', [0, 8.4, .7], { size: 20 }), lab('物理解码器\n（这里没跑）', [9.5, 8.4, .7], { size: 20 }));
     wire(G, [[-9.5, 8.4, 0], [0, 8.4, 0]], 0x8ea2c4); wire(G, [[0, 7.7, 0], [0, ytop + 1, 0]], 0x8ea2c4); wire(G, [[0, ytop + 1, 0], [9.5, ytop + 1, 0], [9.5, 7.7, 0]], 0x8ea2c4);
-    const ROWH = 1.85; const tiles = seq.map(([v, ph], i) => { const r = Math.floor(i / per), c = i % per, m = block(cell * .92, .9, .5, PHC[ph], [xs + c * cell, ytop - r * ROWH, 0]); G.add(m, lab(String(v), [xs + c * cell, ytop - r * ROWH, .5], { size: 20, bg: false, color: ph === 7 ? '#0b1020' : '#ffffff' })); if (i === 0 || seq[i - 1][1] !== ph) G.add(lab(ex.ph[ph][0], [xs + c * cell + .3, ytop - r * ROWH - .85, .5], { size: 18 })); return m; });
+    const ROWH = 1.85; const tiles = seq.map(([v, ph], i) => { const r = Math.floor(i / per), c = i % per, m = block(cell * .92, .9, .5, PHC[ph], [xs + c * cell, ytop - r * ROWH, 0]); G.add(m, lab(String(v), [xs + c * cell, ytop - r * ROWH, .5], { size: 20, bg: false, color: ph === 7 ? '#0b1020' : '#ffffff' })); if (i === 0 || seq[i - 1][1] !== ph) G.add(lab(ex.ph[ph][0], [xs + c * cell + .3, ytop - r * ROWH - 1.0, .5], { size: 18 })); return m; });
     const dur = seq.length * 0.2, n = ex.ph.length, cum = []; let s_ = 0; ex.ph.forEach(q => { cum.push(s_); s_ += q[1].length; });
     return { ctl: [{ label: '例子', items: EX.map(e => e.n), get: () => U.ex11, set: i => { U.ex11 = i; go(cur, 0); } }],
       update(p) {

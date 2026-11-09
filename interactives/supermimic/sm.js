@@ -27,7 +27,7 @@
         '<p>动作噪声不是为了探索，只是让世界模型见到更宽的动作范围。论文说它是可选的。策略本身是确定性的。</p>' +
         '<p>重置不是均匀的。动作库按 1 秒切成区间，每个区间记一个当前回报 G。重置点按三份混合来抽：50% 均匀，40% 偏向回报低的区间，10% 按过去的权重，这样学会了的难动作也不至于完全不练。</p>' +
         guess('左边真的画了 64 × 64 = 4096 个小人。回放缓存一格代表约 100 个环境 × 40 步。下方柱子的 G 是假数据，混合公式是真的。') + src('§3.1 · 附录 D.1 · 表 A.5') },
-    { n: 3, part: '第 2 步 · 世界模型', title: '世界模型里有什么', sub: '三层 2048 的 MLP；为什么可以是确定性的', dur: 14, cam: [0.16, 1.14, 30, [1.2, 3.6, 0]],
+    { n: 3, part: '第 2 步 · 世界模型', title: '世界模型里有什么', sub: '三层 2048 的 MLP；为什么可以是确定性的', dur: 14, cam: [0.16, 1.14, 32, [2.2, 3.6, 0]],
       html: dl([['动力学', 'ŝₜ, aₜ, ξ → ŝₜ₊₁，MLP (2048, 2048, 2048)'], ['奖励头', 'ŝₜ, aₜ, gₜ → r̂ₜ₊₁'], ['观测头', 'ŝₜ, ξ → ō̂ₜ（不带噪声）'], ['终止头', 'ŝₜ, gₜ → d̂ₜ ∈ [0,1]']]) +
         '<p>它要替代的是仿真器，而仿真器的随机性来源都是已知的，所以模型不用学分布，只用<b>确定性</b>地预测：</p><ul>' +
         '<li><b>物理参数</b>（摩擦、关节标定偏移、躯干质心）：写进 ξ，直接喂给模型。</li>' +
@@ -35,7 +35,7 @@
         '<li><b>传感器噪声 η</b>：模型只预测干净观测 ō̂，噪声在模型外面重新加上。</li></ul>' +
         '<p>论文因此去掉了 BeyondMimic 的随机推搡：状态突然跳变，确定性模型学不了。</p>' +
         guess('状态 s 里有什么、多少维，以及四个头哪些是学的、哪些是解析算的，论文都没写。第三方复现 SuperMimic-Reproduced 的选择是奖励和观测头解析算、终止头学习，那是它的决定，不是作者的。') + src('§3.2 · 表 A.3 · 表 A.4') },
-    { n: 4, part: '第 2 步 · 世界模型', title: '8 步自回归拟合', sub: '模型吃自己的预测，所以学会纠正自己', dur: 15, cam: [0.03, 1.2, 24, [0, 2.2, 1.0]],
+    { n: 4, part: '第 2 步 · 世界模型', title: '8 步自回归拟合', sub: '模型吃自己的预测，所以学会纠正自己', dur: 15, cam: [0.03, 1.2, 25, [-1.0, 2.2, 1.0]],
       html: dl([['窗口', 'k = 8 步 = 0.16 秒'], ['起点', 'ŝ₀ = s₀（缓存里记录的真实状态）'], ['动作', '缓存里记录的动作，不是当前策略的'], ['批量', '每次更新 10 批 × 2048 个窗口']]) +
         '<p>只训练“下一步”的模型，单步误差很小，但一旦拿自己的预测继续往下走，误差会被放大，因为它从没见过自己犯错后的状态。</p>' +
         '<p>自回归拟合把第 j 步的预测喂回去算第 j+1 步，8 步的误差全部计入损失，并且一路反传回去。模型因此见到了自己造成的偏差，也被要求把它拉回来。</p>' +
@@ -60,7 +60,7 @@
         '<p>读图 4(b)(c) 的数：不带评论家时 H = 16 训练失败（回报 0.25）；带评论家时 H = 16 就够了（0.84），和不带评论家的 H = 32（0.84）一样好。H = 32 带评论家到回报 0.82 最快（约 0.89 小时）。H 从 64 加到 128，时间几乎变成 3 倍。</p>' +
         '<p>回报差不多时，评论家还改变行为。在静止 T 字站姿下受 0.5 到 4 m/s 的推力：带评论家的 0.5 到 2.4 秒内站稳；不带评论家的连 0.5 m/s 都一直踉跄，4 m/s 直接摔倒。因为恢复平衡的回报在窗口之外，只看窗口内的奖励和就看不到它。</p>' +
         src('§3.3 式 (3) · §4.3 · 图 4(b)(c)') },
-    { n: 8, part: '策略网络', title: '一个解码器，多个编码器', sub: '不同目标接口共享解码器和世界模型', dur: 16, cam: [0.03, 1.12, 29, [0.8, 2.2, 0.2]],
+    { n: 8, part: '策略网络', title: '一个解码器，多个编码器', sub: '不同目标接口共享解码器和世界模型', dur: 16, cam: [0.03, 1.12, 33, [0.6, 2.2, 0.2]],
       html: dl([['动作编码器', '未来 10 帧参考 → MLP (2048,1024,512,256) → z'], ['速度编码器', '(vₓ,v_y,ω_z)＋观测特征 → MLP (256,256) → z'], ['z', '32 维，tanh 限幅'], ['解码器', 'z＋10 帧观测（930 维）→ MLP (2048,1024,512,256) → a（29 维）']]) +
         '<p>解码器负责“怎么动身体”，编码器负责“翻译目标”。换一个目标形式（速度命令、末端位姿、SMPL 姿态）只加一个编码器，世界模型不用重训，因为身体的物理没变。</p>' +
         '<p><b>两种训练信号：</b>蒸馏用动作跟踪奖励，命令从参考动作读；RL 直接用这个接口自己的奖励（比如速度跟踪），穿过世界模型反传。</p>' +
@@ -109,8 +109,10 @@
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
 
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 26, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 26, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Q = new THREE.Quaternion(), _E = new THREE.Euler(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -296,7 +298,7 @@
     const xs = [-5.8, -2.8, 0.2], pl = xs.map(x => { const m = block(0.55, 5.4, 5.2, COL.wm, [x, 2.7, 0]); G.add(m, lab('2048', [x, 5.9, 0])); return m; });
     const out = block(1.5, 1.1, 1.5, COL.buf, [3.8, 2.7, 0]); G.add(out, lab('ŝₜ₊₁', [3.8, 3.75, 0]));
     const heads = [{ n: 'r̂ₜ₊₁ 奖励', y: 5.0, c: COL.rew }, { n: 'ō̂ₜ 干净观测', y: 2.7, c: COL.pi }, { n: 'd̂ₜ 终止概率', y: 0.4, c: COL.ref }].map(h => { const m = block(1.3, 0.9, 1.3, h.c, [7.6, h.y, 0]); G.add(m, lab(h.n, [7.6, h.y + 0.95, 0], { size: 24 })); return m; });
-    const obsPt = [10.2, 2.7, 0], eta = block(0.8, 0.8, 0.8, COL.noise, [11.2, 5.0, 0]); G.add(eta); const lbE = lab('+ η 传感器噪声（模型外）', [11.6, 6.3, 0], { size: 24 }); G.add(lbE);
+    const obsPt = [10.2, 2.7, 0], eta = block(0.8, 0.8, 0.8, COL.noise, [11.2, 5.0, 0]); G.add(eta); const lbE = lab('+ η 传感器噪声（模型外）', [11.4, 7.3, 0], { size: 24 }); G.add(lbE);
     const toPi = block(1.2, 0.9, 1.2, COL.pi, [12.4, 2.7, 0]); G.add(toPi, lab('π', [12.4, 3.6, 0]));
     const rob = robot(COL.robot, { opacity: 0.95 }); G.add(rob);
     const ret = arc([3.8, 3.2, -1.2], [-10.2, 4.8, -1.2], 3.0, 26);
@@ -333,7 +335,7 @@
     const errL = segLines(K + 1, COL.grad, 1); G.add(errL);
     const lbS = lab('蓝：仿真器记录的真实状态　橙：模型预测', [1.5, 6.1, 0], { size: 24 }); G.add(lbS);
     const lbMode = [lab('只训练单步的模型', [-6.4, 0, 3.8], { border: 'rgba(255,122,89,.8)' }), lab('8 步自回归训练后', [-6.4, 0, 3.8], { border: 'rgba(79,201,138,.8)' })]; lbMode.forEach(x => { x.position.set(1.5, -0.6, 6.0); G.add(x); });
-    G.add(lab('每步误差', [-11.6, 0.5, 4.8], { size: 22 }));
+    G.add(lab('每步误差', [-10.0, 0.5, 4.8], { size: 22 }));
     const arcs = []; for (let j = 0; j < K; j++) arcs.push(arc([X(j), 3.4, 0], [X(j + 1), 3.4, 0], 0.9, 6));
     const fwd = stream(G, 1, COL.pred, 0.2), bk = stream(G, 16, COL.grad, 0.13);
     const e0 = 0.012, errOf = (j, r) => j === 0 ? 0 : e0 * (Math.pow(r, j) - 1) / (r - 1);
@@ -466,7 +468,7 @@
       if (idx !== last) {
         last = idx; G.remove(lbObj); L.dispose(lbObj); LABS = LABS.filter(s => s !== lbObj);
         const share = 100 * (1 - Math.pow(gamma, h.H));
-        lbObj = lab(`窗口 ${h.H} 步 = ${(h.H * 0.02).toFixed(2)} 秒，占折扣回报 ${share.toFixed(0)}%`, [clamp(X(h.H), -7, 7), 3.9, 3.2], { size: 24, border: 'rgba(242,193,78,.8)' }); G.add(lbObj);
+        lbObj = lab(`窗口 ${h.H} 步 = ${(h.H * 0.02).toFixed(2)} 秒，占折扣回报 ${share.toFixed(0)}%`, [clamp(X(h.H), -7, 7), 2.5, 4.2], { size: 24, border: 'rgba(242,193,78,.8)' }); G.add(lbObj);
         document.querySelectorAll('#ctl button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === idx)));
       }
       H7.forEach((x, i) => { const on = i === idx, k = on ? 1 : 0.62, a = hex3(COL.crit); const c1 = a.map(v => (v * 0.55 + 0.4) * k), c2 = a.map(v => v * k);
@@ -485,12 +487,12 @@
     const cmd = block(1.3, 1.1, 1.8, COL.rew, [-9, yB, 0]); G.add(cmd, lab('(vₓ, v_y, ω_z)', [-9, yB + 1.0, 0], { size: 22 }));
     const eM = [2048, 1024, 512, 256].map((w, i) => mk(-9.8 + i * 1.5, yT, w, COL.enc));
     const eV = [256, 256].map((w, i) => mk(-6.2 + i * 1.5, yB, w, COL.enc));
-    G.add(lab('动作编码器', [-7.6, yT + 2.75, 0], { size: 24 }), lab('速度编码器', [-5.4, yB - 1.05, 0], { size: 24 }));
+    G.add(lab('动作编码器', [-7.6, yT + 3.3, 0], { size: 24 }), lab('速度编码器', [-5.4, yB - 1.05, 0], { size: 24 }));
     const z = block(0.5, 1.5, 1.6, COL.rew, [-1.6, 0.5, 0]); G.add(z, lab('z 32 维 tanh', [-1.6, 1.75, 0], { size: 22 }));
     const obs = block(1.3, 1.0, 1.4, COL.pi, [-1.6, -2.4, 2]); G.add(obs, lab('10 帧观测 930 维', [-1.6, -3.3, 2], { size: 22 }));
     const dec = [2048, 1024, 512, 256].map((w, i) => mk(1 + i * 1.5, 0.5, w, COL.wm));
     G.add(lab('共享解码器', [3.2, 3.55, 0], { size: 24 }));
-    const a = block(0.9, 1.1, 1.3, COL.pi, [7.5, 0.5, 0]); G.add(a, lab('a 29 维', [7.5, 1.45, 0], { size: 22 }));
+    const a = block(0.9, 1.1, 1.3, COL.pi, [7.5, 0.5, 0]); G.add(a, lab('a 29 维', [7.5, -0.55, 0], { size: 22 }));
     const wm = block(2.0, 1.5, 1.8, COL.frozen, [10.2, 0.5, 0]); G.add(wm, lab('世界模型（冻结）', [10.2, 1.75, 0], { size: 22 }));
     const crM = block(1.3, 0.9, 1.3, COL.crit, [13, 2.6, 0]), crV = block(1.3, 0.9, 1.3, COL.crit, [13, -1.6, 0]); G.add(crM, crV, lab('Ĵ 跟踪 ＋ V 跟踪', [13, 3.55, 0], { size: 22 }), lab('Ĵ 速度 ＋ V 速度', [13, -2.55, 0], { size: 22 }));
     const pM = [[-12.2, yT, 0], [-5.3, yT, 0], [-1.6, 0.5, 0], [5.5, 0.5, 0], [7.5, 0.5, 0], [10.2, 0.5, 0], [13, 2.6, 0]], pV = [[-9, yB, 0], [-4.7, yB, 0], [-1.6, 0.5, 0], [5.5, 0.5, 0], [7.5, 0.5, 0], [10.2, 0.5, 0], [13, -1.6, 0]];
@@ -517,7 +519,7 @@
   const D9 = [{ h: 1, g: 0.537, e: 6.8 }, { h: 7, g: 1.349, e: 7.39 }, { h: 40, g: 1.908, e: 10.97 }, { h: 264, g: 1.892, e: 9.94 }];
   function s9(G) {
     G.add(L.grid(50, 50));
-    const zR = [7.4, 8.5, 9.6, 10.7], x0 = -11, u = 0.056, X = i => -9.2 + i * 5.6, zG = 1.2, zE = -10, gs = 1.6, es = 0.3, capH = 6.4;
+    const zR = [7.4, 8.5, 9.6, 10.7], x0 = -11, u = 0.056, X = i => -9.2 + i * 5.6, zG = 1.2, zE = -12.5, gs = 1.6, es = 0.3, capH = 6.4;
     const r = L.rng(4), rib = D9.map(d => { const n = Math.min(400, Math.ceil(d.h * 2)), im = inst(BOX, n), col = []; G.add(im); for (let k = 0; k < n; k++) { const t = r(); col.push(t < 0.33 ? hex3(COL.buf) : t < 0.66 ? hex3(COL.pi) : hex3(COL.enc)); } return { im, n, col }; });
     D9.forEach((d, i) => G.add(lab(`${d.h} h`, [x0 - 1.2, 0.25, zR[i]], { size: 21 })));
     G.add(lab('动作库长度（真实比例）', [-6.4, -0.6, 12.5], { size: 24 }));
@@ -528,9 +530,9 @@
     D9.forEach((d, i) => {
       const hp = Math.min(capH, pv[i] * gs), w = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.2, hp, 1.2)), new THREE.LineBasicMaterial({ color: COL.grad, transparent: true, opacity: 0.8 })); w.position.set(X(i) + 1.0, hp / 2, zG); G.add(w); prop.push(w);
       G.add(lab(`${d.h} h`, [X(i) + 0.4, -0.7, zG + 1.4], { size: 21 }), lab(`${d.h} h`, [X(i), -0.7, zE + 1.4], { size: 21 }));
-      if (i) { const t = lab(`若成正比 ${pv[i] < 10 ? pv[i].toFixed(1) : Math.round(pv[i])}${pv[i] * gs > capH ? '（截断）' : ''}`, [X(i) + 1.6, hp + 0.5, zG], { size: 19 }); G.add(t); w.userData.t = t; }
+      if (i) { const t = lab(`若成正比\n${pv[i] < 10 ? pv[i].toFixed(1) : Math.round(pv[i])}${pv[i] * gs > capH ? '（截断）' : ''}`, [X(i) + 1.6, Math.min(hp, 4.4) + 1.0, zG], { size: 19 }); G.add(t); w.userData.t = t; }
     });
-    G.add(lab('到目标回报的 GPU 小时（图 3b）', [-14.5, 2.6, zG], { size: 23 }), lab('8 步预测误差 ×10⁻³（图 3c）', [-14.5, 2.2, zE], { size: 23 }));
+    G.add(lab('到目标回报的 GPU 小时（图 3b）', [-12.0, 4.6, zG], { size: 23 }), lab('8 步预测误差 ×10⁻³（图 3c）', [-12.5, 1.8, zE], { size: 23 }));
     const gl = D9.map((d, i) => lab(d.g.toFixed(2), [X(i) - 0.4, d.g * gs + 0.42, zG], { size: 23 })); gl.forEach(x => G.add(x));
     const el = D9.map((d, i) => lab(d.e.toFixed(1), [X(i), d.e * es + 0.42, zE], { size: 23 })); el.forEach(x => G.add(x));
     return { update(p) {
@@ -556,10 +558,10 @@
     for (let i = 0; i < 8; i++) for (let j = 0; j < 18; j++) { setI(ppo, i * 18 + j, [ppoX + i * cw, cw * (j + 0.5), 0], cw * 0.9); colI(ppo, i * 18 + j, hex3(COL.grad)); } done(ppo);
     const sm2 = block(cw * 0.9, cw * 1.19, cw * 0.9, COL.pi, [ppoX + 3.2, cw * 1.19 / 2, 0], { edges: false }); G.add(sm2);
     G.add(lab('SONIC：128 张 L40 × 168 小时\n= 21,504 GPU·h', [12.5, 23.5, 0], { size: 28, border: 'rgba(224,93,93,.8)' }));
-    const l1 = lab('SuperMimic：1 张 H100 × 3 小时\n= 3 个方块', [smX - 3.2, 6.2, 0], { size: 24, border: 'rgba(56,209,255,.8)' }); G.add(l1);
-    G.add(L.line([[smX, 0.5, 0], [smX - 2.6, 5.2, 0]], COL.pi, { opacity: 0.9 }));
-    const lP = lab('受控对比（同一任务 LAFAN1）', [ppoX + 1.8, 12.3, 0], { size: 24 }), l2 = lab('PPO-Sim：8 卡 × 18 小时 = 144\n只到回报 0.72', [ppoX + 0.2, 9.8, 0], { size: 23, border: 'rgba(255,122,89,.8)' }), l3 = lab('SuperMimic：1.2\n回报 0.82', [ppoX + 5.0, 4.2, 0], { size: 23, border: 'rgba(56,209,255,.8)' }); G.add(lP, l2, l3);
-    G.add(L.line([[ppoX + 0.5, 3.0, 0], [ppoX + 0.3, 8.5, 0]], COL.grad, { opacity: 0.7 }), L.line([[ppoX + 3.2, 0.3, 0], [ppoX + 4.6, 3.2, 0]], COL.pi, { opacity: 0.8 }));
+    const l1 = lab('SuperMimic：\n1 张 H100 × 3 小时\n= 3 个方块', [smX + 1.4, 7.0, 0], { size: 24, border: 'rgba(56,209,255,.8)' }); G.add(l1);
+    G.add(L.line([[smX, 0.5, 0], [smX + 0.9, 4.7, 0]], COL.pi, { opacity: 0.9 }));
+    const lP = lab('受控对比（同一任务 LAFAN1）', [ppoX + 1.8, 15.6, 0], { size: 24 }), l2 = lab('PPO-Sim：\n8 卡 × 18 小时 = 144\n只到回报 0.72', [ppoX + 0.4, 12.0, 0], { size: 23, border: 'rgba(255,122,89,.8)' }), l3 = lab('SuperMimic：1.2\n回报 0.82', [ppoX + 8.6, 3.0, 0], { size: 23, border: 'rgba(56,209,255,.8)' }); G.add(lP, l2, l3);
+    G.add(L.line([[ppoX + 0.5, 3.0, 0], [ppoX + 0.4, 9.6, 0]], COL.grad, { opacity: 0.7 }), L.line([[ppoX + 3.2, 0.3, 0], [ppoX + 6.0, 2.2, 0]], COL.pi, { opacity: 0.8 }));
     return { update(p) {
       const hrs = 168 * seg(p, 0.03, 0.55), r = Math.ceil(hrs);
       for (let i = 0; i < 128; i++) for (let j = 0; j < 168; j++) { if (j < r) setI(wall, i * 168 + j, [ox + (i + 0.5) * cw, cw * (j + 0.5), 0], cw * 0.92); else setI(wall, i * 168 + j, [0, -80, 0], 0.001); } done(wall);

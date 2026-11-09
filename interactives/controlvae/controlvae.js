@@ -288,7 +288,7 @@ const Toy = (function () {
     { n: 10, part: '§4.2 任务策略', title: '冻结技能空间，只训 μg', sub: '改 w_z 和先验，轨迹都在真仿真器里', dur: 17, cam: [0, 0.8, 27.5, [0, 1.5, 0.4]],
       html: LIVE + '<p>任务策略输出先验均值上的残差：\\(\\hat\\mu_g=\\mu_p+\\mu_g\\)（式 21）。p、π、ω 全部冻结，梯度只穿过它们回到 \\(\\mu_g\\)。损失里 \\(w_z\\|\\mu_g\\|^2\\) 把策略拉向先验，论文说这一项对训练稳定很关键。</p><p>切换 w_z 看取舍：大了守着先验做不动，小了可以走出先验覆盖的地方。灰线是只从先验采、不看目标的基线。</p>' +
         toyB('w_z 的数值不能和论文的 20 直接比，隐空间维度和损失尺度都不同。三种先验的 6 种子结果写在精读页的玩具节：差距主要来自 σ，不来自条件（玩具的结论，不是论文的）。') + src('式 21 至 25 · §4.2 · §5.5') },
-    { n: 11, part: '§4.3 技能控制', title: '判别器和分类器定技能', sub: '无法从技能标签直接查 z，只好对抗', dur: 15, cam: [0, 0.96, 35, [0, 2.2, 0]],
+    { n: 11, part: '§4.3 技能控制', title: '判别器和分类器定技能', sub: '无法从技能标签直接查 z，只好对抗', dur: 15, cam: [0, 0.96, 28, [0, 2.2, 0]],
       html: dl([['真样本', '后验跟踪参考片段得到的 \\(\\tau^c\\)'], ['假样本', '任务策略生成的 \\(\\tau^g\\)'], ['D', '最小二乘 GAN，梯度惩罚 \\(w_g=20\\)；2×256，lr 1e-4'], ['C', '分类技能；2×256，lr 0.01'], ['权重', '\\((w_D,w_C,w_r)=(5,0.5,10)\\)'], ['技能数', '5：走、跑、单脚跳、跳、小跳步']]) +
         '<p>\\(\\mathcal L_{reg}\\) 把“跟踪结果”当成完美策略的输出，让任务策略克隆它。论文说这一项对训练稳定很关键。全部经 ω 反传，这和 AMP 把判别器当奖励不同。</p>' +
         guess('这一幕只是结构图，没有现算。官方代码没有判别器和分类器，这里的连线来自算法 2。') + src('式 27 至 32 · 算法 2') },
@@ -350,8 +350,10 @@ const Toy = (function () {
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 33, PICKS = [], dragFn = null, dragPlane = null, api = null;
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.0125) * refDist / 22, size: o.size || 26, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.0125) * refDist / 22, size: LSZ(o.size || 26, o.scale || 0.0125), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   function block(w, h, d, color, pos, o = {}) { const m = L.box(w, h, d, color, { edgeOpacity: 0.3, ...o }); m.position.set(...pos); m.userData.c = hex3(color); return m; }

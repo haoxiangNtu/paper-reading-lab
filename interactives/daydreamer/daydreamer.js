@@ -40,7 +40,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
       html: '<p>左边是图 3(a)：编码器把 x 压成离散码 z（32 个变量，每个 32 类），GRU 状态 h 根据上一步 z 和动作前推，并由 h 单独预测 z（先验）。解码器重建输入，奖励头和终止头从 (h, z) 预测。</p><p>右边是一个 32 类变量上的 KL 平衡。先验 p 和后验 q 共用一个 KL，但两部分梯度比例不同：α 给先验（学会预测），1−α 给后验（别太随意）。</p>' + LIVE + toyBox('右边两组 32 类的分布是我造的，用下面的损失在页面上跑 400 步梯度下降，每次改 α 都重跑。后验还受一个“重建拉力”把它拉向目标类别，这个拉力代替真实的解码器损失。不是网络输出。') + src('式 (1)、图 3、附录 D · 代码 nets.py kl_loss，configs.yaml wmkl_balance: 0.8') },
     { n: 6, part: '想象', dur: 11, cam: [0.7, 0.95, 40, [0, 3, 0]], title: '一个批次展开成 16K 个隐状态', sub: '每根柱子是一条想象轨迹，改 H 看总数',
       html: '<p>回放里取的 32 × 32 = 1024 个时间步，每个的后验状态都作为一条想象的起点。在隐空间用动态网络和策略向前走 H 步，全程不解码。论文说这相当于单 GPU 上批量 16K 的并行学习。</p><p>一根柱子是一条轨迹，每个小块是一个隐状态。块数是真实的，高度代表想象到第几步。</p>' + LIVE + src('第 2 节“typical batch sizes of 16K” · 代码 agent.py imagine、Agent.train') },
-    { n: 7, part: 'λ 回报', dur: 11, cam: [0, 0.98, 31, [1.5, 1.6, 0]], title: '式 (3)：从末端往回算，γ 的钟表含义', sub: '拖 λ、γ、H；换机器人看同一个 γ 看多远',
+    { n: 7, part: 'λ 回报', dur: 11, cam: [0, 0.98, 31, [1.5, 3.6, 0]], title: '式 (3)：从末端往回算，γ 的钟表含义', sub: '拖 λ、γ、H；换机器人看同一个 γ 看多远',
       html: '<p>式 (3) 从末端  v(s<sub>H</sub>) 开始往回递推，每一步混合“相信价值网络”和“相信后面的回报”。橙色是当场算出的 V<sup>λ</sup>。</p><p>γ 决定以步数计的有效视野 1/(1−γ)。同一个 γ，换算成时间后四台机器人差 40 倍，因为控制频率差 40 倍。附录 D 写 γ = 0.95，代码四个机器人配置都是 0.995，这里两个都能选。</p>' + LIVE + toyBox('r 和 v 是我写的两列数。递推公式是式 (3) 本身。') + src('式 (3)、附录 D · 代码 agent.py VFunction.target（gve），configs.yaml') },
     { n: 8, part: '策略梯度', dur: 11, cam: [0, 0.98, 30, [1, 2, 0]], title: '式 (4) 只写了 Reinforce，连续动作走的是重参数化', sub: '同一个玩具上当场比较两种估计器的方差',
       html: '<p>论文说连续动作（A1、Sphero）用重参数化，把回报的梯度穿过可微的动态网络；离散动作（UR5、XArm）用 Reinforce，因为采样离散动作不可导。式 (4) 只写了后一种形式。代码里 <code>backprop</code> 时损失就是 −score。</p><p>下面在一个一维问题上当场采样，两种估计器估同一个梯度。直方图的宽度就是方差。离散模式只有 Reinforce。</p>' + LIVE + toyBox('一维高斯策略 a ~ N(μ, σ²)，回报 R(a) = −(a−1.2)²，真实梯度可解析算出。样本是页面上的伪随机数。离散模式是 6 个动作的 softmax，回报是我设的。') + src('式 (4) · 代码 configs.yaml actor_grad_cont: backprop, actor_grad_disc: reinforce；agent.py ImagActorCritic.loss') },
@@ -48,7 +48,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
       html: '<p>四个任务共用一套算法，差别在观测、动作和奖励。选一台看。A1 的奖励是五项连乘门控之和：前一项不到 0.7，后一项就关掉。这解释了曲线为什么从 5 起步。</p>' + '<div id="robotInfo"></div>' + LIVE + guess('所有动作都是我写的关键帧，不是策略输出，也不是真机录像。A1 的上半身朝向和关节偏差也是按关键帧设的，奖励由这些设定值按公式算出。时间节点（5、25、60 分钟）来自第 3.1 节。') + src('第 3.1 到 3.4 节，式 (5) · 代码 motion_imitation/envs/env_wrappers/rma_task.py、robot_interface.py、sphero.py') },
     { n: 10, part: '结果', dur: 13, cam: [0, 1.1, 42, [0, 4.2, 0]], title: '真实钟表下的成绩', sub: '进度条是训练时间，柱高是图上读到的值',
       html: '<p>柱子的高度是图 4 到 7 的曲线在当前时刻的值，从 PDF 矢量路径读出，每组有自己的纵轴。人类那根是虚线的值，不随时间变。每个结果都只有一次运行：分数文件都是 seed 0，A1 的图注也说是单次运行。</p>' + LIVE + src('图 4、5、6、7 的矢量路径（pdftocairo -svg）；末值和文中数字的比较见精读页读者注') },
-    { n: 11, part: '适应', dur: 12, cam: [0, 1.02, 32, [0, 3, 0]], title: '环境变了，它继续学', sub: 'XArm 日出和 A1 被推，柱子来自公开分数文件',
+    { n: 11, part: '适应', dur: 12, cam: [0, 1.02, 34, [0, 3, 0]], title: '环境变了，它继续学', sub: 'XArm 日出和 A1 被推，柱子来自公开分数文件',
       html: '<p>学习不停，所以环境变了策略也会跟着变。论文报告了两次：A1 训练 1 小时后被杆子推，10 分钟内学会抗推或翻回来；XArm 被日出的强光打乱，表现掉下去，再恢复并超过原来。</p><p>XArm 的柱子可以切两种算法：按真实墙钟时间算的每分钟物体数，和图 A.1 的横纵轴。两者差很多，原因见<a href="../../papers/daydreamer.html#n11" target="_top">读者注 11</a>。</p>' + LIVE + guess('杆子和机器狗的动作是示意。柱子是真实数据。') + src('附录 A、第 3.1 节 · scores/xarm_adapt.csv（带墙钟时间）、scores/a1_dreamer.json') }
   ];
 
@@ -75,8 +75,10 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
   try { S = L.makeScene($('stage'), { fov: 38, theta: 0.3, phi: 1.0, dist: 30, maxDist: 160, minDist: 3 }); } catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 30, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   /* a label whose text can change: redraws only when the string differs */
@@ -337,7 +339,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
     const X = i => -11.5 + i * 25 / Math.max(H, 1), W = Math.min(0.42, 7 / Math.max(H, 1)), sc = 7 / Math.max(...Vs, ...vv, 1);
     const imR = inst(BOX, H + 1), imV = inst(BOX, H + 1), imL = inst(BOX, H + 1); G.add(imR, imV, imL);
     const cR = hex3(COL.rew), cV = hex3(COL.val), cL = hex3(COL.sto);
-    G.add(lab('黄 r', [14.6, 0.6, 0], { size: 19 }), lab('紫 v', [14.6, 1.9, 0], { size: 19 }), lab('橙 Vλ', [14.8, 3.2, 0], { size: 19 }));
+    G.add(lab('黄 r', [8.2, 9.5, 0], { size: 19 }), lab('紫 v', [10.0, 9.5, 0], { size: 19 }), lab('橙 Vλ', [12.0, 9.5, 0], { size: 19 }));
     const vt = dyn(G, [6, 8.2, 0], { size: 22 });
     return { ctl: [{ key: 'lam', label: 'λ', type: 'range', min: 0, max: 1, step: 0.01, fmt: x => x.toFixed(2) }, { key: 'gam', label: 'γ', items: [[0.95, '0.95 附录 D'], [0.995, '0.995 代码'], [0.998, '0.998 默认']] }, { key: 'H', label: 'H', type: 'range', min: 1, max: 30, step: 1, fmt: x => String(x) }, robotCtl], update(p) {
       const front = H - p * (H + 0.99);
@@ -414,7 +416,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
     if (rid === 0) {
       ctl.push({ key: 'form', label: '式 (5) 首项', items: [[1, '代码 (+1)/2'], [0, '论文 (−1)/2']] });
       const q = quad(G, [-3.5, 0, 0], 1.2);
-      const names = ['r_upr', 'r_hip', 'r_sho', 'r_kne', 'r_vel'], cols = [COL.det, COL.wm, COL.sto, COL.val, COL.rew], bars = names.map((n, i) => { const b = block(0.9, 1, 0.9, cols[i], [3.2 + i * 1.3, 0.5, 0]); G.add(b, lab(n, [3.2 + i * 1.3, -0.7, 0], { size: 18 })); return b; });
+      const names = ['r_upr', 'r_hip', 'r_sho', 'r_kne', 'r_vel'], cols = [COL.det, COL.wm, COL.sto, COL.val, COL.rew], bars = names.map((n, i) => { const b = block(0.9, 1, 0.9, cols[i], [3.2 + i * 1.3, 0.5, 0]); G.add(b, lab(n, [3.2 + i * 1.3, i % 2 ? -1.5 : -0.7, 0], { size: 18 })); return b; });
       wire(G, [[2.6, 0.7, 0.6], [6.9, 0.7, 0.6]], COL.grad, { dashed: 1, opacity: 0.95 });
       G.add(lab('门 0.7', [2.0, 1.0, 0.6], { size: 16 }));
       const tt = dyn(G, [5.8, 6.7, 0], { size: 21 });
@@ -491,7 +493,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
       G.add(lab(P.t, [x0 + 2.6, H + 1.7, 0], { size: 18 }));
       wire(G, [[x0 - 0.3, H, 0], [x0 + 5.9, H, 0]], COL.env, { opacity: 0.25 });
       G.add(lab(String(P.ymax), [x0 - 0.6, H, 0], { size: 15 }));
-      P.ser.forEach((s, j) => { const X = x0 + 0.8 + j * (w + 0.3); const b = block(w, 1, 1.4, s[2], [X, 0.5, 0]); G.add(b, lab(s[0], [X, j % 2 ? -2.1 : -1.0, 1.2], { size: 15 })); const tag = dyn(G, [X, 1, 0.9], { size: 16 }); bars.push({ b, P, s, H, tag, X }); });
+      P.ser.forEach((s, j) => { const X = x0 + 0.8 + j * (w + 0.3); const b = block(w, 1, 1.4, s[2], [X, 0.5, 0]); G.add(b, lab(s[0], [X, j % 2 ? -2.1 : -1.0, 1.2], { size: 15 })); const tag = dyn(G, [X, 1, 0.9], { size: 16 }); bars.push({ b, P, s, H, tag, X, j }); });
       if (P.human != null) { const X = x0 + 0.8 + P.ser.length * (w + 0.3); const b = block(w, P.human / P.ymax * H, 1.4, COL.human, [X, P.human / P.ymax * H / 2, 0]); G.add(b, lab('人类', [X, P.ser.length % 2 ? -2.1 : -1.0, 1.2], { size: 15 }), lab(P.human.toFixed(2), [X, P.human / P.ymax * H + 0.6, 0.9], { size: 16 })); }
      
     });
@@ -503,7 +505,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
         o.b.scale.y = h; o.b.position.y = h / 2; o.tag(v == null ? '–' : vv.toFixed(o.P.dd + (o.P.k === 'Sphero' ? 0 : 0)));
         rows.push({ k: o.P.k, s: o.s[0], v: v == null ? '–' : vv.toFixed(2), t });
       });
-      bars.forEach(o => { /* keep the value tag just above its bar */ const h = o.b.scale.y; G.children.forEach(c => { if (c.isSprite && Math.abs(c.position.x - o.X) < 1e-6 && Math.abs(c.position.z - 0.9) < 1e-6) c.position.y = h + 0.6; }); });
+      bars.forEach(o => { /* keep the value tag just above its bar */ const h = o.b.scale.y; G.children.forEach(c => { if (c.isSprite && Math.abs(c.position.x - o.X) < 1e-6 && Math.abs(c.position.z - 0.9) < 1e-6) c.position.y = h + 0.6 + (o.j % 2 ? 0.8 : 0); }); });
       cap(`进度 <b>${(p * 100).toFixed(0)}%</b>：A1 第 ${(p * 59.1).toFixed(0)} 分 · UR5 第 ${(p * 8).toFixed(1)} 时 · XArm 第 ${(p * 10).toFixed(1)} 时 · Sphero 第 ${(p * 130).toFixed(0)} 分`);
       live(`<table class="mini"><thead><tr><th></th><th></th><th class="n">值</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.k}</td><td>${r.s}</td><td class="n">${r.v}</td></tr>`).join('')}</tbody></table><p class="src">Sphero 的值越低越好。曲线噪声大，单点不要过度解读。</p>`);
     } };
@@ -535,7 +537,7 @@ const DATA = {"a1_or":[[1.51,5.176],[3.03,5.035],[4.54,5.035],[6.06,5.034],[7.58
     const fig = ST.axis === 1, d = fig ? DATA.adapt_plot : DATA.adapt_wall, n = d.length, tmax = fig ? 18.2 : 16.5, X = t => -14 + t * 28 / tmax, ymax = fig ? 10 : 3, sc = 8 / ymax, marks = fig ? [[9.69, '日出（图上 9.69）'], [14.89, '恢复（图上 14.89）']] : [[8.46, '日出（墙钟 8.46 h）'], [12.63, '恢复（墙钟 12.63 h）']];
     const im = inst(BOX, n); G.add(im); const c = hex3(COL.pi), c2 = hex3(COL.sto), c3 = hex3(COL.wm);
     marks.forEach(([t, s], i) => { wire(G, [[X(t), 0, 0.6], [X(t), 8.6, 0.6]], i ? COL.wm : COL.sto, { dashed: 1, opacity: 0.95 }); G.add(lab(s, [X(t) + (i ? 2.4 : -2.4), 9.4, 0.6], { size: 18 })); });
-    G.add(lab(fig ? '每回合物体数 × 0.65（我的换算，接近图 A.1 的纵轴）' : '每分钟放好的物体数（物体数 ÷ 墙钟分钟）', [0, 11, 0], { size: 20 }), lab(`${ymax}`, [-15, 8, 0], { size: 16 }), lab('小时', [14.8, -1, 0], { size: 16 }));
+    G.add(lab(fig ? '每回合物体数 × 0.65（我的换算，接近图 A.1 的纵轴）' : '每分钟放好的物体数（物体数 ÷ 墙钟分钟）', [0, 11, 0], { size: 20 }), lab(`${ymax}`, [-14.9, 8, 0], { size: 16 }), lab('小时', [14.8, -1, 0], { size: 16 }));
     wire(G, [[-14, 8, 0], [14, 8, 0]], COL.env, { opacity: 0.25 });
     [0, 4, 8, 12, 16].forEach(t => G.add(lab(String(t), [X(t), -1, 0.6], { size: 15 })));
     const w = 28 / tmax * (d[1][0] - d[0][0]) * 0.86;

@@ -19,7 +19,7 @@
   const src = t => `<p class="src">出处：${t}</p>`;
 
   const SCENES = [
-    { n: 1, part: '总览', title: '四个面板，三段训练', sub: '图 2 的 3D 版：跟踪器 → 蒸馏 → 高层策略 → 上真机', dur: 14, cam: [0.1, 1.05, 31, [0, 2.4, 0]],
+    { n: 1, part: '总览', title: '四个面板，三段训练', sub: '图 2 的 3D 版：跟踪器 → 蒸馏 → 高层策略 → 上真机', dur: 14, cam: [0.1, 1.05, 33, [0, 2.4, 0]],
       html: dl([['(a)', '跟踪器 π_tracker，PPO，模仿 5 小时片段'], ['(b)', '在线蒸馏（DAgger）到 ℰ / 𝒫 / 𝒟'], ['(c)', '高层 π_planner，PPO，任务奖励'], ['(d)', '动力学随机化 + 观测噪声'], ['频率', '策略 50 Hz；仿真 2000 Hz']]) +
         '<p>三段依次训练：(a) 的跟踪器当 (b) 的老师；(b) 学出的先验和解码器在 (c) 里冻结，只训练高层。这和 SuperMimic 表 1 里 LATENT 那一行（PPO / DAgger / PPO，三格不合并）一致。</p>' +
         '<p>(c) 的高层有两路输出：一路是潜动作，经过潜动作屏障（LAB）和先验后进解码器；一路直接控右手腕。表 1 的“下游 PPO”看不出第二路。</p>' +
@@ -54,7 +54,7 @@
         '<p>表 1 一共 26 项奖励，但只有名字和权重，没有公式。</p>' +
         toyb('发球点、落点按图 3 的范围用固定种子抽，初速度按无阻力抛体反解。飞行按重力加 f = −k m v‖v‖ 积分（步长 1 ms），反弹恢复系数 0.75，不模拟切向阻尼和旋转。切换 k 可以看阻力让球落短多少。小人的移动和挥拍是示意。') +
         src('§3.3.1 · 表 1 · 表 2 · 图 3') },
-    { n: 7, part: '§3.3.2 修正', title: '高层直接控右手腕', sub: '拍面偏几度，球落偏多少', dur: 13, cam: [0.3, 1.0, 16, [-0.5, 0.6, 0]],
+    { n: 7, part: '§3.3.2 修正', title: '高层直接控右手腕', sub: '拍面偏几度，球落偏多少', dur: 13, cam: [0.3, 1.0, 21, [-0.3, 0.8, 0.6]],
       html: dl([['高层输出', 'a_planner = [a_latent, a_correct]'], ['a_correct', '右手腕 roll / pitch / yaw 的直接指令'], ['正则', '修正动作 −5.0，修正变化率 −1.0，手腕力矩 −4·10⁻⁵'], ['表 4 去掉后', '正手 96.52 → 82.36%，DE 1.32 → 3.41 m']]) +
         '<p>网球的落点对拍面角度极敏感，而人体数据里这部分恰恰最不准。所以手腕不走潜空间，由高层直接给目标（做法同 Vid2Player3D 的混合控制）。潜空间在第 3 幕已经被训练成对手腕的任意动作鲁棒，所以这里怎样拧手腕都不会让下肢失衡。</p>' +
         toyb('只用拍面法向决定回球方向：拍面偏 δ，回球方向偏约 δ，飞 8 m 后横向偏 8·tan δ。忽略拍速、旋转和来球角度，是最粗的近似，只为看出量级。红圈是 2.5 m 的成功半径。') +
@@ -108,8 +108,10 @@
   if (!S) { showInfo(0); return; }
   const root = new THREE.Group(); S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   /* a label whose text can change; returns set(text) */
@@ -272,7 +274,7 @@
     G.add(trk, enc, pri, dec, hl, labB, dec2);
     [[trk, 2], [enc, 3], [pri, 4], [dec, 3], [hl, 5], [labB, 7], [dec2, 7]].forEach(([m, g]) => { m.userData.go = g; PICKS.push(m); });
     G.add(lab('π_tracker', [-10.5, 1.95, 0.9], { size: 19 }), lab('ℰ', [-4.6, 1.8, 0.9], { size: 19 }), lab('𝒫', [-2.6, 1.8, -0.9], { size: 19 }), lab('𝒟', [-4.0, 1.8, -0.9], { size: 19 }));
-    G.add(lab('π_planner（可学）', [2.6, 1.95, 0.9], { size: 18 }), lab('LAB', [4.6, 1.95, -0.6], { size: 18 }), lab('𝒫 + 𝒟 冻结', [3.0, 1.8, -1.9], { size: 17 }));
+    G.add(lab('π_planner（可学）', [2.2, 1.95, 1.5], { size: 18 }), lab('LAB', [5.0, 2.05, -0.6], { size: 18 }), lab('𝒫 + 𝒟 冻结', [3.0, 1.8, -1.9], { size: 17 }));
     const rob = robot(COL.robot); G.add(rob); const ball = new THREE.Mesh(BALL, L.mat(COL.ball, { emissive: 0x444400 })); ball.scale.setScalar(0.09); G.add(ball);
     const dr = ['质量', '摩擦', '质心', '阻力', '恢复', '噪声'].map((t, i) => { const b = block(0.9, 0.5, 0.9, COL.real, [8.9 + (i % 3) * 1.6, 0.6, -1.0 + Math.floor(i / 3) * 1.6], { opacity: 0.8 }); b.userData.go = i < 5 ? 8 : 8; PICKS.push(b); G.add(b, lab(t, [8.9 + (i % 3) * 1.6, 1.25, -1.0 + Math.floor(i / 3) * 1.6], { size: 15 })); return b; });
     const f = { a: stream(G, 6, COL.track), b: stream(G, 6, COL.distil), c: stream(G, 6, COL.high), d: stream(G, 5, COL.real) };
@@ -490,9 +492,9 @@
     const sub = new THREE.Group(); G.add(sub);
     const T5 = { 'w/o DR': [[16.67, '1/6'], [25.0, '2/8'], [28.57, '2/7'], [14.29, '1/7']], 'w/o ON': [[50.0, '5/10'], [0, '0/5'], [28.57, '2/7'], [37.5, '3/8']], 'Ours': [[90.9, '10/11'], [77.78, '7/9'], [88.89, '8/9'], [81.82, '9/11']] };
     const KEYS = Object.keys(T5), NM = ['正手', '反手', '前场', '后场'];
-    const BX = i => -5.7 + i * 3.8; const bars = NM.map((nm, i) => { const b = block(1.4, 1, 0.6, COL.real, [BX(i), 0.5, -10.5]); sub.add(b); return b; });
+    const BX = i => -6.6 + i * 4.4; const bars = NM.map((nm, i) => { const b = block(1.4, 1, 0.6, COL.real, [BX(i), 0.5, -10.5]); sub.add(b); return b; });
     const vals = NM.map((nm, i) => dynLab(sub, [BX(i), -0.6, -9.4], { size: 23 }));
-    const ttl = dynLab(sub, [-10.5, 2.5, -10.5], { size: 28, border: 'rgba(255,122,89,.7)' });
+    const ttl = dynLab(sub, [11.4, 3.4, -10.5], { size: 28, border: 'rgba(255,122,89,.7)' });
     const ctls = [{ label: '表 5', items: KEYS, get: () => row, set: k => { row = k; } }];
     return { ctls, update(p) {
       const t = p * 14, u = (t % 2.0) / 2.0, R = T5[KEYS[row]];

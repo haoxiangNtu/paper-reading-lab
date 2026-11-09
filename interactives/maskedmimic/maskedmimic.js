@@ -19,24 +19,24 @@
   const src = t => `<p class="src">出处：${t}</p>`;
 
   const SCENES = [
-    { n: 1, part: '总览', title: '两段训练，一段推理', sub: '图 3 的 3D 版。点方块跳到对应那一幕', dur: 15, cam: [0.1, 1.12, 38, [0.6, 4.0, 0]],
+    { n: 1, part: '总览', title: '两段训练，一段推理', sub: '图 3 的 3D 版。点方块跳到对应那一幕', dur: 15, cam: [0.1, 1.12, 40, [0, 4.0, 0]],
       html: dl([['第 1 段', '全身跟踪器 π^FC：看完整的未来目标姿态，强化学习训练（附录 B.1 写 A2C）'], ['第 2 段', 'MaskedMimic π^PC：看被遮挡的目标，学生自己跑，π^FC 给每一步标动作（DAgger）'], ['推理', '编码器丢掉，只用先验 ρ 和解码器 D；用户给部分约束'], ['潜码', 'z ∈ ℝ⁶⁴，30 Hz'], ['动作', '69 维 PD 目标（指数映射）']]) +
         '<p>论文把物理角色控制看成“动作补全”（inpainting）：只给一部分约束，比如头的位置、一句话、一把椅子，让模型补出整个身体怎么动。做法是先训一个什么都看得见的跟踪器，再把它蒸馏到一个只看得见部分信息的学生里。</p>' +
         '<p>学生是条件 VAE：编码器看完整目标，先验只看遮挡后的目标，两者在潜空间里对齐（第 7 幕）。训完后不再训练任何任务，靠“目标工程”（goal-engineering）——用一个小状态机在不同时刻喂不同的约束——完成新任务（第 10 幕）。</p>' +
         src('§4 · 图 3 · §6.2') },
-    { n: 2, part: '§5.1 · 附录 A', title: '跟踪器看什么、输出什么', sub: '本体 358 维、未来目标姿态、16×16 高度图、69 维动作', dur: 13, cam: [0.55, 1.08, 20, [1.6, 2.0, 0]],
+    { n: 2, part: '§5.1 · 附录 A', title: '跟踪器看什么、输出什么', sub: '本体 358 维、未来目标姿态、16×16 高度图、69 维动作', dur: 13, cam: [0.55, 1.08, 22, [3.0, 2.4, 0]],
       html: dl([['本体 s_t', '358 维：根高、根旋转、各关节局部旋转（切向和法向两个 3D 向量）和速度、手脚位置（附录 A）'], ['目标', '式 (4)：每个关节相对当前关节、相对根的旋转差和位置差，再加到达时间 τ'], ['高度图', '16×16 个点，间距 10 cm，随角色朝向旋转'], ['动作', 'PD 目标，球关节用 3D 指数映射，共 69 维'], ['方差', '固定对角，σ = exp(−2.9) ≈ 0.055']]) +
         '<p>论文说 π^FC 看“接下来 K 个目标姿态”，但没有给 FC 的 K；附录 B.2 的 K = 11 是 MaskedMimic 的。V1 代码里 FC 看 15 个未来帧（每关节 18 个数加 1 个时间），MaskedMimic 看 10 个近期帧加 1 个远期帧。</p>' +
         '<p>代码的仿真是 60 fps × 2 子步 = 120 Hz，控制隔 2 帧一次 = 30 Hz，和 §7 一致。</p>' +
         guess('右边的鬼影小人是手写的动作，只为看出“未来几帧”。高度图的地形是正弦起伏，不是论文的地形生成器。') +
         src('§5.1 式 (3)(4) · 附录 A · V1 opt/mimic/transformer/target_pose_with_time_obs.yaml · terrain/flat.yaml · env/humanoid.yaml') },
-    { n: 3, part: '§5.3 · 附录 B.1', title: '跟踪奖励：五项加一个能耗', sub: '切换误差大小，当场算每一项', dur: 12, cam: [0.15, 1.18, 22, [1.5, 3.2, 0]],
+    { n: 3, part: '§5.3 · 附录 B.1', title: '跟踪奖励：五项加一个能耗', sub: '切换误差大小，当场算每一项', dur: 12, cam: [0.15, 1.18, 25, [2.6, 3.7, 0]],
       html: dl([['式 (5)', 'r = w_gp r^gp + w_gr r^gr + w_rh r^rh + w_jv r^jv + w_jav r^jav + w_eg r^eg'], ['权重 (10)', 'gr 0.3，gt 0.5，jv 0.1，jav 0.1，rh 0.2，能耗 0.0005'], ['系数 (11)', 'gr 2，gt 100，jv 0.5，jav 0.1，rh 100'], ['代码', 'V1 global_tracking.yaml 的权重和系数与 (10)(11) 完全一致']]) +
         '<p>论文正文只列了各项的名字，具体形式放在“补充材料”里，附录只给了系数。V1 代码的形式是 w·exp(−c·误差)：位置、速度项是平方误差先对 xyz 平均再对关节平均；全局旋转项是四元数角度差（不平方）的关节平均；根高是平方差；能耗是 −Σ|τ·q̇|，再乘 0.0005。</p>' +
         '<p>五项满分加起来是 0.3 + 0.5 + 0.1 + 0.1 + 0.2 = 1.2。式 (5) 写 gp，式 (10)(11) 写 gt，指同一项（全局位置）。</p>' +
         toyb('误差的组合是我设的：每个关节沿一个轴偏 e，根高也偏 e，旋转偏 3e 弧度/米，速度误差 10e/秒。每一项按 V1 代码的公式当场算。') +
         src('§5.3 式 (5) · 附录 B.1 式 (10)(11) · V1 envs/mimic/mimic_utils.py exp_tracking_reward · opt/mimic/global_tracking.yaml') },
-    { n: 4, part: '§5.4–5.5', title: '训练场、早停、按失败率采样', sub: '平地 0.25 m、起伏地形 0.5 m；失败越多越常被抽到', dur: 15, cam: [0.3, 1.05, 46, [5.6, 2.6, 0]],
+    { n: 4, part: '§5.4–5.5', title: '训练场、早停、按失败率采样', sub: '平地 0.25 m、起伏地形 0.5 m；失败越多越常被抽到', dur: 15, cam: [0.08, 1.12, 48, [6.4, 3.0, 0]],
       html: dl([['三块区域', '平地（还原原始动作）、起伏地形（台阶、碎石、坡）、物体区（椅子、桌子、沙发）'], ['早停', '平地任一关节偏 > 0.25 m；起伏地形 > 0.5 m'], ['优先采样', '概率 ∝ 该动作的失败概率，下限 3×10⁻³；只统计平地上的失败'], ['代码', 'early_termination_tracking_err.yaml：0.5 / 0.25，取最大关节误差']]) +
         '<p>不涉及物体的动作可以在平地或起伏地形的任意位置出生；涉及物体的只在物体区出生。地形上的动作仍然来自平地动捕，所以在台阶上做后空翻本来就可能做不到——这就是为什么优先采样只统计平地上的失败。</p>' +
         '<p>V1 代码的优先采样按“早停桶”统计，最小权重取 max(1/桶数, min_bucket_weight)，默认 min_bucket_weight = 0，和论文写的 3×10⁻³ 不是同一个参数。我没有找到 3×10⁻³。</p>' +
@@ -61,7 +61,7 @@
         '<p>回合内固定噪声：ε 在一个回合开始时抽一次，整个回合不变（附录 B 式 (9)）。</p>' +
         toyb('只画 64 维中的两维。μ_ρ、σ_ρ、μ_E、σ_E 的轨迹是我设的；KL 按上式当场算，只算这两维。') +
         src('§6.2 式 (6)(7)(8) · 附录 B 式 (9) · 表 6 · V1 agents/models/actor.py:147-265') },
-    { n: 8, part: '§6.4–6.5 · 附录 B', title: '先验是一个 Transformer：一种输入一种 token', sub: '切换任务，看哪些 token 被遮掉', dur: 13, cam: [0, 1.15, 28, [0.5, 3.2, 0]],
+    { n: 8, part: '§6.4–6.5 · 附录 B', title: '先验是一个 Transformer：一种输入一种 token', sub: '切换任务，看哪些 token 被遮掉', dur: 13, cam: [0, 1.15, 29, [0.5, 4.4, 0]],
       html: dl([['token', '当前姿态 1、高度图 1、历史姿态 5、文本 1、物体 1、目标姿态 11'], ['编码器', '每种输入一个 MLP [256, 256]，同种输入共享'], ['Transformer', '宽 512，前馈 1024，4 层，4 头，无 dropout'], ['输出', '取第一个输出 → 两个头 256 → 128 → 64，得 μ 和 log σ'], ['被遮的 token', '用注意力掩码排除，不参与']]) +
         '<p>关键帧 token：每个约束 12 维（相对当前坐标系 6 维、相对对应身体部位 6 维；位置从 3 维补零到 6 维，旋转本来就是 6 维），再拼上遮挡标记和到达时间。物体：包围盒 8 个角各 3 维、朝向 6 维、类别 1 维；文本：XCLIP 512 维。</p>' +
         '<p>V1 代码的数字：历史存 120 帧、取 15 个（论文写存 40 帧、取 5 个，都是每 8 帧取 1 个）；物体 37 维 = 24 + 6 + 7 维类别独热（论文写 1 维索引）；目标姿态 token 184 维 = 7 × 24 + 7 × 2 + 2（6 个关节外加 1 个条目，代码注释说放速度和朝向）。</p>' +
@@ -108,8 +108,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: Math.round((o.size || 24) * 1.2), pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ((o.size || 24) * 1.2, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -244,8 +246,8 @@
     const mk = block(1.1, 1.1, 1.1, COL.mask, [-3.8, 2.2, 0]); mk.rotation.z = Math.PI / 4; G.add(mk, lab('遮挡 M', [-3.8, 0.9, 1.2], { size: 16 }));
     const enc = block(1.6, 1.6, 1.3, COL.enc, [-0.6, 4.6, 0]), pri = block(1.6, 1.6, 1.3, COL.prior, [-0.6, 1.8, 0]), dec = block(1.6, 1.8, 1.3, COL.dec, [3.6, 3.2, 0]);
     const zb = L.sphere(0.4, COL.gold, { emissive: 0x332200 }); zb.position.set(1.6, 3.2, 0); G.add(enc, pri, dec, zb);
-    G.add(lab('编码器 E', [-0.6, 5.85, 0], { size: 16 }), lab('先验 ρ', [-0.6, 0.6, 0.9], { size: 16 }), lab('解码器 D', [3.6, 4.55, 0], { size: 16 }), lab('z ∈ ℝ⁶⁴', [1.6, 3.95, 0], { size: 15 }), lab('标注 a^FC', [1.6, 7.0, 0], { size: 15 }));
-    const user = block(2.2, 1.2, 1.4, COL.text, [9.4, 3.2, 0]); G.add(user, lab('用户约束\n头的路径 / 一句话 / 椅子', [9.4, 5.0, 0], { size: 15 }));
+    G.add(lab('编码器 E', [-0.6, 5.85, 0], { size: 16 }), lab('先验 ρ', [-0.6, 0.6, 0.9], { size: 16 }), lab('解码器 D', [3.6, 4.55, 0], { size: 16 }), lab('z ∈ ℝ⁶⁴', [1.6, 2.2, 0.9], { size: 15 }), lab('标注 a^FC', [1.6, 7.0, 0], { size: 15 }));
+    const user = block(2.2, 1.2, 1.4, COL.text, [9.4, 3.2, 0]); G.add(user, lab('用户约束\n头的路径 /\n一句话 / 椅子', [9.2, 5.4, 0], { size: 15 }));
     const pri2 = block(1.6, 1.6, 1.3, COL.prior, [12.4, 3.2, 0]), dec2 = block(1.6, 1.8, 1.3, COL.dec, [15.0, 3.2, 0]);
     G.add(pri2, dec2, lab('ρ', [12.4, 4.4, 0], { size: 17 }), lab('D', [15.0, 4.5, 0], { size: 17 }), lab('z = μ_ρ', [13.7, 2.0, 0.9], { size: 15 }));
     const r1 = robot(COL.robot); G.add(r1); const r2 = robot(COL.mask); G.add(r2); const r3 = robot(COL.prior); G.add(r3);
@@ -289,9 +291,9 @@
     const terms = e => ({ gt: Math.exp(-C.gt * e * e / 3), gr: Math.exp(-C.gr * 3 * e), rh: Math.exp(-C.rh * e * e), gv: Math.exp(-C.gv * (10 * e) ** 2 / 3), gav: Math.exp(-C.gav * (10 * e) ** 2 / 3) });
     const rob = robot(COL.robot), ref = robot(COL.ref, { opacity: 0.35 }); G.add(rob, ref);
     const names = [['gt', '全局位置 gt'], ['gr', '全局旋转 gr'], ['rh', '根高 rh'], ['gv', '线速度 jv'], ['gav', '角速度 jav']];
-    const bars = names.map(([key, nm], i) => { const b = bar(G, 3.0 + i * 1.6, 0, 1.0, [COL.pos, COL.rot, COL.gold, COL.prior, COL.text][i]); const v = liveLab(G, [3.0 + i * 1.6, W[key] * 6 + 0.6, 0], { size: 15 }); G.add(lab(`${nm}\nw = ${W[key]}`, [3.0 + i * 1.6, -0.9, 1.2], { size: 14 })); const cap0 = block(1.04, 0.04, 1.04, COL.white, [3.0 + i * 1.6, W[key] * 6, 0], { opacity: 0.5, edges: false }); G.add(cap0); return { key, b, v }; });
-    const tot = liveLab(G, [6.2, 8.0, 0], { size: 20, border: 'rgba(56,209,255,.7)' });
-    G.add(lab('白线：每项满分 w；柱高：w·exp(−c·误差)', [6.2, 7.0, 0], { size: 15 }));
+    const bars = names.map(([key, nm], i) => { const b = bar(G, 3.0 + i * 2.2, 0, 1.0, [COL.pos, COL.rot, COL.gold, COL.prior, COL.text][i]); const v = liveLab(G, [3.0 + i * 2.2, W[key] * 6 + 0.6, 0], { size: 15 }); G.add(lab(`${nm}\nw = ${W[key]}`, [3.0 + i * 2.2, i % 2 ? -2.2 : -0.9, 1.2], { size: 14 })); const cap0 = block(1.04, 0.04, 1.04, COL.white, [3.0 + i * 2.2, W[key] * 6, 0], { opacity: 0.5, edges: false }); G.add(cap0); return { key, b, v }; });
+    const tot = liveLab(G, [7.4, 8.0, 0], { size: 20, border: 'rgba(56,209,255,.7)' });
+    G.add(lab('白线：每项满分 w；柱高：w·exp(−c·误差)', [7.4, 7.0, 0], { size: 15 }));
     const ctls = [{ label: '误差 e', items: E.map(e => `${e * 100} cm`), get: () => k, set: j => { k = j; } }];
     return { ctls, update(p) {
       const e = E[k] * seg(p, 0.05, 0.5), q = clip('walk', p * 8); pose(ref, q, [-3, 0, 0], 2.4, Math.PI / 2); pose(rob, drift(q, e * 0.6), [-3 + e * 2.4, 0, 0], 2.4, Math.PI / 2);
@@ -308,10 +310,10 @@
     for (let i = 0; i < 5; i++) G.add(block(1.2, 0.25 * (i + 1), 3, COL.terr, [-5.4 + i * 1.2, 0.125 * (i + 1), -1.2], { opacity: 0.8 }));
     const chair = new THREE.Group(); chair.add(block(1.2, 0.5, 1.2, COL.obj, [0, 0.25, 0]), block(1.2, 1.2, 0.2, COL.obj, [0, 0.85, -0.5])); chair.position.set(6.0, 0, 0.6); G.add(chair);
     const rob = robot(COL.robot); G.add(rob); const rg = ring(G, COL.bad, 0.9); rg.rotation.x = -Math.PI / 2;
-    const thr = liveLab(G, [-3, 5.4, -2.6], { size: 17, border: 'rgba(224,93,93,.7)' });
+    const thr = liveLab(G, [-3, 4.7, -2.6], { size: 17, border: 'rgba(224,93,93,.7)' });
     const FAIL = [0, 0.0005, 0.004, 0.02, 0.08, 0.2, 0.45, 0.9], w = FAIL.map(f => Math.max(f, 3e-3)), Z = w.reduce((a, b) => a + b, 0), share = w.map(x => x / Z);
-    G.add(lab('8 个动作的抽样份额（玩具）', [13.0, 7.4, 0], { size: 17, border: 'rgba(240,150,60,.7)' }));
-    const bs = FAIL.map((f, i) => { const b = bar(G, 9.2 + i * 1.1, 0, 0.8, i > 5 ? COL.bad : COL.ppo); G.add(lab(`f=${f}`, [9.2 + i * 1.1, -0.6, 1.0], { size: 12 })); const v = lab(`${(share[i] * 100).toFixed(1)}%`, [9.2 + i * 1.1, 0, 0], { size: 13 }); G.add(v); return { b, v, s: share[i] }; });
+    G.add(lab('8 个动作的抽样份额（玩具）', [17.0, 9.8, 0], { size: 17, border: 'rgba(240,150,60,.7)' }), lab('失败率 f', [7.4, -1.1, 1.0], { size: 13 }));
+    const bs = FAIL.map((f, i) => { const b = bar(G, 10.0 + i * 2.4, 0, 1.3, i > 5 ? COL.bad : COL.ppo); G.add(lab(String(f), [10.0 + i * 2.4, i % 2 ? -1.6 : -0.6, 1.0], { size: 12 })); const v = lab(`${(share[i] * 100).toFixed(1)}%`, [10.0 + i * 2.4, 0, 0], { size: 13 }); G.add(v); return { b, v, s: share[i], i }; }); /* f values and shares alternate rows so neighbours don't collide */
     return { update(p) {
       const x = -13.5 + 22 * p, t = p * 16, reg = x < -7 ? 0 : x < 1 ? 1 : 2;
       let q, y = 0; if (reg === 2 && x > 5.4) { const u = seg(x, 5.4, 7); q = qmix(clip('walk', t), { p: [0, 0.42, 0], pitch: 0, hL: 1.5, hR: 1.5, kL: 1.5, kR: 1.5, sL: 0.2, sR: 0.2, eL: 0.4, eR: 0.4 }, u); } else q = clip('walk', t);
@@ -319,7 +321,7 @@
       const xx = Math.min(x, 6.0); pose(rob, q, [xx, y, 0.6], 2.4, Math.PI / 2);
       const r = reg === 1 ? 0.5 : 0.25; rg.scale.setScalar(r * 2.4 * 2); rg.position.set(xx, 0.03, 0.6);
       thr(reg === 1 ? '早停阈值 0.5 m' : '早停阈值 0.25 m');
-      const g = seg(p, 0.05, 0.4); bs.forEach(({ b, v, s }) => { const h = Math.max(0.02, s * 14 * g); b.userData.set(h); v.position.y = h + 0.4; });
+      const g = seg(p, 0.05, 0.4); bs.forEach(({ b, v, s, i }) => { const h = Math.max(0.02, s * 14 * g); b.userData.set(h); v.position.y = h + 0.5 + (i % 2) * 0.9; });
       cap(reg === 0 ? '平地：任一关节偏离 > <b>0.25 m</b> 就结束回合；失败率只在这里统计' : reg === 1 ? '起伏地形：放宽到 <b>0.5 m</b>，允许改动原动作去适应台阶和坡' : '物体区：只有带物体交互的动作在这里出生');
     } };
   }
@@ -431,7 +433,7 @@
     const kl = liveLab(G, [CX, CY - 4.2, 0], { size: 18, border: 'rgba(242,193,78,.8)' });
     G.add(lab('绿：先验 ρ（1σ、2σ）  黄：编码器 E（1σ）  金：采到的 z', [CX, CY - 5.1, 0], { size: 15 }));
     const B = [['完整', 96.9, COL.prior], ['无残差先验', 21.1, COL.bad], ['无 VAE', 93.2, COL.enc], ['无历史', 94.9, COL.text], ['无结构化遮挡', 0, COL.mask]];
-    B.forEach(([n, v, c], i) => { const b = bar(G, 5.0 + i * 1.6, 0, 1.0, c); b.userData.set(Math.max(0.03, v / 100 * 6)); G.add(lab(n, [5.0 + i * 1.6, -0.6, 1.0], { size: 13 }), lab(`${v}%`, [5.0 + i * 1.6, v / 100 * 6 + 0.45, 0], { size: 14 })); });
+    B.forEach(([n, v, c], i) => { const b = bar(G, 5.0 + i * 1.6, 0, 1.0, c); b.userData.set(Math.max(0.03, v / 100 * 6)); G.add(lab(n, [5.0 + i * 1.6, i % 2 ? -1.4 : -0.6, 1.0], { size: 13 }), lab(`${v}%`, [5.0 + i * 1.6, v / 100 * 6 + 0.45, 0], { size: 14 })); });
     G.add(lab('表 6 · 坐椅子成功率', [8.2, 7.2, 0], { size: 17, border: 'rgba(56,209,255,.7)' }));
     const rE = rng(4), E1 = L.gauss(rE), E2 = L.gauss(rE), steps = Array.from({ length: 160 }, () => [L.gauss(rE), L.gauss(rE)]);
     const ctls = [{ label: '编码器', items: ['残差 μ_ρ + μ_E', '独立 μ_E'], get: () => res, set: j => { res = j; } }, { label: '噪声 ε', items: ['回合内固定', '每步重抽'], get: () => epi, set: j => { epi = j; } }];
@@ -464,7 +466,7 @@
     function rebuild() {
       L.clear(sub); LABS = LABS.filter(s => s.parent !== sub); cubes = []; built = k + ':' + hv;
       const on = PRE[k].on; let x = -11.2;
-      groups.forEach(([key, nm, c, n0]) => { const n = key === 'hist' ? (hv ? 15 : 5) : n0, x0 = x; for (let i = 0; i < n; i++) { const active = key === 'tgt' ? i < on.tgt : !!on[key]; const m = block(0.5, 0.5, 0.5, active ? c : COL.hid, [x, 2.2, 0], { opacity: active ? 1 : 0.35 }); sub.add(m); cubes.push({ m, active, x }); x += 0.62; } sub.add(lab(`${nm}\n×${n}`, [(x0 + x - 0.62) / 2, 0.8, 0.6], { size: 13 })); x += 1.3; });
+      groups.forEach(([key, nm, c, n0], gi) => { const n = key === 'hist' ? (hv ? 15 : 5) : n0, x0 = x; for (let i = 0; i < n; i++) { const active = key === 'tgt' ? i < on.tgt : !!on[key]; const m = block(0.5, 0.5, 0.5, active ? c : COL.hid, [x, 2.2, 0], { opacity: active ? 1 : 0.35 }); sub.add(m); cubes.push({ m, active, x }); x += 0.62; } sub.add(lab(`${nm}\n×${n}`, [(x0 + x - 0.62) / 2, gi % 2 ? -0.5 : 0.8, 0.6], { size: 13 })); x += 1.3; });
     }
     const ctls = [{ label: '任务', items: PRE.map(p => p.n), get: () => k, set: j => { k = j; } }, { label: '历史', items: ['论文：5 个', 'V1 代码：15 个'], get: () => hv, set: j => { hv = j; } }];
     return { ctls, update(p) {

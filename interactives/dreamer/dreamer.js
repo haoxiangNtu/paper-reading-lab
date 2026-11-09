@@ -177,8 +177,10 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
   try { S = L.makeScene($('stage'), { fov: 38, theta: 0.3, phi: 1.0, dist: 30, maxDist: 160, minDist: 3 }); } catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 30, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 26, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 26, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -222,7 +224,7 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
     A.userData.go = 3; B.userData.go = 4; C.userData.go = 7; D.userData.go = 1; PICKS.push(A, B, C, D);
     const dA = arc([0, 2, -1], [-7, 2, -3.5], 2), Ab = arc([-6.8, 2.2, -3.5], [6.8, 2.2, -3.5], 3.6), bC = arc([8, 2, -1.5], [2, 2, 7], 1.2), Cd = arc([0, 2.2, 6.3], [0, 2.2, 2], 1.4);
     wire(G, dA, COL.data); wire(G, Ab, COL.wm); wire(G, bC, COL.pi); wire(G, Cd, COL.env);
-    G.add(lab('序列批 50 × 50', [-4.2, 4.6, -2.5], { size: 21 }), lab('冻结的模型 + 后验状态', [0, 6.6, -3.5], { size: 21 }), lab('动作模型', [6.6, 3.6, 3], { size: 21 }), lab('新回合', [2.6, 4.2, 5], { size: 21 }));
+    G.add(lab('序列批 50 × 50', [-4.6, 0.4, 1.4], { size: 21 }), lab('冻结的模型 + 后验状态', [0, 6.6, -3.5], { size: 21 }), lab('动作模型', [6.6, 3.6, 3], { size: 21 }), lab('新回合', [2.6, 4.2, 5], { size: 21 }));
     const f1 = stream(G, 5, COL.data), f2 = stream(G, 5, COL.wm), f3 = stream(G, 4, COL.pi), f4 = stream(G, 4, COL.env);
     return { update(p) {
       /* two rounds of: 100 updates (0..0.7) then one episode (0.7..1) */
@@ -298,7 +300,7 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
   /* ---------- scene 4: toy loss, computed ---------- */
   function s4(G) {
     const yS = 3, O = imgTile(4, [-9, yS, 0]), R = imgTile(4, [8.4, yS, 0]), rows = ST.obj;
-    G.add(O, R, lab('oₜ', [-9, yS + 2.7, 0], { size: 26 }), lab(rows === 0 ? 'ôₜ：解码器' : rows === 1 ? '解码器被状态模型 q(s|o) 替代' : '不解码', [8.4, yS + 2.7, 0], { size: 23 }));
+    G.add(O, R, lab('oₜ', [-9, yS - 2.7, 0], { size: 26 }), lab(rows === 0 ? 'ôₜ：解码器' : rows === 1 ? '解码器被状态模型 q(s|o) 替代' : '不解码', [8.4, yS + 2.7, 0], { size: 23 }));
     const E = block(2.1, 1.3, 1.5, COL.enc, [-4.8, yS, 0]), St = block(2, 2, 2, COL.det, [0, yS, 0]), Dc = block(2.1, 1.3, 1.5, COL.sto, [4.4, yS, 0]), Rw = block(1.5, 1, 1.2, COL.rew, [4.4, yS - 2.3, 0]);
     G.add(E, St, Dc, Rw, lab('编码器', [-4.8, yS + 1.3, 0], { size: 22 }), lab('s, h', [0, yS + 1.6, 0], { size: 22 }), lab(rows === 0 ? '解码器' : rows === 1 ? '对比' : '关闭', [4.4, yS + 1.3, 0], { size: 22 }), lab('奖励头', [6.6, yS - 2.3, 0], { size: 22 }));
     wire(G, [[-7, yS, 0], [-5.9, yS, 0]], COL.enc); wire(G, [[-3.7, yS, 0], [-1, yS, 0]], COL.enc); wire(G, [[1, yS, 0], [3.3, yS, 0]], COL.sto, { opacity: rows === 2 ? 0.1 : 0.6 }); wire(G, [[5.5, yS, 0], [6.4, yS, 0]], COL.sto, { opacity: rows === 2 ? 0.1 : 0.6 }); wire(G, [[1, yS - 0.6, 0], [3.6, yS - 2.3, 0]], COL.rew);
@@ -431,7 +433,7 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
     const agent = L.sphere(0.34, COL.grad); agent.material.emissive.setHex(COL.grad); agent.material.emissiveIntensity = 0.5; G.add(agent);
     const lT = wire(G, [[XW(-4), 0, zT + 1.3], [XW(6), 0, zT + 1.3]], COL.env);
     [-4, -2, 0, 2, 3.5, 6].forEach(x => G.add(lab(`x=${x}`, [XW(x), -0.7, zT + 2.1], { size: 20 })));
-    G.add(lab('奖励：真实深，学到浅', [XW(-4) - 3.2, 0.5, zT - 0.5], { size: 20 }), lab('价值 v(x)', [XW(-4) - 2.2, 0.5, zV], { size: 20 }), lab('动作：青右，橙左', [XW(-4) - 2.8, 0.5, zP], { size: 20 }), lab('每轮真实回报', [XW(-4) - 1.0, 0.5, zRet], { size: 20 }));
+    G.add(lab('奖励：真实深，学到浅', [XW(-4) - 3.2, 0.5, zT - 0.5], { size: 20 }), lab('价值 v(x)', [XW(-4) - 2.2, 0.5, zV], { size: 20 }), lab('动作：青右，橙左', [XW(-4) - 2.8, 0.5, zP], { size: 20 }), lab('每轮真实回报', [11.8, 0.5, zRet], { size: 20 }));
     const chips = ['拟合世界模型', '想象 + 学行为', '收集一回合'].map((t, i) => { const m = block(5.2, 0.5, 1.3, [COL.wm, COL.pi, COL.env][i], [-6.5 + i * 6.5, 0.25, 11.2]); G.add(m, lab(t, [-6.5 + i * 6.5, 1.0, 11.2], { size: 22 })); return m; });
     const rv = hist.flatMap(h => h.w.length ? gx.map(x => Math.abs(Toy.dot(h.w, Toy.phi(x)))) : [0]), vmax = Math.max(1, ...rv);
     return { ctl: [{ key: 'H', label: 'H', type: 'range', lazy: 1, min: 1, max: 30, step: 1, fmt: x => String(x) }, { key: 'lam', label: 'λ', type: 'range', lazy: 1, min: 0, max: 1, step: 0.05, fmt: x => x.toFixed(2) }, { key: 'val', label: '价值模型', items: [[1, '有'], [0, '无']] }, { key: 'seed', label: '种子', items: [[1, '1'], [2, '2'], [3, '3'], [5, '5']] }], update(p) {
@@ -465,7 +467,7 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
     }
     const ser = [[4, 0x3987e5, 'Dreamer 5×10⁶ 步'], [3, 0xd95926, 'PlaNet 5×10⁶ 步'], [2, 0xc98500, 'D4PG 10⁸ 步'], [1, 0x8e9bb8, 'A3C 10⁸ 步，本体']], X = i => -14.6 + i * 1.5, sc = 0.0085;
     const bars = ser.map(() => inst(BOX, 20)); bars.forEach((im, j) => { im.material.color.setHex(ser[j][1]); G.add(im); });
-    TG.forEach((t, i) => { const s = L.label(t[0].replace(' ', '\n'), { scale: 0.0095 * refDist / 22, size: 19, pos: [X(i) + 0.45, i % 2 ? -2.1 : -0.8, 2.6] }); s.userData.s0 = s.scale.clone(); LABS.push(s); G.add(s); });
+    TG.forEach((t, i) => { const s = L.label(t[0].replace(' ', '\n'), { scale: 0.0095 * refDist / 22, size: LSZ(19, 0.0095), pos: [X(i) + 0.45, i % 2 ? -2.1 : -0.8, 2.6] }); s.userData.s0 = s.scale.clone(); LABS.push(s); G.add(s); });
     [0, 500, 1000].forEach(y => { wire(G, [[-15.4, y * sc, -2], [15.2, y * sc, -2]], COL.env, { opacity: 0.3 }); G.add(lab(String(y), [-16.4, y * sc, -2], { size: 20 })); });
     ser.forEach((s, j) => G.add(lab(s[2], [-6.4 + j * 5.8, 10.4, -2], { size: 20, border: '#' + s[1].toString(16).padStart(6, '0') })));
     return { ctl, update(p) { const a = seg(p, 0, 0.6); ser.forEach((s, j) => { TG.forEach((t, i) => { const y = t[s[0]], h = y == null ? 0.001 : Math.max(0.01, y * sc * a); setI(bars[j], i, y == null ? [0, -40, 0] : [X(i) + j * 0.3, h / 2, 0], [0.28, h, 0.9]); }); done(bars[j]); });
@@ -489,7 +491,7 @@ if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exp
     wire(Sm, [[-10.9, yB, 0], [-8.3, yB, 0]], COL.env); wire(Sm, [[-11.4, yB + 1.5, 0], [-8.3, yB + 0.4, 0]], COL.rew); wire(Sm, [[-5.7, yB + 0.4, 0], [-3.2, yB + 1.2, 0]], COL.pi);
     const nB = 6, lB = 32, dxB = 12 / 32, lineB = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: COL.wm, transparent: true, opacity: 0.9 })), pB = new Float32Array(nB * lB * 6); for (let i = 0; i < nB; i++) { const off = (i - 2.5) * 0.45; for (let t = 0; t < lB; t++) { const fy = q => yB + off + 0.5 * Math.sin(q * 0.28 + i); pB.set([0.2 + t * dxB, fy(t), 0, 0.2 + (t + 1) * dxB, fy(t + 1), 0], (i * lB + t) * 6); } }
     lineB.geometry.setAttribute('position', new THREE.BufferAttribute(pB, 3)); lineB.frustumCulled = false; Sm.add(lineB);
-    Sm.add(lab('SuperMimic', [-12, yB + 3.0, 0], { size: 26, border: 'rgba(56,209,255,.9)' }), lab('状态 ŝ', [-12, yB - 1.1, 0], { size: 21 }), lab('ξ', [-10.8, yB + 1.8, 0], { size: 21 }), lab('MLP f\n确定性', [-7, yB - 1.6, 0], { size: 21 }), lab('策略', [-2.4, yB + 2.4, 0], { size: 21 }), lab('32 步，确定性，每条一根线', [6.2, yB + 2.4, 0], { size: 21 }));
+    Sm.add(lab('SuperMimic', [-12, yB + 3.0, 0], { size: 26, border: 'rgba(56,209,255,.9)' }), lab('状态 ŝ', [-12, yB - 1.4, 0], { size: 21 }), lab('ξ', [-9.9, yB + 1.3, 0], { size: 21 }), lab('MLP f\n确定性', [-7, yB - 1.6, 0], { size: 21 }), lab('策略', [-2.4, yB + 2.4, 0], { size: 21 }), lab('32 步，确定性，每条一根线', [6.2, yB + 2.4, 0], { size: 21 }));
     return { ctl: [{ key: 'who', label: '看', items: [[2, '两个都看'], [0, 'Dreamer'], [1, 'SuperMimic']] }], update(p) {
       const g1 = seg(p, 0, 0.5); lineA.geometry.setDrawRange(0, Math.floor(g1 * lA) * 2 * nA); lineB.geometry.setDrawRange(0, Math.floor(g1 * lB) * 2 * nB);
       /* the fan is stored rollout by rollout; draw whole rollouts as they complete */

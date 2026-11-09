@@ -107,12 +107,12 @@
         '<p>特权信息 c 是真机上不一定测得到、但仿真里有的量，主要是接触。它只作为额外的预测目标，也用来算奖励。</p>' +
         '<p>代码里还有一个 1 维的“终止”头（基座触地），表 S3 没列，A.4.3 有文字说明。</p>' +
         guess('每根竖条代表一帧，色块高度正比于维度数。窗口实际沿所有轨迹随机采样，这里画成滑动。') + src('表 S2、S3、S4 · §3.2 · flat_env_cfg.py') },
-    { n: 3, part: '世界模型 · 内层自回归', title: 'GRU 读完 M 帧历史', sub: '切换 M，看图 S8 的真实误差', dur: 14, cam: [0.0, 1.2, 30, [1.4, 2.6, 0]], ctls: [{ label: '历史长度 M', items: ['1', '2', '8', '16', '32'], def: 4 }],
+    { n: 3, part: '世界模型 · 内层自回归', title: 'GRU 读完 M 帧历史', sub: '切换 M，看图 S8 的真实误差', dur: 14, cam: [0.0, 1.2, 32, [2.4, 2.6, 0]], ctls: [{ label: '历史长度 M', items: ['1', '2', '8', '16', '32'], def: 4 }],
       html: dl([['结构', 'GRU，两层，每层 256'], ['每步输入', '(oₜ, aₜ)，ANYmal 57 维'], ['隐状态', 'hₜ = GRU(hₜ₋₁, oₜ, aₜ)'], ['起始', '零向量']]) +
         '<p>论文把这一层叫“内层自回归”：每读一帧历史就更新一次隐状态。这正是 GRU 的标准前向，代码里就是一次 <code>nn.GRU</code> 调用，把 M 帧一起送进去。</p>' +
         '<p>它要解决部分可观：单帧观测看不出接触相位之类的量，历史可以。右边的柱子是图 S8 的值：N 固定为 8 时，M 从 1 到 8 误差降到约二十分之一，再往上几乎不变。</p>' +
         guess('格子的亮度只表示“这一层被更新到了哪一步”，不是真实的隐状态值。') + src('§3.2 · 表 S7 · 图 S6 · 图 S8 · rnn.py') },
-    { n: 4, part: '世界模型 · 预测头', title: '从隐状态到预测', sub: '切换论文和代码的结构；点头看细节', dur: 12, cam: [0.05, 1.22, 27, [1, 3, 0]], ctls: [{ label: '结构来源', items: ['论文表 S7', '官方代码'] }],
+    { n: 4, part: '世界模型 · 预测头', title: '从隐状态到预测', sub: '切换论文和代码的结构；点头看细节', dur: 12, cam: [0.05, 1.22, 28, [0.2, 3, 0]], ctls: [{ label: '结构来源', items: ['论文表 S7', '官方代码'] }],
       html: dl([['基座', 'GRU 256, 256'], ['头', 'MLP 128，ReLU'], ['状态头', '均值 μ、对数标准差 log σ，各 45 维'], ['特权头', '接触 8 维 logits，终止 1 维 logit']]) +
         '<p>论文只说 GRU 接 MLP 头。官方代码补了几个论文没写的细节，切到“官方代码”可以看到：</p><ul>' +
         '<li>状态和特权各有一个独立的 GRU。</li><li>μ 是残差：\\(\\mu = o_t + \\mathrm{MLP}(h)\\)。</li><li>log σ 被可学习的上下界软限幅（初值 −5 和 −4）。</li><li>特权 GRU 在训练时吃真实观测，只有状态 GRU 吃自己的预测。</li></ul>' +
@@ -150,13 +150,13 @@
         '<p>RWM 也穿过模型反传，只不过对象是模型自己的参数 φ（第 5 幕），不是策略的 θ。</p>' +
         '<div id="live"></div>' +
         guess('右边是<b>玩具</b>：一个增益参数的线性策略控制一维质点，点是 40 批估计（每批 64 条轨迹）。“参考”是 2 万条样本的有限差分，也是估计。这里不训练任何东西，只比较梯度。') + src('§3.3 算法 1 · §4.4 · ppo.py · mbpo_ppo.py:331 · SuperMimic §3.3') },
-    { n: 10, part: '结果 · 策略', title: '三种方法用同一个世界模型', sub: '图 5 的真实读数；切换机器人', dur: 15, cam: [0.0, 1.32, 36, [-0.5, 4.0, 0]], ctls: [{ label: '机器人', items: ['ANYmal D', 'Unitree G1'] }],
+    { n: 10, part: '结果 · 策略', title: '三种方法用同一个世界模型', sub: '图 5 的真实读数；切换机器人', dur: 15, cam: [0.0, 1.32, 37, [0, 4.0, 0]], ctls: [{ label: '机器人', items: ['ANYmal D', 'Unitree G1'] }],
       html: dl([['ANYmal，末 10% 的 e', 'MBPO-PPO 0.29，Dreamer 4.04，SHAC 18.5'], ['ANYmal，真实 r', 'MBPO-PPO 20.9，Dreamer 11.2，SHAC −3.0'], ['G1，末 10% 的 e', 'MBPO-PPO 4.44，SHAC 7.49，Dreamer 10.2'], ['G1，真实 r', 'MBPO-PPO 20.5，Dreamer 4.6']]) +
         '<p>左边的 e 是模型在当前策略数据上的误差，右边粗线是仿真器给的真实回报，细线是模型自己估计的回报（原图用实线和虚线）。</p>' +
         '<p>MBPO-PPO 早期估计高于真实：策略在钻模型的空子。之后两条线靠拢。ANYmal 上差距收到约 3%；G1 上末段还有约 28%（26.2 对 20.5）。</p>' +
         '<p>论文对 SHAC 失败的解释是接触让动力学不连续，一阶梯度不准，混乱行为又污染了模型数据。这是作者的解释，没有单独的实验隔离这个机制。</p>' +
         src('图 5，读自原文矢量路径 · §4.4') },
-    { n: 11, part: '部署', title: '从仿真到真机', sub: '留下什么，花了多少；柱子是表 1', dur: 15, cam: [0.0, 1.16, 38, [-1.5, 3.0, 0]],
+    { n: 11, part: '部署', title: '从仿真到真机', sub: '留下什么，花了多少；柱子是表 1', dur: 15, cam: [0.0, 1.16, 42, [2.8, 3.4, 0]],
       html: dl([['模型预训练', '6M 转移，50 分钟'], ['MBPO-PPO', '5 分钟'], ['高保真 PPO', '250M 转移，10 分钟'], ['真机跟踪奖励', 'MBPO-PPO 0.90 ± 0.04，PPO 0.90 ± 0.03']]) +
         '<p>部署时只留下策略：MLP 128 × 3，输入 48 维（ANYmal）。世界模型和价值函数都不上机。“零次”指不在真机上再训练。</p>' +
         '<p>表 1 显示，在仿真器可用时，RWM 总共 55 分钟，PPO 10 分钟，RWM 没有省时间。论文的理由是：它想为仿真器不够准、或数据只能来自真机的场景做准备。</p>' +
@@ -189,7 +189,9 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
-  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color === '#aab6cc' || o.color === '#cdd6e6' ? '#e6ecf7' : o.color, border: o.border, bg: o.bg === false ? 'rgba(12,18,32,.5)' : o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
+  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color === '#aab6cc' || o.color === '#cdd6e6' ? '#e6ecf7' : o.color, border: o.border, bg: o.bg === false ? 'rgba(12,18,32,.5)' : o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
   const BOX = new THREE.BoxGeometry(1, 1, 1), BALL = new THREE.SphereGeometry(1, 12, 9);
   function inst(geo, n, o = {}) { const m = L.mat(0xffffff, { opacity: o.opacity, roughness: o.rough ?? 0.65 }); const im = new THREE.InstancedMesh(geo, m, Math.max(1, n)); im.frustumCulled = false; return im; }
@@ -213,9 +215,9 @@
   /* 2-D axes standing in the x-y plane at depth z */
   function axes(G, x0, x1, y0, y1, z, xt, yt, xl, yl) {
     wire(G, [[x0, y0, z], [x1, y0, z]], 0x9aa6bf, { opacity: 0.8 }); wire(G, [[x0, y0, z], [x0, y1, z]], 0x9aa6bf, { opacity: 0.8 });
-    xt.forEach(([x, t]) => { wire(G, [[x, y0, z], [x, y0 - 0.12, z]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(t, [x, y0 - 0.5, z], { size: 18, bg: false, color: '#aab6cc' })); });
-    yt.forEach(([y, t]) => { wire(G, [[x0, y, z], [x1, y, z]], 0x9aa6bf, { opacity: 0.16 }); G.add(lab(t, [x0 - 0.55, y, z], { size: 18, bg: false, color: '#aab6cc' })); });
-    if (xl) G.add(lab(xl, [(x0 + x1) / 2, y0 - 1.55, z], { size: 19, bg: false, color: '#cdd6e6' })); if (yl) G.add(lab(yl, [x0 + 0.6, y1 + 0.95, z], { size: 19, bg: false, color: '#cdd6e6' }));
+    xt.forEach(([x, t]) => { wire(G, [[x, y0, z], [x, y0 - 0.12, z]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(t, [x, y0 - 0.6, z], { size: 18, bg: false, color: '#aab6cc' })); });
+    yt.forEach(([y, t]) => { wire(G, [[x0, y, z], [x1, y, z]], 0x9aa6bf, { opacity: 0.16 }); G.add(lab(t, [x0 - 0.95, y, z], { size: 18, bg: false, color: '#aab6cc' })); });
+    if (xl) G.add(lab(xl, [(x0 + x1) / 2, y0 - 2.05, z], { size: 19, bg: false, color: '#cdd6e6' })); if (yl) G.add(lab(yl, [x0 + 0.6, y1 + 1.2, z], { size: 19, bg: false, color: '#cdd6e6' }));
   }
   /* the hand-made quadruped */
   function quad(color) {
@@ -315,7 +317,7 @@
     const backs = []; const chainLen = N; for (let i = nH; i < nC; i++) { const seg0 = N === 1 ? 1 : N === 2 ? 2 - ((i - nH) % 2) : 8 - (i - nH); backs.push(seg0); }
     const gr = stream(G, 10, COL.grad, 0.16);
     const lossT = lab('', [0, 0, 0]);
-    G.add(lab(N === 1 ? '单步：每个输入都是真值（虚线是损失）' : N === 2 ? 'N = 2：每 2 步回到真值' : 'N = 8：第 2 步起输入来自上一步的预测（橙线）', [lx + nC * dx / 2, 7.6, 0], { size: 22, border: 'rgba(240,150,60,.8)' }));
+    G.add(lab(N === 1 ? '单步：每个输入都是真值（虚线是损失）' : N === 2 ? 'N = 2：每 2 步回到真值' : 'N = 8：第 2 步起输入来自上一步的预测（橙线）', [lx + nC * dx / 2, 8.5, 0], { size: 22, border: 'rgba(240,150,60,.8)' }));
     /* right: toy plot */
     const px0 = 2.2, px1 = 15.6, py0 = 0.6, py1 = 7.6, K = 60, Y = 1.0, sx = k => px0 + (px1 - px0) * k / (K - 1), sy = v => py0 + (py1 - py0) * Math.min(v, Y) / Y;
     axes(G, px0, px1, py0, py1, 0, [[sx(0), '1'], [sx(7), '8'], [sx(19), '20'], [sx(39), '40'], [sx(59), '60']], [[sy(0.25), '0.25'], [sy(0.5), '0.5'], [sy(0.75), '0.75'], [sy(1), '1.0']], '预测步数 k（玩具，当场计算）', '相对误差 e');
@@ -390,15 +392,15 @@
     const fCol = ppo ? COL.dim : COL.wm, sP = inst(BOX, n), sF = inst(BOX, n), oD = inst(BALL, n + 1), aD = inst(BALL, n), rD = inst(BALL, n); G.add(sP, sF, oD, aD, rD);
     for (let i = 0; i < n; i++) { const x = xOf(i); setI(sP, i, [x, yP, 0], [1.4, 0.9, 1]); colI(sP, i, hex3(COL.pi)); setI(sF, i, [x + 1.85, yF, 0], [1.5, 0.9, 1]); colI(sF, i, hex3(fCol)); setI(aD, i, [x, yA, 0], 0.2); colI(aD, i, hex3(COL.pi)); setI(oD, i, [x, yO, 0], 0.22); colI(oD, i, hex3(COL.buf)); setI(rD, i, [x + 1.85, yO - 1.3, 0], 0.18); colI(rD, i, hex3(COL.rew)); wire(G, [[x, yO + 0.2, 0], [x, yP - 0.5, 0]], 0x9aa6bf, { opacity: 0.3 }); wire(G, [[x, yA - 0.1, 0], [x + 1.4, yF + 0.45, 0]], 0x9aa6bf, { opacity: 0.45 }); wire(G, [[x + 2.3, yF - 0.45, 0], [x + dx, yO + 0.15, 0]], 0x9aa6bf, { opacity: 0.45 }); wire(G, [[x + 1.85, yF - 0.45, 0], [x + 1.85, yO - 1.15, 0]], COL.rew, { opacity: 0.35 }); }
     setI(oD, n, [xOf(n), yO, 0], 0.22); colI(oD, n, hex3(COL.buf)); done(sP); done(sF); done(oD); done(aD); done(rD);
-    G.add(lab('π（同一个网络）', [xOf(0) + 1.4, yP + 1.0, 0], { size: 19 }), lab(ppo ? 'p_φ：inference_mode，没有计算图' : 'p_φ：雅可比参与链式求导', [xOf(2) + 1.8, yF + 1.15, -0.4], { size: 20, border: ppo ? 'rgba(142,155,184,.8)' : 'rgba(79,201,138,.8)' }), lab('o′', [xOf(n) + 0.7, yO, 0], { size: 19, bg: false }), lab('r', [xOf(4) + 2.6, yO - 1.3, 0], { size: 19, bg: false }));
+    G.add(lab('π（同一个网络）', [xOf(0) + 3.0, yP + 1.0, 0], { size: 19 }), lab(ppo ? 'p_φ：inference_mode，没有计算图' : 'p_φ：雅可比参与链式求导', [xOf(2) + 1.8, yF + 1.15, -0.4], { size: 20, border: ppo ? 'rgba(142,155,184,.8)' : 'rgba(79,201,138,.8)' }), lab('o′', [xOf(n) + 0.7, yO, 0], { size: 19, bg: false }), lab('r', [xOf(4) + 2.6, yO - 1.3, 0], { size: 19, bg: false }));
     const gr = []; for (let i = 0; i < n; i++) gr.push(stream(G, 3, COL.grad, 0.13));
     const bigB = ppo ? null : stream(G, 16, COL.grad, 0.14), ch = []; for (let i = n - 1; i >= 0; i--) ch.push([xOf(i) + dx, yO, 0.4], [xOf(i) + 1.85, yF, 0.4], [xOf(i), yA, 0.4], [xOf(i), yO + 0.4, 0.4]);
     /* right: estimates of dJ/dθ */
     const px0 = 3.6, px1 = 19, y1 = 5.4, y2 = 2.2, all = [...R.bptt.L, ...R.ppo.L, R.truth], lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo || 1e-6) * 0.08, sx = v => px0 + (px1 - px0) * (v - lo + pad) / (hi - lo + 2 * pad), r0 = L.rng(3);
     wire(G, [[px0, y2 - 1.1, 0], [px1, y2 - 1.1, 0]], 0x9aa6bf, { opacity: 0.8 });
     const fm = v => { const a = Math.abs(v); return a >= 0.1 ? v.toFixed(2) : a >= 0.01 ? v.toFixed(3) : v.toFixed(4); }; const span = lo - pad, step = (hi + pad - span) / 3;
-    for (let i = 0; i < 4; i++) { const v = span + i * step, x = px0 + (px1 - px0) * i / 3; wire(G, [[x, y2 - 1.1, 0], [x, y2 - 1.25, 0]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(fm(v), [x, y2 - 1.7, 0], { size: 17, bg: false, color: '#aab6cc' })); }
-    G.add(lab('∂J/∂θ 的 40 批估计（玩具，当场计算）', [(px0 + px1) / 2, y2 - 2.5, 0], { size: 19, bg: false, color: '#cdd6e6' }));
+    for (let i = 0; i < 4; i++) { const v = span + i * step, x = px0 + (px1 - px0) * i / 3; wire(G, [[x, y2 - 1.1, 0], [x, y2 - 1.25, 0]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(fm(v), [x, y2 - 1.65, 0], { size: 17, bg: false, color: '#aab6cc' })); }
+    G.add(lab('∂J/∂θ 的 40 批估计（玩具，当场计算）', [(px0 + px1) / 2, y2 - 2.95, 0], { size: 19, bg: false, color: '#cdd6e6' }));
     wire(G, [[sx(R.truth), y2 - 1.1, 0], [sx(R.truth), y1 + 1.1, 0]], 0xffffff, { opacity: 0.9, dashed: true }); G.add(lab('参考', [sx(R.truth), y1 + 1.5, 0], { size: 18 }));
     const dA = inst(BALL, 40), dB = inst(BALL, 40); G.add(dA, dB); const jA = R.ppo.L.map(() => (r0() - 0.5) * 1.1), jB = R.bptt.L.map(() => (r0() - 0.5) * 1.1);
     R.ppo.L.forEach((v, i) => colI(dA, i, hex3(COL.pi))); R.bptt.L.forEach((v, i) => colI(dB, i, hex3(COL.grad))); G.add(lab('PPO', [px0 - 0.1, y1 + 0.95, 0], { size: 19, border: ppo ? 'rgba(56,209,255,.9)' : undefined }), lab('BPTT', [px0 - 0.1, y2 + 0.95, 0], { size: 19, border: ppo ? undefined : 'rgba(255,122,89,.9)' }));
@@ -417,7 +419,7 @@
     axes(G, x0[0], x0[0] + W, 0, H, 0, xt(sxA), [0, 0.2, 0.4, 0.6, 0.8, 1].map(k => [ey(eM * k), String(eM * k)]), '训练迭代', '模型误差 e');
     axes(G, x0[1], x0[1] + W, 0, H, 0, xt(sxB), [-30, -15, 0, 15, 30].map(v => [ry(v), String(v)]), '训练迭代', '回报 r（粗线真实，细线模型估计）');
     const CL = { SHAC: 0xc8ced8, Dreamer: 0x6d7a96, 'MBPO-PPO': 0xffa500 }, rib = [];
-    Object.keys(CL).forEach((m, i) => { const e = DATA.F5[`e${r}|${m}`]; rib.push(ribbon(G, e.map(([t, v]) => [sxA(t), ey(v), 0.05 * i]), CL[m], 0.13)); const t = DATA.F5[`r${r}|${m}|true`], p = DATA.F5[`r${r}|${m}|pred`]; rib.push(ribbon(G, t.map(([a, v]) => [sxB(a), ry(v), 0.05 * i + 0.02]), CL[m], 0.14)); rib.push(ribbon(G, p.map(([a, v]) => [sxB(a), ry(v), 0.05 * i]), CL[m], 0.06, { opacity: 0.6 })); G.add(lab(['SHAC（浅灰）', 'Dreamer（深灰）', 'MBPO-PPO（橙）'][i], [-7 + i * 6.6, H + 2.0, 0], { size: 21 })); });
+    Object.keys(CL).forEach((m, i) => { const e = DATA.F5[`e${r}|${m}`]; rib.push(ribbon(G, e.map(([t, v]) => [sxA(t), ey(v), 0.05 * i]), CL[m], 0.13)); const t = DATA.F5[`r${r}|${m}|true`], p = DATA.F5[`r${r}|${m}|pred`]; rib.push(ribbon(G, t.map(([a, v]) => [sxB(a), ry(v), 0.05 * i + 0.02]), CL[m], 0.14)); rib.push(ribbon(G, p.map(([a, v]) => [sxB(a), ry(v), 0.05 * i]), CL[m], 0.06, { opacity: 0.6 })); G.add(lab(['SHAC（浅灰）', 'Dreamer（深灰）', 'MBPO-PPO（橙）'][i], [-7 + i * 6.6, H + 2.9, 0], { size: 21 })); });
     const fin = k => { const a = DATA.F5[k]; return a[a.length - 1][1]; };
     return { update(p) { const k = Math.max(2, Math.floor(seg(p, 0, 0.9) * 61)); rib.forEach(l => l.userData.setK(k)); const t = DATA.F5[`e${r}|MBPO-PPO`][Math.min(60, k - 1)][0], v = n => DATA.F5[n][Math.min(60, k - 1)][1];
       cap(`${r === 'A' ? 'ANYmal D' : 'Unitree G1'}，第 ${t} 次迭代：MBPO-PPO e = <b>${v(`e${r}|MBPO-PPO`).toFixed(2)}</b>，真实 r = <b>${v(`r${r}|MBPO-PPO|true`).toFixed(1)}</b>，模型估计 r = ${v(`r${r}|MBPO-PPO|pred`).toFixed(1)}`); } };
@@ -425,18 +427,18 @@
   /* ---------- 11. sim-to-real and Table 1 ---------- */
   function s11(G) {
     G.add(L.grid(40, 40));
-    const pi = block(2.2, 1.4, 1.6, COL.pi, [-7.5, 2.6, 0]); G.add(pi, lab('策略 π：MLP 128 × 3', [-7.5, 3.9, 0], { size: 22 }));
+    const pi = block(2.2, 1.4, 1.6, COL.pi, [-7.5, 2.6, 0]); G.add(pi, lab('策略 π：MLP 128 × 3', [-7.5, 1.0, 0.9], { size: 22 }));
     const obs = block(1.7, 1.0, 1.3, COL.buf, [-13.2, 2.6, 0]); G.add(obs, lab('本体观测 48 维\n（含速度命令）', [-13.2, 4.0, 0], { size: 20 }));
     const pd = block(1.7, 1.0, 1.3, COL.sim, [-2.6, 2.6, 0]); G.add(pd, lab('关节位置目标\n12 维', [-2.6, 4.0, 0], { size: 20 }));
     wire(G, [[-12.3, 2.6, 0], [-8.6, 2.6, 0]], COL.pi); wire(G, [[-6.4, 2.6, 0], [-3.5, 2.6, 0]], COL.pi); wire(G, [[-1.7, 2.6, 0], [0.4, 2.6, 0]], COL.pi);
     const qd = quad(COL.robot); qd.scale.setScalar(2.4); qd.position.set(2.0, 1.55, 0); G.add(qd); G.add(lab('真机（示意）', [2.0, 4.0, 0], { size: 21 }));
     const gone = [{ n: '世界模型 p_φ', c: COL.wm, x: -13 }, { n: '价值函数 V', c: COL.crit, x: -8.2 }, { n: '回放缓存 D', c: COL.buf, x: -3.4 }].map(o => { const m = block(3.4, 1.0, 1.2, o.c, [o.x, 7.4, -1], { opacity: 0.9 }), t = lab(o.n, [o.x, 8.5, -1], { size: 21 }); G.add(m, t); return { m, t }; });
     /* table 1 */
-    const bx = 6.6, base = 0; const bars = [['RWM 预训练', 50, COL.wm, 'min'], ['MBPO-PPO', 5, COL.pi, 'min'], ['PPO', 10, COL.sim, 'min']], tall = v => v * 0.13;
-    G.add(lab('表 1：总训练时间（分钟）', [bx + 2.2, 8.4, 0], { size: 20, bg: false, color: '#cdd6e6' }));
-    const bm = bars.map(([n, v, c], i) => { const m = block(1.1, 1, 1.1, c, [bx + i * 2.0, 0, 0]); G.add(m, lab(`${n}\n${v}`, [bx + i * 2.0, tall(v) + 0.9, 0], { size: 19 })); return { m, v }; });
-    G.add(lab('状态转移：预训练 6M，PPO 250M', [bx + 2.2, -0.9, 1.5], { size: 19 }));
-    const gr = block(0.9, 0.9 * 4, 0.9, COL.rew, [bx + 6.4, 1.8, 0]), gr2 = block(0.9, 0.9 * 4, 0.9, COL.sim, [bx + 8.0, 1.8, 0]); G.add(gr, gr2, lab('真机奖励（表 1）', [bx + 7.2, 6.0, 0], { size: 18 }), lab('MBPO-PPO\n0.90 ± 0.04', [bx + 5.3, 4.6, 0], { size: 17 }), lab('PPO\n0.90 ± 0.03', [bx + 9.1, 4.6, 0], { size: 17 }));
+    const bx = 5.6, base = 0; const bars = [['RWM 预训练', 50, COL.wm, 'min'], ['MBPO-PPO', 5, COL.pi, 'min'], ['PPO', 10, COL.sim, 'min']], tall = v => v * 0.13;
+    G.add(lab('表 1：总训练时间（分钟）', [bx + 3.4, 9.6, 0], { size: 20, bg: false, color: '#cdd6e6' }));
+    const bm = bars.map(([n, v, c], i) => { const m = block(1.1, 1, 1.1, c, [bx + i * 3.4, 0, 0]); G.add(m, lab(`${n}\n${v}`, [bx + i * 3.4, tall(v) + 0.9, 0], { size: 19 })); return { m, v }; });
+    G.add(lab('状态转移：预训练 6M，PPO 250M', [bx + 3.4, -0.9, 1.5], { size: 19 }));
+    const gr = block(0.9, 0.9 * 4, 0.9, COL.rew, [bx + 10.4, 1.8, 0]), gr2 = block(0.9, 0.9 * 4, 0.9, COL.sim, [bx + 12.0, 1.8, 0]); G.add(gr, gr2, lab('真机奖励（表 1）', [bx + 11.2, 9.2, 0], { size: 18 }), lab('MBPO-PPO\n0.90 ± 0.04', [bx + 10.0, 4.9, 0], { size: 17 }), lab('PPO\n0.90 ± 0.03', [bx + 12.4, 7.0, 0], { size: 17 }));
     const st = [stream(G, 4, COL.pi, 0.11), stream(G, 4, COL.pi, 0.11), stream(G, 4, COL.pi, 0.11)];
     return { update(p) {
       const fade = seg(p, 0.05, 0.25), q = (p * 20) % 1; gone.forEach(({ m, t }) => { m.material.opacity = 0.9 * (1 - fade); m.position.y = 7.4 + fade * 2; m.visible = fade < 1; t.visible = fade < 0.7; t.position.y = m.position.y + 1.1; });

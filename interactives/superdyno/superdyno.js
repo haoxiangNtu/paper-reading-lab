@@ -208,7 +208,8 @@ if (typeof window !== 'undefined') (function () {
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
   const FG = () => getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#e6ecf7';
-  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color || (o.bg === false ? FG() : undefined), border: o.border, bg: o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
+  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color || (o.bg === false ? FG() : undefined), border: o.border, bg: o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
   function block(w, h, d, color, pos, o = {}) { const m = L.box(w, h, d, color, Object.assign({ edgeOpacity: 0.3 }, o)); m.position.set(...pos); return m; }
   function glow(m, v) { if (m.material && m.material.emissive) { m.material.emissive.setHex(m.material.color.getHex()); m.material.emissiveIntensity = v; } }
   function setBar(m, h, y0 = 0) { m.scale.y = Math.max(h, 0.001); m.position.y = y0 + Math.max(h, 0.001) / 2; }

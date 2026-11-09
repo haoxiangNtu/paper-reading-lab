@@ -16,15 +16,15 @@
 
   /* ---------- scene descriptions ---------- */
   const SCENES = [
-    { t: '总览：一个世界模型，一对演员和评论家', s: '点任何部件跳到对应的一幕', dur: 16, cam: [0.08, 1.12, 35, [0.2, 4.4, 0]],
+    { t: '总览：一个世界模型，一对演员和评论家', s: '点任何部件跳到对应的一幕', dur: 16, cam: [0.08, 1.12, 35, [-0.9, 4.4, 0]],
       b: '<p>三个神经网络一起训练：<b>世界模型</b>从回放数据学会预测，<b>评论家</b>估计每个想象状态的回报分布，<b>演员</b>选动作。演员和评论家只看世界模型产生的隐状态 \\(s_t=\\{h_t,z_t\\}\\)。</p><p>这一篇和 <a href="../../papers/dreamer.html">V1</a> 的骨架相同，新东西全部是让同一套超参数跨领域能用的“稳健技巧”。第 2 到 8 幕一幕讲一个。</p><p class="src">出处：式 (1)(4)，图 3，表 4。</p>' },
     { t: '离散隐变量：32 个分类，每个 d/16 类', s: '换模型大小，调尖锐度，开关 1% 均匀混合', dur: 14, cam: [0.3, 0.95, 37, [2.2, 0.2, 1.5]],
       b: '<p>\\(z_t\\) 是一组分类分布的采样（one-hot），不是 V1 的高斯。反传时用直通梯度（straight-through：前向用采样，反向当作软概率）。每个分类混入 1% 均匀分布，于是概率永远不为 0，KL 有上界。</p><p><b>序列模型</b>是分块 GRU：8 块，每块 d 维，总共 8d 维。权重只在块内全连接，参数量比同维全连接少 8 倍。</p><p class="src">出处：式 (1)，表 3，“Networks”“Distributions”段。32 这个数 v2 正文没写，v1 表 W.1 和代码 <code>rssm.stoch</code> 写了。</p>' },
     { t: 'symlog：把大目标压回能回归的范围', s: '拖目标大小，看三种损失当场训练（玩具）', dur: 12, cam: [0.62, 1.2, 37, [1, 2.8, -2]],
       b: '<p>式 (8)(9)：网络预测 \\(\\mathrm{symlog}(y)\\)，读数时用 \\(\\mathrm{symexp}\\) 变回去。原点附近接近恒等，大数被压缩，正负号保留。用在向量观测的输入和重建目标上。</p><p><b>玩具：</b>两层标量网络 \\(f=w_1w_2\\)，初值 1.2 和 0.8，学习率可调，当场跑梯度下降，比较平方误差、Huber 和 symlog 平方误差。这个玩具说明的是梯度的尺度问题，不是 Dreamer 的训练曲线。</p><p class="src">出处：式 (8)(9)，代码 <code>nets.symlog</code>。</p>' },
-    { t: 'two-hot：把回归变成分类', s: '拖目标，看 255 个桶里哪两个被点亮', dur: 12, cam: [0.1, 0.92, 34, [0, -0.2, 3.5]],
+    { t: 'two-hot：把回归变成分类', s: '拖目标，看 255 个桶里哪两个被点亮', dur: 12, cam: [0.1, 0.92, 34, [0, 0.5, 3.5]],
       b: '<p>奖励头和评论家输出 255 个桶上的 softmax，桶位置是 \\(\\mathrm{symexp}([-20,\\dots,+20])\\)。目标落在哪两个桶之间，就把权重按距离线性分给这两个桶（式 12），再用交叉熵训练（式 11）。</p><p>交叉熵的梯度只和概率有关，和桶代表的数值大小无关，所以目标是 1 还是 100 万，梯度大小差不多。这是下面读数要看的东西。</p><p class="src">出处：式 (10)(11)(12)，代码 <code>heads.symexp_twohot</code>、<code>outs.TwoHot</code>。255 这个数 v2 没写，v1 第 6 页和代码写了。</p>' },
-    { t: 'KL 平衡和 free bits', s: '换 β、free nats、重建权重，当场训练（玩具）', dur: 14, cam: [0.26, 0.98, 36, [1.2, 1.6, 0]],
+    { t: 'KL 平衡和 free bits', s: '换 β、free nats、重建权重，当场训练（玩具）', dur: 14, cam: [0.26, 0.8, 36, [1.2, 1.6, 0]],
       b: '<p>式 (3) 把 KL 拆成两半：\\(L_\\mathrm{dyn}\\) 只训练先验去追编码器（β = 1），\\(L_\\mathrm{rep}\\) 只训练编码器靠近先验（β = 0.1）。KL 小于 1 nat 时两项都被 max 截住，梯度为 0。</p><p><b>玩具：</b>m 个等概率输入，8 类分类隐变量，一个共享先验，1% 均匀混合。解码器固定，重建项就是 \\(-\\ln q(z=x\\mid x)\\)。式 (3) 的梯度是手写的。</p><p class="src">出处：式 (2)(3)。代码 <code>rssm.py loss</code> 先把 32 个分类的 KL 求和，再和 1 取 max，所以 1 nat 是整个 \\(z\\) 的额度，不是每个分类的。</p>' },
     { t: '想象和 λ 回报', s: '拖 H 和 λ，切换三种递推写法', dur: 12, cam: [0.22, 1.14, 34, [0, 1.6, 0]],
       b: '<p>从回放里的每个隐状态出发，用先验和演员往前走 H = 15 步。代码里 16 × 64 = 1024 个起点（<code>imag_last: 0</code> 表示全部用上），每条保留 16 个状态，这就是正文“T = 16”和表 4“H = 15”的关系。</p><p>然后从末端往回算式 (5) 的 \\(R^\\lambda_t\\)。这一步在 v1、v2 的写法和代码之间不一样，切换按钮可以比较，见精读页的读者注。</p><p class="src">出处：式 (5)，表 4，代码 <code>agent.py lambda_return</code>。奖励和价值是我写的一列数。</p>' },
@@ -61,7 +61,9 @@
 
   /* ---------- 3D helpers ---------- */
   let LABS = [], PICKS = [], refDist = 38;
-  function lab(t, pos, o = {}) { const sp = L.label(t, { size: o.size || 22, pos, color: o.color, border: o.border, bg: o.bg, scale: (o.scale || 0.0165) * refDist / 26 }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
+  function lab(t, pos, o = {}) { const sp = L.label(t, { size: LSZ(o.size || 22, (o.scale || 0.0165) * 22 / 26), pos, color: o.color, border: o.border, bg: o.bg, scale: (o.scale || 0.0165) * refDist / 26 }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
   /* a label whose text can change frame to frame; the sprite is rebuilt only when the text changes */
   function dyn(G, pos, o = {}) { let cur = null, txt = null; return { set(t, p) { if (t === txt) { if (p && cur) cur.position.set(...p); return; } txt = t; if (cur) { G.remove(cur); LABS = LABS.filter(x => x !== cur); L.dispose(cur); cur = null; } if (t) { cur = lab(t, p || pos, o); G.add(cur); } }, hide() { this.set(null); } }; }
   function block(w, h, d, c, pos, o = {}) { const m = L.box(w, h, d, c, { opacity: o.opacity, edgeOpacity: 0.3 }); m.position.set(...pos); return m; }
@@ -204,7 +206,7 @@
   function klHist(o) { const k = JSON.stringify(o); return KLCACHE[k] || (KLCACHE[k] = Toy.klRun(o)); }
   function s5(G) {
     const K = 8, m = ST.m, [bd, br] = BETAS[ST.beta], steps = 600, wp = ST.wp ? 0.05 : 1, cfg = { steps, lr: 0.5, wPred: wp, bdyn: bd, brep: br, free: ST.free, m }, hist = klHist(cfg);
-    const qb = inst(m * K), pb = inst(K, COL.det), X = c => -8 + c * 1.9, Z = x => -1.6 - x * 1.5; G.add(qb, pb);
+    const qb = inst(m * K), pb = inst(K, COL.det), X = c => -8 + c * 1.9, Z = x => -1.6 - x * 1.9; G.add(qb, pb);
     for (let x = 0; x < m; x++) G.add(lab(`q(z | x=${x})`, [-11.8, 0.6, Z(x)], { size: 18, border: hex(COL.sto) }));
     G.add(lab('先验 p(z)', [-11.6, 0.6, 2.6], { size: 20, border: hex(COL.det) }));
     /* traces */
@@ -267,7 +269,7 @@
     mark(p5, COL.sto, `第 5 百分位 ${fmt(p5)}`, 6.9); mark(p95, COL.sto, `第 95 百分位 ${fmt(p95)}`, 7.9); mark(lo, COL.grad, `最小 ${fmt(lo)}`, 6.9); mark(hi, COL.grad, `最大 ${fmt(hi)}`, 7.9);
     /* EMA gauge */
     const gaugeX = 15, gauge = block(1.2, 1, 1.2, COL.grad, [gaugeX, 0, z0]), lim = block(1.9, 0.08, 1.9, COL.mark, [gaugeX, Toy.symlog(1) * 1.2, z0]); G.add(gauge, lim, lab('下限 1', [gaugeX + 2.2, Toy.symlog(1) * 1.2, z0], { size: 17 }), lab('S 的滑动平均（symlog 刻度）', [gaugeX - 1.6, 10.2, z0], { size: 17, border: hex(COL.grad) }));
-    const gv = dyn(G, [gaugeX - 0.6, 8.6, z0], { size: 17 });
+    const gv = dyn(G, [gaugeX + 0.6, 3.6, z0], { size: 17 });
     /* bandit bars */
     const key = scale + '|' + ST.scen, sc = ST.scen ? 'noise' : 'dense', scales = [1e-3, 1e-2, 1, 1e2, 1e3], meth = [['ret', 'max(1, S)', COL.sto], ['adv', '优势 std', COL.grad], ['none', '不归一', COL.env]];
     const grid = CACHE7[sc] || (CACHE7[sc] = meth.map(m => scales.map(s => Toy.bandit(m[0], s, sc))));

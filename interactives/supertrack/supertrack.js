@@ -310,13 +310,13 @@ if (typeof window === 'undefined') { module.exports = Toy; } else (function () {
         '<p>写法和 <a class="ds" href="https://arxiv.org/abs/1804.02717" target="_blank" rel="noopener">DeepMimic</a> 的训练环境类似。RSI（reference state initialization）是把角色直接放到参考动作的某一帧开始，这样后面的动作也练得到。回合结束后，这一段样本才整段写进缓存。</p>' +
         '<p>这一幕的时间轴是墙钟 30 秒。按论文的两个数字算：150,000 ÷ 5000 = <b>30 秒</b>，缓存就转完一圈。所以缓存里的数据总是最近半分钟产生的。256 × 60 = 15,360 帧/秒才算实时，5000 样本/秒约是实时的三分之一（我的计算，<a href="../../papers/supertrack.html#n3" target="_top">读者注 3</a>）。</p>' +
         guess('每个小人是同一个小图形，摇摆和复位时刻是我用随机数排的，只满足 48 到 512 帧的规则。写入缓存的累计数按 5000 样本/秒算。') + src('§3.1 · §3.6 · §5.3') },
-    { n: 3, part: '表示', title: '世界坐标换成角色局部坐标', sub: '式 (1) 到 (7)：同一个姿态，网络看到的输入不变', dur: 16, cam: [0.05, 1.22, 27, [-0.4, 2.6, 0]], ctl: { label: '看哪个刚体', items: ['右手', '头', '左脚'] },
+    { n: 3, part: '表示', title: '世界坐标换成角色局部坐标', sub: '式 (1) 到 (7)：同一个姿态，网络看到的输入不变', dur: 16, cam: [0.05, 1.22, 28, [0.4, 2.6, 0]], ctl: { label: '看哪个刚体', items: ['右手', '头', '左脚'] },
       html: dl([['世界状态 X', 'xᵖ 3B、ẋᵖ 3B、xʳ 4B、ẋʳ 3B'], ['Local(X)', 'x^lp 3B、ẋ^lp 3B、x^lr 6B、ẋ^lr 3B、xʰ B、x^up 3'], ['总维度', '16B + 3 = 323（B = 20，我的加法）']]) +
         '<p>同一个动作换个地点、换个朝向，物理是一样的。所以先乘上根刚体（通常是胯）变换的逆，换到角色空间，网络不用重新学每个朝向。</p>' +
         '<p>四元数还有双重覆盖问题：q 和 −q 是同一个旋转，但数值完全不同。换成旋转矩阵的前两列（two-axis，6 维）就没有这个问题。动画后段页面会现算 q 和 −q 的 two-axis 给你看。</p>' +
         '<p>丢掉了全局位置和朝向之后，还要把接触线索补回来：xʰ 是每个刚体离地（或高度图）的高度，x^up 是竖直方向在根坐标系里的方向。论文说网络可以从这两项推断接触。最后每个量按动作库离线统计的均值和标准差归一化。</p>' +
         guess('20 个刚体的摆法是我手摆的，论文只给了数量 B = 20、J = 19。柱子和数字是用式 (2) 现算的，不是假数据：角色在移动和旋转，世界坐标在变，局部坐标不变。') + src('§3.2 · §3.3 式 (1)–(7) · 表 2') },
-    { n: 4, part: '世界模型', title: 'W 走一步：预测加速度，再积分', sub: '这一幕的数字来自玩具上现训的 W 和真实仿真', dur: 15, toy: true, cam: [0, 1.32, 19, [1.2, 3.8, 0]],
+    { n: 4, part: '世界模型', title: 'W 走一步：预测加速度，再积分', sub: '这一幕的数字来自玩具上现训的 W 和真实仿真', dur: 15, toy: true, cam: [0, 1.32, 19, [1.2, 4.6, 0]],
       html: dl([['输入', 'Local(P), T'], ['输出', '局部加速度 ẍ^lp、ẍ^lr，共 6B 维'], ['网络', '5 层隐藏，每层 1024，ELU'], ['积分', '式 (8)–(12)，先更新速度，再用新速度更新位置']]) +
         '<div class="eq-mini">ẏ = dt·ẍ + ẋ，y = dt·ẏ + x，yʳ = exp(dt/2·ẏʳ) ⊗ xʳ</div>' +
         '<p>网络不直接输出下一状态，只输出局部坐标系里的加速度。转回世界系（乘根刚体旋转）和积分都是写死的公式，而且都可导。这样物理的一部分结构不用学。</p>' +
@@ -387,7 +387,9 @@ if (typeof window === 'undefined') { module.exports = Toy; } else (function () {
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
-  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
+  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
   const BOX = new THREE.BoxGeometry(1, 1, 1), BALL = new THREE.SphereGeometry(1, 12, 9);
   function inst(geo, n, o = {}) { const im = new THREE.InstancedMesh(geo, L.mat(0xffffff, { opacity: o.opacity, roughness: 0.65, emissive: o.emissive }), Math.max(1, n)); im.frustumCulled = false; return im; }
@@ -471,13 +473,13 @@ if (typeof window === 'undefined') { module.exports = Toy; } else (function () {
     G.add(L.grid(26, 26)); const sel = [11, 3, 14][k], SCH = 1.55, parts = HUM.map((h, i) => { const m = block(h[4] * SCH, h[5] * SCH, h[6] * SCH, i === sel ? COL.loss : 0xc9d4ea, [0, 0, 0], { edgeOpacity: 0.2 }); G.add(m); return m; });
     const axes = new THREE.AxesHelper(2.1); axes.material.depthTest = false; axes.renderOrder = 5; G.add(axes); const lRoot = lab('根坐标系（胯）', [0, 0, 0], { size: 19 }); G.add(lRoot);
     const X0 = 3.0, bars = inst(BOX, 6); G.add(bars);
-    G.add(lab(`世界 xᵖ（${HUM[sel][0]}）`, [X0 + 1.2, 6.6, 0], { size: 21, border: 'rgba(240,150,60,.8)' }), lab(`局部 x^lp（${HUM[sel][0]}）`, [X0 + 5.8, 6.6, 0], { size: 21, border: 'rgba(79,201,138,.8)' }));
+    G.add(lab(`世界 xᵖ（${HUM[sel][0]}）`, [X0 + 1.5, 6.6, 0], { size: 21, border: 'rgba(240,150,60,.8)' }), lab(`局部 x^lp（${HUM[sel][0]}）`, [X0 + 7.0, 6.6, 0], { size: 21, border: 'rgba(79,201,138,.8)' }));
     const vLabs = []; for (let i = 0; i < 6; i++) { const t = lab('', [0, 0, 0], { size: 20 }); vLabs.push(t); }
-    const axn = ['x', 'y', 'z'], tagL = []; for (let i = 0; i < 6; i++) { const t = lab(axn[i % 3], [X0 + (i < 3 ? i * 1.2 : 4.6 + (i - 3) * 1.2), -0.6, 0], { size: 18 }); G.add(t); tagL.push(t); }
+    const axn = ['x', 'y', 'z'], tagL = []; for (let i = 0; i < 6; i++) { const t = lab(axn[i % 3], [X0 + (i < 3 ? i * 1.5 : 5.5 + (i - 3) * 1.5), -0.6, 0], { size: 18 }); G.add(t); tagL.push(t); }
     /* stacked 323-dim input */
     const SEG = [['x^lp', 60, COL.wm], ['ẋ^lp', 60, COL.pi], ['x^lr (two-axis)', 120, COL.pred], ['ẋ^lr', 60, COL.crit], ['xʰ', 20, COL.loss], ['x^up', 3, COL.ref]]; let acc = 0; const zb = 5.2, xs = 0.031, xb = -9.6;
-    SEG.forEach(s => { const w = s[1] * xs, m = block(w - 0.02, 0.5, 0.8, s[2], [xb + (acc + s[1] / 2) * xs, 0.26, zb]); G.add(m); G.add(lab(`${s[0]} ${s[1]}`, [xb + (acc + s[1] / 2) * xs + (s[1] === 3 ? 1.1 : 0), s[1] < 30 ? 1.5 + (s[1] === 3 ? 0.62 : 0) : 0.92, zb], { size: 16 })); acc += s[1]; });
-    G.add(lab('Local(X)，共 323 维（B = 20）', [xb + 4.4, 2.9, zb], { size: 20 }));
+    SEG.forEach((s, si) => { const w = s[1] * xs, m = block(w - 0.02, 0.5, 0.8, s[2], [xb + (acc + s[1] / 2) * xs, 0.26, zb]); G.add(m); G.add(lab(`${s[0]} ${s[1]}`, [xb + (acc + s[1] / 2) * xs + (s[1] === 3 ? 0.6 : 0), [0.95, 1.8, 0.95, 1.8, 2.65, 3.5][si], zb], { size: 16 })); acc += s[1]; });
+    G.add(lab('Local(X)，共 323 维（B = 20）', [xb + 4.0, 3.2, zb], { size: 20 }));
     let lastTxt = {}; const relabel = (i, s, pos) => { const old = vLabs[i]; if (lastTxt[i] !== s) { G.remove(old); L.dispose(old); LABS = LABS.filter(q => q !== old); const n = lab(s, pos, { size: 20 }); G.add(n); vLabs[i] = n; lastTxt[i] = s; } else vLabs[i].position.set(...pos); };
     const qUnit = (ax, a) => [ax[0] * Math.sin(a / 2), ax[1] * Math.sin(a / 2), ax[2] * Math.sin(a / 2), Math.cos(a / 2)];
     return { update(p) {
@@ -485,7 +487,7 @@ if (typeof window === 'undefined') { module.exports = Toy; } else (function () {
       HUM.forEach((h, i) => { const w = qrot(rq, [h[1] * SCH, h[2] * SCH, h[3] * SCH]); parts[i].position.set(rp[0] + w[0], rp[1] + w[1], rp[2] + w[2]); parts[i].quaternion.set(...rq); });
       axes.position.set(...rp); axes.quaternion.set(...rq); lRoot.position.set(rp[0], rp[1] + 3.9, rp[2]);
       const sw = parts[sel].position, wp = [sw.x, sw.y, sw.z], d = [wp[0] - rp[0], wp[1] - rp[1], wp[2] - rp[2]], lp = qrot(qinv(rq), d), vals = [...wp, ...lp], sc = 0.5;
-      vals.forEach((v, i) => { const x = X0 + (i < 3 ? i * 1.2 : 4.6 + (i - 3) * 1.2), h = Math.abs(v) * sc + 0.02; setI(bars, i, [x, h / 2, 0], [0.8, h, 0.8]); colI(bars, i, hex3(i < 3 ? (v >= 0 ? COL.pred : 0xb56a22) : (v >= 0 ? COL.wm : 0x2f8f60))); relabel(i, v.toFixed(2), [x, h + 0.42, 0]); }); done(bars);
+      vals.forEach((v, i) => { const x = X0 + (i < 3 ? i * 1.5 : 5.5 + (i - 3) * 1.5), h = Math.abs(v) * sc + 0.02; setI(bars, i, [x, h / 2, 0], [0.8, h, 0.8]); colI(bars, i, hex3(i < 3 ? (v >= 0 ? COL.pred : 0xb56a22) : (v >= 0 ? COL.wm : 0x2f8f60))); relabel(i, v.toFixed(2), [x, h + 0.42, 0]); }); done(bars);
       const q = qmul(rq, qUnit([0, 0, 1], 0.6)), nq = q.map(v => -v), t1 = twoAxis(q), t2 = twoAxis(nq);
       cap(p < 0.7 ? `角色在走、在转。<b>世界坐标一直变，局部坐标 ${lp.map(v => v.toFixed(2)).join(', ')} 不变</b>（式 2 现算）`
         : `q = (${q.map(v => v.toFixed(2)).join(', ')})，−q 的每个分量都反号。两者的 two-axis 前两项：<b>${t1[0].toFixed(3)}, ${t1[1].toFixed(3)}</b> 和 <b>${t2[0].toFixed(3)}, ${t2[1].toFixed(3)}</b>，完全相同`);

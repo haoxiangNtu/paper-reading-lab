@@ -67,7 +67,7 @@
         '<p>按维度算（我的计算，假设编码器输出均值和对数方差共 64 维）：编码器约 2.80M 参数，解码器约 2.90M。</p>' +
         guess('学生在仿真里“跑”的画面是示意。教师的个数（画了 4 个）是随手画的，论文没说蒸馏了多少个策略，只说“选出的”策略。') +
         src('M9 · 表 S6 · 图 7B(i) · S4 Diffusion') },
-    { n: 9, part: '状态-潜变量扩散', title: '每个 token 有自己的噪声步', sub: '历史和当前状态固定为干净的，未来被去噪。可以加关键帧', dur: 15, cam: [0.06, 1.22, 25, [0, 3.0, 0]],
+    { n: 9, part: '状态-潜变量扩散', title: '每个 token 有自己的噪声步', sub: '历史和当前状态固定为干净的，未来被去噪。可以加关键帧', dur: 15, cam: [0.06, 1.22, 25.5, [-0.7, 3.0, 0]],
       html: dl([['序列', '历史 4 + 当前 + 视野 16 步，每步一个状态 s 和一个潜变量 z'], ['时长', '25 Hz：历史 0.16 s，视野 0.64 s'], ['噪声', '每个 token 独立的 k，训练时 k ~ U(0, K)'], ['网络', 'Transformer 编码器，6 层，8 头，512 维，约 19.8M'], ['去噪', '20 步，每次推理约 20 ms']]) +
         '<p>训练时每个 token 的噪声步独立随机，所以推理时可以把已知的部分（历史观测、当前状态、关键帧）设成 k = 0，只去噪未知的部分。这就是“补全”：同一个模型既能跟命令走，也能把稀疏的关键帧连成连贯的动作。</p>' +
         '<p>去噪结束后只用一个东西：当前的潜变量 z_t，交给 VAE 解码器，配上最新的本体观测算出动作。视野里其余的预测只用来算代价。</p>' +
@@ -80,7 +80,7 @@
         '<p>论文图 5A 画的就是这个过程：摇杆右转命令下，第 8、12、16、20 次迭代的预测轨迹逐渐收拢。</p>' +
         toyb('先验不是学到的网络，而是 54 条手写模板（6 个方向 × 3 种曲率 × 3 种速度）上的高斯混合，去噪器给出精确的后验均值；引导减在预测的干净轨迹上，按 DDIM 更新。为了看得见，视野用 16 步 × 0.25 s = 4 s（论文是 16 × 0.04 = 0.64 s）。代价按 (S5)–(S8) 写，梯度是解析的，读数当场算。') +
         src('M11 · S3 Task Costs (S5)–(S8) · 图 5A、6B') },
-    { n: 11, part: '部署', title: '谁在什么频率上跑，以及 SuperMimic 拿走了什么', sub: '切换部署时序和 SuperMimic 继承', dur: 14, cam: [0.02, 1.25, 29, [0.4, 4.4, 0]],
+    { n: 11, part: '部署', title: '谁在什么频率上跑，以及 SuperMimic 拿走了什么', sub: '切换部署时序和 SuperMimic 继承', dur: 14, cam: [0.02, 1.25, 29, [0, 4.4, 0]],
       html: dl([['状态估计', '500 Hz，广义动量观测器 + 卡尔曼滤波'], ['跟踪策略', '50 Hz，ONNX Runtime，CPU，&lt; 1 ms'], ['扩散', '异步线程，RTX 4060 Mobile + TensorRT，约 20 ms'], ['VAE 解码器', 'CPU 同步，25 Hz'], ['代价梯度', 'CppAD，每次去噪迭代']]) +
         '<p>扩散太慢，不能放在控制环里同步跑，所以它在另一个线程里算出最新的 z_t；控制环每 40 ms 用最新的 z_t 和最新的观测解码出动作。这也是要用潜空间的第二个理由：轻量的解码器能用最新的观测，弥补扩散的延迟。</p>' +
         '<p>切到“SuperMimic 继承”看 SuperMimic 附录 A 和本文的逐项对照：绿色原样沿用，橙色改动并注明，红色去掉并注明，紫色是没有注明但实际不同的。</p>' +
@@ -112,8 +112,10 @@
   if (!S || !window.THREE) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const T3 = window.THREE;
@@ -204,8 +206,8 @@
     const rob = robot(COL.robot); G.add(rob);
     [[data, 1], [pis[0], 2], [pis[1], 3], [pis[2], 3], [pis[3], 3], [ppo, 6], [enc, 7], [dec, 7], [zc, 7], [dif, 8], [cost, 9]].forEach(([m, g]) => { m.userData.go = g; PICKS.push(m); });
     G.add(lab('参考动作 q^ref', [-12.6, 2.0, 0], { size: 20 }), lab('π₁ … π_N（每个动作一个）', [-7.4, 3.5, 0], { size: 19 }), lab('PPO · 表 S5', [-4.4, 1.5, 0], { size: 19 }));
-    G.add(lab('E', [-0.6, 2.0, 0], { size: 22 }), lab('z ∈ ℝ³²', [0.6, 1.6, 0], { size: 18 }), lab('D', [1.8, 2.0, 0], { size: 22 }), lab('VAE · DAgger', [0.6, 2.9, 0], { size: 20, color: css(COL.vae) }));
-    G.add(lab('状态-潜变量扩散 · Transformer', [5.4, 2.6, -1.4], { size: 19 }), lab('代价 G(τ)', [5.4, 4.3, 0], { size: 20 }), lab('G1 · 25 Hz', [10.8, 3.6, 0], { size: 20 }));
+    G.add(lab('E', [-0.6, 2.0, 0], { size: 22 }), lab('z ∈ ℝ³²', [0.6, -0.1, 1.3], { size: 18 }), lab('D', [1.8, 2.0, 0], { size: 22 }), lab('VAE · DAgger', [0.6, 3.3, 0], { size: 20, color: css(COL.vae) }));
+    G.add(lab('状态-潜变量扩散\nTransformer', [5.4, 2.4, -1.4], { size: 19 }), lab('代价 G(τ)', [5.4, 4.3, 0], { size: 20 }), lab('G1 · 25 Hz', [10.8, 3.6, 0], { size: 20 }));
     const f = { a: stream(G, 5, COL.data), b: stream(G, 5, COL.trk), c: stream(G, 5, COL.vae), d: stream(G, 5, COL.diff), e: stream(G, 4, COL.guide), g: stream(G, 4, COL.robot) };
     return { update(p) {
       const q = (p * 18) % 1;
@@ -288,8 +290,8 @@
       const tot = Math.max(...v.cols.map(c => c[1].reduce((a, r) => a + r[1], 0))), H = 7.2 / tot;
       v.cols.forEach(([name, rows], ci) => {
         const x = -4.8 + ci * 8.4; let y = 0.05, ly = -1;
-        rows.forEach(([t, d, c]) => { const h = d ? Math.max(0.12, d * H) : 0.6; const b = block(1.8, Math.max(0.04, h - 0.04), 1.4, c, [x, y + h / 2, 0], { opacity: d ? 1 : 0.4 }); sub.add(b); ly = Math.max(y + h / 2, ly + 0.5); const l = lab(`${t}${d ? ' · ' + d : ''}`, [x + 3.1, ly, 0], { size: 17 }); sub.add(l); if (Math.abs(ly - (y + h / 2)) > 0.05) sub.add(L.line([[x + 0.95, y + h / 2, 0], [x + 1.7, ly, 0]], 0x8e9bb8, { opacity: 0.6 })); segs.push({ b, l, y0: y, h }); y += h; });
-        sub.add(lab(name, [x, y + 0.6, 0], { size: 22, border: 'rgba(56,209,255,.7)' }));
+        rows.forEach(([t, d, c]) => { const h = d ? Math.max(0.12, d * H) : 0.6; const b = block(1.8, Math.max(0.04, h - 0.04), 1.4, c, [x, y + h / 2, 0], { opacity: d ? 1 : 0.4 }); sub.add(b); ly = Math.max(y + h / 2, ly + 0.66); const l = lab(`${t}${d ? ' · ' + d : ''}`, [x + 3.1, ly, 0], { size: 17 }); sub.add(l); if (Math.abs(ly - (y + h / 2)) > 0.05) sub.add(L.line([[x + 0.95, y + h / 2, 0], [x + 1.7, ly, 0]], 0x8e9bb8, { opacity: 0.6 })); segs.push({ b, l, y0: y, h }); y += h; });
+        sub.add(lab(name, [x, Math.max(y, ly) + 0.75, 0], { size: 22, border: 'rgba(56,209,255,.7)' }));
       });
       sub.add(lab(v.t + ' · 柱高 ∝ 维度', [0, -0.7, 2.2], { size: 19 }));
     }
@@ -348,7 +350,7 @@
     const fA = block(1, 0.32, 0.32, COL.trk, [1.6, 3.6, 0], { edges: false }), fB = block(1, 0.32, 0.32, COL.trk, [1.6, 2.6, 0], { edges: false });
     const thA = block(0.06, 0.6, 0.4, COL.bad, [1.6 + 4 * 0.8 / 1.6, 3.6, 0], { edges: false }), thB = block(0.06, 0.6, 0.4, COL.bad, [1.6 + 4 * 0.8 / 1.6, 2.6, 0], { edges: false });
     const gauge = [gA, gB, fA, fB, thA, thB]; G.add(...gauge);
-    const lA = lab('论文 ‖e_R‖（rad）', [3.6, 4.15, 0], { size: 17 }), lB = lab('代码 |Δg_z|', [3.6, 3.15, 0], { size: 17 }), l08 = lab('0.8', [1.6 + 2, 4.4, 0.3], { size: 15, color: css(COL.bad) }); G.add(lA, lB, l08);
+    const lA = lab('论文 ‖e_R‖（rad）', [3.6, 4.15, 0], { size: 17 }), lB = lab('代码 |Δg_z|', [3.6, 3.15, 0], { size: 17 }), l08 = lab('0.8', [1.6 + 2, 2.0, 0.3], { size: 15, color: css(COL.bad) }); G.add(lA, lB, l08);
     /* push timeline: seeded intervals U(1,3) s and velocity increments within the paper's ranges */
     const r = L.rng(11), PU = []; let t = 0; while (true) { t += 1 + 2 * r(); if (t > 10) break; PU.push({ t, v: [(-0.5 + r()) * 1, (-0.5 + r()) * 1, (-0.2 + 0.4 * r())], w: [(-0.52 + 1.04 * r()), (-0.52 + 1.04 * r()), (-0.78 + 1.56 * r())] }); }
     const TL = new THREE.Group(); G.add(TL); const tlx = t => -5 + t; TL.add(block(10, 0.06, 0.06, COL.dim, [0, 0.03, 2.4], { edges: false }));
@@ -442,9 +444,9 @@
     const loss = block(2.6, 0.9, 1.2, COL.guide, [9.6, 3.5, 0]);
     G.add(inE, inD, ...E, mu, Z, ...D, A, loss);
     const rob = robot(COL.robot); G.add(rob);
-    G.add(lab('ψ, e_anchor · 67', [-9.0, 5.2, 0], { size: 17 }), lab('编码器 [2048, 1024, 512]', [-5.8, 5.4, 0], { size: 18 }), lab('μ, log σ', [-2.6, 5.0, 0], { size: 16 }), lab('z · 32', [-0.8, 4.6, 0], { size: 18 }));
+    G.add(lab('ψ, e_anchor · 67', [-9.0, 5.2, 0], { size: 17 }), lab('编码器 [2048, 1024, 512]', [-5.8, 6.1, 0], { size: 18 }), lab('μ, log σ', [-2.6, 5.0, 0], { size: 16 }), lab('z · 32', [-0.8, 4.6, 0], { size: 18 }));
     G.add(lab('解码器 [2048, 1024, 512]', [2.8, 5.4, 0], { size: 18 }), lab('â · 29', [6.4, 4.8, 0], { size: 17 }), lab('g, V_imu, θ, θ̇, a_last · 96', [1.6, 2.3, 2.4], { size: 16 }), lab('‖â − a‖² + 0.01 KL', [9.6, 4.6, 0], { size: 17 }));
-    G.add(lab('教师：跟踪策略 [512, 256, 128]', [-12, -0.4, -1.2], { size: 17, color: css(COL.trk) }), lab('学生在仿真里跑（DAgger）', [9.0, -0.3, -2.4], { size: 17 }));
+    G.add(lab('教师：跟踪策略 [512, 256, 128]', [-11.4, -0.4, 0.6], { size: 17, color: css(COL.trk) }), lab('学生在仿真里跑（DAgger）', [9.0, -0.3, -2.4], { size: 17 }));
     const f = { a: stream(G, 5, COL.ref), b: stream(G, 5, COL.vae), c: stream(G, 4, COL.sim), d: stream(G, 4, COL.robot), e: stream(G, 5, COL.trk), g: stream(G, 4, COL.rew) };
     return { update(p) {
       const q = (p * 16) % 1, a = seg(p, 0, 0.1), b = seg(p, 0.3, 0.38), c = seg(p, 0.6, 0.68);
@@ -462,7 +464,7 @@
     G.add(L.grid(30, 30));
     const NT = 21, DX = 1.0, X0 = -10, ims = inst(BOX, NT), imz = inst(BOX, NT); G.add(ims, imz);
     const tr = block(NT * DX + 0.6, 1.4, 1.4, COL.diff, [0, 6.8, 0], { opacity: 0.85 }); G.add(tr);
-    G.add(lab('去噪 Transformer · 6 层 · 8 头 · 512 维', [0, 7.9, 0], { size: 20 }), lab('s（状态）', [X0 - 1.8, 3.0, 0], { size: 17 }), lab('z（潜变量）', [X0 - 1.8, 0.9, 0], { size: 17 }));
+    G.add(lab('去噪 Transformer · 6 层 · 8 头 · 512 维', [3.2, 7.9, 0], { size: 20 }), lab('s（状态）', [X0 - 1.5, 3.0, 0], { size: 17 }), lab('z（潜变量）', [X0 - 1.5, 0.9, 0], { size: 17 }));
     G.add(lab('−0.16 s', [X0, -0.4, 1], { size: 15 }), lab('t（当前）', [X0 + 4 * DX, -0.4, 1], { size: 15, color: css(COL.ok) }), lab('+0.64 s', [X0 + 20 * DX, -0.4, 1], { size: 15 }));
     const zt = lab('z_t → VAE 解码器 → a_t', [X0 + 4 * DX, 0.0, 2.2], { size: 17, color: css(COL.rew) }); G.add(zt);
     const rr = L.rng(5), EPS = Array.from({ length: NT * 2 }, () => L.gauss(rr));
@@ -569,13 +571,13 @@
     let view = +(OPT[0] ?? 0); const A = new THREE.Group(), B = new THREE.Group(); G.add(A, B); G.add(L.grid(34, 34));
     /* timing lanes, 0..160 ms mapped to x -10..10 */
     const tx = t => -8.4 + t / 8, lanes = [['状态估计 500 Hz', 7.0, COL.sim], ['扩散线程（GPU，异步）', 5.4, COL.diff], ['VAE 解码器 25 Hz（CPU）', 3.8, COL.vae], ['电机 PD', 2.2, COL.trk]];
-    lanes.forEach(([t, y, c]) => { A.add(block(20.4, 0.06, 0.4, COL.dim, [1.6, y, 0], { edges: false })); A.add(lab(t, [-11.6, y + 0.45, 0], { size: 17, color: css(c) })); });
+    lanes.forEach(([t, y, c]) => { A.add(block(20.4, 0.06, 0.4, COL.dim, [1.6, y, 0], { edges: false })); A.add(lab(t, [-10.1, y + 0.45, 0], { size: 17, color: css(c) })); });
     for (let t = 0; t <= 160; t += 2) A.add(block(0.04, 0.3, 0.3, COL.sim, [tx(t), 7.0, 0], { edges: false }));
     const dif = [0, 40, 80, 120].map(t => { const m = block(20 / 8, 0.55, 0.5, COL.diff, [tx(t + 10), 5.4, 0], { edges: false }); A.add(m); return m; });
     const decs = [0, 40, 80, 120, 160].map(t => { const m = block(0.25, 0.55, 0.5, COL.vae, [tx(t), 3.8, 0], { edges: false }); A.add(m); return m; });
     A.add(block(20.4, 0.25, 0.4, COL.trk, [1.6, 2.2, 0], { edges: false, opacity: 0.6 }));
     [0, 40, 80, 120].forEach(t => A.add(L.arrow([tx(t + 20), 5.1, 0], [tx(t + 40), 4.1, 0], COL.rew)));
-    A.add(lab('20 ms', [tx(10), 6.0, 0], { size: 15 }), lab('40 ms', [tx(60), 1.4, 0], { size: 15 }), lab('最新的 z_t', [tx(30), 4.6, 0.4], { size: 15, color: css(COL.rew) }));
+    A.add(lab('20 ms', [tx(50), 6.0, 0], { size: 15 }), lab('40 ms', [tx(60), 1.4, 0], { size: 15 }), lab('最新的 z_t', [tx(30), 4.6, 0.4], { size: 15, color: css(COL.rew) }));
     const cur = block(0.06, 6.4, 0.06, COL.white, [tx(0), 4.6, 0], { edges: false }); A.add(cur);
     /* inheritance board */
     const ROWS = [

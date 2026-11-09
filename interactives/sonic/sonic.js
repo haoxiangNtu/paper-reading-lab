@@ -83,7 +83,7 @@
         '<p><b>弹簧模型。</b>临界阻尼弹簧给根位置和朝向定目标关键帧。位置 c = 5 ln 2，朝向 c = 20 ln 2，速度命令转换成 1 s 后的目标位置。</p>' +
         '<p><b>切到“印刷版”看：</b>式 (8) 照原文写是 x(t) = (x_T − x₀ + (v₀ + c/2·(x_T − x₀))t) e^(−ct/2)，t = 0 时等于 x_T − x₀，t → ∞ 时归零，不是从 x₀ 走到 x_T。代码版是 (j₀ + j₁t)e^(−yt) + x_T，j₀ = x₀ − x_T，j₁ = v₀ + j₀y，y = c/2。图上的曲线都是当场算的。</p>' +
         guess('掩码轮数 L_max = 8 和 16 个 token 是我选的（论文没给 L_max），小人姿态手写，不是规划器的输出。') + src('§3.3 式 (5)–(8) · S1.3 · 代码 motionbricks/.../full_agent.py') },
-    { n: 9, part: '遥操作', title: '换输入不换策略', sub: '切换来源；四个循环按真实频率比例闪（放慢）', dur: 15, cam: [0.03, 1.05, 37, [-0.4, 3.2, 0]],
+    { n: 9, part: '遥操作', title: '换输入不换策略', sub: '切换来源；四个循环按真实频率比例闪（放慢）', dur: 15, cam: [0.03, 1.05, 39, [0.2, 3.2, 0]],
       html: dl([['控制', '50 Hz，策略一次 1–2 ms'], ['写电机', '500 Hz，不阻塞策略'], ['输入', '100 Hz'], ['规划', '10 Hz，一次约 12 ms'], ['计算', '全部在 Jetson Orin 上，TensorRT']]) +
         '<p><b>全身 VR：</b>PICO 头显、两个脚踝追踪器和手柄，每帧 87 维（63 关节位置 ＋ 4 根朝向 ＋ 6 腕 ＋ 14 手），走 ℰh。</p>' +
         '<p><b>三点 VR：</b>只用头显和手柄，给头和双手的 SE(3) 位姿、腰高和导航命令，下身由规划器补，走 ℰm。</p>' +
@@ -95,7 +95,7 @@
         '<p><b>VLA</b>（vision-language-action）模型看图像和指令输出动作。这里它的输出不是关节，而是通用 token，再由 𝒟c 变成关节目标。所以脚也归它管，能踩垃圾桶踏板。</p>' +
         '<p>难任务上差距变大：把汽水罐扔进垃圾桶，token 60%，SMPL 0%。论文的解释是 token 空间紧凑离散，好学；连续姿态的小误差会放大成跟踪失败。</p>' +
         '<p><b>要留意样本量。</b>每个任务只有 10 到 20 次，误差棒是 95% Wilson 区间（我算的）：10 次里成 6 次的区间是 31% 到 83%。表 1(B) 的 SMPL 那一列论文没写试验次数，这里按同任务的次数假设。</p>' + src('§2.5 · §3.6 · 表 1') },
-    { n: 11, part: '对账', title: '和 SuperMimic 的判据差在哪', sub: '切换参考姿态和误差方向。三条判据的触发点当场算', dur: 15, cam: [0.0, 1.2, 29, [1.0, 3.8, 0]],
+    { n: 11, part: '对账', title: '和 SuperMimic 的判据差在哪', sub: '切换参考姿态和误差方向。三条判据的触发点当场算', dur: 15, cam: [0.0, 1.2, 29, [1.8, 3.8, 0]],
       html: dl([['SONIC 评测（代码）', '根高、末端高 &gt; 0.25 m，或根旋转角² &gt; 1（57.3°）'], ['SONIC 训练（公布配置）', '根高、末端高 &gt; 0.15 m，脚位置 &gt; 0.2 m，根旋转角² &gt; 0.2（25.6°）'], ['SuperMimic', '根高 &gt; 0.25 m，或倾斜 |g_ref,z − g_rob,z| &gt; 0.8']]) +
         '<p>SuperMimic 附录 F 说 SONIC 自己的判据没有朝向项。这和 SONIC v4 正文相符。但 v1 到 v3 正文、作者的 Data S1 说明页、官方评测配置 <code>tracking/eval.yaml</code> 都有 1 rad 这一项。</p>' +
         '<p><b>看动画。</b>倾斜判据只看重力方向。竖直参考时要歪约 78.5° 才触发；参考正好水平时 53°；最紧的情形是两个方向的中点水平（比如参考俯仰 66°），47.2° 就触发；绕竖直轴的偏航误差它完全不管。SONIC 那项是总旋转角，哪个方向都一样，评测 57.3°，训练 25.6°。</p>' +
@@ -129,8 +129,10 @@
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
 
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   /* a label whose text can change: rebuilt only when the text differs */
@@ -206,14 +208,14 @@
     const X = { task: -15.5, gen: -10.2, mot: -5.2, enc: -0.4, q: 4.4, z: 7.6, dc: 11.2, out: 15.6 };
     const Z = [-5.4, -1.8, 1.8, 5.4], Z3 = [-4.2, 0, 4.2];
     G.add(L.grid(44, 44));
-    const mk = (w, h, d, c, pos, t, go, sz = 21) => { const m = block(w, h, d, c, pos); clickable(m, go); G.add(m, lab(t, [pos[0], pos[1] + h / 2 + 0.55, pos[2]], { size: sz })); return m; };
+    const mk = (w, h, d, c, pos, t, go, sz = 21, dy = 0) => { const m = block(w, h, d, c, pos); clickable(m, go); G.add(m, lab(t, [pos[0], pos[1] + h / 2 + 0.55 + dy, pos[2]], { size: sz })); return m; };
     const tasks = ['手柄', '三点 VR', '全身 VR', '视频 文本 音乐'].map((t, i) => mk(2.5, 0.9, 1.5, COL.task, [X.task, 0.5, Z[i]], t, 8));
     const gens = ['运动学规划器', 'PICO VR', 'GEM'].map((t, i) => mk(2.8, 1.1, 1.8, COL.gen, [X.gen, 0.6, Z3[i]], t, i === 0 ? 7 : 8));
     const mots = ['机器人动作', '混合动作', '人体动作'].map((t, i) => mk(2.5, 0.8, 1.6, COL.mot, [X.mot, 0.45, Z3[i]], t, 3));
     const encC = [COL.er, COL.em, COL.eh];
     const encs = ['ℰr', 'ℰm', 'ℰh'].map((t, i) => mk(2.2, 1.6, 2, encC[i], [X.enc, 0.85, Z3[i]], t, 3, 26));
     const q = mk(1.8, 2.6, 2.6, COL.q, [X.q, 1.35, 0], '量化器 FSQ', 4);
-    const z = mk(0.9, 2.0, 1.2, COL.z, [X.z, 1.05, 0], '通用 token', 4);
+    const z = mk(0.9, 2.0, 1.2, COL.z, [X.z, 1.05, 0], '通用 token', 4, 21, 1.6);
     const dc = mk(3, 1.6, 2, COL.dc, [X.dc, 0.85, 2.6], '控制解码器 𝒟c', 5);
     const dr = mk(3, 1.3, 1.8, COL.dr, [X.dc, 0.7, -2.6], '动作解码器 𝒟r', 5);
     const rb = robot(COL.robot); G.add(rb);
@@ -244,14 +246,14 @@
     const stack = inst(BOX, 512); G.add(stack);
     const xB = [3.2, 7.0, 10.8, 14.6], BW = 1.1, sY = 2.2;  /* failure % × sY */
     const bars = inst(BOX, 8); G.add(bars);
-    const labs = []; for (let i = 0; i < 4; i++) labs.push({ top: dynLab(G, [xB[i], 0, 0], { size: 20 }), name: dynLab(G, [xB[i], -0.6, 3.4], { size: 20 }) });
+    const labs = []; for (let i = 0; i < 4; i++) labs.push({ top: dynLab(G, [xB[i], 0, 0], { size: 20 }), name: dynLab(G, [xB[i], -0.6, 3.4 + (i % 2) * 2.2], { size: 20 }) });
     /* dynLab pins its position at construction, so bar value labels are rebuilt through a position table */
     const topL = [0, 1, 2, 3].map(() => ({ sp: null, cur: '' }));
     const setTop = (i, text, y, vis) => { const o = topL[i]; if (text !== o.cur) { if (o.sp) { G.remove(o.sp); L.dispose(o.sp); LABS = LABS.filter(s => s !== o.sp); } o.sp = lab(text, [xB[i], y, 0], { size: 19 }); G.add(o.sp); o.cur = text; } if (o.sp) { o.sp.position.y = y; o.sp.visible = vis; } };
     labs.forEach(l => l.top('', false));
     G.add(lab('失败率 %（橙 test-content，蓝 test-repetition）', [8.8, 7.6, 0], { size: 23 }));
     const head = dynLab(G, [-8.8, 7.6, 0], { size: 26, border: 'rgba(56,209,255,.8)' });
-    const sub = dynLab(G, [-8.8, 6.6, 0], { size: 21 });
+    const sub = dynLab(G, [-8.8, 6.1, 0], { size: 21 });
     const orange = hex3(0xe0764e), blue = hex3(0x3987e5), grey = hex3(0x5a6780);
     return { ctls: [
       { label: '轴', items: AX.map(a => a.key), pick(k) { ax = k; pt = null; }, cur: () => ax },
@@ -428,7 +430,7 @@
     let bk = 0; const BETAS = [200, 2];
     const bars = inst(BOX, N), prob = inst(BOX, N); G.add(bars, prob);
     const X = i => -13.2 + i * 1.15;
-    G.add(lab('失败率 f（玩具）', [8, 2.6, -3], { size: 21 }), lab('采样概率 P（当场算）', [8, 5.6, 3], { size: 21 }));
+    G.add(lab('失败率 f（玩具）', [-9, 2.2, -3], { size: 21 }), lab('采样概率 P（当场算）', [8, 5.6, 3], { size: 21 }));
     const e = dynLab(G, [8, 8.6, 0], { size: 22, border: 'rgba(242,193,78,.85)' });
     const cl = inst(BOX, 1); G.add(cl);
     return { ctls: [{ label: 'β', items: ['200（论文）', '2（看上限）'], pick(k) { bk = k; }, cur: () => bk }], update(p) {
@@ -456,7 +458,7 @@
     axisX(t => [X0 + W * t, 0.4, 0]); axisY(t => [X0, 0.4 + (Hp + 2.2) * t, 0]);
     const dot = L.sphere(0.2, COL.er); G.add(dot);
     const rb = robot(COL.robot); G.add(rb);
-    const inf = dynLab(G, [9.2, 8.6, 0], { size: 22, border: 'rgba(79,201,138,.85)' }), tkl = dynLab(G, [-7.2, 8.6, 0], { size: 22 });
+    const inf = dynLab(G, [9.2, 8.6, 0], { size: 22, border: 'rgba(79,201,138,.85)' }), tkl = dynLab(G, [-7.2, 9.7, 0], { size: 22 });
     G.add(lab('t = 0', [X0, -0.2, 0], { size: 18 }), lab('2 s', [X0 + W, -0.2, 0], { size: 18 }));
     return { ctls: [
       { label: '命令速度', items: V.map(v => v + ' m/s'), pick(k) { vk = k; }, cur: () => vk },
@@ -498,7 +500,7 @@
     const z = block(0.8, 1.8, 1.2, COL.z, [1.8, 1, 0]), dc = block(2.4, 1.4, 1.6, COL.dc, [4.8, 0.8, 0]); G.add(z, dc, lab('token', [1.8, 2.4, 0], { size: 20 }), lab('𝒟c', [4.8, 2.1, 0], { size: 22 }));
     const rb = robot(COL.robot); G.add(rb);
     const f = stream(G, 12, COL.z, 0.13);
-    const loops = [['写电机 500 Hz', 500, COL.dc], ['输入 100 Hz', 100, COL.gen], ['控制 50 Hz', 50, COL.er], ['规划 10 Hz', 10, COL.q]].map((l, i) => { const m = block(0.7, 0.7, 0.7, l[2], [7.4 + i * 2.6, 6.4, 0]); G.add(m, lab(l[0], [7.4 + i * 2.6, 7.4, 0], { size: 17 })); return { m, hz: l[1] }; });
+    const loops = [['写电机 500 Hz', 500, COL.dc], ['输入 100 Hz', 100, COL.gen], ['控制 50 Hz', 50, COL.er], ['规划 10 Hz', 10, COL.q]].map((l, i) => { const m = block(0.7, 0.7, 0.7, l[2], [7.0 + i * 3.0, 6.4, 0]); G.add(m, lab(l[0].replace(' ', '\n'), [7.0 + i * 3.0, 7.75, 0], { size: 17 })); return { m, hz: l[1] }; });
     const d = dynLab(G, [-8, 6.6, 0], { size: 22, border: 'rgba(56,209,255,.8)' });
     return { ctls: [{ label: '来源', items: SRC.map(s => s.n), pick(q) { k = q; }, cur: () => k }], update(p) {
       const s = k ?? Math.min(3, Math.floor(p * 4)), S_ = SRC[s], ph = (p * 18) % 1, zs = -5.4 + s * 3.6;
@@ -538,7 +540,7 @@
             const lo = w[0] * 100 * sY, hi = w[1] * 100 * sY; setI(wh, n, g > 0.98 ? [x, (lo + hi) / 2, 0.9] : [0, -60, 0], g > 0.98 ? [0.09, Math.max(0.02, hi - lo), 0.09] : 0.001); colI(wh, n, [0.95, 0.95, 0.98]);
             put(vl[n], `${v}%`, [x, hi + 0.45, 0], 20, g > 0.98); n++;
           });
-          put(nm[i], `${a[0]} · ${a[3]} 次`, [X(i * 2 + 0.2) + 0.8, -0.7, 2.2], 18, true);
+          put(nm[i], `${a[0]}\n${a[3]} 次`, [X(i * 2 + 0.2) + 0.8, -0.9, 2.2], 18, true);
         });
         for (let i = 3; i < 6; i++) if (nm[i].sp) nm[i].sp.visible = false;
         h('黄：token  灰：SMPL\n均值 68% 对 27%，差 +42');
@@ -563,9 +565,9 @@
     G.add(L.grid(32, 32));
     let ak = 2, ek = 0; const A = [0, 45, 66.4, 90, 180], R1 = 1, R2 = Math.sqrt(0.2);
     const ref = robot(COL.ref, { opacity: 0.45 }), rb = robot(COL.robot); G.add(ref, rb);
-    const lamp = [['SONIC 训练\n角² > 0.2（25.6°）', COL.em], ['SONIC 评测\n角² > 1（57.3°）', COL.er], ['SuperMimic\n倾斜 > 0.8', COL.eh]].map((a, i) => { const m = L.sphere(0.5, a[1]); m.position.set(4.6 + i * 3.5, 1.0, 0); m.userData.c = hex3(a[1]); G.add(m, lab(a[0], [4.6 + i * 3.5, 2.7, 0], { size: 18 })); return m; });
+    const lamp = [['SONIC 训练\n角² > 0.2（25.6°）', COL.em], ['SONIC 评测\n角² > 1（57.3°）', COL.er], ['SuperMimic\n倾斜 > 0.8', COL.eh]].map((a, i) => { const m = L.sphere(0.5, a[1]); m.position.set(3.4 + i * 4.7, 1.0, 0); m.userData.c = hex3(a[1]); G.add(m, lab(a[0], [3.4 + i * 4.7, 2.7, 0], { size: 18 })); return m; });
     const flag = [0, 1, 2].map(i => ({ sp: null, cur: '' }));
-    const put = (i, t) => { const o = flag[i]; if (t !== o.cur) { if (o.sp) { G.remove(o.sp); L.dispose(o.sp); LABS = LABS.filter(s => s !== o.sp); } o.sp = lab(t, [4.6 + i * 3.5, -0.5, 0], { size: 18 }); G.add(o.sp); o.cur = t; } };
+    const put = (i, t) => { const o = flag[i]; if (t !== o.cur) { if (o.sp) { G.remove(o.sp); L.dispose(o.sp); LABS = LABS.filter(s => s !== o.sp); } o.sp = lab(t, [3.4 + i * 4.7, -0.5, 0], { size: 18 }); G.add(o.sp); o.cur = t; } };
     const trip = dynLab(G, [8.1, 7.6, 0], { size: 22, border: 'rgba(242,193,78,.85)' }), meas = dynLab(G, [8.1, 5.2, 0], { size: 21 });
     const tiltOf = (a, e) => Math.abs(Math.cos(a) - Math.cos(a + e));
     return { ctls: [

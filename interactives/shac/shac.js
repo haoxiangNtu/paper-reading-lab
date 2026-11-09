@@ -279,8 +279,10 @@ const Toy = (function () {
   try { S = L.makeScene($('stage'), { fov: 38, theta: 0.6, phi: 1.0, dist: 24, maxDist: 160, minDist: 3 }); } catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   function relab(G, old, text, pos, o) { if (old) { G.remove(old); L.dispose(old); LABS = LABS.filter(s => s !== old); } const n = lab(text, pos, o); G.add(n); return n; }
@@ -366,9 +368,9 @@ const Toy = (function () {
       wins.push({ x0, x1: x0 + ww });
     }
     done(bS);
-    rowS.add(lab('SHAC：每窗口 32 步，末端接评论家 V（点窗口到第 7 幕）', [-8.5, 0.4, zS + 4.2], { border: 'rgba(157,140,255,.8)' }));
-    rowS.add(lab('红线处切断梯度，状态继续走', [7, 0.4, zS + 4.2], { size: 18 }));
-    rowS.add(lab('并行 N 条，默认 64', [15, 0.4, zS + 4.2], { size: 18 }));
+    rowS.add(lab('SHAC：每窗口 32 步，末端接评论家 V（点窗口到第 7 幕）', [-6, 0.4, zS + 4.2], { border: 'rgba(157,140,255,.8)' }));
+    rowS.add(lab('红线处切断梯度，状态继续走', [4.5, 0.4, zS + 6.6], { size: 18 }));
+    rowS.add(lab('并行 N 条，默认 64', [13.5, 0.4, zS + 6.6], { size: 18 }));
     const ball = inst(BALL, 1 + W), balls = ball; G.add(ball); colI(ball, 0, hex3(COL.grad)); for (let k = 0; k < W; k++) colI(ball, k + 1, hex3(COL.grad)); done(ball);
     let show = 2;
     return { ctl: { html: textBtns('显示', ['BPTT', 'SHAC', '都看'], 2, 'm'), on(g, k) { show = k; } },
@@ -436,7 +438,7 @@ const Toy = (function () {
       fmax = Math.max(kn * dmax, (kn + kd * tr.vImp) * dmax);
       for (let i = 0; i < 80; i++) { const dd = dmax * i / 79, x = x1 + wf * i / 79; fcA.userData.set(i, x, Hf * kn * dd / fmax, 0.0, 0); fcB.userData.set(i, x, Hf * (kn + kd * tr.vImp) * dd / fmax, -0.5, 0); const vt = 0.3 * i / 79, cl = Math.min(kt * vt, mu * tr.fpk); ftC.userData.set(i, x2 + wt * i / 79, Hf * cl / (mu * tr.fpk * 1.1 + 1e-9), 0, 0); }
       fcA.userData.draw(80); fcB.userData.draw(80); ftC.userData.draw(80);
-      lP = relab(G, lP, `k_n ${SET[cur][1]}  k_d ${SET[cur][2]}  k_t ${SET[cur][3]}  μ ${SET[cur][4]}`, [-9.5, 10.6, 0], { size: 20, border: 'rgba(242,193,78,.8)' });
+      lP = relab(G, lP, `k_n ${SET[cur][1]}  k_d ${SET[cur][2]}  k_t ${SET[cur][3]}  μ ${SET[cur][4]}`, [-9.5, 12.0, 0], { size: 20, border: 'rgba(242,193,78,.8)' });
     }
     sim();
     return { ctl: { html: textBtns('系数', SET.map(s => s[0]), 0, 'c'), on(g, k) { cur = k; sim(); } },
@@ -548,7 +550,7 @@ const Toy = (function () {
     const nameL = names.map((t, i) => { const l = lab(t, [x0 + wid + 0.2, 0.7, zs[i] + 1.2], { size: 20, border: i === 1 ? 'rgba(224,93,93,.85)' : i === 2 ? 'rgba(79,201,138,.85)' : 'rgba(124,184,255,.85)' }); G.add(l); return l; });
     /* survival strips */
     const strip = inst(BOX, 2 * 64); G.add(strip);
-    const xs = 9, ws = 11; const tA = lab('一条轨迹上的权重 c_t：红是硬，绿是软', [xs + ws / 2, 5.4, -6], { size: 19 }); G.add(tA);
+    const xs = 9, ws = 11; const tA = lab('一条轨迹上的权重 c_t：红是硬，绿是软', [xs + ws / 2 - 3.5, 7.4, -6], { size: 19 }); G.add(tA);
     let stats = [], tags = [], tH = [], tS = [];
     const cache = TOY._c;
     function compute() {
@@ -696,7 +698,7 @@ const Toy = (function () {
       items = [];
       const tl = (t, x, y, z = 0, o = {}) => lg.add(lab(t, [x, y, z], { size: o.size || 19, border: o.border }));
       if (mode === 0) {
-        F6.h.forEach((h, i) => { const xa = -19.5 + 3.05 * i, xb = 2.8 + 3.05 * i; items.push({ x: xa, y0: 0, y1: F6.r[i] / 7555 * 8, z: 0, c: COL.rew, w: 2.3 }); items.push({ x: xb, y0: 0, y1: F6.t[i] / 115.6 * 8, z: 0, c: COL.pi, w: 2.3 }); tl(`h=${h}`, xa, -1.0, 2); tl(`h=${h}`, xb, -1.0, 2); tl(String(F6.r[i]), xa, F6.r[i] / 7555 * 8 + 0.8, 0); tl(F6.t[i] + ' min', xb, F6.t[i] / 115.6 * 8 + 0.8, 0); });
+        F6.h.forEach((h, i) => { const xa = -20.5 + 3.3 * i, xb = 2.6 + 3.3 * i; items.push({ x: xa, y0: 0, y1: F6.r[i] / 7555 * 8, z: 0, c: COL.rew, w: 2.3 }); items.push({ x: xb, y0: 0, y1: F6.t[i] / 115.6 * 8, z: 0, c: COL.pi, w: 2.3 }); tl(`h=${h}`, xa, -1.0, 2); tl(`h=${h}`, xb, -1.0, 2); tl(String(F6.r[i]), xa, F6.r[i] / 7555 * 8 + 0.8, 0); tl(F6.t[i] + ' min', xb, F6.t[i] / 115.6 * 8 + 0.8, 0); });
         tl('最好奖励（Ant）', -12, 10.8, 0, { size: 21, border: 'rgba(242,193,78,.8)' }); tl('总训练时间：同样 2000 轮、同样样本数', 11.6, 10.8, 0, { size: 21, border: 'rgba(56,209,255,.8)' });
       } else if (mode === 1) {
         F7.forEach(([nm, o], i) => { const x0 = -18 + 7.6 * i; Object.values(o).forEach((v, j) => items.push({ x: x0 + j * 1.25, y0: 0, y1: v / 8925 * 9, z: 0, c: CS[j], w: 1.05 })); tl(nm, x0 + 2.5, -1.0, 2); });

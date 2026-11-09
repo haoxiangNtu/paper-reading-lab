@@ -126,7 +126,7 @@ if (typeof window !== 'undefined') (function () {
       html: dl([['输入', '固定数据集 D（算法 1 第 1 行）'], ['模型', '自回归训练一次，之后冻结'], ['想象', '4096 条 × 100 步（表 S11）'], ['奖励', 'r̃ = r − λu，λ = 1.0'], ['部署', 'ANYmal D、Unitree G1']]) +
         '<p>RWM-U 只在流程上比 <a href="../../papers/rwm.html" target="_top">RWM</a> 少一条线：策略更新后不再回到环境收集数据。少了这条线，模型的错误就没有机会被新数据纠正，所以要多加两样东西：能估计自己哪里不可信的集成（第 3、4 幕），以及把这个估计扣进奖励的 MOPO-PPO（第 8 幕）。</p><p>左上角切到“在线 RWM”可以看那条被去掉的线。点方块跳到对应一幕。</p>' +
         guess('方块的大小不代表数量。') + src('§4 算法 1 · 表 S11 · A.6') },
-    { n: 2, part: '数据', title: '离线数据：仿真日志加一小时真机', sub: 'A.4 的自主采集，表 1 的四种混合', dur: 16, cam: [0.03, 1.18, 45, [1.5, 5.6, 0]], ctls: [{ label: '混合', items: ['1M / 0', '800K / 200K', '600K / 400K', '400K / 600K'], def: 1 }],
+    { n: 2, part: '数据', title: '离线数据：仿真日志加一小时真机', sub: 'A.4 的自主采集，表 1 的四种混合', dur: 16, cam: [0.03, 1.18, 46, [2.6, 5.6, 0]], ctls: [{ label: '混合', items: ['1M / 0', '800K / 200K', '600K / 400K', '400K / 600K'], def: 1 }],
       html: LIVE + dl([['真机采集', '约 1 小时，200K 转移（A.4）'], ['算账', '200K ÷ 50 Hz = 1.11 小时'], ['最好的混合', '800K 仿真 + 200K 真机：0.91 ± 0.03'], ['采集策略', '0.79 ± 0.02'], ['在线无模型', '0.88 ± 0.01']]) +
         '<p>左边是 A.4 的采集逻辑：随机抽一个速度命令，用积分估算会走到哪（红球）。走出安全框就重抽，重试次数用完就发一个回原点的命令。</p><p>右边的柱子是表 1 的真实数字，切换混合比例看变化。真机数据超过 200K 之后性能反而下降，作者的解释是真机轨迹缺少有风险但有信息量的行为。</p>' +
         guess('机器人的路径和步态是手写的，不是实测。盒子大小也是示意，论文没给安全框尺寸。') + src('§5.4 表 1 · A.4 · 图 S8') },
@@ -134,7 +134,7 @@ if (typeof window !== 'undefined') (function () {
       html: LIVE + dl([['基座', 'GRU 256, 256（表 S7）'], ['头', 'MLP 128，ReLU，B = 5（表 S10）'], ['M, N', '32, 8'], ['输入', 'o 45 维 + a 12 维（ANYmal D）'], ['输出', '每个头给 μ_b, σ_b']]) +
         '<p>论文只集成预测头，GRU 共享。这和 MOPO、PETS 那种每个成员一整个网络不同，代价小，但成员之间的差异只来自头。</p><p>切到“官方代码”看三处不同：u 用标准差的跨维求和，想象时每条轨迹固定抽一个成员，接触和终止另有一套基座和头。</p>' +
         guess('小球只表示数据流向，块的大小不代表维度。') + src('§4.1 式 (3)(4) · 表 S7、S10 · rsl_rl_rwm@18eebcd system_dynamics.py') },
-    { n: 4, part: '认知不确定性', title: '出了数据覆盖，成员就开始分歧', sub: '浏览器里当场训练的玩具集成', dur: 15, cam: [0.16, 1.28, 31, [0.8, 5.6, 0]], ctls: [{ label: '覆盖', items: ['窄', '宽'] }, { label: '成员', items: ['2', '5', '10'], def: 1 }, { label: '重采样', items: ['开', '关'] }, { label: '种子', items: SEEDS }],
+    { n: 4, part: '认知不确定性', title: '出了数据覆盖，成员就开始分歧', sub: '浏览器里当场训练的玩具集成', dur: 15, cam: [0.16, 1.28, 31, [-0.2, 5.6, 0]], ctls: [{ label: '覆盖', items: ['窄', '宽'] }, { label: '成员', items: ['2', '5', '10'], def: 1 }, { label: '重采样', items: ['开', '关'] }, { label: '种子', items: SEEDS }],
       html: LIVE + '<p>这一幕是<b>当场计算的玩具</b>。真实系统：一维位置 \\(s\\)，动作 \\(a\\)。日志只覆盖蓝色区间，蓝点是其中 \\(a\\) 接近 0.6 的转移。成员是共享基座的小 MLP，手写反传，固定种子。每条彩带是一个成员在 \\(a=0.6\\) 这一截上预测的 \\(\\mu_b(s,a)\\)，灰虚线是真值。</p><p>下面的曲线是成员间标准差。光标走出蓝色区间后它开始升高，这就是认知不确定性：数据不够造成的不确定，多给数据能降下来。切“宽”覆盖可以直接看到它降下来。</p><p>换种子看看：有的种子在区间外几乎不分歧。玩具里 u 是否够用取决于初始化，这一点和真实系统能否类比，论文没有给数据。</p>' +
         src('玩具，和 RWM-U 无数值关系。公式见式 (3)(4)') },
     { n: 5, part: '偶然不确定性', title: '学到的 σ 为什么会塌到零', sub: '损失决定 σ 能不能学到噪声', dur: 14, cam: [0.03, 1.32, 41, [-0.5, 5.4, 0]], ctls: [{ label: '损失', items: ['重参数 MSE（代码默认）', '高斯 NLL'] }],
@@ -147,13 +147,13 @@ if (typeof window !== 'undefined') (function () {
     { n: 7, part: '想象', title: '想象一条轨迹，每步都算 u', sub: '式 (4) 的滚动，均值和抽成员两种接法', dur: 15, cam: [0.06, 1.34, 34, [0.8, 6.3, 0]], ctls: [{ label: '目标 θ', items: ['0.3 覆盖内', '1.0 边缘', '2.0 悬崖外'], def: 2 }, { label: '接法', items: ['式 (4) 均值', '代码：抽成员'] }, { label: '种子', items: SEEDS }],
       html: LIVE + '<p><b>当场计算的玩具。</b>策略 \\(a=\\mathrm{clip}(3(\\theta-s))\\)，在第 4 幕的集成里滚 60 步。上图是位置，下图是每步的 u（标准差，已用日志单步变化的标准差归一化）和相对真实系统的累计误差（摔倒后真实位置停在悬崖）。</p><p>真实系统在 s = 1.25 有悬崖，日志里没有。把目标放到 2.0：模型一路走过去，想象的奖励很高，真实轨迹在悬崖处结束（红点）。这就是作者说的 hallucinated rollouts。u 在越过覆盖边界后上升，提前给了信号。</p><p>“式 (4) 均值”的短竖线是当步五个成员的预测散布。“代码：抽成员”是五条各用一个成员的轨迹，官方代码每条想象轨迹在开始时固定抽一个。</p>' +
         guess('玩具没有历史，u 只由当前 (s, a) 决定。真实模型里 u 还会随 GRU 的自回归输入漂移。') + src('玩具。公式 §4.1 式 (4) · 代码 envs/base.py') },
-    { n: 8, part: 'MOPO-PPO', title: 'λ 把目标从幻觉里拉回来', sub: '式 (5) 的目标面，拖 λ', dur: 13, cam: [0.3, 1.06, 41, [5.2, 3.2, 0]], ctls: [{ label: 'λ', range: [0, 21], def: 13 }, { label: 'u 用', items: ['标准差（代码）', '方差（式 4）'] }, { label: '种子', items: SEEDS }],
+    { n: 8, part: 'MOPO-PPO', title: 'λ 把目标从幻觉里拉回来', sub: '式 (5) 的目标面，拖 λ', dur: 13, cam: [0.3, 1.06, 38.5, [5.0, 3.2, 0]], ctls: [{ label: 'λ', range: [0, 21], def: 13 }, { label: 'u 用', items: ['标准差（代码）', '方差（式 4）'] }, { label: '种子', items: SEEDS }],
       html: LIVE + '<p><b>当场计算的玩具。</b>曲面是 \\(J(\\theta,\\lambda)=\\sum\\gamma^t[r(s_t)-\\lambda u_t]\\)，\\(\\gamma=0.99\\)，T = 60，起点 12 个，从日志里抽（算法 1 第 5 行）。橙线是每个 λ 下最优的 θ。</p><p>右图把这个 θ 拿到真实系统上跑：λ 太小，θ 落在悬崖外，真实回报很低，想象回报却最高；λ 太大，θ 缩回数据中心；中间有一段最好，而且最优 θ 略微超出数据覆盖（0.7）。形状和图 4 的倒 U 相似。</p><p>这里用网格搜索 θ 代替 PPO，因为要看的只是目标函数被 λ 怎么改。过渡很陡：种子 1 上 λ = 1.00 真实回报 4，λ = 1.47 真实回报 24。切“方差”或换种子，好的 λ 都会变（种子 3 要到 6.8）。玩具里 λ 没有通用值。</p>' +
         src('玩具。§4.2 式 (5) · 代码 base.py 的 uncertainty_penalty_weight') },
-    { n: 9, part: '调 λ', title: '图 4：真实读数', sub: '六个 λ 的想象奖励、u 和真实评估', dur: 15, cam: [0.04, 1.32, 39, [0, 4.0, 0]], ctls: [{ label: '机器人', items: ['ANYmal D', 'Unitree G1'] }, { label: '高亮 λ', items: ['0', '0.2 / 0.1', '0.5', '1', '2 / 5', '5 / 10'], def: 3 }],
+    { n: 9, part: '调 λ', title: '图 4：真实读数', sub: '六个 λ 的想象奖励、u 和真实评估', dur: 15, cam: [0.04, 1.32, 40, [-0.8, 4.0, 0]], ctls: [{ label: '机器人', items: ['ANYmal D', 'Unitree G1'] }, { label: '高亮 λ', items: ['0', '0.2 / 0.1', '0.5', '1', '2 / 5', '5 / 10'], def: 3 }],
       html: LIVE + '<p>左图是想象奖励，右端的点是真实动力学上的评估（带误差棒）。右图是 u。两个机器人的 λ 网格不同：ANYmal D 是 0, 0.2, 0.5, 1, 2, 5；G1 是 0, 0.1, 0.5, 1, 5, 10。</p><p>值得看的是 ANYmal D 的 λ = 0.5 和 1：u 的终值只差 8%（0.58 对 0.54），想象奖励差 4%，真实评估却是 0.43 对 0.90。这说明靠 u 或想象奖励都很难提前选 λ。</p><p>横轴到 500（ANYmal D）和 1900（G1），表 S11 写的是 2500。</p>' +
         src('图 4（第 7 页矢量路径，重画）') },
-    { n: 10, part: '对比', title: '图 5：同一模型，差在惩罚和 PPO', sub: '60 根柱子，点一根看数字', dur: 12, cam: [0.36, 1.04, 35, [0, 4.4, 0]], ctls: [{ label: '看', items: ['全部', '有无惩罚（PPO）', 'SAC 对 PPO'] }],
+    { n: 10, part: '对比', title: '图 5：同一模型，差在惩罚和 PPO', sub: '60 根柱子，点一根看数字', dur: 12, cam: [0.36, 1.04, 35, [-1.2, 4.4, 0]], ctls: [{ label: '看', items: ['全部', '有无惩罚（PPO）', 'SAC 对 PPO'] }],
       html: LIVE + '<p>12 组里 MOPO-PPO 最高的有 10 组。两组例外是 Franka Random 和 Medium，MOPO 高 0.02 和 0.01，都在误差棒内。</p><p>腿足任务上差距来自两件事的组合。MBPO-PPO 用同样的 PPO，没有惩罚：ANYmal D Mixed 只有 0.26。MOPO 有惩罚但用 SAC：0.43。两样都有的 MOPO-PPO：0.90。</p>' +
         guess('柱子高度和误差是真实读数。Random 和 Medium 上 MOPO-PPO 也只有 0.24 到 0.33，数据质量差时这个方法同样救不回来。') + src('图 5（第 8 页矢量路径，重画）· 表 S9') },
     { n: 11, part: '上真机', title: 'λ 的三种结局', sub: '图 7 的现象和图 4 的数字', dur: 12, cam: [0.06, 1.26, 37, [2.2, 4.2, 0]], ctls: [{ label: 'λ', items: ['0.2 太小', '1.0', '2.0 太大'], def: 1 }],
@@ -186,7 +186,9 @@ if (typeof window !== 'undefined') (function () {
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
-  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg === false ? 'rgba(12,18,32,.5)' : o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
+  function lab(text, pos, o = {}) { const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg === false ? 'rgba(12,18,32,.5)' : o.bg }); sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp; }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
   const BALL = new THREE.SphereGeometry(1, 12, 9);
   function inst(geo, n) { const m = L.mat(0xffffff, { roughness: 0.65 }); const im = new THREE.InstancedMesh(geo, m, Math.max(1, n)); im.frustumCulled = false; return im; }
@@ -215,9 +217,9 @@ if (typeof window !== 'undefined') (function () {
   }
   function axes(G, x0, x1, y0, y1, z, xt, yt, xl, yl) {
     wire(G, [[x0, y0, z], [x1, y0, z]], 0x9aa6bf, { opacity: 0.8 }); wire(G, [[x0, y0, z], [x0, y1, z]], 0x9aa6bf, { opacity: 0.8 });
-    xt.forEach(([x, t]) => { wire(G, [[x, y0, z], [x, y0 - 0.12, z]], 0x9aa6bf, { opacity: 0.8 }); if (t) G.add(lab(t, [x, y0 - 0.5, z], { size: 18, bg: false })); });
-    yt.forEach(([y, t]) => { wire(G, [[x0, y, z], [x1, y, z]], 0x9aa6bf, { opacity: 0.16 }); G.add(lab(t, [x0 - 0.65, y, z], { size: 18, bg: false })); });
-    if (xl) G.add(lab(xl, [(x0 + x1) / 2, y0 - 1.3, z], { size: 19, bg: false })); if (yl) G.add(lab(yl, [x0 + (x1 - x0) * 0.22, y1 + 0.55, z], { size: 19, bg: false }));
+    xt.forEach(([x, t]) => { wire(G, [[x, y0, z], [x, y0 - 0.12, z]], 0x9aa6bf, { opacity: 0.8 }); if (t) G.add(lab(t, [x, y0 - 0.65, z], { size: 18, bg: false })); });
+    yt.forEach(([y, t]) => { wire(G, [[x0, y, z], [x1, y, z]], 0x9aa6bf, { opacity: 0.16 }); G.add(lab(t, [x0 - 1.35, y, z], { size: 18, bg: false })); });
+    if (xl) G.add(lab(xl, [(x0 + x1) / 2, y0 - 1.95, z], { size: 19, bg: false })); if (yl) G.add(lab(yl, [x0 + (x1 - x0) * 0.22, y1 + 1.0, z], { size: 19, bg: false }));
   }
   function quad(color) {
     const m = L.mat(color, { roughness: 0.5 }), G = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.24, 0.36), m); G.add(body);
@@ -233,7 +235,7 @@ if (typeof window !== 'undefined') (function () {
     const D = block(3.4, 1.6, 2.8, COL.log, P.D), wm = block(3.2, 2.4, 2.4, COL.wm, P.wm), im = block(3.2, 2.4, 2.4, COL.frozen, P.im), pp = block(3.2, 2.4, 2.4, COL.pi, P.pp), env = block(3.4, 1.8, 2.2, online ? COL.sim : COL.dim, P.env, { opacity: online ? 1 : 0.35 });
     G.add(D, wm, im, pp, env);
     const q = quad(COL.robot); q.scale.setScalar(3.2); q.position.set(P.rb[0], 2.0, 0); G.add(q);
-    [['离线数据 D', P.D, 2.1], [online ? '世界模型 p_φ（持续微调）' : 'RWM-U p_φ（训练后冻结）', P.wm, 2.7], ['想象 4096 × 100', P.im, 2.7], [online ? 'PPO（MBPO-PPO）' : 'PPO，r̃ = r − λu', P.pp, 2.7], ['真机', P.rb, 3.6]].forEach(([t, p, dy]) => G.add(lab(t, [p[0], p[1] + dy, p[2]], { size: 22 })));
+    [['离线数据 D', P.D, 2.1], [online ? '世界模型 p_φ（持续微调）' : 'RWM-U p_φ（训练后冻结）', P.wm, 2.7], ['想象 4096 × 100', P.im, 3.6], [online ? 'PPO（MBPO-PPO）' : 'PPO，r̃ = r − λu', P.pp, 2.7], ['真机', P.rb, 3.6]].forEach(([t, p, dy]) => G.add(lab(t, [p[0], p[1] + dy, p[2]], { size: 22 })));
     G.add(lab(online ? '环境（持续收集）' : '环境：训练开始后不再访问', [P.env[0] + 1.2, P.env[1] + 1.7, 0], { size: 22, border: online ? undefined : 'rgba(255,122,89,.9)' }));
     const W = { a: [[P.D[0] + 1.7, 1.1, 0], [P.wm[0] - 1.6, 1.1, 0]], b: [[P.wm[0] + 1.6, 1.2, 0], [P.im[0] - 1.6, 1.2, 0]], c: [[P.im[0] + 1.6, 1.2, 0], [P.pp[0] - 1.6, 1.2, 0]], d: [[P.pp[0] + 1.6, 1.2, 0], [P.rb[0] - 1.6, 1.4, 0]], e: arc([P.D[0] + 0.6, 0.3, 1.6], [P.im[0], 0.2, 1.6], -0.1), back: [[P.pp[0], 2.4, 0], [P.pp[0], 8, 0], [P.env[0] + 1.7, 8, 0]], down: [[P.env[0], 7.1, 0], [P.D[0], 1.8, 0]] };
     ['a', 'b', 'c', 'd', 'e'].forEach(k => wire(G, W[k], k === 'd' ? COL.pi : 0x9aa6bf, { opacity: 0.55 }));
@@ -261,12 +263,12 @@ if (typeof window !== 'undefined') (function () {
     const cmd = L.arrow([0, 0, 0], [1, 0, 0], 0x4fc98a); G.add(cmd); const goal = L.sphere(0.32, 0xe05d5d); G.add(goal);
     const path = t => { const a = t * 6.283; return [-11 + 3.6 * Math.sin(a * 1.0), 1.15, 3.2 * Math.sin(a * 2 + 0.6)]; };
     const stk = t => t * 0.0062, x0 = -2.2, ga = 2.5;
-    mixes.forEach((m, i) => { const x = x0 + i * ga, op = i === sel ? 1 : 0.35; const a = block(1.5, Math.max(0.02, stk(m[0])), 1.5, COL.sim, [x, stk(m[0]) / 2, 0], { opacity: op }), b = block(1.5, Math.max(0.02, stk(m[1])), 1.5, COL.real, [x, stk(m[0]) + stk(m[1]) / 2, 0], { opacity: op }); G.add(a, b); G.add(lab(`${m[0]}K\n${m[1]}K`, [x, -1.0, 1], { size: 16, bg: false })); });
+    mixes.forEach((m, i) => { const x = x0 + i * ga, op = i === sel ? 1 : 0.35; const a = block(1.5, Math.max(0.02, stk(m[0])), 1.5, COL.sim, [x, stk(m[0]) / 2, 0], { opacity: op }), b = block(1.5, Math.max(0.02, stk(m[1])), 1.5, COL.real, [x, stk(m[0]) + stk(m[1]) / 2, 0], { opacity: op }); G.add(a, b); G.add(lab(`${m[0]}K\n${m[1]}K`, [x, -1.0, 1], { size: 15, bg: false })); });
     G.add(lab('1M 转移：灰 仿真，橙 真机', [x0 + 3.7, 7.5, 0], { size: 19 }));
     /* performance: table 1 */
-    const yp = v => v * 6.6, xp0 = 8.6, rows = [...mixes.map((m, i) => [`${m[0]}K+${m[1]}K`, m[2], m[3], i === sel ? COL.rew : COL.dim]), ['采集策略', 0.79, 0.02, COL.sim], ['在线无模型', 0.88, 0.01, COL.pi]];
-    const bars = rows.map((r, i) => { const x = xp0 + i * 2.3, m = block(1.5, 1, 1.0, r[3], [x, 0, 0]); G.add(lab(r[0].replace('+', '\n+'), [x, -1.0, 1], { size: 15, bg: false })); G.add(m); wire(G, [[x, yp(r[1] - r[2]), 0.6], [x, yp(r[1] + r[2]), 0.6]], 0xffffff, { opacity: 0.9 }); G.add(lab(r[1].toFixed(2), [x, yp(r[1] + r[2]) + 0.55, 0.6], { size: 18 })); return { m, v: r[1] }; });
-    G.add(lab('真机性能（表 1）', [xp0 + 5.7, 7.5, 0], { size: 19 }));
+    const yp = v => v * 6.6, xp0 = 8.6, rows = [...mixes.map((m, i) => [`${m[0]}K+${m[1]}K`, m[2], m[3], i === sel ? COL.rew : COL.dim]), ['采集\n策略', 0.79, 0.02, COL.sim], ['在线\n无模型', 0.88, 0.01, COL.pi]];
+    const bars = rows.map((r, i) => { const x = xp0 + i * 2.7, m = block(1.5, 1, 1.0, r[3], [x, 0, 0]); G.add(lab(r[0].replace('+', '\n+'), [x, -1.0, 1], { size: 15, bg: false })); G.add(m); wire(G, [[x, yp(r[1] - r[2]), 0.6], [x, yp(r[1] + r[2]), 0.6]], 0xffffff, { opacity: 0.9 }); G.add(lab(r[1].toFixed(2), [x, yp(r[1] + r[2]) + 0.55, 0.6], { size: 18 })); return { m, v: r[1] }; });
+    G.add(lab('真机性能（表 1）', [xp0 + 6.7, 8.3, 0], { size: 19 }));
     return { update(p) {
       const t = (p * 2) % 1, pos = path(t), n = path((t + 0.03) % 1), e = path((t + 0.13) % 1); q.position.set(...pos); q.rotation.y = -Math.atan2(n[2] - pos[2], n[0] - pos[0]); q.userData.set(p * 120);
       const d = new THREE.Vector3(e[0] - pos[0], 0, e[2] - pos[2]), l = d.length(); cmd.position.set(pos[0], 2.0, pos[2]); cmd.setDirection(d.clone().normalize()); cmd.setLength(Math.max(0.6, l), 0.5, 0.3); goal.position.set(e[0], 0.4, e[2]);
@@ -302,7 +304,7 @@ if (typeof window !== 'undefined') (function () {
     axes(G, sx(-2.6), sx(2.6), 0, 2.8, 0, [-2, -1, 0, 1, 2].map(s => [sx(s), String(s)]), [0, .03, .06, .09].map(v => [Yu(v), v.toFixed(2)]), '位置 s', null);
     G.add(lab('u：成员间标准差', [sx(-1.3), 3.0, 0], { size: 18, bg: false }));
     const cv = block(sx(E.cov[1]) - sx(E.cov[0]), 9.4, 4, COL.log, [(sx(E.cov[0]) + sx(E.cov[1])) / 2, 4.7, 0], { opacity: 0.09 }); cv.material.depthWrite = false; G.add(cv);
-    G.add(lab(`日志覆盖 [${E.cov[0]}, ${E.cov[1]}]`, [(sx(E.cov[0]) + sx(E.cov[1])) / 2, 10.1, -1.5], { size: 18 }));
+    G.add(lab(`日志覆盖 [${E.cov[0]}, ${E.cov[1]}]`, [(sx(E.cov[0]) + sx(E.cov[1])) / 2 + 1.5, 11.6, -1.5], { size: 18 }));
     const near = E.D.filter(d => Math.abs(d[1] - A) < 0.2), dots = inst(BALL, near.length); near.forEach((d, i) => setI(dots, i, [sx(d[0]), Yp(d[2]), 1.6], 0.07)); dots.material.color.setHex(0x3aa8e0); done(dots); G.add(dots);
     wire(G, ss.map(s => [sx(s), Yp(T.trueDelta(s, A)), 1.6]), 0x8a93a6, { opacity: 1, dashed: true, dash: 0.25, gap: 0.15 });
     const rib = []; for (let b = 0; b < B; b++) rib.push(ribbon(G, ss.map((s, i) => [sx(s), Yp(P[i][b]), zb(b)]), MEM[b], 0.09));
@@ -322,7 +324,7 @@ if (typeof window !== 'undefined') (function () {
     axes(G, -17, -3, 0, 8.6, 0, [0, 400, 800, 1200].map(t => [xa(t), String(t)]), [0, .01, .02].map(v => [ya(v), v.toFixed(2)]), '训练步（玩具，当场计算）', '头输出的平均 σ');
     wire(G, [[-17, ya(T.NOISE), 0.05], [-3, ya(T.NOISE), 0.05]], 0xffffff, { dashed: true, opacity: 0.8 }); G.add(lab('真实噪声 n = 0.01', [-5.2, ya(T.NOISE) + 0.55, 0], { size: 17 }));
     const rA = ribbon(G, hA.map(h => [xa(h[0]), ya(h[1]), 0.1]), COL.pen, nll ? 0.08 : 0.16), rB = ribbon(G, hB.map(h => [xa(h[0]), ya(h[1]), 0.1]), COL.u, nll ? 0.16 : 0.08);
-    G.add(lab('重参数 MSE', [xa(1000), ya(hA[hA.length - 1][1]) - 0.55, 0], { size: 17, border: nll ? undefined : 'rgba(255,122,89,.9)' }), lab('高斯 NLL', [xa(620), ya(hB[hB.length - 1][1]) + 1.5, 0], { size: 17, border: nll ? 'rgba(57,135,229,.9)' : undefined }));
+    G.add(lab('重参数 MSE', [xa(1000), ya(hA[hA.length - 1][1]) + 0.75, 0], { size: 17, border: nll ? undefined : 'rgba(255,122,89,.9)' }), lab('高斯 NLL', [xa(620), ya(hB[hB.length - 1][1]) + 1.5, 0], { size: 17, border: nll ? 'rgba(57,135,229,.9)' : undefined }));
     /* right: analytic loss shape vs sigma on a log axis */
     const n = T.NOISE, lx = s => 2.5 + 13.5 * (Math.log10(s) + 5) / 3.6, sgs = []; for (let e = -5; e <= -1.4; e += 0.04) sgs.push(Math.pow(10, e));
     const fM = s => n * n + s * s, fN = s => Math.log(s) + n * n / (2 * s * s), normM = v => (v / 0.0016) * 7, normN = v => clamp((v - fN(n)) / 6, 0, 1) * 7;
@@ -377,7 +379,7 @@ if (typeof window !== 'undefined') (function () {
     let fallBall = null; if (realTr.fell) { fallBall = L.sphere(0.24, 0xe05d5d); fallBall.position.set(x(realTr.tr.length), y(T.CLIFF), 0.3); G.add(fallBall); G.add(lab('真实系统摔倒', [x(realTr.tr.length) + 0.3, y(T.CLIFF) - 0.75, 0.3], { size: 17 })); }
     const main = m[1] === 0 ? trM : mem[0], sc = E.scale; const uT = (m[1] === 0 ? trM : mem[0]).map(q => q.sd * sc), eT = main.map((q, t) => Math.abs(q.s2 - fr[t + 1]));
     const ru = ribbon(G, uT.map((v, t) => [x(t + 1), yu(v), 0.1]), COL.pen, 0.11), re = ribbon(G, eT.map((v, t) => [x(t + 1), yu(v), 0.05]), 0xc8ced8, 0.09);
-    G.add(lab('u', [x(N) + 0.6, yu(uT[N - 1]), 0], { size: 17, border: 'rgba(255,122,89,.9)' }), lab('累计误差', [x(N) + 1.3, yu(eT[N - 1]) + 0.4, 0], { size: 16 }));
+    G.add(lab('u', [x(N) + 0.6, yu(uT[N - 1]) - 0.55, 0], { size: 17, border: 'rgba(255,122,89,.9)' }), lab('累计误差', [x(N) + 1.3, yu(eT[N - 1]) + 0.95, 0], { size: 16 }));
     const head = L.sphere(0.2, COL.rew); G.add(head); const c = T.corr(uT, eT);
     return { update(p) {
       const k = Math.max(2, Math.round(seg(p, 0, 0.92) * N)), q = main[k - 1]; rib.forEach(r => r.userData.setK(k + 1)); rr.userData.setK(Math.min(k + 1, realTr.tr.length + 1)); ru.userData.setK(k); re.userData.setK(k); if (fallBall) fallBall.visible = k >= realTr.tr.length;
@@ -399,10 +401,10 @@ if (typeof window !== 'undefined') (function () {
     G.add(L.tube(ridge.map(r => r.p), COL.real, 0.09));
     const thX = th => X(g.ths.indexOf(+th.toFixed(2)));
     /* axis annotations */
-    [-1, 0, 1, 2].forEach(t => { const x = thX(t); wire(G, [[x, 0, 7.4], [x, 0, 7.7]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(String(t), [x, -0.45, 7.9], { size: 17, bg: false })); }); G.add(lab('策略目标 θ', [0, -1.25, 8.2], { size: 18, bg: false }));
-    [7, 13, 19].forEach(j => G.add(lab(`λ=${LAMS[j] < 1 ? LAMS[j].toFixed(1) : LAMS[j].toFixed(0)}`, [-9.4, 0, Z(j)], { size: 17, bg: false }))); G.add(lab('λ=0', [-9.4, 0, Z(0)], { size: 17, bg: false }));
+    [-1, 0, 1, 2].forEach(t => { const x = thX(t); wire(G, [[x, 0, 7.4], [x, 0, 7.7]], 0x9aa6bf, { opacity: 0.8 }); G.add(lab(String(t), [x, -0.45, 7.9], { size: 17, bg: false })); }); G.add(lab('策略目标 θ', [0, -1.6, 9.2], { size: 18, bg: false }));
+    [7, 13, 19].forEach(j => G.add(lab(`λ=${LAMS[j] < 1 ? LAMS[j].toFixed(1) : LAMS[j].toFixed(0)}`, [-9.4, 0, Z(j)], { size: 19, bg: false }))); G.add(lab('λ=0', [-9.4, 0, Z(0)], { size: 19, bg: false }));
     wire(G, [[thX(0.7), 0, 7.4], [thX(0.7), 0, -7]], COL.log, { opacity: 0.8, dashed: true }); wire(G, [[thX(1.25), 0, 7.4], [thX(1.25), 0, -7]], 0xe05d5d, { opacity: 0.9, dashed: true });
-    G.add(lab('覆盖边缘 0.7', [thX(0.7) - 1.5, 0.05, -7.7], { size: 16 }), lab('悬崖 1.25', [thX(1.25) + 1.1, 0.05, -7.7], { size: 16 }));
+    G.add(lab('覆盖边缘 0.7', [thX(0.7) - 1.5, 0.05, -7.7], { size: 19 }), lab('悬崖 1.25', [thX(1.25) + 1.1, 0.05, -7.7], { size: 19 }));
     /* selected slice */
     const sl = g.ths.map((_, i) => [X(i), Y(g.R[i] - lam * scale * U[i]) + 0.05, Z(li)]); G.add(L.tube(sl.filter((_, i) => i % 2 === 0), 0xffffff, 0.06));
     const ball = L.sphere(0.27, COL.rew); G.add(ball); const best = ridge[li].b;
@@ -429,7 +431,7 @@ if (typeof window !== 'undefined') (function () {
     const gray = i => [0xd9d9d9, 0xbfbfbf, 0xa6a6a6, 0x8a8a8a, 0x737373, 0x5c5c5c][i];
     const lines = keys.map((k, i) => { const c = i === hi ? COL.real : gray(i), w = i === hi ? 0.15 : 0.06, z = i === hi ? 0.2 : 0.02 * i; return [ribbon(G, Fr[k].map((v, j) => [xa(j), ya(v), z]), c, w), ribbon(G, Fu[k].map((v, j) => [xb(j), yb(v), z]), c, w)]; });
     keys.forEach((k, i) => { const [v, e] = DATA.F4.eval[R + '|' + k], c = i === hi ? COL.real : gray(i), s = L.sphere(i === hi ? 0.2 : 0.13, c); s.position.set(ev, ya(v), 0.1); G.add(s); wire(G, [[ev, ya(v - e), 0.1], [ev, ya(v + e), 0.1]], 0xffffff, { opacity: 0.8 }); });
-    const [hv, he] = DATA.F4.eval[R + '|' + keys[hi]]; G.add(lab(`评估 ${hv.toFixed(2)}`, [ev + 0.15, ya(hv) + 0.65, 0.2], { size: 17, border: 'rgba(240,150,60,.9)' })); G.add(lab('eval', [ev, -0.5, 0], { size: 17, bg: false }));
+    const [hv, he] = DATA.F4.eval[R + '|' + keys[hi]]; G.add(lab(`评估 ${hv.toFixed(2)}`, [ev + 0.15, ya(hv) + 0.65, 0.2], { size: 17, border: 'rgba(240,150,60,.9)' })); G.add(lab('eval', [ev + 0.3, -1.25, 0], { size: 17, bg: false }));
     return { update(p) {
       const k = Math.max(2, Math.round(seg(p, 0, 0.9) * 51)), i = k - 1; lines.forEach(l => l.forEach(r => r.userData.setK(k)));
       live(`${R === 'A' ? 'ANYmal D' : 'Unitree G1'}，λ = ${keys[hi]}，第 ${Math.round(xm * i / 50)} 次迭代<br>想象 r = ${Fr[keys[hi]][i].toFixed(3)}，u = ${Fu[keys[hi]][i].toFixed(3)}<br>真实评估 ${hv.toFixed(2)} ± ${he.toFixed(2)}`);
@@ -441,8 +443,8 @@ if (typeof window !== 'undefined') (function () {
     const mode = MODE[9][0], envs = ['Franka', 'ANYmal', 'G1'], ds = ['Random', 'Medium', 'Expert', 'Mixed'], ms = ['CQL', 'MBPO', 'MBPO-PPO', 'MOPO', 'MOPO-PPO'], colr = { CQL: 0x9aa6bf, MBPO: 0x6d7a96, 'MBPO-PPO': 0xc98500, MOPO: 0x7fb8ff, 'MOPO-PPO': 0x2a78d6 };
     const show = m => mode === 0 || (mode === 1 && (m === 'MBPO-PPO' || m === 'MOPO-PPO')) || (mode === 2 && (m === 'MOPO' || m === 'MOPO-PPO'));
     const gr = L.grid(44, 44); G.add(gr); const bars = []; let px = -11.2; const zOf = mi => (2 - mi) * 1.2;
-    envs.forEach((e, ei) => { const x0 = px; ds.forEach((d, di) => { ms.forEach((m, mi) => { const [v] = DATA.F5[e][d][m], z = zOf(mi), b = block(1.0, 1, 1.0, show(m) ? colr[m] : COL.dim, [px, 0, z], { opacity: show(m) ? 1 : 0.25 }); b.userData.sel = { e, d, m, v, err: DATA.F5[e][d][m][1] }; PICKS.push(b); G.add(b); bars.push({ b, v }); }); G.add(lab(['随机', '中等', '专家', '混合'][di], [px, -0.4, 3.9], { size: 15, bg: false })); px += 1.25; }); G.add(lab(e === 'Franka' ? 'Reach-Franka' : e === 'ANYmal' ? 'Velocity-ANYmal-D' : 'Velocity-Unitree-G1', [(x0 + px - 1.25) / 2, 9.8, -2], { size: 19 })); px += 2.4; });
-    ms.forEach((m, mi) => G.add(lab(m, [-14.2, 0.3, zOf(mi)], { size: 16, color: show(m) ? undefined : '#7a8499' })));
+    envs.forEach((e, ei) => { const x0 = px; ds.forEach((d, di) => { ms.forEach((m, mi) => { const [v] = DATA.F5[e][d][m], z = zOf(mi), b = block(1.0, 1, 1.0, show(m) ? colr[m] : COL.dim, [px, 0, z], { opacity: show(m) ? 1 : 0.25 }); b.userData.sel = { e, d, m, v, err: DATA.F5[e][d][m][1] }; PICKS.push(b); G.add(b); bars.push({ b, v }); }); G.add(lab(['随机', '中等', '专家', '混合'][di], [px, -0.4, 3.9 + (di % 2) * 1.3], { size: 16, bg: false })); px += 1.25; }); G.add(lab(e === 'Franka' ? 'Reach-Franka' : e === 'ANYmal' ? 'Velocity-ANYmal-D' : 'Velocity-Unitree-G1', [(x0 + px - 1.25) / 2, 9.8, -2], { size: 19 })); px += 2.4; });
+    ms.forEach((m, mi) => G.add(lab(m, [-14.2 - (mi % 2) * 3.8, 0.3, zOf(mi)], { size: 18, color: show(m) ? undefined : '#7a8499' })));
     let picked = null;
     return { pick(u) { picked = u; }, update(p) {
       const g = seg(p, 0, 0.55); bars.forEach(({ b, v }) => { const h = Math.max(0.01, v * 9 * g); b.scale.y = h; b.position.y = h / 2; });

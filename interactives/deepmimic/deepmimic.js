@@ -187,7 +187,7 @@ function toy(rsi, et) {
   }
 
   const SCENES = [
-    { n: 1, part: '总览', title: '一个控制回路，一个训练回路', sub: '点方块跳到对应的一幕', dur: 13, cam: [0.0, 1.36, 31, [-1.8, 4.6, 0]],
+    { n: 1, part: '总览', title: '一个控制回路，一个训练回路', sub: '点方块跳到对应的一幕', dur: 13, cam: [0.0, 1.36, 31.5, [-2.6, 4.6, 0]],
       html: dl([['输入', '角色模型、参考动作 {q̂ₜ}、任务奖励 r_G'], ['输出', '策略 π(a|s,g)'], ['策略频率', '30 Hz'], ['仿真频率', '1.2 kHz（Bullet）'], ['算法', 'PPO']]) +
         '<p><b>控制回路（上排）。</b>策略每秒查询 30 次，输出的是关节的目标角度，不是力矩。PD 控制器把目标角度换成力矩，物理引擎以 1200 Hz 往前算，一次动作跨 40 个子步。</p>' +
         '<p><b>训练回路（下排）。</b>参考动作不直接控制角色，它只出现在三处：奖励 r_I、回合的初始状态（RSI）、状态里的相位 φ。r 加上任务奖励 r_G 喂给 PPO 更新 π。</p>' +
@@ -202,7 +202,7 @@ function toy(rsi, et) {
         '<p>状态按身体部件排列：每个部件 3 维相对根的位置、4 维四元数、3 维线速度、3 维角速度，共 13 维，再加 1 维根高和 1 维相位。这个拆法是我从官方代码初始提交和表 1 核算的，论文正文只列了特征种类，没写根高。</p>' +
         '<p>动作：球关节用轴角 4 个数（轴 3 + 角 1），膝和肘是转动关节用 1 个数。切角色时数字都来自表 1，公式 13·部件 + 2 和 4s + r 是我的核算。</p>' +
         guess('右边 36 根小柱的高度是假数据，只表示“每个关节目标一个向量”。') + src('§5.1 · §5.2 · 图 2 · 表 1') },
-    { n: 4, part: '动作', title: 'PD 目标：30 Hz 给目标，1.2 kHz 算力矩', sub: '这个单关节回路是当场积分的', dur: 12, cam: [0.08, 1.3, 27, [1.2, 3.6, 0]],
+    { n: 4, part: '动作', title: 'PD 目标：30 Hz 给目标，1.2 kHz 算力矩', sub: '这个单关节回路是当场积分的', dur: 12, cam: [0.08, 1.3, 27, [1.2, 4.4, 0]],
       html: dl([['动作含义', '目标角 q̂，不是力矩'], ['子步', '1200 / 30 = 40'], ['膝 Kp, Kd', '500, 50（代码）'], ['肘 Kp, Kd', '300, 30（代码）'], ['力矩上限', '膝 150，肘 60 N·m（代码）']]) +
         '<p>PD：τ = Kp(q̂−q) − Kd·q̇。目标角 30 Hz 变一次，中间保持不变（阶梯线）。</p>' +
         '<p><b>为什么要稳定 PD（Tan 2011）。</b>显式 PD 用当前状态算力矩，增益高、步长大就发散。切到显式，膝在 60 Hz、肘在 240 Hz 能亲眼看到（判据见右上，这个积分器下超过 2 就不稳，是我推的）。稳定 PD 用下一刻的状态算力矩，同样的增益不发散。官方代码里 <code>cImpPDController::CalcControlForces</code> 就是这样写的。</p>' +
@@ -214,7 +214,7 @@ function toy(rsi, et) {
         '<p>试这几个：<b>整体平移</b>时 r_p 和 r_v 完全不动，r_e 很快归零，因为公式用世界坐标。<b>高频抖动</b>时 r_v 掉得比姿态明显。<b>只偏右髋</b>时右脚甩出去，r_e 比 r_p 掉得快。</p>' +
         '<p>切到“官方代码”会看到同样的漂移奖励高很多。代码里关节误差按权重归一化、末端用相对根的位置、多一项根奖励、质心比的是速度。论文公式和代码不是一回事，见精读页读者注。</p>' +
         src('§5.3 · SceneImitate.cpp（1f915c5）。论文未说 j 是否含根，这里含，和代码一致') },
-    { n: 6, part: '训练', title: 'RSI：从参考动作的任意时刻开始', sub: '开关 RSI，看策略从哪头学起', dur: 13, cam: [0, .98, 40, [0, 2.2, 2.2]],
+    { n: 6, part: '训练', title: 'RSI：从参考动作的任意时刻开始', sub: '开关 RSI，看策略从哪头学起', dur: 13, cam: [0, .98, 41, [-1.2, 2.2, 2.2]],
       html: dl([['固定起点', '只能从第一帧往后学'], ['RSI', 'φ ~ U(0,1)，姿态和速度都取自参考'], ['代码', 'CalcRandKinResetTime：RandDouble(0, dur)']]) +
         '<p>空翻的麻烦：不会落地，起跳反而比原地小跳回报低，策略就没有理由去起跳；而不起跳，又永远到不了落地那几帧去学。</p>' +
         '<p>RSI 把角色直接放到半空，先把落地学会，价值再往前传。下面每根柱是对应相位上选对动作的概率，开 RSI 时能看到柱子从右往左长起来。</p>' +
@@ -244,7 +244,7 @@ function toy(rsi, et) {
         '<p>第一排是真实奖励：行走片段，时间滞后随时间增大，用论文公式算。第二排 V 是假的。第三排 R(λ) 按附录 A 的定义算，第四排优势 Â = R(λ) − V。右侧把定义式和 GAE 递推算出的结果相减，差应在机器精度。</p>' +
         '<p>下面的曲线是 L = min(wA, clip(w, 1−ε, 1+ε)A)。A > 0 时比值超过 1.2 就不再有奖励，A < 0 时比值低于 0.8 也一样。</p>' +
         guess('V(s) 是手写的曲线加噪声，只为算优势。') + src('附录 A、C、D · 算法 1') },
-    { n: 11, part: '结果', title: '原文的数字', sub: '切换表格；柱子都是表中数值', dur: 10, cam: [0.1, .95, 44, [0, 1.2, 1.5]],
+    { n: 11, part: '结果', title: '原文的数字', sub: '切换表格；柱子都是表中数值', dur: 10, cam: [0.05, .74, 47, [0, 0.6, 2.0]],
       html: '<p>表 2 和表 3 是归一化回报，0 是最小可能回报，1 是最大可能回报，作者说明最大值不一定能达到。</p>' +
         '<p>同一技能在表 2 和表 5 的数对不上，比如后空翻 0.729 和 0.791，因为评测协议不同：表 2 开 ET、用 RSI；表 5 关 ET、固定起点。精读页读者注有比较。</p>' +
         '<p>动作本身要看作者的视频：<a href="https://xbpeng.github.io/projects/DeepMimic/index.html">项目主页</a>。这里的柱子不展示动作质量。</p>' + src('§10 · 表 2–6') },
@@ -277,8 +277,10 @@ function toy(rsi, et) {
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
 
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 26, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 26, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -617,13 +619,13 @@ function toy(rsi, et) {
     const build = tb => {
       built = tb; L.clear(H); LABS = LABS.filter(s => s.parent && s.parent !== H); spec = [];
       const add = (n, x, z, v, c, unit = 5, tx = '') => spec.push({ x, z, v, c, unit, n, tx });
-      if (tb === 't2') T2.forEach((r, i) => { const col = i % 6, row = Math.floor(i / 6); add(r[0], -12.5 + col * 5, -8 + row * 4.4, r[3], i < 24 ? 0 : i < 28 ? 1 : 2, 3.4); });
+      if (tb === 't2') T2.forEach((r, i) => { const col = i % 6, row = Math.floor(i / 6); add(r[0], -16 + col * 6.4, -9.5 + row * 5, r[3], i < 24 ? 0 : i < 28 ? 1 : 2, 3.4); });
       else if (tb === 't3') T3.forEach((r, i) => add(r[0], -12 + (i % 3) * 12, -5 + Math.floor(i / 3) * 6, r[2], 0));
       else if (tb === 't4') [['Strike', 99, 19, 55], ['Throw', 75, 5, 93]].forEach((r, i) => [1, 2, 3].forEach(k => add(k === 2 ? r[0] : '', -9 + i * 11 + (k - 1) * 3.6, 0, r[k] / 100, k - 1, 5, r[k] + '%')));
       else if (tb === 't5') T5.rows.forEach((r, i) => [1, 2, 3].forEach(k => add(k === 2 ? r[0] : '', -14 + i * 9 + (k - 1) * 2.6, 0, r[k], k - 1, 5, r[k].toFixed(3))));
       else T6.forEach((r, i) => [1, 2].forEach(k => add(k === 1 ? r[0] : '', -13 + i * 6.4 + (k - 1) * 2.4, 0, r[k], k - 1, 1 / 120, String(r[k]))));
       im = inst(BOX, spec.length); H.add(im); const CC = [COL.pi, COL.sim, COL.ppo];
-      spec.forEach((s, i) => { colI(im, i, hex3(CC[s.c])); if (s.n) H.add(lab(s.n, [s.x, -.2, s.z + 1.4], { size: tb === 't2' ? 15 : 18 })); if (s.tx) H.add(lab(s.tx, [s.x, s.v * s.unit + .55, s.z], { size: 16 })); });
+      spec.forEach((s, i) => { colI(im, i, hex3(CC[s.c])); if (s.n) H.add(lab(s.n, [s.x, -.2, s.z + 1.4], { size: tb === 't2' ? 19 : 18 })); if (s.tx) H.add(lab(s.tx, [s.x, s.v * s.unit + .55, s.z], { size: 16 })); });
     };
     return { V, ctl: [{ k: 'tb', label: '表', items: [['t2', '表 2 单技能'], ['t3', '表 3 任务'], ['t4', '表 4 成功率'], ['t5', '表 5 消融'], ['t6', '表 6 推力']] }], update(p) {
       if (built !== V.tb) build(V.tb);

@@ -342,8 +342,10 @@ if (typeof document !== 'undefined') (function () {
   try { S = L.makeScene($('stage'), { fov: 38, theta: 0.6, phi: 1.0, dist: 24, maxDist: 160, minDist: 3 }); } catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   function relab(G, old, text, pos, o) { if (old) { G.remove(old); L.dispose(old); LABS = LABS.filter(s => s !== old); } const n = lab(text, pos, o); G.add(n); return n; }
@@ -420,7 +422,7 @@ if (typeof document !== 'undefined') (function () {
     st.forEach(s => { const b = L.box(s.w || 4, 1.3, 3, s.c, { edgeOpacity: 0.3, opacity: 0.92 }); b.position.set(s.x, 0.65, s.z); b.userData.go = s.go; PICKS.push(b); G.add(b); G.add(lab(s.n, [s.x, 2.6, s.z], { size: 21 })); });
     const loopA = [[-15, 1, -6], [-7, 1, -6], [2.5, 1, -6], [13, 1, -6], [13, 1, 5.5], [13, 1, 0], [-15, 1, -2.5], [-15, 1, -6]], loopB = [[13, 1, 5.5], [2.5, 1, 5.5], [-7, 1, 5.5], [-7, 1, 1.5], [2.5, 1, 1.5], [2.5, 1, -4.5]];
     G.add(L.line(loopA, COL.pi, { opacity: 0.8 }), L.line(loopB, COL.grad, { opacity: 0.7 }));
-    G.add(lab('新参数 θ', [-2.3, 1.4, 1.5], { size: 19, border: 'rgba(255,122,89,.8)' }), lab('下一个决策步', [-1, 1.4, -2.0], { size: 19, border: 'rgba(56,209,255,.8)' }));
+    G.add(lab('新参数 θ', [-2.3, 1.4, 1.5], { size: 19, border: 'rgba(255,122,89,.8)' }), lab('下一个决策步', [0.4, 1.4, -2.0], { size: 19, border: 'rgba(56,209,255,.8)' }));
     const a = L.sphere(0.45, COL.pi), b = L.sphere(0.45, COL.grad); G.add(a, b);
     const at = (pts, u, o) => { const ls = []; let T = 0; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]); ls.push(d); T += d; } let q = u * T; for (let i = 0; i < ls.length; i++) { if (q <= ls[i]) { const k = q / ls[i]; o.position.set(L.lerp(pts[i][0], pts[i + 1][0], k), 1.1, L.lerp(pts[i][2], pts[i + 1][2], k)); return; } q -= ls[i]; } };
     const pl = remember('s1plan', () => Toy.plan(1.0, 1.0, null, Toy.planCfg({ N: 256, H: 6, J: 6, keep: 28, usePi: false }), Toy.mulberry(5))), it = pl.iters[3], P = 7, lines = segLines(28 * 6), pg = new THREE.Group(); pg.add(lines); G.add(pg);
@@ -518,7 +520,7 @@ if (typeof document !== 'undefined') (function () {
     let m = 0, Zi = 1, ampI = 1; const ZS = [2, 4], AM = [1, 5];
     const pts = inst(BALL, 200), bars = inst(BOX, 4); G.add(pts, bars);
     const X0 = 1.6, names = ['R²(x)', 'R²(v)', 'R²(干扰)', '3 步奖励误差'], colr = [COL.d, COL.d, COL.bad, COL.R];
-    names.forEach((n, i) => G.add(lab(n, [X0 + 2.9 * i + 0.7, -0.9, 3.0], { size: 18 })));
+    names.forEach((n, i) => G.add(lab(n, [X0 + 2.9 * i + 0.7, i % 2 ? -1.9 : -0.9, 3.0], { size: 18 })));
     G.add(L.line([[X0 - 0.8, 6.5, 0], [X0 + 11.4, 6.5, 0]], COL.line, { opacity: 0.45 }), lab('R² = 1', [X0 - 0.6, 7.1, 0], { size: 17 }));
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshBasicMaterial({ color: 0x223044, transparent: true, opacity: 0.55, side: THREE.DoubleSide })); plane.rotation.x = -Math.PI / 2; plane.position.set(-8.5, 0.02, 0); G.add(plane);
     G.add(lab('潜状态前两个主成分，颜色 = 真实 x', [-8.5, -0.9, 7.2], { size: 19 }));
@@ -625,7 +627,7 @@ if (typeof document !== 'undefined') (function () {
     const x0 = -5, y0 = 0; Wg.at(x0, y0); Wg.setHeat(Toy.valueFn(false));
     const F9 = [['Stand', 0.069, COL.h], ['Walk', 0.098, COL.bad], ['Run', 0.134, COL.d]];
     const ox = -19, YS = 5.8 / 0.15; G.add(L.line([[ox - 0.5, 0, 0], [ox + 8, 0, 0]], COL.line), lab('图 9 读数：训练末段 σ', [ox + 3.4, 7.8, 0], { size: 19, border: 'rgba(242,193,78,.8)' }));
-    F9.forEach(([n, v], i) => { G.add(lab(`${n} ${v}`, [ox + 0.8 + i * 2.8, -0.9, 2.2], { size: 17 })); });
+    F9.forEach(([n, v], i) => { G.add(lab(`${n}\n${v}`, [ox + 0.8 + i * 2.8, -1.2, 2.2], { size: 17 })); });
     const calc = () => { pl = Toy.plan(x0, y0, null, Toy.planCfg({ N: 512, H: 5, keep: 48, eps: EPS[eI], valueMode: 1, usePi: false }), Toy.mulberry(71)); };
     calc();
     return { ctl: { html: textBtns('ε', EPS.map(String), 2, 'e'), on(g, k) { eI = k; calc(); } }, update(p) {

@@ -23,13 +23,13 @@
         '<p>PULSE 不是从头学一个技能空间，而是先有一个能模仿 AMASS 全部动作的老师，再把老师的本事压进一个 32 维的变分瓶颈。瓶颈右边的解码器 D 和左边的先验 R 训完就冻结，下游任务只学“该往潜空间哪里走”。</p>' +
         '<p>和 PHC 的关系：第 1 段就是 PHC 换了数据、训练日程和网络尺寸（PHC+，第 2、3 幕）。第 2 段是本文的核心（第 4 到 7 幕）。第 3 段把 D 当成新的“动力学系统”，动作空间从 69 维 PD 目标换成 32 维潜码（第 8 到 10 幕）。</p>' +
         src('§4 · 图 2 · 算法 1') },
-    { n: 2, part: '§4.1 PHC+', title: '老师：PHC 小改到 100%', sub: '三处改动；右边柱子是表 5 的消融', dur: 13, cam: [0.08, 1.2, 32, [-2.2, 4.0, 0]],
+    { n: 2, part: '§4.1 PHC+', title: '老师：PHC 小改到 100%', sub: '三处改动；右边柱子是表 5 的消融', dur: 13, cam: [0.08, 1.2, 34, [-1.8, 4.0, 0]],
       html: dl([['结构', '3 个 primitive＋composer（代码 num_prim = 3）'], ['每个网络', '6 层 MLP [2048, 1536, 1024, 1024, 512, 512]，SiLU'], ['训练', 'PPO，学习率 2×10⁻⁵，σ = 0.05，约 10¹⁰ 样本'], ['结果', 'AMASS-Train* 100%，AMASS-Test* 99.2%（表 1）']]) +
         '<p>论文列了三处改动：一是再清洗一遍数据（第 3 幕）；二是在一个 primitive <b>训练的过程中</b>就不断更新难序列集合，而不是等它收敛后再开新 primitive；三是网络从 3 层加到 6 层、ReLU 换 SiLU。只用 3 个 primitive 就学会了恢复并达到 100%。</p>' +
         '<p>表 5 只消融了单个 primitive（每个 3×10⁹ 样本），AMASS-Test 138 条：不做渐进 92.0%；ReLU＋渐进 97.8%；SiLU＋渐进 98.5%。换成条数是 127、135、136 条。SiLU 带来的成功率提升其实是 1 条序列，E<sub>mpjpe</sub> 从 32.8 降到 28.1 更明显。</p>' +
         '<p>代码里老师的输出是 Σwᵢμᵢ（3 列 PNN 不带侧向连接，加 composer 权重），和 PHC 代码一样，不是 PHC 论文式 (6) 的归一化乘积。</p>' +
         src('§4.1 · 附录 B.3 表 5 · 表 4 · env_im_vae.yaml、im_pnn_big.yaml、humanoid_im_distill.py:194-198') },
-    { n: 3, part: '附录 B.1', title: '为什么要再洗一遍 AMASS', sub: '图 6 的穿地和跳帧，换算成速度', dur: 13, cam: [0.3, 1.12, 22, [0.5, 2.6, 0]],
+    { n: 3, part: '附录 B.1', title: '为什么要再洗一遍 AMASS', sub: '图 6 的穿地和跳帧，换算成速度', dur: 13, cam: [0.3, 1.12, 23.5, [0.9, 3.0, 0]],
       html: dl([['问题 1', '穿地：一帧里身体陷进地面 12.5 到 75 cm'], ['问题 2', '跳帧：120 Hz 动捕里相邻两帧差 11 到 73 cm'], ['后果', 'RSI 抽到这种帧，物理引擎把人弹飞；跳帧让策略学会“预判大跳”'], ['结果', '11313 条训练、138 条测试']]) +
         '<p>动捕数据经过优化和拟合，偶尔会坏：姿态错乱、陷进地面、两帧之间突然跳一大截。PHC 训练时用参考状态初始化（RSI，随机从片段某一帧开始），如果抽到陷地的帧，仿真会施加很大的地面反力把人形弹飞；直接把高度抬上去又会造成漂浮或新的不连续。</p>' +
         '<p>图 6 标出了每个例子的数值。跳帧是在 120 Hz 下相邻帧之间的距离，所以可以直接换算速度：73 cm 一帧就是 0.73 × 120 = 87.6 m/s，最小的 11 cm 也有 13.2 m/s。人体动作里不可能出现这种速度，这是数据错误而不是“难动作”。</p>' +
@@ -43,7 +43,7 @@
         '<p>代码里蒸馏环境还会让一部分回合从倒地开始（recoveryEpisodeProb 0.3、fallInitProb 0.1），所以学生也从老师那里学到起身。正文没写这一点。</p>' +
         toyb('二维的不稳定系统，老师是一个非线性反馈律；学生是 169 个 RBF 的岭回归（容量有限，离数据远就输出 0）。“BC”只在 20 条无噪声的老师轨迹上回归；“DAgger”每轮让学生带噪声跑 20 条，由老师标注后合并重拟合。全部当场计算：BC 84.3%，DAgger 第 1 轮 99.3%。但给 BC 100 条老师轨迹也到 100%：在这个玩具里差别来自状态覆盖，不是在线本身。') +
         src('§4.2 · 算法 1 第 1-17 行 · 附录 C.1、C.2 · amp_agent.py:244-246, 775-845 · env_im_vae.yaml') },
-    { n: 5, part: '§4.2 瓶颈', title: '编码器、先验、解码器', sub: '三个网络的输入和尺寸；右边是两维切片上的 KL', dur: 14, cam: [0.05, 1.18, 31, [-3.2, 3.8, 0]],
+    { n: 5, part: '§4.2 瓶颈', title: '编码器、先验、解码器', sub: '三个网络的输入和尺寸；右边是两维切片上的 KL', dur: 14, cam: [0.05, 1.18, 34, [-3.4, 4.3, 0]],
       html: dl([['E', '(s^p, s^g) 934 维 → [1536, 1024, 512] → μᵉ, log σᵉ² ∈ ℝ³²'], ['R', 's^p 358 维 → [1536, 1024, 512] → μᵖ, log σᵖ² ∈ ℝ³²'], ['D', '(s^p, z) 390 维 → [3096, 2048, 1024] → a ∈ ℝ⁶⁹'], ['参数量', 'E 3.63 M，R 2.68 M，D 9.72 M（我按代码算）'], ['评估时', 'z = μᵉ，不采样']]) +
         '<p>式 (1)：编码器和先验都是对角高斯。式 (2) 是证据下界：数据项让解码出的动作像老师，KL 项让编码器的分布靠近先验。和 VAE 的区别有两点：没有重建损失，直接在动作空间监督；先验不是 N(0, I)，而是只看本体感觉的网络 R(z|s^p)，借鉴 HuMoR。</p>' +
         '<p>为什么先验要看本体：站着不动的人和空翻到一半的人，下一步能做的动作分布完全不同。下游策略就从这个“此刻合理的动作”附近开始找（第 9 幕）。</p>' +
@@ -62,19 +62,19 @@
         '<p>表 3 在 VR 跟踪任务上消融：加 L_regu 在无先验时 +8.7 个点，有先验时 +32.6 个点。换算成条数是 51 → 63、84 → 129。</p>' +
         toyb('一条二维“真实”潜码轨迹加上逐帧抖动作为编码器的原始输出，再解 min Σ‖z_t − y_t‖² + λ Σ‖z_t − 0.99 z_{t−1}‖²（高斯-赛德尔迭代 200 次，当场算）。读数是相邻帧平均步长和离真实轨迹的平均距离。λ 的数值是玩具里的，不是论文的 α。') +
         src('§4.2 · §5.4 表 3 · amp_agent.py:792-807') },
-    { n: 8, part: '§5.3 随机生成', title: '只用先验和解码器，随机地动', sub: 'z_t ~ R(z|s_t)，解码，仿真，再算下一步的先验', dur: 18, cam: [0.25, 1.15, 20, [0.8, 2.8, 0]],
+    { n: 8, part: '§5.3 随机生成', title: '只用先验和解码器，随机地动', sub: 'z_t ~ R(z|s_t)，解码，仿真，再算下一步的先验', dur: 18, cam: [0.25, 1.15, 23, [-1.6, 3.9, 0]],
       html: dl([['采样', 'z_t ~ N(μᵖ(s_t), σᵖ(s_t))'], ['闭环', 'D(s_t, z_t) → PD → 仿真 → s_{t+1} → R'], ['可控', '改变输入噪声的方差，动作变平缓或变激烈'], ['失败', '会卡在躺着或站着，加大噪声能把它“震”出来']]) +
         '<p>这一幕说明先验本身就是一个生成模型：不给任何任务，只从 R 采样再交给 D，人形会走、转身、摔倒、爬起。它受物理约束，所以不会像纯运动学的 HuMoR 那样生成不可能的姿态。图 3(f) 是这样一段随机滚动，中间摔倒又站起来。</p>' +
         '<p>论文把这个当定性结果放在项目主页，没有量化指标。附录 C.3 说球面潜空间和 VQ 潜空间蒸馏后模仿得一样好（100% 和 99.8%），但随机采样不出连贯的动作，这正是要可学习先验的原因。</p>' +
         guess('小人的走、摔、起身是手写的关键帧，不是解码器的输出。左边的点云是二维切片，μᵖ 的轨迹和 σᵖ 是我设的；噪声倍数只改变点云的大小和小人的动作节奏，用来示意论文说的“方差控制激烈程度”。') +
         src('§5.3 · 图 3(f) · 附录 A · 附录 C.3 · §6 Failure Cases') },
-    { n: 9, part: '§4.3 残差动作', title: '下游策略从先验均值出发', sub: '玩具：探索噪声落在先验高密度区的比例', dur: 14, cam: [0, 1.32, 25, [1.6, 3.6, 0]],
+    { n: 9, part: '§4.3 残差动作', title: '下游策略从先验均值出发', sub: '玩具：探索噪声落在先验高密度区的比例', dur: 14, cam: [0, 1.32, 27.5, [2.3, 3.9, 0]],
       html: dl([['式 (4)', 'a^task = D(s^p, π_task(z|s^p, s^g) + μᵖ)'], ['探索', '固定方差，论文写 0.22'], ['代码', 'σ = e^−1 = 0.368（速度、伸手、击打、地形）；e^−1.5 = 0.223（VR）'], ['表 3 R5', '有先验但不用残差：18.1%'], ['表 3 R6', '用残差：93.4%']]) +
         '<p>冻结的 D 加上仿真，就是一个新的环境，动作是 32 维潜码。下游策略不直接输出 z，而是输出相对先验均值 μᵖ 的残差。策略刚初始化时输出接近 0，于是一开始就在“此刻合理的动作”附近探索，而不是在整个潜空间里乱撒。</p>' +
         '<p>论文说探索用固定方差 0.22，而不是先验的 σᵖ，因为 σᵖ 往往很小。代码里这个数是 log 标准差的初值：VR 是 −1.5，标准差 0.223；其他任务是 −1，标准差 0.368。所以 0.22 应是 VR 的<b>标准差</b>，其他任务的探索更大。</p>' +
         toyb('二维潜空间，先验均值 μᵖ = (1.4, 0.8)、σᵖ = 0.25（我设的）。每种设置撒 4000 个点，统计落在先验 2σ 椭圆内的比例，当场算。二维和 32 维差别很大，这个比例不能和表 3 比。') +
         src('§4.3 式 (4) · §5.4 表 3 · pulse_z_task.yaml、pulse_z_vr.yaml · humanoid_z.py compute_z_actions') },
-    { n: 10, part: '§5.2 下游任务', title: '五个任务，奖励怎么写', sub: '切换任务。奖励按论文和代码各列一遍', dur: 16, cam: [0.3, 1.15, 22, [0.6, 2.6, 0]],
+    { n: 10, part: '§5.2 下游任务', title: '五个任务，奖励怎么写', sub: '切换任务。奖励按论文和代码各列一遍', dur: 16, cam: [0.3, 1.15, 23, [0.2, 3.0, 0]],
       html: dl([['生成类', '速度、伸手、击打、地形，3 层 [2048, 1024, 512]'], ['跟踪类', 'VR 三点，6 层 [2048, 1536, 1024, 1024, 512, 512]'], ['训练', '全部 PPO，不用 AMP（代码 disc_reward_w = 0）'], ['样本', '附录 C.4：简单任务约 2×10⁹，地形约 10¹⁰'], ['图 4 横轴', '速度、击打 2.5×10⁸，伸手 1.5×10⁸，地形 10⁹']]) +
         '<p>速度、伸手、击打沿用 ASE 的定义，地形沿用 PACER，VR 沿用 QuestSim。基线是在 AMASS 上用官方代码重训的 ASE 和 CALM（各有 6 Hz 和 30 Hz 两版）以及不用潜空间、直接从头训的策略。</p>' +
         '<p>图 4 里 PULSE 在四个生成任务上的归一化回报都最高；从头训最接近，但论文说动作不自然。注意图 4 的横轴：速度和击打到 2.5×10⁸，伸手 1.5×10⁸，地形 10⁹，比附录 C.4 写的训练量小约 10 倍，和第 6 幕的 β 退火是同一个倍数。</p>' +
@@ -110,8 +110,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -298,16 +300,16 @@
     const sub = new THREE.Group(); G.add(sub); let built = -1, bars = [];
     function rebuild() {
       L.clear(sub); LABS = LABS.filter(s => s.parent !== sub); built = m; bars = [];
-      ROWS.forEach(([n, v], i) => { const x = 1.5 + i * 3.4, val = v[m], b = block(1.6, 1, 1.6, [COL.sim, COL.data, COL.prim][i], [x, 0.5, 0], { edges: false }); sub.add(b);
-        const h = m === 0 ? (val - 85) / 15 * 6.5 : val / 50 * 6.5; const l = lab(m === 0 ? `${val.toFixed(1)}%（${Math.round(val / 100 * 138)}/138）` : val.toFixed(1), [x, 0, 0], { size: 17 }); sub.add(l, lab(n, [x, -0.3, 2.0], { size: 17 })); bars.push({ b, l, h }); });
-      sub.add(lab('表 5 · 单个 primitive，AMASS-Test · ' + MET[m] + (m === 0 ? '（纵轴从 85 起）' : ''), [5.0, 8.6, 0], { size: 20, border: 'rgba(56,209,255,.7)' }));
+      ROWS.forEach(([n, v], i) => { const x = 1.5 + i * 3.6, val = v[m], b = block(1.6, 1, 1.6, [COL.sim, COL.data, COL.prim][i], [x, 0.5, 0], { edges: false }); sub.add(b);
+        const h = m === 0 ? (val - 85) / 15 * 6.5 : val / 50 * 6.5; const l = lab(m === 0 ? `${val.toFixed(1)}%\n${Math.round(val / 100 * 138)}/138` : val.toFixed(1), [x, 0, 0], { size: 17 }); sub.add(l, lab(n, [x, -0.3, 2.0], { size: 17 })); bars.push({ b, l, h }); });
+      sub.add(lab('表 5 · 单个 primitive，AMASS-Test\n' + MET[m] + (m === 0 ? '（纵轴从 85 起）' : ''), [5.1, 9.0, 0], { size: 20, border: 'rgba(56,209,255,.7)' }));
     }
-    const chg = [['① 再洗一遍数据', 1], ['② 训练中就更新难序列', 2], ['③ 3 层 → 6 层，ReLU → SiLU', 3]].map(([t], i) => { const s = lab(t, [-4.0, 1.4 + i * 0.9, 3.4], { size: 18 }); G.add(s); return s; });
+    const chg = [['① 再洗一遍数据', 1], ['② 训练中就更新难序列', 2], ['③ 3 层 → 6 层，ReLU → SiLU', 3]].map(([t], i) => { const s = lab(t, [-4.0, 1.2 + i * 1.1, 3.4], { size: 18 }); G.add(s); return s; });
     const ctls = [{ label: '表 5 指标', items: MET, get: () => m, set: k => { m = k; } }];
     return { ctls, update(p) {
       if (built !== m) rebuild();
       const g = seg(p, 0.15, 0.6), q = (p * 16) % 1;
-      bars.forEach(({ b, l, h }) => { const y = Math.max(0.05, h * g); b.scale.y = y; b.position.y = y / 2; l.position.y = y + 0.45; });
+      bars.forEach(({ b, l, h }) => { const y = Math.max(0.05, h * g); b.scale.y = y; b.position.y = y / 2; l.position.y = y + 0.75; });
       const k = Math.floor(p * 3.2); cols.forEach((c, i) => c.userData.ms.forEach(s => glow(s, i === k % 3 && p <= 0.7 ? 0.5 : 0.05))); comp.userData.ms.forEach(s => glow(s, p > 0.7 ? 0.5 : 0.05));
       fl([[-12.5, 2.0, 0], [-9.3, 3.2, 0], [-6.4, 4.2, 0], [-3.5, 4.2, 0]], q, 1);
       chg.forEach((s, i) => { s.material.opacity = 0.35 + 0.65 * seg(p, 0.1 + i * 0.15, 0.2 + i * 0.15); });
@@ -326,9 +328,9 @@
     function rebuild() {
       L.clear(sub); LABS = LABS.filter(s => s.parent !== sub); built = mode; bars = [];
       const list = mode === 0 ? PEN : DIS; const vals = list.map(([, v]) => mode === 0 ? v : v / 100 * 120);
-      list.forEach(([n, v], i) => { const x = 2.2 + i * 1.75, b = block(1.1, 1, 1.1, mode === 0 ? COL.bad : COL.gate, [x, 0.5, 0], { edges: false }); sub.add(b); const h = mode === 0 ? v / 12 : vals[i] / 14; bars.push([b, h]);
+      list.forEach(([n, v], i) => { const x = 2.0 + i * 2.15, b = block(1.1, 1, 1.1, mode === 0 ? COL.bad : COL.gate, [x, 0.5, 0], { edges: false }); sub.add(b); const h = mode === 0 ? v / 12 : vals[i] / 14; bars.push([b, h]);
         sub.add(lab(n.replace(' ', '\n'), [x, -0.1, 1.6], { size: 15 })); sub.add(lab(mode === 0 ? `${v} cm` : `${v} cm/帧\n= ${vals[i].toFixed(1)} m/s`, [x, h + 0.7, 0], { size: 16 })); });
-      sub.add(lab(mode === 0 ? '图 6 第一行：陷入地面的深度' : '图 6 第二行：120 Hz 相邻帧的跳变 → 速度', [5.8, 7.2, -1.0], { size: 19, border: 'rgba(240,150,60,.7)' }));
+      sub.add(lab(mode === 0 ? '图 6 第一行：陷入地面的深度' : '图 6 第二行：120 Hz 相邻帧的跳变 → 速度', [5.2, 8.1, -1.0], { size: 19, border: 'rgba(240,150,60,.7)' }));
     }
     const ctls = [{ label: '问题', items: ['穿地', '跳帧'], get: () => mode, set: k => { mode = k; } }];
     return { ctls, update(p) {
@@ -380,12 +382,12 @@
   /* ---------- scene 5: encoder, prior, decoder; KL on a 2-D slice ---------- */
   function s5(G) {
     const sp = block(1.6, 1.0, 1.2, COL.robot, [-13, 1.2, 0]), sg = block(1.6, 1.0, 1.2, COL.ref, [-13, 4.4, 0]);
-    G.add(sp, sg, lab('s^p 本体 358', [-13, 2.2, 0], { size: 17 }), lab('s^g 目标 576', [-13, 5.4, 0], { size: 17 }));
+    G.add(sp, sg, lab('s^p 本体 358', [-13.4, 2.2, 0], { size: 17 }), lab('s^g 目标 576', [-13.4, 5.4, 0], { size: 17 }));
     const E = mlpStack(G, -10.6, 4.4, 0, [1536, 1024, 512, 160], COL.enc, { k: 1 / 700 }), Rn = mlpStack(G, -10.6, 1.2, 0, [1536, 1024, 512], COL.prior, { k: 1 / 700 });
     const D = mlpStack(G, -3.6, 3.0, 0, [3096, 2048, 1024], COL.dec, { k: 1 / 900 });
-    G.add(lab('E [1536,1024,512] → 160 → μᵉ, log σᵉ²', [-9.6, 7.1, 0], { size: 16 }), lab('R [1536,1024,512] → μᵖ, log σᵖ²', [-9.6, -0.4, 1.0], { size: 16 }), lab('D [3096,2048,1024] → 69', [-3.0, 6.6, 0], { size: 16 }));
+    G.add(lab('E [1536,1024,512] → 160 → μᵉ, log σᵉ²', [-9.6, 8.1, 0], { size: 16 }), lab('R [1536,1024,512] → μᵖ, log σᵖ²', [-9.6, -0.4, 1.0], { size: 16 }), lab('D [3096,2048,1024] → 69', [-3.6, 7.0, 0], { size: 16 }));
     const zb = L.sphere(0.36, COL.gold, { emissive: 0x332200 }); zb.position.set(-5.4, 3.0, 0); G.add(zb, lab('z（32）', [-5.4, 3.75, 0], { size: 16 }));
-    const act = block(1.2, 1.0, 1.0, COL.gate, [-1.0, 3.0, 0]), tgt = block(1.2, 1.0, 1.0, COL.teach, [-1.0, 5.4, 0]); G.add(act, tgt, lab('a（69）', [-1.0, 2.0, 0.8], { size: 16 }), lab('a^PHC+', [-1.0, 6.4, 0], { size: 16 }));
+    const act = block(1.2, 1.0, 1.0, COL.gate, [-1.0, 3.0, 0]), tgt = block(1.2, 1.0, 1.0, COL.teach, [-1.0, 5.4, 0]); G.add(act, tgt, lab('a（69）', [-1.0, 2.0, 0.8], { size: 16 }), lab('a^PHC+', [0.6, 5.4, 0.8], { size: 16 }));
     const f1 = stream(G, 5, COL.enc, 0.1), f2 = stream(G, 5, COL.prior, 0.1), f3 = stream(G, 5, COL.dec, 0.1);
     /* 2-D slice */
     const CX = 6.2, CY = 3.4, SC = 1.6; panel(G, CX - 3.3, CY - 3.3, -0.2, 6.6, 6.6);
@@ -451,7 +453,7 @@
     const pts = dots(G, N, COL.enc); const head = L.sphere(0.2, COL.gold); G.add(head);
     G.add(lab('白：一段动作的“真实”潜码  黄：编码器输出', [CX, CY + 3.65, 0], { size: 16 }));
     const B = [['R1 无先验 无 L_regu', 36.9, COL.sim], ['R2 无先验 有 L_regu', 45.6, COL.data], ['R3 有先验 无 L_regu', 60.8, COL.dim], ['R6 完整', 93.4, COL.prim]];
-    const bars = B.map(([n, val, c], i) => { const b = bar(G, 3.6 + i * 2.1, 0, 1.3, c); G.add(lab(n.replace(' ', '\n'), [3.6 + i * 2.1, -0.4, 1.6], { size: 15 }), lab(`${val}%`, [3.6 + i * 2.1, val / 100 * 6.4 + 0.5, 0], { size: 16 })); return [b, val]; });
+    const bars = B.map(([n, val, c], i) => { const b = bar(G, 3.6 + i * 2.1, 0, 1.3, c); G.add(lab(n.replace(' ', '\n').replace(' 无 L', '\n无 L').replace(' 有 L', '\n有 L'), [3.6 + i * 2.1, -0.4, 1.6], { size: 15 }), lab(`${val}%`, [3.6 + i * 2.1, val / 100 * 6.4 + 0.5, 0], { size: 16 })); return [b, val]; });
     G.add(lab('表 3 · VR 跟踪成功率（AMASS-Test）', [6.8, 8.0, 0], { size: 18, border: 'rgba(56,209,255,.7)' }));
     const ctls = [{ label: 'λ（玩具）', items: ['0（无正则）', '2', '20'], get: () => k, set: j => { k = j; } }];
     return { ctls, update(p) {
@@ -530,7 +532,7 @@
       if (k === 3) { for (let i = 0; i < 6; i++) sub.add(block(1.0, 0.3 * (i + 1), 4, COL.sim, [-1 + i * 1.0, 0.15 * (i + 1), 0], { edges: true })); obj.traj = []; for (let i = 0; i < 10; i++) { const d = L.sphere(0.1, COL.data); sub.add(d); obj.traj.push(d); } }
       if (k === 4) { obj.vr = [0, 1, 2].map(() => { const s = L.sphere(0.2, COL.ref); sub.add(s); return s; }); }
       const T = TK[k];
-      sub.add(lab(`${T.n} · 目标状态：${T.g}`, [0, 7.6, 0], { size: 18, border: 'rgba(180,140,255,.7)' }), lab(`论文：${T.paper}`, [0, 6.6, 0], { size: 17 }), lab(`代码：${T.code}`, [0, 5.75, 0], { size: 17, color: '#f0963c' }));
+      sub.add(lab(`${T.n} · 目标状态：${T.g}`, [1.2, 7.4, 0], { size: 18, border: 'rgba(180,140,255,.7)' }), lab(`论文：${T.paper}`, [1.2, 6.4, 0], { size: 17 }), lab(`代码：${T.code}`, [1.2, 5.55, 0], { size: 17, color: '#f0963c' }));
     }
     const ctls = [{ label: '任务', items: TK.map(t => t.n), get: () => k, set: j => { k = j; } }];
     return { ctls, update(p) {
