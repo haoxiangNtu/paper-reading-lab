@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NPMP 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 1811.11711 NPMP 的框架做成 11 幕 3D 动画：2707 个专家、带噪声回放的行为克隆、LFPC、编码器-潜码-解码器、AR(1) 先验、证据下界和 β、图 3 和图 4 的读数、一次性模仿与潜码优化、复用解码器训练高层策略。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="npmp.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/npmp.html">返回精读</a><a href="../../papers/npmp.html#s2">原文 §2</a><a href="../../papers/npmp.html#s3">原文 §3</a><a href="https://arxiv.org/abs/1811.11711">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 1811.11711 · ICLR 2019 · NPMP</p>
+<h1>把几千个单技能专家压进一个潜空间，再把解码器当动作空间</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2 幕是 2707 个专家；<b>第 3、4 幕是两种离线复制专家的办法</b>（带噪声回放的行为克隆、LFPC），各带一个当场计算的玩具；第 5 到 7 幕拆开网络、AR(1) 先验和证据下界；第 8、9 幕是图 3、图 4 的读数；第 10 幕一次性模仿和潜码优化；第 11 幕复用。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。网络尺寸和超参数来自论文 §2 和附录 B；作者没有公开训练代码。第 7、8、9、11 幕的柱子和曲线是从原文矢量图读出的数字。小人是手工做的示意，没有任何 NPMP 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">只有论文一列有依据。作者没有公开训练代码；第三方复现 <a href="https://github.com/microsoft/MoCapAct/tree/58bbb0047942708d20abb4fb191e9771de30ea1e">microsoft/MoCapAct</a>（MIT 许可，提交 58bbb00，2026-09-30）的 <code>NpmpPolicy</code> 只作旁证，不能代表作者的实现。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>MoCapAct 旁证（未核实是否同作者实现）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">专家（§2.1、附录 A）</td></tr>
+<tr><td>E1</td><td>数据</td><td>CMU Mocap，长于 6 秒的切开，约 3000 段 2 到 6 秒，训练集 2707 个专家</td><td>另做的 CMU 片段专家，不是本文那 2707 个</td></tr>
+<tr><td>E2</td><td>训练</td><td>SVG(0)＋Retrace；SAMCON 能量当逐步奖励；RSI；摔倒提前终止；用均值动作</td><td>–</td></tr>
+<tr><td>E3</td><td>镜像</td><td>左右对称镜像，大约让专家数据翻倍；图 4 全部用了</td><td>–</td></tr>
+<tr class="grp"><td colspan="4">模型（§2.2、附录 B）</td></tr>
+<tr><td>M1</td><td>编码器 q(z_t | z_{t−1}, x_t)</td><td>MLP 2 层 × 1024，输入直接拼接；对角高斯，方差可学</td><td>ref_encoder 2 × 1024，循环（拼上一步 embed），预测 std，最小 1e−5</td></tr>
+<tr><td>M2</td><td>x_t</td><td>[s_t, …, s_{t+5}]（K = 5）；脚注 2 的替代是 t, t+1, t+3, t+6, t+10, t+15</td><td>由数据集的 ref_steps 决定（未细查）</td></tr>
+<tr><td>M3</td><td>潜码</td><td>60 维（消融 20 维）</td><td>embed_size 60</td></tr>
+<tr><td>M4</td><td>解码器 π(a_t | s_t, z_t)</td><td>MLP 3 层 × 1024；高斯，标准差固定 0.1；动作归一化到 [−1, 1]</td><td>3 × 1024；std_dev 0.1；激活默认 Tanh（论文没写激活）</td></tr>
+<tr><td>M5</td><td>先验</td><td>AR(1)：z_t = 0.95 z_{t−1} + 0.312 ε</td><td>embedding_correlation 0.95，std √(1 − 0.95²)</td></tr>
+<tr><td>M6</td><td>目标</td><td>式 (3)：log π + β(log p_z − log q)，单样本</td><td>−log π + 0.1 × 解析 KL(q ‖ p)，按 B·T 平均</td></tr>
+<tr><td>M7</td><td>β</td><td>图 4：0、0.001、0.1、1.0；图 6a 另有 0.46</td><td>embedding_kl_weight 默认 0.1</td></tr>
+<tr><td>M8</td><td>优化</td><td>重参数化；Adam，学习率 10⁻⁴；BC：批 512 段 × 30 步</td><td>seq_steps 30；Adam</td></tr>
+<tr class="grp"><td colspan="4">两种离线数据（§2.3）</td></tr>
+<tr><td>D1</td><td>带噪声回放（BC）</td><td>专家带噪声 η 执行，记均值动作；图 4 每个专家 100 条</td><td>MoCapAct 的回放文件同时存了采样动作和专家均值动作 mean_actions（README 的数据结构说明）</td></tr>
+<tr><td>D2</td><td>LFPC</td><td>每个专家 1 条名义轨迹 + 雅可比；32 段 × 30 步，每段 5 份扰动；Δ 对所有片段相同</td><td>无</td></tr>
+<tr class="grp"><td colspan="4">复用（§3.3）</td></tr>
+<tr><td>H1</td><td>高层策略</td><td>每步输出 z_t；SVG(0)，Q 函数用 Retrace</td><td>low_level_policy 取解码器均值（下游代码另有，未细查）</td></tr>
+<tr><td>H2</td><td>任务</td><td>追目标点（稀疏）、不可见颠簸地形、目标速度、视觉跨沟</td><td>–</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段。不是论文的人形，也不是解码器的输出。</li>
+<li><b>第 2 幕。</b>片段长度随机抽在 2 到 6 秒之间；280 个方块代表 2707 个专家。</li>
+<li><b>第 3、4 幕的玩具。</b>一维参考曲线、专家反馈律、噪声换算、扰动幅度都是我设的，回放和误差当场计算，和论文数字没有可比性。</li>
+<li><b>第 6 幕。</b>两维的先验样本当场采，α 和 σ 是论文的；柱子是理论值 α^k。</li>
+<li><b>第 7 幕左侧。</b>三项的柱高只示意 β 的作用，不是论文的数值；中间等效高斯按 σ√β 精确画；右侧柱子是图 4 的读数。</li>
+<li><b>第 10 幕。</b>点云和两条 z 轨迹是我生成的；43% 和 78% 是论文的数。</li>
+<li><b>第 11 幕。</b>目标点、沟、速度和小人的动作是手写的；曲线是图 6a 的读数，图 6b 的 15 个目标速度是读数。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 1811.11711 后的理解，不是作者的官方图。原文：Josh Merel、Leonard Hasenclever、Alexandre Galashov、Arun Ahuja、Vu Pham、Greg Wayne、Yee Whye Teh、Nicolas Heess，ICLR 2019；arXiv 登记为非独占分发许可，这里没有复制原图。逐节内容和核算在<a href="../../papers/npmp.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

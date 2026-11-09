@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PhysicsVAE 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="Won 等 ACM TOG 2022（PhysicsVAE）的核心框架做成 11 幕 3D 动画：四段流水线、专家数据、维度、仿真层预训练、条件 VAE、式 (1) 的梯度、图 9 的 α 扫描、随机展开、帮手分支、七个下游任务、世界模型放在哪。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="physicsvae.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/physicsvae.html">返回精读</a><a href="../../papers/physicsvae.html#s3">原文 §3</a><a href="../../papers/physicsvae.html#code">代码对照</a><a href="https://doi.org/10.1145/3528223.3530067">DOI</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · ACM TOG 41(4) · SIGGRAPH 2022 · PhysicsVAE</p>
+<h1>一个不看目标的物理控制器，是怎样从动捕里蒸馏出来的</h1>
+<p class="lead">一共 11 幕。第 1 幕是四段流水线；第 2 到 4 幕是数据、维度和先训的仿真层；<b>第 5、6 幕是核心：条件 VAE 和式 (1) 的梯度路径</b>；第 7 幕是图 9 的 α 扫描；第 8 幕是随机展开；第 9 幕是帮手分支；第 10 幕是七个下游任务；第 11 幕把它和 ControlVAE、SuperMimic 的世界模型放在一起比。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。网络大小来自论文表 2、官方代码（提交 3d0a3e3）和预训练权重的张量形状；第 7 幕的柱子是我从原文图 9 位图量出的读数。小人和轨迹是手工做的示意，没有任何 PhysicsVAE 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 facebookresearch/PhysicsVAE 提交 3d0a3e3（2023-01-30），只读未运行；网络形状另用预训练权重 loco_modelV1.pt 的张量形状核对过。仓库没有下游任务的代码。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（3d0a3e3）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入输出</td></tr>
+<tr><td>I1</td><td>状态 s_t</td><td>(p, q, v, w)，J × (3 + 6 + 3 + 3)，朝向坐标系</td><td>facing_R6_h：24 × 15 + 1（根部高度）= 361</td></tr>
+<tr><td>I2</td><td>动作 a_t</td><td>PD 目标关节角，每维 [−3, 3] rad</td><td>18 个球关节 × 3 = 54；稳定 PD（spd）</td></tr>
+<tr><td>I3</td><td>频率</td><td>仿真 480 Hz，控制 30 Hz</td><td>fps_sim 480，fps_con 30</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>编码器</td><td>(256, 128)，输入 (s_t, s_{t+1})</td><td>722 → 256 → 256 → 64（μ 和 log σ² 各 32），267,328 参数</td></tr>
+<tr><td>N2</td><td>运动解码器</td><td>(512, 512, 512)，输入 (s_t, z_t)</td><td>393 → 512 × 3 → 54，754,742 参数；log std 为常数</td></tr>
+<tr><td>N3</td><td>仿真层</td><td>(1024, 1024)，预训练后冻结</td><td>_world_model：415 → 1024 × 2 → 361，1,845,609 参数，直接输出 s_{t+1}</td></tr>
+<tr><td>N4</td><td>任务编码器</td><td>(256, 128)</td><td>没有公开下游代码</td></tr>
+<tr><td>N5</td><td>帮手</td><td>(128, 128)，式 (2)，σ 逐维</td><td>128 × 2，末层 tanh，乘标量 range（默认 0.5），默认关闭</td></tr>
+<tr class="grp"><td colspan="4">损失和训练</td></tr>
+<tr><td>L1</td><td>式 (1)</td><td>‖a − a′‖² + α‖s − s′‖² + β·KL，平方和</td><td>MSE 平均；KL 对维求和、对批平均；lookahead = 1</td></tr>
+<tr><td>L2</td><td>α、β</td><td>表 1：1e−4、2.0；正文最好 α 在 3e−4 到 3e−3</td><td>vae_cycle_coeff 1e−3，vae_kl_coeff 1.0</td></tr>
+<tr><td>L3</td><td>优化</td><td>Adam，批量 256，0.01 每 50 轮 × 0.7；300 + 600 轮</td><td>lr 默认 5e−4，同样的衰减；README 示例 300 + 500</td></tr>
+<tr><td>L4</td><td>专家数据</td><td>每段 10 次，协方差 0.05·I</td><td>iter_per_episode 10，exp_std 0.05（标准差）；标签是带噪动作；摔倒段丢弃</td></tr>
+<tr class="grp"><td colspan="4">RL</td></tr>
+<tr><td>R1</td><td>DD-PPO</td><td>lr 2e−5，γ 0.99，λ 0.95，T 50000，20 轮，批 256，ε 0.2</td><td>模仿配置：γ 0.98，批 100000，小批 500，其余同</td></tr>
+<tr><td>R2</td><td>下游任务</td><td>点目标、摇杆、∞ 路径、迷宫、地形、人群、打沙袋</td><td>未公开</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段，不是模型输出。人形结构是本站其他动画共用的那个。</li>
+<li><b>第 2 幕的散开。</b>10 条轨迹是平滑随机游走，幅度按两种噪声写法的比例（0.224 对 0.05）放大画，不是仿真结果。计数器是算式。</li>
+<li><b>第 4 幕的学习率曲线、第 6 幕的权重比、第 9 幕的角度、第 7 幕的比值。</b>都是页面按论文或代码的数当场算的。</li>
+<li><b>第 7 幕的柱子。</b>我从原文图 9 的位图按像素量出，误差约 ±0.5 s，不含误差线。这不是原图。</li>
+<li><b>第 8 幕的轨迹。</b>手画的随机曲线，仿照图 4 的样子，不是模型展开。</li>
+<li><b>第 10 幕。</b>下游代码没有公开。路径、网格、高度图、射线的尺寸按原文公式和数字；小人怎样走是手写的；迷宫的墙是我随手摆的，不是原文的迷宫。∞ 路径按一圈 40 秒放慢画（原文没说 t 的单位）。</li>
+<li><b>第 11 幕。</b>三种方法的对照是我读三篇原文后的整理，ControlVAE 的“多步”画成 4 格只表示多于 1 步。</li>
+</ul>
+</section>
+<footer><p>图解是我读 Won、Gopinath、Hodgins 的 ACM TOG 2022 论文（Meta Research 发布的 PDF）和官方代码后的理解，不是作者的官方图。原文版权归作者所有，这里没有使用原图。逐节内容和核算在<a href="../../papers/physicsvae.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

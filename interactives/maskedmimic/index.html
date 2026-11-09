@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MaskedMimic 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2409.14393 MaskedMimic 的核心框架做成 11 幕 3D 动画：两阶段总览、跟踪器输入、跟踪奖励、训练场与早停、A2C 与 PPO、结构化遮挡（当场采样）、残差先验与 KL、先验 Transformer 的 token、DAgger 蒸馏与 KL 日程、目标工程、结果表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="maskedmimic.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/maskedmimic.html">返回精读</a><a href="../../papers/maskedmimic.html#s6">原文 §6</a><a href="../../papers/maskedmimic.html#apB">附录 B</a><a href="https://arxiv.org/abs/2409.14393">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2409.14393 · ACM TOG 43(6) · SIGGRAPH Asia 2024 · MaskedMimic</p>
+<h1>先学会看全身跟踪，再学会只看一部分</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 5 幕是第一阶段的全身跟踪器：输入、奖励、训练场，以及 SuperMimic 表 1 说的“A2C”到底是什么（第 5 幕，当场算）；<b>第 6 幕是核心：结构化遮挡，当场按附录 B.2 的规则抽样</b>；第 7、8 幕拆开条件 VAE 和先验 Transformer；第 9 幕是 DAgger 蒸馏和 KL 日程；第 10 幕用状态机做任务；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。网络尺寸和超参数来自论文和官方代码（论文时的 V1 发布提交 bacad32）；第 7、11 幕的柱子是原文表格数字。小人是手工做的示意，没有任何 MaskedMimic 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 <a href="https://github.com/NVlabs/ProtoMotions">NVlabs/ProtoMotions</a>。官方仓库 2025 年 5 月重写了历史，论文时的提交不在里面了；我读的是作者 2024-09-25 的 “V1 - Public release” 提交 <code>bacad32</code>（经 2024-09-26 建立的一个分叉 <a href="https://github.com/lu-yidan/ProtoMotions/tree/bacad321db5444c45fd5faeb6dedf470639cece6">lu-yidan/ProtoMotions</a> 读到），当时的许可是 NVIDIA License（只许非商业，研究或评估用途）。现在的 main（<code>b43fc6f</code>，2026-11-03）是 Apache 2.0，结构完全不同，只在个别地方对照。都只读未运行。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（V1 bacad32）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">第一阶段：全身跟踪器 π^FC</td></tr>
+<tr><td>F1</td><td>网络</td><td>Transformer 控制器 + 全连接评论家；没给尺寸</td><td>Transformer 宽 512、前馈 1024、4 层 4 头；token 编码器 [256, 256]；输出 MLP [1024, 1024, 1024]；评论家 [1024, 1024, 1024, 1024]</td></tr>
+<tr><td>F2</td><td>输入</td><td>本体 358 维 + 未来 K 个目标姿态（式 (4) 加时间）+ 高度图</td><td>未来 15 帧，每关节 18 维 + 1 维时间；高度图 16×16 = 256</td></tr>
+<tr><td>F3</td><td>动作</td><td>69 维 PD 目标，σ = exp(−2.9)</td><td>init_logstd −2.9，learnable_sigma False</td></tr>
+<tr><td>F4</td><td>奖励</td><td>式 (5)，权重 (10)、系数 (11)</td><td>global_tracking.yaml 完全相同；形式 w·exp(−c·误差)，能耗 −Σ|τ q̇|</td></tr>
+<tr><td>F5</td><td>算法</td><td>附录 B.1：A2C，γ 0.99，GAE τ 0.95，演员学习率 2e-5、评论家 1e-4，每卡小批 16384，整轮梯度累积</td><td>ppo.yaml：PPO，e_clip 0.2，num_mini_epochs 6，batch 16384，gradient_accumulation_steps 1；学习率、γ、τ 相同</td></tr>
+<tr><td>F6</td><td>早停</td><td>平地 0.25 m，起伏地形 0.5 m</td><td>max_joint_err：0.5 / 平地 0.25；评估时关闭</td></tr>
+<tr><td>F7</td><td>优先采样</td><td>∝ 失败概率，下限 3×10⁻³，只算平地</td><td>按早停分桶，最小权重 max(1/桶数, min_bucket_weight)，默认 0</td></tr>
+<tr><td>F8</td><td>频率</td><td>控制 30 Hz，仿真 120 Hz</td><td>fps 60 × substeps 2，control_freq_inv 2</td></tr>
+<tr class="grp"><td colspan="4">第二阶段：MaskedMimic π^PC</td></tr>
+<tr><td>P1</td><td>先验 ρ</td><td>Transformer 宽 512、前馈 1024、4 层 4 头；编码器 [256, 256]；输出头 256 → 128 → 64</td><td>transformer.yaml 相同；prior_output_units [256, 128]</td></tr>
+<tr><td>P2</td><td>编码器 E</td><td>MLP [1024, 1024, 1024] → 1024 → 512 → μ, σ；残差</td><td>相同；residual_encoder True</td></tr>
+<tr><td>P3</td><td>解码器 D</td><td>MLP [1024, 1024, 1024]，看 s、h、z</td><td>units [1024, 1024, 1024]；z 先过一个 [256, 128] 的小 MLP（论文没提）</td></tr>
+<tr><td>P4</td><td>潜码</td><td>64 维；回合内固定 ε</td><td>vae_latent_dim 64；评估时 ε = 0（vae_noise_type zeros）</td></tr>
+<tr><td>P5</td><td>目标姿态</td><td>K = 11：10 个近期 + 1 个远期</td><td>num_future_steps 10 + 1；每个 184 维</td></tr>
+<tr><td>P6</td><td>历史</td><td>存 40 帧，取 5 个</td><td>存 120 帧，取 15 个</td></tr>
+<tr><td>P7</td><td>物体</td><td>8 角 × 3 + 朝向 6 + 类别 1 = 31 维</td><td>37 维：类别是 7 维独热</td></tr>
+<tr><td>P8</td><td>遮挡</td><td>重复 98%，空档 1%（1–9 步），文本可见 20%，物体可见 80%，远期目标 20%</td><td>重复 0.98，空档 0.1（1–11 步），文本 0.5，物体 0.8，远期目标 0；另有 10% 强制全可见</td></tr>
+<tr><td>P9</td><td>损失</td><td>式 (8)：动作对数似然 − α·KL</td><td>动作均方误差 + α·KL；only_bc True，学生采数据</td></tr>
+<tr><td>P10</td><td>KL 日程</td><td>10⁻⁴ → 10⁻²，从 epoch 3000 起，用 6000 个 epoch</td><td>start_epoch 3000、end_epoch 6000（实际是持续长度）；V1 发布版因读错配置键不加 KL，6ac71e1 修正</td></tr>
+<tr><td>P11</td><td>规模</td><td>16,384 环境，4 张 A100，约 14 天；FC 约 3×10¹⁰ 步，PC 约 10¹⁰ 步</td><td>每卡 num_envs 4096；training_max_steps 默认 10¹⁰</td></tr>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>动作</td><td>AMASS，按 PHC 过滤，左右镜像；HumanML3D 文本；SAMP 物体</td><td>amass_train.yaml 8327 条，镜像后 16654；amass_test.yaml 1776 条（带 HumanML3D 标签）</td></tr>
+<tr><td>D2</td><td>现在的仓库</td><td>—</td><td>main 的 MaskedMimic 示例：5 个未来帧，KL 日程 500 → 2000 epoch，visible_target_pose_prob 0.8；默认值和论文都不同</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段。不是 SMPL 人形，也不是解码器的输出。</li>
+<li><b>第 3 幕的误差组合。</b>“每个关节沿一个轴偏 e、旋转偏 3e、速度偏 10e”是我设的；每项按 V1 代码的公式当场算。</li>
+<li><b>第 4 幕的 8 个动作。</b>失败率是我设的，份额按论文的规则当场归一化。地形和椅子是手写的。</li>
+<li><b>第 5 幕的玩具。</b>一维高斯策略、奖励 −(a − 0.3)²、4096 个样本、学习率 0.001 都是我设的；A2C 一步和 PPO 48 步当场算（maskedmimic.js 的 buildA2C）。结果：A2C 一步移动 0.33σ，PPO 48 步移动 0.44σ，最后一步 64% 样本被裁剪。</li>
+<li><b>第 6 幕的遮挡格子。</b>规则来自附录 B.2（或 V1 配置），种子是我定的；“V1 代码参数”一档是我对配置的字面读法，代码里空档的计时方式可能和我的模拟不完全一样。40 段 × 300 步统计：附录规则下平均可见 3.30 个关节、全遮 5.1%、同一遮挡平均持续 23 步；每步重抽时持续 1.0 步。</li>
+<li><b>第 7 幕的两维切片。</b>μ、σ 的轨迹是我设的，KL 按公式当场算。</li>
+<li><b>第 10 幕的场景。</b>椅子、路径、箭头和小球是手写的；切换条件按论文。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2409.14393 后的理解，不是作者的官方图。原图见<a href="../../papers/maskedmimic.html">精读页</a>（CC BY-NC-SA 4.0，只做裁切）。本页文字按 CC BY-NC-SA 4.0 提供。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

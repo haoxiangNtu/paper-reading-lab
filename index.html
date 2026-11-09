@@ -20,6 +20,30 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/maskedmimic.html">MaskedMimic：遮住一部分目标，统一各种控制方式</a></p>
+<p class="en">MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting</p>
+<div class="meta"><span>arXiv 2409.14393</span><span>SIGGRAPH Asia 2024 · TOG</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">先用强化学习训一个全身跟踪器，再把它蒸馏进一个只看遮挡后目标的条件 VAE，用“目标工程”完成路径、转向、伸手、坐椅子和文本控制。</p>
+<div class="tags"><span class="pill">动作补全</span><span class="pill">条件 VAE</span><span class="pill">DAgger 蒸馏</span><span class="pill">CC BY-NC-SA 4.0 · 含原图</span><span class="pill rn">21 条读者注</span></div>
+<div class="links"><a class="go" href="papers/maskedmimic.html">读精读 →</a><a href="interactives/maskedmimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2409.14393">原文</a><a href="https://github.com/NVlabs/ProtoMotions">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/physicsvae.html">PhysicsVAE：条件 VAE 加冻结的一步可导仿真层</a></p>
+<p class="en">Physics-based Character Controllers Using Conditional VAEs</p>
+<div class="meta"><span>doi:10.1145/3528223.3530067（无 arXiv）</span><span>SIGGRAPH 2022 · TOG</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">用条件 VAE 加一个冻结的一步可导仿真层，把模仿控制器的轨迹蒸馏成不看目标的物理角色控制器，下游用 PPO 训任务编码器和有界的帮手分支。</p>
+<div class="tags"><span class="pill">条件 VAE</span><span class="pill">一步世界模型</span><span class="pill">物理角色</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">21 条读者注</span></div>
+<div class="links"><a class="go" href="papers/physicsvae.html">读精读 →</a><a href="interactives/physicsvae/index.html">11 幕 3D 框架动画</a><a href="https://doi.org/10.1145/3528223.3530067">原文</a><a href="https://github.com/facebookresearch/PhysicsVAE">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/npmp.html">NPMP：把几千个动捕专家压进一个潜空间</a></p>
+<p class="en">Neural Probabilistic Motor Primitives for Humanoid Control</p>
+<div class="meta"><span>arXiv 1811.11711</span><span>ICLR 2019</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">把 2707 个单片段动捕专家离线压进一个 60 维潜变量逆模型（带噪声回放的行为克隆或只用一条轨迹的 LFPC），再把解码器当动作空间训练高层策略。</p>
+<div class="tags"><span class="pill">动作原语</span><span class="pill">行为克隆</span><span class="pill">SVG(0)</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">19 条读者注</span></div>
+<div class="links"><a class="go" href="papers/npmp.html">读精读 →</a><a href="interactives/npmp/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/1811.11711">原文</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/beyondmimic.html">BeyondMimic：一套跟踪设定上真机，再用引导扩散做新任务</a></p>
 <p class="en">BeyondMimic: From Motion Tracking to Versatile Humanoid Control via Guided Diffusion</p>
 <div class="meta"><span>arXiv 2508.08241</span><span>Science Robotics 2026</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>

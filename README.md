@@ -8,6 +8,9 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting（[arXiv 2409.14393](https://arxiv.org/abs/2409.14393)，SIGGRAPH Asia 2024，CC BY-NC-SA 4.0，SuperMimic 引用） | [maskedmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/maskedmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/maskedmimic/index.html) | 全身跟踪器蒸馏进只看遮挡目标的条件 VAE，任务靠推理时的“目标工程”完成；含 V1 代码核对。 | 21 条 |
+| Physics-based Character Controllers Using Conditional VAEs（PhysicsVAE，[doi:10.1145/3528223.3530067](https://doi.org/10.1145/3528223.3530067)，SIGGRAPH 2022，无 arXiv，SuperMimic 引用） | [physicsvae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/physicsvae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/physicsvae/index.html) | 条件 VAE 加冻结的一步可导仿真层蒸馏模仿控制器，下游 PPO 训任务编码器和有界帮手分支。 | 21 条 |
+| Neural Probabilistic Motor Primitives for Humanoid Control（NPMP，[arXiv 1811.11711](https://arxiv.org/abs/1811.11711)，ICLR 2019，SuperMimic 引用） | [npmp 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/npmp.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/npmp/index.html) | 2707 个单片段专家离线压进 60 维潜变量逆模型，解码器当动作空间训高层；图 3、4、6 从矢量读数。 | 19 条 |
 | BeyondMimic: From Motion Tracking to Versatile Humanoid Control via Guided Diffusion（[arXiv 2508.08241](https://arxiv.org/abs/2508.08241)，Science Robotics 2026，SuperMimic 引用） | [beyondmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/beyondmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/beyondmimic/index.html) | 同一套跟踪 MDP 上真机做空翻冲刺，再用 DAgger 蒸馏的 VAE 加状态-潜变量扩散，推理时代价引导零样本完成摇杆、路点、避障和关键帧补全；含和 SuperMimic 附录 A 的逐项对照。 | 23 条 |
 | Universal Humanoid Motion Representations for Physics-Based Control（[arXiv 2310.04582](https://arxiv.org/abs/2310.04582)，ICLR 2024，CC BY-NC-SA 4.0，SuperMimic 引用） | [pulse 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/pulse.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/pulse/index.html) | 先训能模仿全部 AMASS 的老师 PHC+，在线蒸馏成 32 维带可学习先验的潜空间，下游任务只学残差潜码。 | 24 条 |
 | Learning Athletic Humanoid Tennis Skills from Imperfect Human Motion Data（LATENT，[arXiv 2603.12686](https://arxiv.org/abs/2603.12686)，SuperMimic 引作 IROS 2026，未核实，CC BY 4.0，SuperMimic 引用） | [latent 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/latent.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/latent/index.html) | 不完美的网球动作片段 → 跟踪器 → DAgger 潜空间 → 潜动作屏障约束的高层 PPO 加手腕直控，Unitree G1 和人对打。 | 20 条 |
@@ -43,6 +46,30 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## MaskedMimic 读后要点
+
+- 遮挡要跨帧保持；不保持时坐椅子成功率掉到 0%。
+- 残差先验让先验均值在 KL 项里抵消，先验均值只能从动作损失学。
+- “A2C”是原文说法，公开代码默认是 PPO。
+- 和 PULSE 的对比很可能不是同一测试集：成功率都是 k/1776，不是 k/138。
+- 公开的 V1 代码没有加上 KL 项，两天后的提交修好了。
+
+## PhysicsVAE 读后要点
+
+- SuperMimic 说的“一步一致性项”就是式 (1) 的 α 项：梯度穿过一个用专家数据预训后冻结的仿真层，只展开一步。
+- PhysicsVAE 也有世界模型，但离线学、冻结、不参与下游训练，这是它和 ControlVAE、SuperMimic 的区别。
+- α 在表 1、图 9、代码三处不一致；复现从 1e-3 起。
+- “倒地前坚持时间约长三倍”，按图 9 读只有 1.5–2.4 倍。
+- 帮手分支把每个关节的改动限在 σ 弧度以内，σ 决定自然和适应之间的取舍。
+
+## NPMP 读后要点
+
+- 三段串行：SVG(0)+Retrace 训专家 → 离线监督压缩 → SVG(0)+Retrace 训高层；SuperMimic 表 1 概括准确。
+- 压缩有损：最好配置的中位相对表现训练 0.739、测试 0.707。
+- LFPC 只用 1 条轨迹加雅可比，单技能上接近几百条 BC。
+- AR(1) 先验和适中的 β 都重要；β 过大过小都变差。
+- 复用时 β = 0.46 最好、0.001 最差，正则不是越强越好。
 
 ## BeyondMimic 读后要点
 
@@ -258,8 +285,8 @@ index.html          论文列表与写法约定
 papers/supermimic.html       SuperMimic 精读
 papers/supermimic/charts.js  精读页的折线图，数据从原文矢量图读出，是重画的
 papers/supermimic/*.webp     从 PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者
-papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
-interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent}/  对应的 3D 框架动画
+papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent,npmp,physicsvae,maskedmimic}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
+interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent,npmp,physicsvae,maskedmimic}/  对应的 3D 框架动画
 interactives/supermimic/     SuperMimic 的 11 幕 3D 框架动画（精读页内嵌）
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切
