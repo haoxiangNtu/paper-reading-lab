@@ -429,9 +429,9 @@
   function s3(G) {
     const pts = cup(2048, 9), grid = 0.01, mn = [0, 1, 2].map(k => Math.min(...pts.map(p => p[k])));
     const ij = pts.map(p => p.map((v, k) => Math.floor((v - mn[k]) / grid)));
-    const ord = STATE.ord3, codeOf = q => ord === 0 ? morton(q[0], q[1], q[2]) : ord === 1 ? morton(q[1], q[2], q[0]) : ord === 2 ? hilbert(q) : hilbert([q[1], q[2], q[0]]);
-    /* one point per cell, then stage-wise merging to parent cells */
-    const stages = []; for (let s = 0; s < 5; s++) { const cell = 1 << s, map = new Map(); pts.forEach((p, i) => { const k = ij[i].map(v => Math.floor(v / cell)).join(','); const e = map.get(k) || { c: [0, 0, 0], n: 0 }; e.c[0] += p[0]; e.c[1] += p[1]; e.c[2] += p[2]; e.n++; map.set(k, e); }); const list = [...map.values()].map(e => e.c.map(v => v / e.n)); stages.push(list); }
+    const ord = STATE.ord3, codeOf = q => ord === 0 ? morton(q[0], q[1], q[2]) : ord === 1 ? morton(q[1], q[0], q[2]) : ord === 2 ? hilbert(q) : hilbert([q[1], q[0], q[2]]); /* -trans swaps x and y, as default.py's [1, 0, 2] */
+    /* stage 1 keeps every point (PTv3 does no grid sampling here); each pooling then merges points sharing a parent cell */
+    const stages = [pts.slice()]; for (let s = 1; s < 5; s++) { const cell = 1 << s, map = new Map(); pts.forEach((p, i) => { const k = ij[i].map(v => Math.floor(v / cell)).join(','); const e = map.get(k) || { c: [0, 0, 0], n: 0 }; e.c[0] += p[0]; e.c[1] += p[1]; e.c[2] += p[2]; e.n++; map.set(k, e); }); const list = [...map.values()].map(e => e.c.map(v => v / e.n)); stages.push(list); }
     const Ns = stages.map(s => s.length), groups = Ns.map(n => Math.ceil(n / Math.min(1024, n)));
     const scale = 18, ox = -7.5, oy = 2.8, W = p => [ox + p[0] * scale, oy + p[1] * scale, p[2] * scale];
     const order = pts.map((p, i) => [codeOf(ij[i]), i]).sort((a, b) => a[0] - b[0]).map(a => a[1]);

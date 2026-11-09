@@ -88,6 +88,10 @@
 <div class="note" id="n3"><span class="lab">读者注 3 · 公式写得比代码简单</span><p>论文写 \(\tilde g=g+\epsilon\)，这只是示意。代码走的是 DDPM 标准形式 \(\tilde g=\sqrt{\bar\alpha_t}\,g+\sqrt{1-\bar\alpha_t}\,\epsilon\)（<code>add_noise</code>）。\(t\) 也不是 \([0,T]\)，而是整数 0 到 9（<code>torch.randint(0, 10, …)</code>）。旋转还额外除了 π，把轴角缩放到大约 \([-1,1]\)。损失的差异见<a href="#audit">实现核对</a>。</p></div>
 
 <h3 id="generator">生成器：点云编码器与噪声预测头分开看</h3>
+<div class="i3d" id="arch3d"><p class="lab">自己画的 · 11 幕 3D 结构拆解（序列化码、分块、各阶段点数对玩具杯子当场算）</p>
+<p>“PTv3 先把点序列化成结构化格式”具体是什么：第 2 幕记格号，第 3 幕按空间填充曲线给每个点一个整数码再排序（下面嵌的就是这一幕，可以点格子看码怎么算），第 4 幕每 K 个点切一块做注意力，第 5 幕一个 Block 的内部，第 6 幕池化，第 7 幕平均成 512 维。第 8、9 幕是噪声头和 10 步去噪。</p>
+<iframe src="../interactives/graspgen/arch.html?embed=1&amp;scene=3" title="GraspGen 网络结构 3D 拆解：PTv3 序列化" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/graspgen/arch.html?scene=2">全屏打开结构拆解，从体素化开始 ↗</a></p></div>
 <h3>先把姿态表示和归一化说清楚</h3>
 <p>论文把 SE(3) 分为平移 ℝ³ 和旋转 SO(3)，使用旋转的李代数向量表示。所核对脚本设置 <code>r3_so3</code>，所以网络样本维度为 6。另一种可选的 <code>r3_6d</code> 表示需要 3+6=9 个数，但仍描述六自由度刚体位姿。</p>
 <p>点云和抓取先转到物体点云的均值中心附近，再用数据统计得到的 κ 同时缩放点云坐标和抓取平移（<a href="#n2">读者注 2</a>）。Franka 示例脚本取 κ=3.27；这不是所有夹爪和所有数据通用的常数（Robotiq 2.02217，吸盘 3.764）。旋转、平移分开使用噪声调度器，也不代表有两个完全独立的去噪网络。</p>
@@ -95,7 +99,7 @@
 <h3>PTv3：在点云里做局部空间注意力</h3>
 <p>Point Transformer V3 将三维点按空间填充顺序序列化，在序列分组内计算注意力，再分层池化。GraspGen 使用其 <code>cls_mode=True</code> 分支，最终按物体求均值，得到一个 512 维全局描述。几何关系在 PTv3 内建模；传给下游噪声头的是全局向量。</p>
 <div class="tablewrap"><table><thead><tr><th>PTv3 阶段</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody><tr><td>输出通道</td><td>32</td><td>64</td><td>128</td><td>256</td><td>512</td></tr><tr><td>Transformer block 数</td><td>2</td><td>2</td><td>2</td><td>6</td><td>2</td></tr><tr><td>注意力头数</td><td>2</td><td>4</td><td>8</td><td>16</td><td>32</td></tr><tr><td>阶段间 stride</td><td>—</td><td>2</td><td>2</td><td>2</td><td>2</td></tr></tbody></table></div>
-<p>代码默认序列化顺序包含 Z-order、Hilbert 及其变体；各阶段 patch size 配置为 1024，实际分组还受输入点数影响（代码取 1024 和实际点数的较小值，点数不足 1024 时一个物体只有一组，组内注意力就是这个物体上的全局注意力）。它没有固定输出 25 个 patch 供图网络读取，因此不能沿用 T(R,O) Grasp 的 token 数来画这张图。</p>
+<p>代码默认序列化顺序包含 Z-order、Hilbert 及其变体；各阶段 patch size 配置为 1024，实际分组还受输入点数影响（<code>enable_flash=False</code> 时，代码取 1024 和<b>本批里点数最少那个物体</b>的点数中的较小值；所以批里有小物体时，大物体也会被切成更多组。物体点数不超过这个值时只有一组，组内注意力就是这个物体上的全局注意力）。它没有固定输出 25 个 patch 供图网络读取，因此不能沿用 T(R,O) Grasp 的 token 数来画这张图。</p>
 
 <h3>噪声头：三个 512 维向量，沿通道拼成 1536</h3>
 <figure class="lab-figure"><h3>Franka 脚本的 cat_attn 路径</h3><div class="lab-row"><div class="lab-box obj"><strong>物体点云 → 512</strong><small>PTv3 五阶段 → 按物体 mean pooling</small></div><div class="lab-box robot"><strong>带噪抓取 → 512</strong><small>6 → Linear 512 → ReLU → Linear 512</small></div><div class="lab-box env"><strong>时间 t → 512</strong><small>Sinusoidal 512 → Linear 2048 → Mish → Linear 512</small></div></div><div class="lab-arrow">沿特征维拼接：512 + 512 + 512 = 1536</div><div class="lab-band"><span class="lab-kicker">SEQUENCE = 1 · CHANNEL = 1536</span><div class="lab-chain"><div class="lab-box"><strong>Self-Attention</strong><small>8 头，每头 192 维；残差 + LayerNorm</small></div><span>→</span><div class="lab-box"><strong>FFN</strong><small>1536 → 512 → 1536；GELU；残差 + LayerNorm</small></div></div><p class="lab-source">以上 block 重复 3 次；每个抓取候选位于 batch 轴。</p></div><div class="lab-arrow">MLP 输出：1536 → 768 → 384 → 6；中间使用 ReLU</div><div class="lab-row"><div class="lab-box"><strong>ε̂ translation · 3</strong><small>平移调度器：scaled_linear</small></div><div class="lab-box"><strong>ε̂ rotation · 3</strong><small>旋转调度器：squaredcos_cap_v2</small></div><div class="lab-box good"><strong>更新候选位姿</strong><small>两个调度器使用同一噪声头输出的不同分量</small></div></div><figcaption>图 B（重画）· 按 generator.py、model_utils.py、scripts/config.yaml 与 train_graspgen_franka_panda_gen.sh 追踪。脚本设训练与推理均为 10 个扩散时间步；不要套用其他扩散论文的“1000 训练步 / 10 采样步”。按层算（我的算术）噪声头约 3690 万参数，其中三个注意力块 3306 万，不含 PTv3。</figcaption></figure>
@@ -123,6 +127,10 @@
 
 <h3 id="discriminator">判别器到底判别什么？</h3>
 <p>判别器回答的是：“对这个物体，在这个位姿抓下去，会不会成功？”它不判断抓取是数据集中的“真样本”还是生成器产生的“假样本”。生成器采样的成功抓取是正例，失败抓取是负例。</p>
+<div class="i3d" id="arch3d-dis"><p class="lab">自己画的 · 结构拆解第 10 幕：判别器（方块可点；候选分数是示意）</p>
+<p>物体经冻结的 PTv3 得到 512 维，候选抓取经 MLP 得到 512 维，拼成 1024 后过 1024 → 512 → 256 → 1，sigmoid 得分。右上角是按分数排序、过滤，以及训练时 top-75% BCE 怎么算。第 11 幕讲训练时梯度往哪走。</p>
+<iframe src="../interactives/graspgen/arch.html?embed=1&amp;scene=10" title="GraspGen 判别器 3D 结构" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/graspgen/arch.html?scene=10">全屏打开 ↗</a></p></div>
 <figure class="lab-figure"><h3>一个很直接的条件分类器</h3><div class="lab-two"><div class="lab-box obj"><strong>物体形状 · 512</strong><small>论文配方：从生成器复用、冻结物体编码器</small></div><div class="lab-box robot"><strong>候选抓取 · 512</strong><small>6 → 512 → ReLU → 512</small></div></div><div class="lab-arrow">拼接 1024 维；每个候选搭配同一个物体描述</div><div class="lab-box"><strong>1024 → 512 → 256 → 1</strong><small>中间 ReLU；输出 logit，sigmoid 后作为成功分数</small></div><div class="lab-arrow">训练：仿真 / 解析评估产生成功或失败标签</div><div class="lab-box good"><strong>Binary Cross Entropy</strong><small>公开脚本另用损失最大的 75% 样本求平均；这是训练中的难样本选择。</small></div><figcaption>图 C（重画）· MLP 与 top-k BCE 依照 discriminator.py。这里的“75%”不是部署时保留 75% 最高分抓取，二者不能混淆。</figcaption></figure>
 <p>相比为每个候选都把夹爪控制点和物体点云拼成一个大点云重新编码，先得到可复用的物体描述再接轻量 MLP，能减少重复计算与中间特征。论文的“21 倍更省显存”是特定判别器比较条件下的结果，不是整个机器人系统在任意设置下都省 21 倍。</p>
 <p>另需区分<b>复用训练出的编码器权重</b>与<b>部署中 G / D 只做一次物体编码</b>。公开组合模型分别实例化生成器和判别器，forward 先调用 G，再调用 D；本页不会据论文的 reuse 一词声称所有发布路径都共享同一缓存张量。</p>
