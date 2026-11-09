@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PhysicsVAE 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="Won、Gopinath、Hodgins 的 Physics-based Character Controllers Using Conditional VAEs（ACM TOG 41(4)，SIGGRAPH 2022，SuperMimic 里叫 PhysicsVAE）的中文精读：按原文章节逐节整理，含全部编号公式、表 1 和表 2、11 张图的文字描述、图 9 的位图读数、官方代码对照、和 SuperMimic 表 1 的核对、11 幕 3D 框架动画和 21 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-a{min-width:560px}.t-b{min-width:680px}.t-c{min-width:440px}.t-links{min-width:640px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/physicsvae/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">ACM TOG 41(4) · Article 96 · SIGGRAPH 2022 · doi 10.1145/3528223.3530067 · 中文精读</p>
+<h1>PhysicsVAE：用条件 VAE 做行为克隆，给物理角色学一个不看目标的控制器</h1>
+<p class="orig">Physics-based Character Controllers Using Conditional VAEs</p>
+<p>作者 Jungdam Won（Meta AI）、Deepak Gopinath（Meta AI）、Jessica Hodgins（Meta AI / 卡内基梅隆大学）。论文本身没有给方法起名，“PhysicsVAE”是官方代码仓库的名字，SuperMimic 也这样叫它。</p>
+<div class="meta"><a href="https://doi.org/10.1145/3528223.3530067">DOI（ACM）</a><a href="https://research.facebook.com/publications/physics-based-character-controllers-using-conditional-vaes/">Meta Research 论文页</a><a href="https://research.facebook.com/file/1041294433431257/Physics-based-Character-Controllers-Using-Conditional-VAEs.pdf">PDF（Meta 发布）</a><a href="https://github.com/facebookresearch/PhysicsVAE">官方代码</a><a href="https://www.youtube.com/watch?v=6vZkzVvHUzg">补充视频</a><span>12 页，无附录，没有 arXiv 版</span></div>
+
+<div class="callout">
+<p><b>读的是哪份 PDF。</b>这篇没有 arXiv 版本，ACM 数字图书馆的 PDF 对脚本返回 403，我没有绕过。我读的是作者单位 Meta Research 论文页上发布的 PDF（2026 年 11 月 9 日下载，sha256 开头 2e6ec640）。它页眉写 “ACM Trans. Graph., Vol. 41, No. 4, Article 96. Publication date: July 2022”，页码 96:1 到 96:12，首页有 ACM Reference Format 和版权块（0730-0301/2022/7-ART96），版式和 TOG 定稿一致。我没能和 ACM 数字图书馆的文件逐字比对（<a href="#n18">读者注 18</a>）。</p>
+<p><b>许可。</b>首页版权行写“© 2022 Copyright held by the owner/author(s)”，许可只到“个人或课堂使用、非营利、保留本声明”为止，没有开放许可。所以这里按全权保留处理：<b>不放任何原图，也不在仓库里存原图</b>；每张图用自己的话描述，“看原图”链到 DOI 页并写明在原文第几页；不逐字翻译（<a href="#n19">读者注 19</a>）。</p>
+<p><b>代码。</b>读的是 <a href="https://github.com/facebookresearch/PhysicsVAE/tree/3d0a3e3d7ccdce7dd85ab2054c1babff1a84bff7">facebookresearch/PhysicsVAE 提交 3d0a3e3</a>（提交时间 2023-01-30，作者时间 2022-08-04），许可 CC BY-NC 4.0，只读没跑。仓库只含模仿控制器、专家数据生成和条件 VAE 训练三步，<b>没有任何下游任务的环境代码</b>，所以第 5.2 节以后的任务细节都无法用代码核对。我用 <code>torch.load(weights_only=True)</code> 只读了仓库里预训练权重的张量形状，没有执行仓库代码。</p>
+<p>公式按原文编号，表 1、表 2 照录。原文的曲线都是位图；图 9 的条形长度是我从位图像素量出来的，标了“位图读数”。标成“读者注”的框是我核算或对照代码的结果，不属于论文，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 条件 VAE 控制器</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 下游任务</a><a href="#s5">5 结果</a><a href="#s5-1">5.1 训练控制器</a><a href="#s5-2">5.2 基础下游任务</a><a href="#s5-3">5.3 其他下游任务</a><a href="#s5-4">5.4 其他数据集</a><a href="#s5-5">5.5 评估</a><a href="#s6">6 结论</a><a href="#code">代码对照</a><a href="#checks">版本与表 1 核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>运动学动作生成里已经有这样的模型：给当前姿态和一个随机向量，输出下一帧姿态，反复调用就能生成很长、像数据的动作，不需要任何目标（比如 Motion VAE）。这篇想给<b>物理仿真角色</b>做同样的东西。难点是物理约束：一点误差就可能让角色摔倒，摔了就回不来。</p>
+<ul>
+<li><b>做法：</b>先用 RL 模仿控制器把动捕变成“状态-动作”专家轨迹；再用条件 VAE 做行为克隆。VAE 编码 \((s_t,s_{t+1})\) 得到隐变量 \(z_t\)，解码器分两段：运动解码器给出动作 \(a'_t\)，一个<b>预先训好、冻结的可导仿真层</b>（学到的一步动力学）把 \(a'_t\) 变成预测的下一状态 \(s'_{t+1}\)。</li>
+<li><b>损失（式 1）：</b>动作的行为克隆误差 + α × 下一状态误差（穿过冻结仿真层） + β × KL。第二项让解码器“看到”动作的后果。</li>
+<li><b>用法：</b>每步从 \(N(0,I)\) 采 \(z_t\) 喂给运动解码器，角色就自己走、跑、蹲、打拳、跳舞，几分钟不摔。下游任务用 DD-PPO 训一个任务编码器输出 \(z_t\)，解码器冻结；可以再加一个“帮手分支”，在解码器输出上加有界的修正（式 2）。</li>
+<li><b>结果：</b>点目标导航、摇杆、∞ 形路径、迷宫、不平地形、人群、打沙袋都能学出来。稀疏奖励下比确定性隐空间模型学得快很多（图 11）。</li>
+<li><b>规模：</b>10 分钟动捕 → 180,000 个状态-动作对；网络都是几层 MLP，按代码约 312 万参数；条件 VAE 只用 CPU 训，约一天。</li>
+</ul>
+<p>读完我认为最值得记住三点。第一，“一步一致性项”就是式 (1) 的 α 项，它只让梯度穿过学到的仿真层<b>一步</b>，而且仿真层是在固定专家数据上预训练后冻结的；这和 ControlVAE、SuperMimic 在自己策略的数据上在线拟合、多步展开很不同（<a href="#n21">读者注 21</a>）。第二，α 的取值在全文三处对不上：表 1 写 1e-4，图 9 的扫描里最好的是 1e-3，代码默认 1e-3（<a href="#n12">读者注 12</a>）。第三，“加仿真层后时间直到摔倒长三倍”这句，我从图 9 量出来只有 1.5 到 2.4 倍（<a href="#n11">读者注 11</a>）。</p>
+
+<div class="i3d" id="i3d0">
+<p class="lab">自己画的 · 想直接看结构</p>
+<p>11 幕动画放在第 3 节，<a href="#i3d">点这里跳过去</a>，或者<a href="../interactives/physicsvae/index.html">全屏打开</a>。</p>
+</div>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>首页横排四张俯视渲染，都是同一个蓝绿色人形在棋盘格地面上。(a) 点目标导航：几根红色竖杆是先后出现的目标，地面上一条黑线是角色走过的路径，依次连到各个目标。(b) 摇杆控制：人形正在走，脚下一个红色箭头表示目标速度方向。(c) 路径跟随：一条红色 ∞ 形曲线是给定路径，黑线是角色实际走的，基本贴着红线。(d) 迷宫：灰墙围成的迷宫俯视图，一条黑线在迷宫里绕遍各个走廊，角落里有一个绿色高亮。图注说：同一个预训练控制器能产生和数据相似但不相同的动作，并能高效地解决这四个下游任务。</p></div>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 提到这篇两处（它的文献 [7]），都在第 2 节：</p>
+<ul>
+<li><b>§2 正文（<a href="supermimic.html#s2">我的整理</a>）：</b>“NPMP 和 PhysicsVAE 从专家行为学潜在的运动表示”，把它和 <a href="npmp.html">NPMP</a> 并列，放在“可复用的动作表示与下游控制”这一段。</li>
+<li><b>§2 表 1：</b>PhysicsVAE 这一行写 Mimic = PPO，Latent = BC（带脚注 1），Downstream = PPO，Task signal = RL，Real robot = ✗。三列没有合并，按表注意思是“依次训练，每一段在前一段冻结后再训”。脚注 1 原话的意思是：行为克隆，外加一个穿过冻结的、学到的动力学模型的一步下一状态一致性项。</li>
+</ul>
+<p>SuperMimic 没有说自己从这篇拿了什么具体设计。它把 PhysicsVAE 当作“先模仿、再蒸馏成潜空间、再下游 RL”这条分阶段路线的一个代表，用来对照自己的“三段联合训练”。</p>
+<p><b>表 1 的概括核对过，准确</b>（细节见<a href="#n20">读者注 20</a>）：</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>表 1 的格子</th><th>原文对应</th><th>判断</th></tr></thead><tbody>
+<tr><td>Mimic = PPO</td><td>§5.1.1：DeepMimic 式模仿控制器，乘法奖励，用 DD-PPO 训</td><td>对。DD-PPO 是分布式的 PPO</td></tr>
+<tr><td>Latent = BC</td><td>§3 式 (1) 第一项；数据是模仿控制器带噪声跑出的固定轨迹，训练时不再收集</td><td>对。是离线 BC，不是 DAgger</td></tr>
+<tr><td>脚注 1 的“一步一致性项”</td><td>式 (1) 的第二项 \(\alpha\|s_{t+1}-s'_{t+1}\|^2\)，\(s'_{t+1}\) 由冻结的仿真层从 \((s_t,a'_t)\) 算出。§5.5.1 和图 9 叫它 “simulation consistency”；§3 叫它“自监督项”；代码叫 <code>vae_cycle_coeff</code>，注释 “VAE Cycle Consistency Loss”</td><td>对。代码里 <code>lookahead = 1</code>，确实只展开一步</td></tr>
+<tr><td>Downstream = PPO</td><td>§4：DD-PPO 训任务编码器，运动解码器权重冻结</td><td>对。但加了帮手分支时，动作可以被改动最多 σ 弧度，σ = 1.0 时不算小（<a href="#n13">读者注 13</a>）</td></tr>
+<tr><td>Task signal = RL</td><td>每个下游任务都有自己的奖励（§5.2 到 §5.4）</td><td>对</td></tr>
+<tr><td>Real robot = ✗</td><td>全文只在 PyBullet 里</td><td>对</td></tr>
+</tbody></table></div>
+<p><b>它有没有世界模型？</b>有，只是用法和 ControlVAE、SuperMimic 不同。原文叫它“可导物理仿真层”，官方代码的 README 和变量名直接叫它 world model（<code>_world_model</code>，MLP 1024×2，输入 \(s_t,a_t\)，输出 \(s_{t+1}\)）。区别在三处：(a) 它在固定的专家数据上监督预训练，之后冻结，不随策略更新；(b) 只展开一步；(c) 只用在潜空间训练这一段，下游任务用真正的 PyBullet 加 PPO，不经过它。下面是我读三篇原文后整理的对照，不是 SuperMimic 的说法：</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>PhysicsVAE（本文）</th><th><a href="controlvae.html">ControlVAE</a></th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>专家</td><td>要先有 RL 模仿控制器（ScaDiver 式）</td><td>不要，直接从动捕片段学</td><td>不要，策略本身就是跟踪器</td></tr>
+<tr><td>动力学模型的数据</td><td>专家轨迹，固定</td><td>当前策略在线收集</td><td>当前策略在线收集</td></tr>
+<tr><td>模型训练时机</td><td>先训 300 轮，然后冻结</td><td>和 VAE 交替一起训</td><td>和策略交替一起训</td></tr>
+<tr><td>展开步数</td><td>1 步</td><td>多步</td><td>拟合 8 步、想象 32 步</td></tr>
+<tr><td>损失穿过模型的方向</td><td>下一状态误差 → 动作</td><td>多步状态重建误差 → 策略</td><td>回报 → 策略</td></tr>
+<tr><td>动作监督</td><td>有，BC 主项</td><td>没有，只有状态重建</td><td>没有</td></tr>
+<tr><td>先验</td><td>标准正态 \(N(0,I)\)</td><td>随状态变的条件先验</td><td>没有 KL 和先验</td></tr>
+<tr><td>下游怎么训</td><td>DD-PPO，在真仿真器里</td><td>穿过世界模型反传</td><td>蒸馏或经世界模型反传</td></tr>
+</tbody></table></div>
+<p>ControlVAE 原文把自己和本文的差别说成三点：本文要先有预训练专家、世界模型离线学、先验和状态无关（见<a href="controlvae.html#s2">ControlVAE 精读 §2</a>）。和上表一致。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>背景。</b>公开动捕数据（<a class="ds" href="http://mocap.cs.cmu.edu/">CMU MoCap</a>、<a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN1</a>、<a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a>、<a class="ds" href="https://aistdancedb.ongaaccel.jp/">AIST Dance DB</a>）已经被拿来训运动学生成模型，如 VAE 版的 Motion VAE 和归一化流版的 MoGlow。这类模型给当前姿态和一个从固定分布采的隐向量，输出下一帧姿态，循环下去就生成长序列，而且不需要目标。学好之后它像一个“流形”，可以给动作预测、用户直接控制这类下游任务当底座。</p>
+<p><b>物理控制器的现状。</b>用大动捕数据训练的物理控制器很多，有的模仿得几乎看不出和动捕的差别。但它们大多是纯模仿控制器或非生成模型，运行时需要参考动作作为输入；迁移到新任务又要花大力气设计奖励来保住动作质量。</p>
+<p><b>目标。</b>给物理角色做出运动学模型那样的两种能力：(a) 不靠目标，生成自然、像训练数据的动作；(b) 复用到很多下游任务，不需要复杂奖励。物理角色的额外好处是能处理数据里没有的情形：新的物理交互、没见过的环境、和动捕不完全匹配的身体。难处是物理约束让“合理的动作”更难生成，一点误差就可能摔倒且无法恢复。</p>
+<p><b>本文的做法。</b>用条件 VAE 做监督学习，把行为克隆和一个可导的仿真层结合起来。控制器训练和运行都不知道下游任务。学好后，每步喂随机隐向量，角色会自己在不同行为之间切换。迁移到下游任务时，用深度 RL 训练一个控制策略，把预训练控制器当低层运动基元。作者观察到，装了预训练控制器的角色在 RL 第一轮就常常能做出合理动作，这减轻了探索负担。</p>
+<p><b>四条贡献。</b></p>
+<ol>
+<li><b>新结果：</b>高自由度双足角色在没有任何任务输入的情况下生成长时间的自然动作，只需每步从标准正态采隐向量。在走跑、拳击、舞蹈几个数据集上测试。</li>
+<li><b>新技术部件：</b>基于条件 VAE 的随机生成结构，靠行为克隆加可导仿真层实现。</li>
+<li><b>帮手分支：</b>迁移学习的辅助结构，让控制器在数据没有完全覆盖的任务上也能做出自然动作，避免动作退化。</li>
+<li><b>支持更多下游应用：</b>控制器完全不依赖任务，所以应用不限于本文演示的这些。作者举例：单目摄像头动捕加物理仿真，或大型多智能体对抗环境。</li>
+</ol>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>物理角色控制器</h3>
+<p>用物理仿真为关节角色生成动作，从 1990 年代就有研究，涵盖电机驱动的人形、肌肉驱动的人形和各种动物。深度 RL 带来了大突破：Liu 和 Hodgins 用深度 Q 学习调度短时线性反馈控制器；<a href="deepmimic.html">DeepMimic</a> 直接比较仿真角色和动捕来算奖励，模仿单个片段；之后扩到多片段（DReCon、Park 等、AMP）和大数据集（Chentanez 等、<a href="supertrack.html">SuperTrack</a>、<a href="npmp.html">NPMP</a>、ScaDiver）。深度 RL 的好处是能扩展到新技能：不同地形、操作小物体、不同身体形态、多样技能、多智能体。</p>
+<h3 id="s2-2"><span class="no">2.2</span>运动学角色控制器</h3>
+<p>基于深度网络和大动捕库的运动学控制器分两类。<b>定长模型</b>一次生成整段动作：Holden 等沿时间轴做卷积，学到的流形可做编辑和合成；Harvey 等用编码器-解码器 LSTM 加位置编码和到达时间输入做补帧。<b>自回归模型</b>逐帧生成，难点是避免展开时塌缩或发散。常见办法是加辅助输入（相位变量、用户控制）来约束下一帧。不加额外输入的纯自回归模型，靠引入随机成分来处理“未来不唯一”的问题：MoGlow 用归一化流，Motion VAE 和 Ghorbani 等用条件 VAE。这类模型能从随机向量出发完全自主地生成动作，泛化很好，还能当底座：例如用深度 RL 学一个调制隐向量的导航控制器。</p>
+<h3 id="s2-3"><span class="no">2.3</span>物理人形的流形（潜空间）学习</h3>
+<p>物理角色也有人尝试建流形。MCP 把先按模仿奖励学好的专家策略乘法组合；NPMP 用 AR(1) 先验的编码器-解码器策略蒸馏预训练模仿策略产生的专家轨迹，后来又被微调到抓取搬运和足球；Won 等 2021 用任务编码器加专家混合的运动解码器，先模仿再微调到多智能体任务。作者认为这些预训练潜空间模型虽然能高效地装下动捕数据，但因为是<b>确定性潜空间</b>，不能在不给参考动作的情况下生成长时间的自然动作。CoMic 联合训练模仿和下游任务，用了随机潜空间，但下游任务的动作质量明显不如输入，也没展示自主生成长序列。本文要做的是：自主生成长时间、像数据的动作，并能迁移到下游且退化小。作者说据他们所知，带浮动基座的高自由度物理人形还没有这样稳健的模型。</p>
+
+<h2 id="s3"><span class="no">3</span>用条件 VAE 做控制器</h2>
+<p><b>出发点是行为克隆。</b>给 \(N\) 条专家轨迹 \(\{s_1,a_1,s_2,\dots,s_T\}_1^N\)，学一个策略 \(c(\cdot)\) 把状态映到动作。专家可以是任何现成控制器，比如深度模仿控制器，或传统的线性反馈控制器。基本损失是全部 \(K\) 个状态-动作对上的平方误差和：</p>
+<div class="eq"><div class="m">\[\sum_{K}\big\|a_i-c(s_i)\big\|^2.\]</div><span class="no">（无编号）</span></div>
+<p>学好后，仿真器按顺序更新状态，动作由策略给出。<b>问题</b>是近似误差在展开中累积，状态很快跑出训练分布。物理人形对此很脆弱，比如落脚位置预测差一点就可能失去平衡。朴素 BC 只看单步误差，所以对人形一般不好用。</p>
+<p><b>结构。</b>作者用条件 VAE 进一步约束预测的动作。编码器输入当前和下一状态 \((s_t,s_{t+1})\)，输出 \(\mu_t,\sigma_t\)，采样得 \(z_t\)；解码器重建下一状态 \(s'_{t+1}\)。编码器和解码器都以 \(s_t\) 为条件。解码器分两段：<b>运动解码器</b>先算动作 \(a'_t\)，<b>可导物理仿真层</b>（从当前状态和动作到下一状态的函数）再算出 \(s'_{t+1}\)。仿真层先用专家轨迹监督预训练，训练条件 VAE 其他部分时权重冻结。学好后只用运动解码器：每步给 \(s_t\) 和从 \(N(0,I)\) 采的 \(z_t\)，就得到动作。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 4 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>一行从左到右的方框图。最左边是 \(s_{t+1}\)，进入黄色梯形“Conditional VAE Encoder”，输出 \(\mu_t,\sigma_t\)，进入一个写着 Sample \(N(\mu_t,\sigma_t)\) 的小框，得到 \(z_t\)。右边一个虚线大框标着“Conditional VAE Decoder”，里面是蓝色梯形“Motor Decoder”（输出 \(a'_t\)）和橙色圆角框“Physics Simulation Layer (pre-trained)”（输出 \(s'_{t+1}\)）。底部一条横线是 \(s_t\)，向上分别接到编码器、运动解码器和仿真层。</p></div>
+<p><b>状态和动作。</b>状态 \(s_t=(p_t,q_t,v_t,w_t)\)，分别是全部连杆的位置 \(\mathbb R^{J\times3}\)、朝向 \(\mathbb R^{J\times6}\)、线速度 \(\mathbb R^{J\times3}\) 和角速度 \(\mathbb R^{J\times3}\)，都表示在“当前朝向坐标系”里（由朝向方向、重力方向、根部在地面的投影定义，沿用 ScaDiver）。朝向用旋转矩阵前两列的 6 维表示。人形用稳定 PD 控制器，动作是 PD 的目标关节角，每维限制在 [−3, 3] 弧度（<a href="#n2">读者注 2</a>）。</p>
+<p><b>损失。</b></p>
+<div class="eq"><div class="m">\[\sum_{N}\Big[\ \|a_t-a'_t\|^2+\alpha\cdot\|s_{t+1}-s'_{t+1}\|^2+\beta\cdot D_{KL}\big(N(\mu_t,\sigma_t)\,\|\,N(0,\mathbf I)\big)\Big]\]</div><span class="no">(1)</span></div>
+<p>\((s_t,a_t)\) 是专家轨迹里的状态-动作对，\((s'_t,a'_t)\) 是条件 VAE 生成的。三项的作用：第一项是普通 BC；第二项是自监督项，梯度经仿真层传回，让运动解码器考虑动作的后果，避免它的动作导致的下一状态跑出分布；第三项让运动解码器成为生成模型，可以在不看任务的情况下靠仿真展开生成动作。α、β 是权重。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 式 (1) 的求和下标和代码的平均</span><p>式 (1) 对 \(N\) 求和，而上文 \(N\) 是轨迹条数，BC 基本损失对 \(K\)（全部状态-动作对）求和。按上下文应是对所有转移求和。代码 <code>train_physics_vae.py</code> 用 <code>nn.MSELoss()</code>：对批内和各维都取<b>平均</b>，不是平方和；KL 是对 32 维求和、对批取平均。这会改变 α 的含义：动作 54 维、状态 361 维，同样的逐维误差下，平方和形式里状态项相对动作项大 361/54 ≈ 6.7 倍，平均形式里一样大。所以论文的 α 和代码的 α 不能直接换算，除非知道作者实验时用哪种形式。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整套流程拆成 11 幕：总览、专家数据、状态与动作的维度、先训仿真层、条件 VAE 结构、式 (1) 的梯度路径、α 扫描（图 9 的位图读数）、随机展开、帮手分支、下游任务巡览、世界模型放在哪（和 ControlVAE、SuperMimic 对照）。可以暂停、拖进度、旋转画面。</p>
+<iframe src="../interactives/physicsvae/index.html?embed=1&amp;scene=5" title="PhysicsVAE 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/physicsvae/index.html">全屏打开，还有完整结构表 ↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>学习下游任务</h2>
+<p><b>RL 设定。</b>每步智能体观测本体状态 \(s_t\) 和目标状态 \(g_t\)，执行动作 \(a_t\)，状态变到 \(s_{t+1},g_{t+1}\)，得到奖励 \(r_t=r(s_t,g_t,a_t,s_{t+1},g_{t+1})\)。策略 \(\pi_\theta(a_t\mid s_t,g_t)\) 是神经网络，目标是最大化期望回报 \(J(\theta)=\mathbb E\big[\sum_{t=0}^{\infty}\gamma^t r_t\big]\)，\(\gamma\in(0,1)\)。多智能体时可以推广到部分可观测马尔可夫博弈。</p>
+<p><b>不带帮手的结构（图 3a）。</b>任务编码器根据任务观测 \(g_t\) 输出隐向量 \(z_t\)，喂给预训练的运动解码器。训练时只更新任务编码器，解码器冻结。作者观察到第一轮迭代就能做出合理动作，所以 RL 能高效学复杂的高层行为。</p>
+<p><b>为什么要帮手。</b>输入轨迹完整覆盖下游任务所需技能时，图 3a 的动作质量和任务表现都不错。不覆盖时（比如只有平地走路数据，却要在不平地形上导航）表现会下降。一个办法是放开解码器端到端训练，适应性更好，但会“遗忘”，动作不再像数据。适应性和自然度之间总有取舍，“全冻结”和“全放开”是两个极端。</p>
+<p><b>帮手分支（图 3b）。</b>加一条分支，输入 \(s_t\) 和 \(z_t\)，输出动作偏移 \(\Delta a_t\)，加到解码器输出上，\(\hat a_t=a_t+\Delta a_t\)：</p>
+<div class="eq"><div class="m">\[\Delta a_t=\sigma\otimes \mathrm{Tanh}\big(H(s_t,z_t)\big)\]</div><span class="no">(2)</span></div>
+<p>\(H\) 是帮手的可学层，Tanh 逐元素，\(\otimes\) 是逐元素乘。\(\sigma=(\sigma_1,\sigma_2,\dots)\) 由用户指定，第 \(i\) 维偏移被限制在 \((-\sigma_i,\sigma_i)\)。σ 很大时帮手可以主导输出，接近端到端；σ 接近 0 时接近冻结。好处是用户可以按数据、任务和偏好明确设定允许的改动量，数据不完整时可以逐步加大。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 4 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>上下两张方框图。(a) 不带帮手：\(g_t\) 进绿色梯形“Task Encoder”，输出 \(z_t\)，进入一个带斜线阴影、标着“Frozen”的区域里的蓝色“Motor Decoder (pre-trained)”，输出 \(a_t\)；\(s_t\) 从下面接到两个网络。(b) 带帮手：在 (a) 的基础上，\(s_t\) 和 \(z_t\) 还进入下方一个蓝色“Helper”框，后面接“Tanh”框，再和 σ 在一个 ⊗ 节点相乘得到 \(\Delta a_t\)，最后在一个 ⊕ 节点和 \(a_t\) 相加得到 \(\hat a_t\)。图注说策略训练时解码器权重冻结，其余权重更新。</p></div>
+<div class="i3d">
+<p class="lab">自己画的 · 第 9 幕：帮手分支和 σ</p>
+<iframe src="../interactives/physicsvae/index.html?embed=1&amp;scene=9" title="PhysicsVAE 帮手分支 3D 动画" loading="lazy"></iframe>
+</div>
+
+<h2 id="s5"><span class="no">5</span>结果</h2>
+<p>环境基于 ScaDiver 的公开框架：<a class="ds" href="https://pybullet.org">PyBullet</a> 仿真，PyTorch 网络，<a class="ds" href="https://arxiv.org/abs/1712.09381">RLlib</a> 做 RL。可动关节都是球关节，由稳定 PD 伺服驱动，输入目标姿态。硬件：训练条件 VAE 用一台 2 CPU（Xeon E5-2698 v4）+ 2 GPU（Quadro GP100）的工作站；下游 RL 用四台这样的机器。</p>
+<p class="tcap">表 1 · 实验参数（照录）</p>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>类别</th><th>参数</th><th class="n">值</th></tr></thead><tbody>
+<tr><td rowspan="2">物理仿真</td><td>仿真频率（Hz）</td><td class="n">480</td></tr>
+<tr><td>控制频率（Hz）</td><td class="n">30</td></tr>
+<tr><td rowspan="7">深度 RL（DD-PPO）</td><td>学习率 \(\alpha_\pi\)</td><td class="n">2.0e−5</td></tr>
+<tr><td>折扣 γ</td><td class="n">0.99</td></tr>
+<tr><td>GAE 和 TD 的 λ</td><td class="n">0.95</td></tr>
+<tr><td>每次更新的元组数 T</td><td class="n">50000</td></tr>
+<tr><td>每次更新的迭代数 N</td><td class="n">20</td></tr>
+<tr><td>批量 n</td><td class="n">256</td></tr>
+<tr><td>裁剪参数 ε</td><td class="n">0.2</td></tr>
+<tr><td rowspan="3">条件 VAE</td><td>α</td><td class="n">1.0e−4</td></tr>
+<tr><td>β</td><td class="n">2.0</td></tr>
+<tr><td>隐变量维度</td><td class="n">32</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · 网络结构（照录；全部是 MLP）</p>
+<div class="tablewrap"><table class="t-a"><thead><tr><th>网络</th><th class="n">隐层数</th><th>宽度</th><th>激活</th></tr></thead><tbody>
+<tr><td>条件 VAE 编码器</td><td class="n">2</td><td>(256, 128)</td><td>(ReLU, ReLU, Linear)</td></tr>
+<tr><td>运动解码器</td><td class="n">3</td><td>(512, 512, 512)</td><td>(ReLU, ReLU, ReLU, Linear)</td></tr>
+<tr><td>物理仿真层</td><td class="n">2</td><td>(1024, 1024)</td><td>(ReLU, ReLU, Linear)</td></tr>
+<tr><td>任务编码器</td><td class="n">2</td><td>(256, 128)</td><td>(ReLU, ReLU, Linear)</td></tr>
+<tr><td>帮手</td><td class="n">2</td><td>(128, 128)</td><td>(ReLU, ReLU, Linear)</td></tr>
+</tbody></table></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 维度和参数量（按代码和预训练权重）</span><p>论文只写了 \(J\times(3+6+3+3)\)，没给 \(J\) 和动作维度。代码 <code>env_humanoid_base.py</code> 的 <code>facing_R6_h</code> 状态是 24 个连杆 × 15 维，<b>再加 1 维根部高度</b>（论文没提）：24 × 15 + 1 = 361。URDF <code>loco.urdf</code> 有 18 个球关节，动作 18 × 3 = 54 维。预训练权重 <code>loco_modelV1.pt</code> 的张量形状印证了这两个数：编码器输入 722 = 2 × 361，运动解码器输入 393 = 361 + 32、输出 54，仿真层输入 415 = 361 + 54、输出 361。</p>
+<p>按这些形状算参数：编码器 267,328，运动解码器 754,742，仿真层 1,845,609，价值头 251,137，合计 3,118,816。最大的是仿真层，约占 59%。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 2 的编码器宽度和代码不同</span><p>表 2 写编码器和任务编码器都是 (256, 128)。代码 <code>train_physics_vae.py</code> 用 <code>TE_width = 256, TE_depth = 2</code>，生成的是 (256, 256)；预训练权重也是 722 → 256 → 256 → 64（64 = 32 维 μ 加 32 维 log 方差）。帮手在代码里是 (128, 128)，末层是 tanh（式 2 的 Tanh 放在了网络里），和表 2 一致。</p></div>
+
+<h3 id="s5-1"><span class="no">5.1</span>用条件 VAE 训练控制器</h3>
+<p><b>5.1.1 专家轨迹生成。</b>没有现成的仿真人形“状态-动作”数据集，所以每个实验都自己造：对给定动捕，用深度 RL 训模仿控制器（DeepMimic 式，带 ScaDiver 的乘法奖励，DD-PPO 训练），然后仿真展开收集状态-动作对。每个片段展开 10 次，让数据更广地覆盖状态和动作空间。模仿控制器是固定对角协方差 \(\epsilon\mathbf I\) 的高斯策略，收集时 \(\epsilon=0.05\)。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · ε = 0.05 是方差还是标准差，以及代码的两个细节</span><p>论文说协方差是 \(\epsilon\mathbf I\)、\(\epsilon=0.05\)，按字面是方差 0.05（标准差 0.224）。代码 <code>rllib_env_imitation.py</code> 里 <code>exp_std = 0.05</code> 传给 <code>set_exploration_std</code>，是<b>标准差</b> 0.05（方差 0.0025）。两者差约 4.5 倍。</p>
+<p>代码里还有两点论文没写：(1) 存进数据的标签动作是带噪声采样的 <code>a</code>（<code>explore=True</code>），确定性输出另存为 <code>action_gt</code>，训练默认用前者；(2) 一旦摔倒，这一段就丢掉重来（最多重试 10 次），所以数据里只有没摔的轨迹。</p></div>
+<p><b>5.1.2 训练。</b>两个监督阶段：先训可导仿真层，再训整个条件 VAE。都用 Adam，批量 256，初始学习率 0.01，每 50 轮乘 0.7。最多训 300 轮和 600 轮；仿真层通常 3 到 4 小时，整个条件 VAE 约一天。只用 CPU。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 训练超参数和代码</span><p>学习率 0.01 每 50 轮乘 0.7：300 轮末是 \(0.01\times0.7^6=1.18\times10^{-3}\)，600 轮末是 \(0.01\times0.7^{12}=1.38\times10^{-4}\)。</p>
+<p>代码不同之处：<code>--lr</code> 默认 5e-4，不是 0.01；β（<code>vae_kl_coeff</code>）默认 1.0，表 1 是 2.0；README 的示例是仿真层 300 轮、整个模型 500 轮（<code>--max_iter 800 --max_iter_world_model 300</code>），论文写 600。步长 50、衰减 0.7、批量 256 一致。代码里两个阶段是同一个训练循环：前 300 轮只开仿真层的梯度、只算状态误差；之后冻结仿真层，打开编码器和解码器。</p></div>
+<p><b>5.1.3 随机展开。</b>演示用的是 PFNN 生成的走跑数据，因为走跑是导航、摇杆等任务的基础。共 10 分钟，含不同速度和方向的走、跑、蹲，平地。按 5.1.1 处理后得到 180,000 个状态-动作对（600 秒 × 30 FPS × 10 次）。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 180,000 对得上，数据就在仓库里</span><p>600 × 30 × 10 = 180,000，算式对。代码仓库 <code>data/motion/loco/</code> 有 10 个 <code>random_loco_*.bvh</code>，每个 1801 帧、帧间隔 1/30 秒，合 60.0 秒，共 10 分钟，和论文一致。README 说这些是用预训练 PFNN 加随机摇杆输入跑出来的。实际对数会略少于 180,000，因为每段末尾要留出参考动作的前瞻，摔倒的段会被丢掉（读者注 4）。</p></div>
+<p>图 4 是十次展开：同一个初始状态（场景中央、零速站立），每步从标准正态采 \(z_t\)、经运动解码器算动作、交给物理仿真，持续 30 秒。动作都像输入数据，但轨迹各不相同。作者认为这说明控制器学到了数据的风格和变化；生成的动作比输入覆盖更广，说明有一定泛化。角色能以任意顺序在走、跑、蹲之间切换，除了 \(s_t\) 和 \(z_t\) 不需要任何输入。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 6 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>俯视的灰白棋盘格地面（每格 1 m），中央附近一个起点，十条不同颜色的细线从这里散开，各自弯曲着走向不同方向，每条线末端有一个小人。有的线走得远（向左下、右下延伸到画面边缘），有的绕小圈后停在中央附近，说明速度和转向各不相同。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>基础下游任务</h3>
+<p>先测 Motion VAE 用过的四个任务。Motion VAE 的结果是运动学的，本文在物理角色上做出了类似的合理行为。四个任务都用帮手分支，\(\sigma=(0.1,0.1,\dots)\)。</p>
+<p><b>点目标导航。</b>走到地面上的目标点，根部在地面的投影离目标小于 0.5 m 算完成（图 1a）。奖励是距离的减少量 \(r_t=d_{t-1}-d_t\)。目标状态 \(g_t=\big(x_{rel}/\|x_{rel}\|,\ \|x_{rel}\|\big)\)，即方向和距离；\(x_{rel}=R_{face}^{-1}(p_{goal}-p_{face})\) 是目标在当前朝向坐标系里的位置。</p>
+<p><b>摇杆控制。</b>让质心速度匹配一个平行于地面的二维目标速度（图 1b）。奖励是方向项和大小项的乘积：</p>
+<div class="eq"><div class="m">\[r_t=\exp\!\Big(-5\Big\|\tfrac{v_{com}}{\|v_{com}\|}-\tfrac{v_{target}}{\|v_{target}\|}\Big\|^2\Big)\cdot\exp\!\Big(-5\big\|\|v_{com}\|-\|v_{target}\|\big\|^2\Big)\]</div><span class="no">（无编号）</span></div>
+<p>目标状态 \(g_t=R_{face}^{-1}(v_{target}-v_{com})\)，两个速度之差，表示在朝向坐标系里。</p>
+<p><b>路径跟随。</b>沿地面上的 ∞ 形路径走（图 1c）。时刻 \(t\) 的目标点 \(x_t=A\big(\sin(bt),\ \sin(bt)\cos(bt)\big)\)，\(A=10\)，\(b=2\)。奖励 \(r_t=\exp(-\|p_{com}-x_t\|^2)\cdot\exp(-2.5\|v_{com}-\dot x_t\|^2)\)。目标状态含当前和后两个目标点及其速度 \((x_t,x_{t+1},x_{t+2},\dot x_t,\dot x_{t+1},\dot x_{t+2})\)，都换到朝向坐标系。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 路径跟随里的 t 不可能是秒</span><p>按 \(A=10\)、\(b=2\)：\(x\) 分量在 ±10 m，\(y=\tfrac{A}{2}\sin 2bt\) 在 ±5 m，整个 ∞ 形宽 20 m、高 10 m，周期 \(2\pi/b=\pi\) 秒，一圈长 61.0 m（数值积分）。如果 \(t\) 是秒，平均速度 19.4 m/s，最大速度 \(Ab\sqrt2=28.3\) m/s，人跑不到。按 1.5 m/s 的步行速度一圈要约 40.6 秒。所以 \(t\) 应该是某种缩放过的时间或进度变量，论文没说。下游环境代码没公开，未核实。</p></div>
+<p><b>迷宫探索。</b>四周有墙的迷宫，在固定时间（120 秒）内尽量探索完。地图 24 m × 24 m，离散成 8 × 8 格算奖励；进入新格得稀疏奖励 1，该格标为已访问；访问全部格子再得 30 并结束回合。最大回报因此是 94（64 + 30）。目标状态用视觉和周围的访问信息：两帧连续的射线输入 \((l_{t-1},l_t)\)，每帧 32 条射线，最长 5 m，覆盖 270°，\(d_i\) 是第 \(i\) 条射线碰到物体前的距离；访问信息是角色周围 3 × 3 的比特矩阵，对应迷宫里 5 m × 5 m。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 迷宫的几个数</span><p>8 × 8 = 64，加 30 得 94，对。24 m / 8 = 3 m 一格。但 3 × 3 的访问矩阵“对应 5 m × 5 m”：如果用的是同一套 3 m 格子，3 × 3 应覆盖 9 m × 9 m。所以访问矩阵要么用了另一套约 1.67 m 的细格，要么数字有误。射线：32 条覆盖 270°，相邻夹角 270/31 = 8.7°（两端都有射线时）。下游代码未公开，未核实。</p></div>
+<p><b>结果。</b>四个任务都完成了，动作自然。导航和摇杆里，目标位置或目标速度变化时角色反应很灵活；∞ 形路径转弯更急，但跟得很准；迷宫在 90 秒内走遍所有格子。作者特别指出：Motion VAE 在迷宫上用了分层 RL 把高层导航和低层动作规划分开，本文用的是非分层策略直接解。他们据此认为预训练控制器本身具备了主要和保持平衡有关的低层动作规划能力，RL 可以直接学高层导航。</p>
+
+<h3 id="s5-3"><span class="no">5.3</span>其他下游任务</h3>
+<p>再测两类：不平地形（看带帮手的结构怎样适应没见过的环境）和人群仿真（看预训练控制器在多智能体环境里的作用）。这里帮手用 \(\sigma=(1.0,1.0,\dots)\)，给复杂场景更多适应空间。</p>
+<p><b>5.3.1 不平地形。</b>和点目标导航相同，只是平地换成难走的地形：一个是高度图加随机偏移（最大 1 m）的粗糙地形；一个是五座 4 m 高的山峰，角色要爬上爬下约 38° 的坡。为了让角色看到地形，目标状态加了角色附近的局部高度图：3 m × 3 m 的块，离散成 8 × 8，角色位置略靠后于中心，以便前方看得多、后方看得少（图 5 的绿点）。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 原文第 7 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>两行，每行左边是地形俯视图，右边是近景。(a) 粗糙地形：橙色调的高度图，表面坑洼不平，近景里人形站在起伏的地面上，脚边一圈绿色小点（局部高度图的采样点），前方远处一根红色竖杆是目标。(b) 五峰地形：俯视是几块拼起来的橙色高台和坡面，近景里人形在一个斜坡上，同样有绿点和红杆。图注说 (a) 是高度图加随机偏移，(b) 是手工设计。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 地形的几个换算</span><p>4 m 高、38° 的坡，水平长度 \(4/\tan38^\circ=5.12\) m。高度图 3 m 分 8 格，每格 0.375 m，大约一个脚长多一点。</p></div>
+<p>两种地形上都能完成导航，对意外的外力扰动也有韧性，能从受扰状态恢复。角色常常绕开陡坡以减少摔倒风险，作者说这和人的做法类似。他们认为这显示了物理角色的主要好处：能适应新环境，而运动学控制器严格受限于数据里有的东西。</p>
+<p><b>5.3.2 人群仿真。</b>作者假设预训练控制器的稳健性在和其他智能体复杂交互时特别有用。三个环境：Circle、Carrefour、Corridor，每个智能体走到自己指定的目标（图 6）。物理人形的人群仿真最早由 Haworth 等做出，用了分层策略和共享价值函数。本文的设定很简单：不分层，也不用多智能体专门的 RL 算法。目标状态含观察其他智能体的射线和相对目标位置。奖励：</p>
+<div class="eq"><div class="m">\[r_t=r_{\text{goal}}+r_{\text{reached}}-0.1\,r_{\text{collision}},\qquad r_{\text{goal}}=d_{t-1}-d_t,\]
+\[r_{\text{reached}}=\begin{cases}1&\text{到达目标附近}\\0&\text{否则}\end{cases},\qquad r_{\text{collision}}=\begin{cases}1&\text{和其他智能体碰撞}\\0&\text{否则}\end{cases}\]</div><span class="no">(3)</span></div>
+<p>\(d_t\) 是到目标的距离。第一项让智能体靠近目标，第二项让它到达后留在那里，第三项惩罚相互碰撞。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 原文第 8 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>三张场景图。(a) Circle：8 个不同颜色的人形站成一圈，每人旁边有一个同色小球（目标），目标在圆的对面。(b) Carrefour：十字形的围墙路口，四个路口各有一组人形（共 16 个），目标在对面路口。(c) Corridor：一条长走廊两端各站一组人形，目标在另一端。</p></div>
+<p>Circle 和 Carrefour 里，智能体出现了类似环岛的行为；Corridor 里，智能体向右偏以避免碰撞。成功的策略（每个智能体都到达自己的目标）Circle 和 Corridor 在一天内学到，Carrefour 用两天。作者解释：Carrefour 有 16 个智能体，其他是 8 个，中心更容易碰撞，仿真也更慢。</p>
+
+<h3 id="s5-4"><span class="no">5.4</span>其他数据集</h3>
+<p>为测通用性，又用了 <a class="ds" href="http://mocap.cs.cmu.edu/">CMU MoCap</a> 中挑出的拳击动作和 <a class="ds" href="https://aistdancedb.ongaaccel.jp/">AIST Dance DB</a> 的舞蹈动作。和走跑数据不同，这两个数据集里不同行为之间的过渡不够多，会出现 Motion VAE 指出的“沉没”问题：控制器只产生一小部分行为，不管给什么隐向量都不切换到别的行为。解决办法是用宽松的连接阈值建一个动作图，允许不同行为之间多处过渡，然后随机遍历图的节点生成 10 分钟的动作，再按 5.1 节训练。图 7 是两个数据集的随机展开：所有角色从同一状态出发（最左截图），随时间逐渐走出不同的路径（最右截图）。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 原文第 9 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>两行各五张按时间顺序的截图。(a) 拳击：十来个不同颜色的人形一开始排成整齐的队形，都摆着拳击架势；往右各自出拳、移动，队形逐渐散开，最后一张里有几个蹲低或倒地的姿势。(b) 舞蹈：同样从整齐的队形开始，往右各人做出不同的舞蹈动作，手臂和腿的姿态越来越不一样。</p></div>
+<p><b>打沙袋。</b>为拳击数据设计的任务（图 8）：用拳套尽量重地击打沙袋，同时避免其他身体部位碰到它。沙袋重 40 kg，顶端是球关节，被打会晃。目标状态 \(g_t=(p_t,v_t,h_t)\)：沙袋相对根部的位置和线速度，以及一个 2 位数组 \(h_t\) 表示期望的出拳模式。训练时在左拳 (1, 0)、右拳 (0, 1)、不出拳 (0, 0) 中随机生成。奖励：</p>
+<div class="eq"><div class="m">\[r_t=0.2\,r_{\text{close}}+r_{\text{hit}}-0.1\,r_{\text{collision}},\qquad r_{\text{close}}=\exp\!\big(-5\|d_t-1.2\|^2\big)\]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[r_{\text{hit}}=\big(\max(f_R-100,0),\ \max(f_L-100,0)\big)\cdot h_t,\qquad r_{\text{collision}}=\begin{cases}1&\text{发生意外碰撞}\\0&\text{否则}\end{cases}\]</div><span class="no">(5)</span></div>
+<p>\(d_t\) 是地面上沙袋和拳手的距离，\(f_R,f_L\) 是右、左拳套测到的接触力。\(r_{\text{close}}\) 让拳手保持约 1.2 m 的距离；\(r_{\text{hit}}\) 只有在用对应期望模式的拳套击中、且接触力大于 100 N 时为正；\(r_{\text{collision}}\) 惩罚和当前出拳模式不符的碰撞。学一个合理策略约 1 天（2 亿个元组），之后拳手能随着出拳模式变化稳定地击打沙袋。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 式 (5) 的左右顺序</span><p>正文说左拳模式是 (1, 0)、右拳是 (0, 1)。式 (5) 的力向量顺序却是 \((f_R,f_L)\)。按字面点乘，左拳模式 (1, 0) 奖励的是<b>右</b>拳套的力。要么 \(h_t\) 的写法反了，要么力向量的顺序反了。这不影响方法，只影响读者照着复现。下游代码未公开，无法核实实际顺序。</p></div>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 9 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>一张渲染：棋盘格地面上，一个黑色胶囊形沙袋从顶部吊着，旁边的蓝绿色人形摆出拳击姿势，正挥拳打向沙袋。</p></div>
+
+<h3 id="s5-5"><span class="no">5.5</span>评估</h3>
+<p><b>5.5.1 展开表现。</b>条件 VAE 的两个主要部件是仿真层和随机隐变量。衡量方式是“直到摔倒的时间”。先改变仿真一致性权重 α（0 等于训练时不用仿真层），图 9 是 100 次展开的均值和标准差；角色摔倒或时长超过 60 秒就结束。作者说：每个数据集上，带仿真层的模型都稳定地好三倍左右，最好的 α 在 0.0003 到 0.003 之间；α 太大会变差，因为 BC 损失会被仿真一致性压过。再去掉随机隐变量（损失里没有 KL 项）训练，角色不到 1 秒就摔倒（见补充视频）。作者解释：非生成模型只有在用自己编码器的输出作为条件时才输出有意义的东西。</p>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 9 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>标题 “Rollout Performance” 的横向分组条形图。纵轴是 α（Simulation Consistency），从上到下 0.3、0.01、0.003、0.001、0.0003、0；横轴是直到摔倒的时间（秒），0 到 60。每组三根条：绿色 Locomotion、黄色 Dance、蓝色 Boxing，每根带一条灰色误差线。原图是位图，下面是我从位图量出的条形长度。</p></div>
+<p class="tcap">图 9 位图读数 · 直到摔倒的平均时间（秒），我从原文位图按像素量出，误差约 ±0.5 s；不含误差线</p>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>α</th><th class="n">走跑</th><th class="n">舞蹈</th><th class="n">拳击</th></tr></thead><tbody>
+<tr><td>0.3</td><td class="n">18.3</td><td class="n">35.5</td><td class="n">26.3</td></tr>
+<tr><td>0.01</td><td class="n">44.8</td><td class="n">41.7</td><td class="n">32.2</td></tr>
+<tr><td>0.003</td><td class="n best">52.9</td><td class="n">45.7</td><td class="n">35.8</td></tr>
+<tr><td>0.001</td><td class="n">49.1</td><td class="n best">58.8</td><td class="n best">57.5</td></tr>
+<tr><td>0.0003</td><td class="n">48.2</td><td class="n">47.9</td><td class="n">45.0</td></tr>
+<tr><td>0（无仿真层）</td><td class="n">21.8</td><td class="n">38.5</td><td class="n">31.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · “三倍”量不出来</span><p>用上表算：每个数据集的最好值除以 α = 0 的值，走跑 52.9 / 21.8 = 2.43，舞蹈 58.8 / 38.5 = 1.53，拳击 57.5 / 31.0 = 1.85。都不到三倍。即使只看正文说的最好区间 0.0003 到 0.003 的最低值，比值是 2.21、1.24、1.15。另外 α = 0.3 时走跑只有 18.3 秒，比不用仿真层（21.8）还短，正文“太大会变差”这句是对的。</p>
+<p>上限是 60 秒，舞蹈和拳击在 α = 0.001 时已接近上限，误差线右端被截在 60 处，所以真实差距可能被上限压低了一些。即使这样，“三倍”这个说法在图上找不到支持。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · α 在三处对不上</span><p>表 1 写 α = 1.0e−4。但图 9 的扫描里<b>没有</b> 1e−4 这一档（最小的非零值是 3e−4）；正文说最好在 3e−4 到 3e−3 之间，图上舞蹈和拳击的最好值在 1e−3；代码 <code>--vae_cycle_coeff</code> 默认 1e−3。所以表 1 的 1e−4 要么是笔误，要么是另一套设置。再加上读者注 1 说的“平方和对平均”问题，复现时 α 最好从代码默认的 1e−3 开始。</p></div>
+<p><b>5.5.2 帮手分支。</b>对帮手做消融，看它在数据没有完全覆盖的下游任务上的作用。不平地形的点目标导航是个好例子，因为走跑数据只在平地上采集。图 10 是不带帮手（图 3a）时的结果：在较平的地方能走几步，到更崎岖的地方就失败。带帮手时两种地形都能完成（图 5），说明帮手提供了有效的适应。</p>
+<div class="fig" id="fig10"><span class="lab">图 10 · 原文第 9 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>两行各四张截图。上行在粗糙地形上：人形先站着，然后往前走，第三张开始身体前倾，第四张已经摔倒在地。下行在五峰地形上：人形在坡上，红杆在前方，几张之后同样倒地。</p></div>
+<p><b>适应参数 σ。</b>当数据包含下游任务需要的全部技能时，解有很多，σ 可以用来控制风格：小 σ 保风格但任务表现可能差，大 σ 相反。在打沙袋任务上比较 0.1 和 0.5：角度用弧度，所以分别允许改动预训练控制器输出约 5.7° 和 28.6°。两者都学出了合理的策略，但看起来明显不同：σ = 0.5 的接触力可达 500 N，动作很有力；σ = 0.1 的最大接触力约 200 N，动作更像原始数据。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · σ 的角度换算，和代码的默认值</span><p>0.1 rad = 5.73°，0.5 rad = 28.65°，正文的 5.7 和 28.6 对。5.3 节用的 σ = 1.0 rad = 57.3°，已经很大，按作者自己的说法接近“端到端”那一端。这一点在 SuperMimic 表 1 里看不出来：表里只写 Downstream = PPO、前一段冻结，而加了 σ = 1 的帮手后，解码器的输出实际上可以被大幅改写。</p>
+<p>代码 <code>rllib_model_torch.py</code>：帮手默认关闭（<code>motor_decoder_helper_enable: False</code>），开启时 σ 是一个标量 <code>motor_decoder_helper_range</code>，默认 0.5，所有维度相同；论文的 σ 是逐维向量，但实验里各维也都相同。帮手的输入是 \(s_t\) 和任务编码器的 \(z_t\) 拼接，和式 (2) 一致。</p></div>
+<p><b>5.5.3 稀疏奖励下和其他潜空间模型比较。</b>状态和动作维度都高的环境里，只有稀疏奖励时很难学：RL 得到的有效信号很少，局部极小很多，所以物理人形通常要精心设计稠密奖励，而这既不简单又费时。为看本文模型在稀疏奖励下的好处，和一种类似 NPMP、Merel 等 2020、Won 等 2021 的潜空间模型比较（没有加 AR(1) 先验，因为作者实验里它没带来明显改进）。点目标导航改用稀疏奖励：\(d_t<0.5\) m 时 \(r_t=1\)，否则为 0。图 11a 是学习中达到的最大回报，本文模型更好，作者归因于初期探索能力强得多。补充视频里本文模型的动作自然、像走跑数据。迷宫本身就是稀疏奖励，图 11b 里本文模型学得快得多，6000 万个训练元组内就能走遍全图，对照模型到 1.4 亿个元组还走不遍。</p>
+<div class="fig" id="fig11"><span class="lab">图 11 · 原文第 10 页 · <a href="https://doi.org/10.1145/3528223.3530067">看原图 ↗</a></span><p>上下两张折线图，蓝线“Ours”，橙线“Deterministic Latent Space Model”。(a) 稀疏奖励的点目标导航：横轴是仿真步数（0 到 300，单位百万），纵轴最大回报 0 到 300。蓝线在前 50M 左右快速升到 150 上下，之后在约 200 附近抖动；橙线缓慢上升，到 300M 时大致在 100 到 150 之间。(b) 迷宫：横轴 0 到 140M，纵轴 0 到 120。蓝线在约 40M 前后剧烈跳动于 50 到 94 之间，约 60M 后稳定在 94 的水平线上；橙线缓慢上升，到 140M 约在 55 到 60。以上读数是我目测的，原图是位图。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 用表 1 换算训练量</span><p>每次 PPO 更新 50,000 个元组：打沙袋 2 亿元组 = 4000 次更新；迷宫 6000 万 = 1200 次，对照模型 1.4 亿 = 2800 次。每次更新 20 轮、批量 256，每轮 50000 / 256 ≈ 195 个小批，所以每次更新约 3900 次梯度步。控制 30 Hz 下，2 亿元组相当于 2 亿 / 30 ≈ 667 万秒，约 77 天的仿真时间，四台机器一天跑完。仿真 480 Hz、控制 30 Hz，每个控制步内 16 个物理子步。</p>
+<p>图 11 的对照模型图例写 “Deterministic Latent Space Model”，正文写“类似 [Merel 2019a, 2020; Won 2021] 的潜空间模型，不带 AR(1) 先验”。两者一致：去掉 AR(1) 先验后就是确定性的编码器-解码器。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 1 的 RL 参数和代码配置</span><p>代码 <code>data/spec/loco/loco_imitation.yaml</code>（模仿控制器）：<code>gamma: 0.98</code>（表 1 是 0.99），<code>train_batch_size: 100000</code>（表 1 是 50000），<code>sgd_minibatch_size: 500</code>（表 1 是 256），<code>lr: 2e-5</code>、<code>lambda: 0.95</code>、<code>num_sgd_iter: 20</code>、<code>clip_param: 0.2</code> 和表 1 一致。<code>loco_runtime_physics_vae.yaml</code> 的批量是 50000，其余相同。表 1 标题是“实验所用参数”，没说模仿阶段和下游阶段是否共用；代码显示模仿阶段至少 γ 和批量不同。下游任务的配置没有公开。</p></div>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>本文用条件 VAE 给物理人形做控制器，以从标准高斯采的随机向量为条件就能生成多种动作；还演示了用这些预训练控制器学深度 RL 下游策略的多种用法。</p>
+<p><b>局限一：受限于输入轨迹。</b>帮手能扩展能力，但基础能力仍取决于专家轨迹，和其他数据驱动方法一样。两个方面：(1) 动作质量。数据有缺陷，控制器会照着风格学下来。作者举例：开发早期误用了比仿真角色更高的参考动作，角色为了对上参考的根部位置，走出了跺脚的步态。(2) 多样性。也会出现 Motion VAE 说的沉没问题：数据里缺少过渡时，就不在行为之间切换。数据由许多短的异质片段组成时容易这样。建动作图做增广可以应急，但最自然的办法是准备过渡丰富的数据。</p>
+<p><b>局限二：大规模数据。</b>在 <a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a> 里的 CMU 数据上测了可扩展性。因为有很多不到 5 秒的短片段，也建了动作图，生成 2 小时的片段。从 CMU 学到的模型不如走跑或舞蹈的模型。作者猜测数据多样性超出了模型容量，单个运动解码器可能不适合同时学很多异质行为（ScaDiver 也指出过）。用 CMU 或整个 AMASS 这类大型未整理数据学任务无关的物理控制器，仍是开放问题。</p>
+<p><b>局限三：仿真层是近似的。</b>仿真层是用专家轨迹单独监督学的，有近似误差，输出会和 PyBullet 略有不同。近年出现了不少可微物理仿真器（NeuralSim、Nimble），用它们可以把仿真层和实际仿真器统一成一个神经物理仿真器，学控制器时输出总和实际展开一致，可能达到理想表现。</p>
+<p><b>未来方向。</b>一是不经过模仿策略生成专家轨迹，直接从动捕学控制器：动捕里没有动作 \(a_t\)，可以去掉式 (1) 的 BC 项，靠神经物理仿真器来学。二是用到更复杂的多智能体对抗任务，比如 2 对 2 足球；作者认为本文方法学下游任务高效且能保留原始风格，可能得到更真实自然的足球策略。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · “去掉 BC 项、只靠神经仿真器”后来被别人做了</span><p>结论里的第一个未来方向，正是同年稍晚的 <a href="controlvae.html">ControlVAE</a>（SIGGRAPH Asia 2022）和 <a href="supertrack.html">SuperTrack</a>（2021，早于本文）走的路：没有专家动作，只用状态重建误差穿过学到的世界模型训练策略。SuperTrack 在本文参考文献里，但正文只把它列在“大数据集模仿”里，没有讨论它也用学到的可微仿真器。这是我的观察，不是论文的说法。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>官方仓库 <a href="https://github.com/facebookresearch/PhysicsVAE/tree/3d0a3e3d7ccdce7dd85ab2054c1babff1a84bff7">facebookresearch/PhysicsVAE 提交 3d0a3e3</a>，只读没跑。它包含：ScaDiver 模仿控制器（为了自成一体复制进来）、专家数据生成（<code>rllib_driver.py --mode gen_expert_demo</code>）、条件 VAE 训练（<code>train_physics_vae.py</code>）、走跑数据和一个预训练模型。README 的“预计算数据与预训练模型”一节写着 “To be updated”，但仓库里已有 <code>data/pretrained/loco_modelV1.pt</code>。<b>没有下游任务的代码</b>，帮手分支只在模型类里有实现。</p>
+<div class="tablewrap"><table class="t-b"><thead><tr><th>项目</th><th>论文</th><th>代码（3d0a3e3）</th></tr></thead><tbody>
+<tr><td>状态</td><td>\(J\times(3+6+3+3)\)</td><td><code>facing_R6_h</code>：24 × 15 + 1（根部高度）= 361</td></tr>
+<tr><td>动作</td><td>目标关节角，[−3, 3] rad</td><td>18 个球关节 × 3 = 54；<code>range_min/max: ±3.0</code></td></tr>
+<tr><td>编码器</td><td>(256, 128)</td><td>(256, 256) → 64；输入 \((s_t,s_{t+1})\) 722 维</td></tr>
+<tr><td>运动解码器</td><td>(512, 512, 512)</td><td>相同；输入 \((s_t,z_t)\) 393 维；输出动作均值，log 标准差为常数</td></tr>
+<tr><td>仿真层</td><td>(1024, 1024)</td><td>相同；叫 <code>_world_model</code>；直接输出 \(s_{t+1}\)，不是增量</td></tr>
+<tr><td>仿真层训练</td><td>先训，300 轮，3 到 4 小时</td><td>同一循环前 <code>max_iter_world_model</code> 轮；损失 MSE\((s_{t+1}, f(s_t,a_t))\)，用专家动作</td></tr>
+<tr><td>式 (1) 第一项</td><td>平方误差和</td><td>MSE 平均，权重 1.0</td></tr>
+<tr><td>式 (1) 第二项 α</td><td>1e−4（表 1）</td><td><code>vae_cycle_coeff</code> 默认 1e−3；<code>lookahead = 1</code></td></tr>
+<tr><td>式 (1) 第三项 β</td><td>2.0</td><td><code>vae_kl_coeff</code> 默认 1.0</td></tr>
+<tr><td>先验</td><td>\(N(0,I)\)</td><td>默认相同；另有 <code>normal_state_mean_one_std</code>（状态条件均值）和 <code>hypersphere_uniform</code> 两种未在论文出现的选项</td></tr>
+<tr><td>学习率</td><td>0.01，每 50 轮 × 0.7</td><td>默认 5e−4，每 50 轮 × 0.7</td></tr>
+<tr><td>训练轮数</td><td>300 + 600</td><td>README 示例 300 + 500</td></tr>
+<tr><td>专家噪声</td><td>协方差 0.05·I</td><td>标准差 0.05；标签用带噪动作；摔倒的段丢弃</td></tr>
+<tr><td>每片段次数</td><td>10</td><td><code>iter_per_episode = 10</code></td></tr>
+<tr><td>帮手</td><td>式 (2)，σ 逐维</td><td>MLP (128, 128) + tanh，乘标量 <code>motor_decoder_helper_range</code>，默认 0.5，默认关闭</td></tr>
+<tr><td>PPO（模仿阶段）</td><td>表 1：γ 0.99，批 50000，小批 256</td><td>γ 0.98，批 100000，小批 500；其余同</td></tr>
+<tr><td>下游任务</td><td>7 个任务</td><td>没有公开</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 代码许可和用途</span><p>仓库 LICENSE 是 CC BY-NC 4.0（非商业），源文件头写 “Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.” 并指向 LICENSE。我只读代码、只引用文件名和变量名，没有复制代码进本站。依赖 fairmotion（另一个仓库），README 指定 <code>pybullet==3.1.7</code>、<code>ray[rllib]==1.11.0</code>。</p></div>
+
+<h2 id="checks">版本与 SuperMimic 的核对</h2>
+<div class="note" id="n18"><span class="lab">读者注 18 · 读的 PDF 是不是 TOG 定稿</span><p>Meta Research 论文页的 PDF：12 页，pdfTeX 生成，创建时间 2022-05-28，acmart 模板 v1.65。每页页眉 “ACM Trans. Graph., Vol. 41, No. 4, Article 96. Publication date: July 2022.”，页码 96:1 到 96:12；首页有 ACM Reference Format、版权块 “0730-0301/2022/7-ART96” 和 DOI。这些都是 TOG 定稿的版式，和 DOI 指向的卷期、文章号一致。ACM 数字图书馆的 PDF 对脚本返回 403，我没能逐字比对，所以“和 ACM 版逐字相同”这一点<b>未核实</b>。代码 README 链接的正是这个 Meta 页面。</p></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 版权行写的是作者持有</span><p>首页版权块写 “© 2022 Copyright held by the owner/author(s)”，不是 “Publication rights licensed to ACM”。许可声明只允许个人或课堂使用的复制，须非营利并保留声明，“其他用途联系作者”。它不是开放许可。Meta 论文页也没有标注许可。所以这里不放原图，处理方式和 ACM 全权保留的论文一样。ACM 数字图书馆上是否标为开放获取，我打不开页面，未核实。</p></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 对 SuperMimic 表 1 的核对结果</span><p><b>结论：准确。</b>脚注 1 的“一步下一状态一致性项”对应式 (1) 的 \(\alpha\|s_{t+1}-s'_{t+1}\|^2\)。三个证据：(1) \(s'_{t+1}\) 由仿真层从 \((s_t,a'_t)\) 一步算出（§3、图 2）；(2) 仿真层预训练后冻结（§3、§5.1.2）；(3) 代码 <code>lookahead = 1</code>，损失注释叫 “VAE Cycle Consistency Loss”，论文 §5.5.1 和图 9 叫 “simulation consistency”。</p>
+<p>可以补充的细节：Mimic 一栏的 PPO 具体是 DD-PPO；“BC”的标签是带噪声的专家动作，不是确定性输出；Latent 一栏还有 β = 2.0 的 KL 项，表里没写；Downstream 一栏冻结的是解码器权重，但帮手分支（5.3 节 σ = 1 rad）能大幅改写动作。这些都不改变表 1 的分类。</p>
+<p>SuperMimic §2 正文“NPMP 和 PhysicsVAE 从专家行为学潜在运动表示”也准确：本文的潜空间就是从模仿控制器的轨迹里学的。</p></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · PhysicsVAE 也有世界模型</span><p>容易被概括成“ControlVAE 用世界模型，PhysicsVAE 不用”。这不对。本文的“可导物理仿真层”就是一个学到的一步动力学模型 \(f(s_t,a_t)\to s_{t+1}\)，代码里叫 <code>_world_model</code>，README 写 “pre-training the world model (simulation)”。准确的区别是：它在固定专家数据上离线学、学完冻结、只展开一步、只用于潜空间训练；下游任务用真实仿真器加 PPO。<a href="pulse.html">PULSE</a> 原文说“ControlVAE 和 PhysicsVAE 额外学一个世界模型”，这个说法是对的。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">式 (1) 的求和下标和代码的平均</a>：论文平方和，代码 MSE 平均，α 的含义因此不同（361/54 ≈ 6.7 倍）。</li>
+<li><a href="#n2">维度和参数量</a>：状态 361（多 1 维根高），动作 54；共 3,118,816 个参数，仿真层占 59%。</li>
+<li><a href="#n3">编码器宽度</a>：表 2 写 (256, 128)，代码和权重是 (256, 256)。</li>
+<li><a href="#n4">ε = 0.05 是方差还是标准差</a>：代码是标准差；标签用带噪动作；摔倒段丢弃。</li>
+<li><a href="#n5">训练超参数和代码</a>：末端学习率 1.18e−3 和 1.38e−4；代码 lr 5e−4、β 1.0、500 轮。</li>
+<li><a href="#n6">180,000 对得上</a>：仓库里 10 个 60 秒的 bvh。</li>
+<li><a href="#n7">路径跟随里的 t 不可能是秒</a>：一圈 61 m、周期 π，最大 28.3 m/s。</li>
+<li><a href="#n8">迷宫的几个数</a>：94 对；3 × 3 访问矩阵对应 5 m 和 3 m 格子不符。</li>
+<li><a href="#n9">地形换算</a>：38° 坡水平 5.12 m；高度图每格 0.375 m。</li>
+<li><a href="#n10">式 (5) 的左右顺序</a>：左拳模式 (1, 0) 点乘的是右拳力。</li>
+<li><a href="#n11">“三倍”量不出来</a>：图 9 位图读数只有 1.53 到 2.43 倍。</li>
+<li><a href="#n12">α 在三处对不上</a>：表 1 写 1e−4，图 9 没测这一档，最好是 1e−3，代码默认 1e−3。</li>
+<li><a href="#n13">σ 的角度换算</a>：5.73°、28.65°、57.3°；代码 σ 是标量、默认 0.5。<b>和 SuperMimic 表 1 有关。</b></li>
+<li><a href="#n14">训练量换算</a>：打沙袋 4000 次更新、约 77 天仿真时间；图 11 的对照模型是去掉 AR(1) 的确定性模型。</li>
+<li><a href="#n15">表 1 的 RL 参数和代码配置</a>：模仿阶段 γ 0.98、批 100000、小批 500。</li>
+<li><a href="#n16">去掉 BC 项的方向后来被做了</a>：ControlVAE、SuperTrack 的路线。</li>
+<li><a href="#n17">代码许可</a>：CC BY-NC 4.0，没有复制代码。</li>
+<li><a href="#n18">PDF 是不是 TOG 定稿</a>：版式、卷期、文章号一致；没能和 ACM 版逐字比对。</li>
+<li><a href="#n19">版权行写的是作者持有</a>：只许个人和课堂使用，按全权保留处理，不放原图。</li>
+<li><a href="#n20"><b>对 SuperMimic 表 1 的核对</b></a>：准确，“一步一致性项”就是式 (1) 的 α 项。</li>
+<li><a href="#n21">PhysicsVAE 也有世界模型</a>：只是离线、冻结、一步、只用于潜空间训练。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 9 日用脚本核对过可以打开（ACM 的 DOI 页对脚本返回 403，浏览器可开）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td>PhysicsVAE</td><td>本文</td><td><a href="https://github.com/facebookresearch/PhysicsVAE">github.com/facebookresearch/PhysicsVAE</a> · <a href="https://research.facebook.com/publications/physics-based-character-controllers-using-conditional-vaes/">Meta 论文页</a></td><td><a href="https://doi.org/10.1145/3528223.3530067">doi 10.1145/3528223.3530067</a></td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.cmu.edu/">CMU MoCap</a></td><td>拳击数据；结论里的大规模测试</td><td>mocap.cs.cmu.edu</td><td>–（没有对应论文）</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a></td><td>结论里的 CMU 子集来源</td><td>amass.is.tue.mpg.de</td><td><a href="https://arxiv.org/abs/1904.03278">1904.03278</a></td></tr>
+<tr><td><a class="ds" href="https://aistdancedb.ongaaccel.jp/">AIST Dance DB</a></td><td>舞蹈数据</td><td>aistdancedb.ongaaccel.jp</td><td>ISMIR 2019（Tsuchida 等），未找到稳定链接</td></tr>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LaFAN1</a></td><td>引言提到的公开数据（Harvey 等）</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset</td><td><a href="https://doi.org/10.1145/3386569.3392480">doi 10.1145/3386569.3392480</a></td></tr>
+<tr><td><a class="ds" href="https://theorangeduck.com/page/phase-functioned-neural-networks-character-control">PFNN</a></td><td>走跑数据的来源（随机摇杆跑 PFNN）</td><td>theorangeduck.com</td><td><a href="https://doi.org/10.1145/3072959.3073663">doi 10.1145/3072959.3073663</a></td></tr>
+<tr><td>Motion VAE</td><td>四个基础下游任务的出处；“沉没”问题</td><td><a href="https://github.com/electronicarts/character-motion-vaes">electronicarts/character-motion-vaes</a></td><td><a href="https://doi.org/10.1145/3386569.3392422">doi 10.1145/3386569.3392422</a></td></tr>
+<tr><td>ScaDiver</td><td>模仿控制器和环境框架（同作者 2020）</td><td><a href="https://github.com/facebookresearch/ScaDiver">facebookresearch/ScaDiver</a></td><td><a href="https://doi.org/10.1145/3386569.3392381">doi 10.1145/3386569.3392381</a></td></tr>
+<tr><td>fairmotion</td><td>代码依赖</td><td><a href="https://github.com/facebookresearch/fairmotion">facebookresearch/fairmotion</a></td><td>–</td></tr>
+<tr><td>DD-PPO</td><td>RL 算法</td><td>–</td><td><a href="https://arxiv.org/abs/1911.00357">1911.00357</a></td></tr>
+<tr><td><a class="ds" href="https://pybullet.org">PyBullet</a></td><td>物理仿真器</td><td>pybullet.org</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1712.09381">RLlib</a></td><td>RL 框架</td><td>docs.ray.io</td><td><a href="https://arxiv.org/abs/1712.09381">1712.09381</a></td></tr>
+<tr><td><a href="deepmimic.html">DeepMimic</a></td><td>模仿控制器的奖励形式</td><td>本站精读</td><td><a href="https://arxiv.org/abs/1804.02717">1804.02717</a></td></tr>
+<tr><td><a href="npmp.html">NPMP</a></td><td>SuperMimic 表 1 里同列的方法；对照模型的原型</td><td>本站精读</td><td><a href="https://arxiv.org/abs/1811.11711">1811.11711</a></td></tr>
+<tr><td><a href="controlvae.html">ControlVAE</a></td><td>同年同类方法，在线学世界模型</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2210.06063">2210.06063</a></td></tr>
+<tr><td><a href="pulse.html">PULSE</a></td><td>后续的大规模潜空间方法</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2310.04582">2310.04582</a></td></tr>
+<tr><td><a href="supermimic.html">SuperMimic</a></td><td>读这篇的起因</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 Meta Research 发布的 PDF（ACM TOG 41(4) Article 96，doi 10.1145/3528223.3530067，这篇没有 arXiv 版）和官方代码后的整理，不是作者的官方内容。原文作者 Jungdam Won、Deepak Gopinath、Jessica Hodgins；版权归作者所有，许可只允许个人和课堂使用，所以这页没有复制原图，也没有逐字翻译。图 9 的表是我从原文位图量出的读数。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NPMP 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 1811.11711 NPMP（Neural Probabilistic Motor Primitives，ICLR 2019）的中文精读：按原文章节逐节整理，含全部编号公式、图的文字描述、从矢量图读出的数据和重画、第三方复现对照、11 幕 3D 框架动画和 20 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:680px}.t-f3{min-width:720px}.t-sm{min-width:680px}.t-links{min-width:600px}.t-code{min-width:660px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-tip[hidden]{display:none}
+.viz-table{font-size:12.5px;color:var(--muted);margin-top:6px}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/npmp/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 1811.11711 · cs.LG · v2 2019 年 1 月 15 日 · ICLR 2019 · 中文精读</p>
+<h1>NPMP：把几千个单技能专家离线压进一个潜变量逆模型</h1>
+<p class="orig">Neural Probabilistic Motor Primitives for Humanoid Control</p>
+<p>作者 Josh Merel、Leonard Hasenclever（两人同等贡献）、Alexandre Galashov、Arun Ahuja、Vu Pham、Greg Wayne、Yee Whye Teh、Nicolas Heess，均在 DeepMind（伦敦）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/1811.11711">arXiv 原文</a><a href="https://arxiv.org/html/1811.11711">网页版</a><a href="https://arxiv.org/pdf/1811.11711v2">PDF（v2）</a><a href="https://openreview.net/forum?id=BJl6TjRcY7">OpenReview</a><span>正文 10 页，参考文献和附录到第 14 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的非独占分发许可（arxiv.org/licenses/nonexclusive-distrib/1.0），没有授权翻译或转载，PDF 页脚只有“Accepted as a conference paper at ICLR 2019”，没有相反的字样。所以这里不做逐字翻译，不放原图，本地仓库也没有存原图。内容用自己的话按原文顺序覆盖正文四节和附录 A 到 D。</p>
+<p>公式按原文编号给出。每张图用文字说明它画了什么，“看原图”打开 arXiv 网页版的对应位置。图 3、图 4、图 6 是矢量图，我从 PDF 的矢量数据读出了数字（pdftocairo -svg，按网格线标定）；标着“重画”的图不是原图。标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p>我读的是 arXiv v2（2019-01-15，页眉写明已被 ICLR 2019 接收），也和 v1（2018-11-28）逐词比对了，差异见<a href="#n18">读者注 18</a>。OpenReview 的定稿 PDF 用脚本取时返回 403 人机验证，我没有绕过，所以没有和 OpenReview 版比对。作者没有公开训练代码，<a href="#code">代码一节</a>说明了能找到的东西。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#site">和本站其他页</a><a href="#s1">1 引言</a><a href="#s1-1">1.1 背景</a><a href="#s2">2 迁移和压缩</a><a href="#s2-1">2.1 专家</a><a href="#s2-2">2.2 NPMP</a><a href="#s2-3">2.3 训练学生</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 实验</a><a href="#s3-1">3.1 单技能</a><a href="#s3-2">3.2 压缩</a><a href="#s3-3">3.3 分析与复用</a><a href="#s4">4 讨论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#apD">附录 D</a><a href="#code">代码</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>目标是学一个“运动模块”：一个网络能灵活地做出很多种行为，用来控制高维的仿真人形。做法是一个带潜变量瓶颈的逆模型，完全离线训练，把几千个专家策略压缩进去，同时得到一个运动基元的嵌入空间。</p>
+<ul>
+<li><b>数据：</b><a class="ds" href="http://mocap.cs.cmu.edu/">CMU Mocap</a> 切成约 3000 段 2 到 6 秒的片段，每段训一个专家，训练集 2707 个专家。</li>
+<li><b>模型：</b>编码器看未来 6 帧参考状态和上一步潜码，给出 60 维 z；解码器只看当前状态和 z，输出动作。z 有 AR(1) 先验。</li>
+<li><b>两种离线复制专家的办法：</b>从带噪声的专家回放做行为克隆（每个专家 100 条）；线性反馈策略克隆 LFPC（每个专家 1 条轨迹加雅可比）。</li>
+<li><b>结果：</b>能一次性模仿没见过的片段；解码器单独拿出来当动作空间，用 SVG(0) 训练高层策略做追目标、变速、跨沟等任务，动作像人。</li>
+<li><b>没有数字表格：</b>全文结果都是图（图 3、4、6），我从矢量图读出了数字。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，压缩是有损的：最好的配置在训练集上中位相对表现 0.739、测试集 0.707（<a href="#n11">读者注 11</a>），也就是一半片段达不到专家的七成多。第二，LFPC 只用 1 条轨迹，在单技能上和几百条的行为克隆接近，在全量压缩时差一些，但在测试集上排第二。第三，复用解码器时正则强度要适中：图 6a 里最好的是只在这张图出现的 β = 0.46（<a href="#n13">读者注 13</a>）。</p>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 引用本文两次（参考文献 [5]）：表 1 的第一行，以及 §2“可复用的动作表示与下游控制”里一句话，说 NPMP 和 PhysicsVAE 从专家行为学潜在运动表示。SuperMimic 没有用本文的公式、网络或评测协议。它把 NPMP 当作“先模仿、再压缩成潜空间、再下游 RL”这条三段式路线最早的代表，和自己三段联合训练的做法对比。</p>
+<p>表 1 对 NPMP 的概括是：模仿 SVG(0) / 潜变量 BC / 下游 SVG(0) / 任务信号 RL / 不上真机。表注说相邻但不合并的格子表示分阶段训练，后一段训练时冻结前一段；BC 指在固定的专家回放上离线行为克隆，区别于 DAgger 用学生自己的回放。下表逐格对照原文。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>格子</th><th>SuperMimic 表 1</th><th>NPMP 原文</th><th>判断</th></tr></thead><tbody>
+<tr><td>模仿</td><td>SVG(0)</td><td>附录 A：专家用离策略算法 SVG(0)（Heess 等 2015）加 Retrace（Munos 等 2016）训练，奖励是 SAMCON 的能量函数，用随机策略的均值动作当专家</td><td>准确；略去了 Retrace，也看不出“模仿”阶段是 2707 个各管一段的专家，不是一个通用跟踪器</td></tr>
+<tr><td>潜变量</td><td>BC</td><td>§2.3：从带噪声的专家回放记均值动作做监督学习（DART 式），或 LFPC；训练时不执行学生</td><td>准确；准确地说是潜变量模型的证据下界（式 3），重建项就是行为克隆</td></tr>
+<tr><td>下游</td><td>SVG(0)</td><td>§3.3：“For training we used SVG(0) with the Retrace off-policy correction for learning the Q-function”，v1 和 v2 都这么写</td><td>准确；同样略去了 Retrace</td></tr>
+<tr><td>任务信号</td><td>RL</td><td>追目标（稀疏奖励）、颠簸地形、目标速度（以目标为中心的高斯奖励）、视觉跨沟，都是任务奖励</td><td>准确</td></tr>
+<tr><td>真机</td><td>✗</td><td>全部在 MuJoCo 仿真里；讨论里只说 LFPC 也许以后适合真机</td><td>准确</td></tr>
+<tr><td>分段冻结</td><td>三格分开</td><td>专家训完才采数据；压缩是纯离线监督学习；下游只训高层策略。论文没有明说解码器冻结</td><td>分段准确；“冻结解码器”是合理推断（<a href="#n15">读者注 15</a>）</td></tr>
+</tbody></table></div>
+<div class="note" id="n1"><span class="lab">读者注 1 · SuperMimic 表 1 的 NPMP 一行（核对结果）</span><p>五格都和原文一致，没有错。“模仿用 SVG(0)”出自附录 A，“下游用 SVG(0)”出自 §3.3，两处原文都是 SVG(0) 加 Retrace（Retrace 用于学 Q 函数的离策略修正）。表注把 SVG(0) 解释为 stochastic value gradients，也对。</p><p>表格看不出的三点：模仿阶段不是一个策略，而是 2707 个时间下标的单片段专家；潜变量阶段除了普通的带噪声回放克隆，本文还提出了只用 1 条回放的 LFPC，而且这是本文的方法贡献之一；下游阶段解码器是否冻结原文没写。SuperMimic 正文那句“NPMP 和 PhysicsVAE 从专家行为学潜在运动表示”也准确。</p></div>
+<p>下表是我从两篇论文各自读出来的对比，不是 SuperMimic 作者的说法。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>NPMP</th><th><a href="supermimic.html">SuperMimic</a></th></tr></thead><tbody>
+<tr><td>三段怎么训</td><td>分段：SVG(0) 训 2707 个专家 → 离线压缩 → SVG(0) 训高层</td><td>联合：世界模型、跟踪器、目标接口一起训</td></tr>
+<tr><td>压缩用的信号</td><td>专家的均值动作（监督），LFPC 还用雅可比</td><td>穿过学到的可微世界模型反传回报</td></tr>
+<tr><td>表示</td><td>60 维连续 z，每步一个，AR(1) 先验</td><td>目标接口编码器，对齐到跟踪器</td></tr>
+<tr><td>是否在环境里跑学生</td><td>压缩阶段不跑</td><td>一直在仿真器里收集</td></tr>
+<tr><td>对象</td><td>MuJoCo 仿真人形</td><td>Unitree G1 真机</td></tr>
+</tbody></table></div>
+
+<h2 id="site">和本站其他页</h2>
+<ul>
+<li><a href="pulse.html">PULSE</a> 也是把模仿能力蒸馏进潜空间再复用，但有四处不同：老师是一个能跟踪全部 AMASS 的 PHC+，不是几千个单片段专家；蒸馏是 DAgger 式在线（学生自己跑、老师标注），本文是离线；先验是只看本体感觉的可学习网络，本文是固定的 AR(1)，作者在 §2.2 末尾也说“可学习先验”值得以后试；下游策略输出相对先验均值的残差，本文的高层直接输出 z。PULSE 的 L<sub>regu</sub> 自称“像 NPMP 的 AR(1) 先验”，见<a href="#n19">读者注 19</a>。</li>
+<li><a href="deepmimic.html">DeepMimic</a>：本文专家“大体沿用”它的设定（逐片段跟踪、参考状态初始化、摔倒提前终止），但算法和奖励不同，见<a href="#n2">读者注 2</a>。</li>
+<li><a href="controlvae.html">ControlVAE</a> 也学一个带状态条件先验的潜在技能空间，但它联合学世界模型，用基于模型的方法训练，不需要先有专家；它的相关工作把本文概括为“把一批专家蒸馏进隐空间”，准确。</li>
+</ul>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>机器学习做控制的一个大挑战，是让策略对复杂身体产生通用、灵活、适应的行为。控制仿真人形要同时解决高维控制、平衡和行走。深度强化学习让人希望端到端学到这些，但得到的行为常有明显的怪癖。</p>
+<p>人形的一个好处是动捕数据多，可以帮助做出像人的动作。已经有方法能训练高度专门的专家，稳健但只会复现一段动捕。剩下的挑战是按任务把单个技能排序和泛化，这需要一个能表示、调用和组合大量技能的结构和训练流程。</p>
+<p>本文的设定：手上有大量能把单一技能做好的稳健专家，想把它们迁移进一个共享策略，既能做每个专家做的事，又能泛化到分布内没见过的行为。系统要能一次性模仿，也要便于复用技能，要能扩到很多技能，人工干预尽量少。</p>
+<p>主要贡献是一个能表示和生成很多运动行为的网络结构，称为神经概率运动基元。训完后它不只能复现训练数据里的行为，还能有控制地排序和组合，并合成和训练分布一致的新动作。用它做新任务时，动作出奇地像人。</p>
+<p>为了在几千个行为的规模上迁移和压缩，作者想避开闭环 RL 训练，把这种离线的、功能层面的迁移叫做策略迁移或策略克隆，比较两种办法。自然的基线是带噪声多次执行专家、记录专家想做的动作，再做行为克隆，类似 Laskey 等 2017。它让学生不只在名义轨迹上，也在扰动后到达的状态上像专家，但可能需要很多回放。更省的办法是只沿一条或少数几条代表性参考轨迹，匹配专家对噪声的局部反馈特性，称为线性反馈策略克隆（LFPC）。作者显示在这个设定里，它和用多得多回放的行为克隆差不多。</p>
+
+<h3 id="s1-1"><span class="no">1.1</span>背景与相关工作</h3>
+<p><b>从动捕学人形控制。</b>从头学（TRPO、Heess 等 2017）的结果令人印象深刻，但不总像人。动捕能提供强约束，跑步尤其如此。近来的方法能学到特定技能，也可以同时满足外部 RL 目标，但策略往往只会单个技能，而且需要大量环境交互，这促使作者复用现成的单技能专家。</p>
+<p><b>知识迁移、蒸馏和模仿。</b>知识迁移泛指把老师的输入输出映射转给学生。蒸馏指把一个或多个专家的功能转进单个学生，常为了压缩或合并多个专家。模仿学习是控制领域的说法；最基本的是行为克隆（在状态-动作对上监督学习）。更宽的设定允许更自由地询问专家，比如 DAgger 的在线模仿；合并多个专家时这个条件常常满足。</p>
+<p><b>一次性模仿。</b>测试时看一段示范就能模仿（Duan 等 2017）。最接近的是 Wang 等 2017 的全身人形，本文的结构更强调动作细节而不是动作类型，而且用的示范多得多。同期的 Chentanez 等 2018 也做了大规模一次性跟踪，还有摔倒恢复，但没有考虑技能复用（这一句是 v2 新加的）。</p>
+<p><b>运动基元。</b>神经科学里有证据表明低维控制信号能选择和混合脊髓回路产生的行为，皮层也组织了基元运动的空间。在本文里，运动基元指从许多相关行为里学到的可复用嵌入空间，加上一个能被上下文调制、靠感觉反馈稳住的策略。结构受 Todorov 和 Ghahramani 2003 启发：在感觉-运动映射上放一个概率潜变量瓶颈。</p>
+<p><b>机器人里的运动基元。</b>“movement primitives”和“概率运动基元”等工作主要参数化和学习运动轨迹，执行和稳定通常交给预先设定的 PID。本文要学的正是执行和稳定那一部分。</p>
+<p><b>线性反馈策略。</b>在最优轨迹或极限环附近，线性反馈策略即使对高自由度身体也工作得好，可以由采样优化或微分动态规划得到；LQG 和 DDP 的反馈项来自价值函数，相当于带反馈稳定的计划。Mordatch 等 2015 用轨迹优化得到的线性反馈策略训练神经网络。本文用类似想法从现有策略迁移最优行为：最优策略隐含了局部价值地形，本身就是一个反馈控制器。</p>
+
+<h2 id="s2"><span class="no">2</span>专家行为的迁移和压缩</h2>
+<p>本节先介绍专家（§2.1），再介绍 NPMP 的结构和目标（§2.2），最后是两种离线训练办法（§2.3）。</p>
+
+<h3 id="s2-1"><span class="no">2.1</span>从动捕数据得到专家</h3>
+<p>要研究怎样迁移和合并专家，先要有足够多的专家数据。专家是训练来复现动捕片段的策略，做法详见 Merel 等 2018（Hierarchical visuomotor control），大体沿用 Peng 等 2018。得到的是对中等动作噪声稳健的时间下标策略（附录 A）。所有专家都在 MuJoCo 里训练。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 3 页 · <a href="https://arxiv.org/html/1811.11711#S2.F1">看原图 ↗</a></span><p>页边四条横幅，每条是同一个专家的几帧连拍，从上到下是“run and dodge”、“cartwheel”、“backflip”和“twist”。这四个片段在 §3.1 的单技能迁移实验里当代表。</p></div>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 4 页 · <a href="https://arxiv.org/html/1811.11711#S2.F2">看原图 ↗</a></span><p>结构示意，从左到右：参考轨迹片段 x<sub>t</sub> → 行为观察器（编码器）→ 运动意图空间里的 z<sub>t</sub>（带一个指回自己的箭头，表示 z<sub>t−1</sub> 的依赖）→ 潜变量条件策略（解码器）→ a<sub>t</sub>，解码器另有输入 s<sub>t</sub>。右侧虚线框把 z、解码器、s<sub>t</sub> 和 a<sub>t</sub> 圈成“可复用的基元模块”。黄色底的 x<sub>t</sub>、s<sub>t</sub>、a<sub>t</sub> 表示离线训练时可得的信息。3D 动画<a href="../interactives/npmp/index.html?scene=5&amp;p=0.8">第 5 幕</a>是它的立体版。</p></div>
+<p><b>数据。</b><a class="ds" href="http://mocap.cs.cmu.edu/">CMU Mocap</a> 有 100 多位受试者的 2000 多个长短不一的片段，内容很杂：走、转、跑、跳、跳舞、各种手部动作和很多怪动作。作者选了一批全身的通用动作，长于 6 秒的切成小段，得到大约 3000 个 2 到 6 秒的片段。一半多是走、跑、跳、转这类通用移动，其余多是站着做各种手部动作。每段训一个专家，训练集有 2707 个专家。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · “大体沿用 Peng 等 2018”指的是设定，不是算法</span><p>§2.1 和附录 A 都说专家训练“大体沿用 Peng 等 2018”，也就是 <a href="deepmimic.html">DeepMimic</a>。附录 A 列出沿用的是：逐片段的时间下标跟踪策略、从参考的任意姿态初始化回合、摔倒提前终止、训练随机策略再用均值动作。不同的是算法和奖励：DeepMimic 用 PPO 和自己的加权奖励（姿态、速度、末端、质心），本文用 SVG(0) 加 Retrace，奖励是 SAMCON（Liu 等 2010）的能量函数。SuperMimic 表 1 写的“SVG(0)”是对的，不能从“沿用 DeepMimic”推出 PPO。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 数据规模，和没写的测试集大小</span><p>“约 3000 段”和“训练集 2707 个专家”之间差约 300 段，论文没有说测试集（§3.2 的“held-out clips”）有多少段、怎么划分，也没有说这 300 段是否都是测试集。所以图 4 的测试集中位数无法换算成段数。</p><p>按附录 B，行为克隆每个专家 100 条回放，共 2707 × 100 = 270,700 条；脚注 4 说镜像“大约让专家数据翻倍”，所以图 4 用的约是 541,400 条。LFPC 每个专家 1 条，共 2707 条（镜像后约 5414 条）。一批的规模：BC 是 512 段 × 30 步 = 15,360 个状态-动作对；LFPC 是 32 段 × 30 步 × 5 份扰动 = 4,800 个，其中不同的名义状态只有 960 个。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>神经概率运动基元</h3>
+<p>目标是从一个大型参考轨迹库里得到一个运动基元模块，能灵活稳健地执行、排序和插值多种技能，不需要人工对齐或处理原始专家。这要求表示既能可靠地编码所有行为模式，又便于按需调出；为了过渡合理，相似行为的编码在表示空间里也应该相近。</p>
+<p><b>用潜变量逆模型压缩很多专家技能。</b>作者训练一个“以状态为条件的动作序列”的自回归潜变量模型，训练时它以一小段名义/参考轨迹的未来为条件（图 2）。这具有逆模型的一般结构：根据当前状态和目标出动作。结构和训练方式都是为了让嵌入空间反映短期的运动行为。这样既能选择性地执行某种行为模式，也能通过轨迹编码器做一次性模仿。</p>
+<p>每个时间步有一个潜变量 z<sub>t</sub>。编码器和解码器分别是分布 \(q(z_t\mid z_{t-1},x_t)\) 和 \(\pi(a_t\mid z_t,s_t)\)，其中 \(s_t\) 是状态，\(x_t=[s_t,\dots,s_{t+K}]\) 是少量未来状态的拼接。编码器和解码器分别是两层和三层的 MLP（附录 B）。模型的生成部分：</p>
+<div class="eq"><div class="m">\[p(a_{1:T},z_{1:T}\mid s_{1:T})=\prod_{t=1}^{T}p_z(z_t\mid z_{t-1})\,\pi(a_t\mid z_t,s_t).\]</div><span class="no">(1)</span></div>
+<p>时间上相邻的轨迹片段应该有相近的表示。为了实现这个直觉，先验选成一阶自回归过程，作为一个弱先验：</p>
+<div class="eq"><div class="m">\[z_t=\alpha z_{t-1}+\sigma\epsilon,\qquad \epsilon\sim\mathcal N(0,I),\]</div><span class="no">(2)</span></div>
+<p>其中 \(\sigma=\sqrt{1-\alpha^2}\)，保证边缘分布 \(z_t\sim\mathcal N(0,I)\)。除非另说，实验里 α = 0.95。作者说以后可以研究别的 α 和可学习的先验。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · AR(1) 先验的几个数</span><p>α = 0.95 时 \(\sigma=\sqrt{1-0.9025}=0.312\)。若 \(z_{t-1}\sim\mathcal N(0,I)\)，则 \(z_t\) 的方差是 \(0.95^2+0.312^2=1\)，边缘不变，式 (2) 下面的说法成立。</p><p>先验下相隔 k 步的相关系数是 \(0.95^k\)：降到一半要 \(\ln 0.5/\ln 0.95=13.5\) 步，降到 1/e 要 19.5 步。训练用长 30 的子序列（附录 B），首尾两步的先验相关是 \(0.95^{29}=0.226\)。所以先验把“相近”限定在十几步的尺度上。论文没写控制步长，无法换算成秒。动画<a href="../interactives/npmp/index.html?scene=6&amp;p=0.8">第 6 幕</a>当场采样，可以切 α。</p></div>
+<p>训练用证据下界（ELBO）：</p>
+<div class="eq"><div class="m">\[\mathbb E_q\Big[\sum_{t=1}^{T}\log\pi(a_t\mid s_t,z_t)+\beta\big(\log p_z(z_t\mid z_{t-1})-\log q(z_t\mid z_{t-1},x_t)\big)\Big],\]</div><span class="no">(3)</span></div>
+<p>β 调先验的权重。β = 1 时就是 \(\log p(a_{1:T}\mid s_{1:T})\) 的标准变分下界。它可以用监督学习离线优化，也就是从带噪声的回放做行为克隆。</p>
+<p>编码器有意不以动作为条件，因为作者关心的是看不到动作时的一次性模仿。试过不同的 K，结果相近，本文全部用 K = 5。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · x<sub>t</sub> 是 6 个状态，脚注 2 的替代也是 6 个</span><p>\(x_t=[s_t,\dots,s_{t+K}]\) 在 K = 5 时有 6 个状态，含当前状态。脚注 2 说试过看得更远：\([s_t,s_{t+1},s_{t+3},s_{t+6},s_{t+10},s_{t+15}]\)，结果大体相同。它同样是 6 个状态，输入维度不变，只是时间跨度从 5 步拉到 15 步。所以这组对比说明的是“跨度”影响不大，不涉及“看更多帧”。动画第 5 幕可以切换两种取法。</p></div>
+<p>这个结构相当于在给定过去潜状态 z<sub>t−1</sub> 的条件下，在期望的未来轨迹 x<sub>t</sub> 和动作 a<sub>t</sub> 之间做一个条件信息瓶颈（类似 Alemi 等 2017）。自相关先验鼓励同一条轨迹里时间上相近的潜状态在潜空间里也相近；信息瓶颈更一般地限制对 x<sub>t</sub> 的依赖，让 z<sub>t</sub> 成为选动作所需的对未来轨迹的压缩表示。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · β 和解码器方差的换算；pdftotext 会丢括号</span><p>式 (3) 里 β 乘的是括号内两项，即 \(-\beta\,\mathrm{KL}(q\|p_z)\) 的单样本估计。用 pdftotext 抽文字时括号会丢，看起来像只乘了 \(\log p_z\)。我把第 5 页渲染成图看过，原文有括号，式 (9) 也一样。</p><p>附录 B 说解码器标准差固定为 0.1 时，改 β 等于改输出方差（差一个常数）。验证：高斯对数似然是 \(-\|a-\mu\|^2/(2\sigma^2)\) 加常数，整个目标除以 β 后变成 \(-\|a-\mu\|^2/(2\sigma^2\beta)-\mathrm{KL}\)，相当于把 σ 换成 \(\sigma\sqrt\beta\)。图 4 最好的 β = 0.1 对应等效标准差 0.0316；β = 0.001 是 0.00316；图 6a 的 β = 0.46 是 0.0678；β = 1 就是 0.1。这个等价只在 β 同时乘两项时才成立，也印证了括号的存在。</p></div>
+
+<h3 id="s2-3"><span class="no">2.3</span>从一组样本训练学生策略</h3>
+<p>把专家的知识迁移给学生时，希望学生在专家可能到达的所有状态上都复现专家。这里的专家只复现单个片段，可以看作名义轨迹周围的非线性反馈控制器，专家到达的状态构成参考周围的一根“管子”。要求学生在管子里能工作，受小扰动时也能留在管子里。</p>
+<p>形式上，为了让学生保留专家的稳健性，希望在合理的（带噪声的）专家状态分布 \(\rho_E\) 下，专家动作 \(\mu_E(s)\) 和学生动作 \(\mu_\theta(s)\) 接近。模仿学习和知识迁移常用动作（或激活）之间的平方损失：</p>
+<div class="eq"><div class="m">\[\min_\theta\ \mathbb E_{s\sim\rho_E}\big[(\mu_E(s)-\mu_\theta(s))^2\big].\]</div><span class="no">(4)</span></div>
+<p>行为克隆就是把 \(\rho_E\) 换成一组状态-动作对 \(\mathcal S\) 的经验分布来优化这个目标。如果 \(\mathcal S\) 充分覆盖学生之后会遇到的状态分布，效果就好；但预先造出合适的状态集通常要很多回放，很贵。</p>
+<p>为了压缩几千个专家，需要计算上省的方法。作者研究两种方案，都只在专家状态分布的小样本估计上记录专家的状态-动作映射，然后监督学习训练学生。两者都容易接进普通的监督学习管线，不需要同时询问很多专家（几千个专家时这限制扩展），训练时也不需要执行学生。</p>
+<p><b>从带噪声回放做行为克隆。</b>收集若干条带噪声的专家轨迹（随机策略或注入噪声），记录专家的最优/均值动作而不是实际执行的带噪声动作。它的一个版本等价于 DART（Laskey 等 2017）。然后在这些数据上做行为克隆。具体地，设 \(\mu_E(s)\) 是专家在 s 处的均值动作，运行带中等动作噪声 η 的专家 \(\pi_E^\eta\)，得到数据 \(\{s_k,\mu_k\}\)，其中 \(\mu_k=\mu_E(s_k^\eta)\)，再按式 (4) 优化，期望用收集到的状态和专家动作之和近似。作者预期这能工作，但不会特别省，因为专家要跑很多条。动画<a href="../interactives/npmp/index.html?scene=3&amp;p=0.8">第 3 幕</a>是一个一维的玩具。</p>
+<p><b>线性反馈策略克隆（LFPC）。</b>只沿一条名义轨迹记录专家动作和动作对状态的雅可比。雅可比可以构成一个线性反馈控制器，在训练时给出附近扰动状态的目标动作。LFPC 不是为了超过行为克隆（回放足够多时不可能），而是为了用少得多的回放做到差不多。</p>
+<p>名义轨迹是从初始点 \(s_0^\star\) 递推执行 \(\mu_E(s)\) 得到的状态-动作对序列 \(\{s_t^\star,a_t^\star\}_{1\dots T}\)。这里专家的行为可以由单条名义轨迹很好地刻画，所以在名义轨迹附近线性化应能抓住专家的相关行为（脚注 3：现代神经网络框架里自动求动作对观测的雅可比很容易）。设 δs 是小扰动，\(J=\frac{d\mu_E(s)}{ds}\big|_{s=s}\) 是雅可比：</p>
+<div class="eq"><div class="m">\[\mu_E(s+\delta s)=\mu_E(s)+J\,\delta s+O\big(\|\delta s\|^2\big).\]</div><span class="no">(5)</span></div>
+<p>线性化导出一个带线性反馈稳定的策略：每个时刻有名义动作 \(a_t^\star\)，也预期处在 \(s_t^\star\)，按实际状态和名义状态的差线性修正名义动作：</p>
+<div class="eq"><div class="m">\[\mu_{FB}(s_t)=a_t^\star+J_t^\star(s_t-s_t^\star),\qquad J_t^\star=\frac{d\mu_E(s)}{ds}\Big|_{s=s_t^\star}.\]</div><span class="no">(6)</span></div>
+<p>作者在所考察的片段上验证了，名义轨迹附近的线性反馈策略能相当好地近似专家（图 3）。</p>
+<p>用名义轨迹附近的状态扰动分布来近似 \(\rho_E\)：</p>
+<div class="eq"><div class="m">\[\min_\theta\ \frac1T\sum_i\mathbb E_{\delta s_i\sim\Delta(s)}\big[\|\mu_E(s_i+\delta s_i)-\mu_\theta(s_i+\delta s_i)\|^2\big].\]</div><span class="no">(7)</span></div>
+<p>这仍要在扰动状态上评估专家。用上面的线性化，把 \(\mu_E(s+\delta s)\) 换成离线可得的 \(\mu_{FB}(s+\delta s)\)，得到 LFPC 目标：</p>
+<div class="eq"><div class="m">\[\min_\theta\ \frac1T\sum_i\mathbb E_{\delta s_i\sim\Delta(s)}\big[\|\mu_\theta(s_i^\star+\delta s_i)-a_i^\star-J_i^\star\delta s_i\|_2^2\big].\]</div><span class="no">(8)</span></div>
+<p>扰动分布 Δ(s) 的选择可能很重要。理想情况是物理上合理的转移导出的状态相关分布，但估计它要昂贵的回放。更便宜的是动作噪声导出的平稳转移噪声分布，几条轨迹就能近似。作者发现式 (8) 对 Δ 的一些变化相当稳健，所有片段用同一个固定的边缘分布。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 式 (5)(7)(9) 的记号</span><p>三处小问题，不影响理解。式 (5) 上方写 \(J=\frac{d\mu_E(s)}{ds}|_{s=s}\)，求值点和变量同名，意思应是在某个给定状态处求值。式 (7) 的扰动加在 \(s_i\) 上，式 (8) 加在 \(s_i^\star\) 上，按上下文 (7) 也应是名义状态 \(s_i^\star\)。式 (9) 的目标动作写成 \(a_t+J_t\delta s_t\)，没有星号，应即 \(a_t^\star+J_t^\star\delta s_t\)。</p><p>另外，专家是时间下标的策略（§2.1），\(\mu_E\) 实际还依赖时刻 t；式 (5)(6) 只对状态求导，时间输入固定。这和“沿名义轨迹逐时刻线性化”的用法一致，但式子里没写出来。</p></div>
+<p>式 (8) 和去噪自编码器有相似之处：网络学会忽略从高维噪声分布采样的输入局部扰动。Mordatch 等 2015 成功蒸馏了规划器给出的反馈策略，但留下了需要多少数据的问题。作者在实验里显示，这个增强后的目标从很有限的状态集就能得到想要的稳健性。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 7 页 · <a href="https://arxiv.org/html/1811.11711#S3.F3">看原图 ↗</a></span><p>四个面板对应图 1 的四个片段，纵轴是回合回报，横轴八种策略：专家、开环、线性反馈、LFPC、行为克隆 100/200/500/1000 条。每种策略一个黑点（无噪声的名义回合）和两个半透明小提琴（紫色中等噪声、红色较大噪声），小提琴只标了最小和最大值。图注说分数由和动捕参考的相似度决定，专家本身可能略非最优，所以偶尔会有“超过专家”的偶然情况。下面的表是我从矢量数据读出的数。</p></div>
+<p class="tcap">图 3 的读数（重画为表）：每格是“无噪声 / 噪声 0.05 的范围 / 噪声 0.1 的范围”。从 PDF 第 7 页矢量路径读出，按网格线标定，误差约 ±0.1（twist 约 ±0.5）。</p>
+<div class="tablewrap"><table class="t-f3"><thead><tr><th>策略</th><th>Run and dodge</th><th>Cartwheel</th><th>Backflip</th><th>Twist</th></tr></thead><tbody>
+<tr><td>专家</td><td>32.81 / 28.1–29.6 / 23.2–24.5</td><td>27.35 / 22.7–24.9 / 18.5–20.9</td><td>17.66 / 15.2–22.4 / 14.7–19.3</td><td>154.2 / 134–146 / 64–114</td></tr>
+<tr><td>开环</td><td>32.81 / 8.1–17.9 / 4.2–13.3</td><td>27.35 / 12.3–19.8 / 9.1–16.9</td><td>17.66 / 14.1–17.6 / 9.6–14.4</td><td>154.2 / 12–41 / 8–13</td></tr>
+<tr><td>线性反馈</td><td>32.81 / 26.9–29.2 / 22.0–25.6</td><td>27.35 / 23.5–24.8 / 16.5–20.8</td><td>17.66 / 15.7–17.0 / 13.0–15.2</td><td>154.2 / 135–142 / 31–124</td></tr>
+<tr><td>LFPC（1 条）</td><td>32.26 / 28.1–29.1 / 22.2–24.5</td><td>27.32 / 22.9–24.4 / 16.6–20.4</td><td>17.44 / 14.9–17.7 / 12.1–16.9</td><td>154.4 / 129–143 / 25–109</td></tr>
+<tr><td>BC 100 条</td><td>26.65 / 10.4–25.2 / 6.8–12.8</td><td>23.17 / 19.9–22.9 / 14.5–17.8</td><td>12.03 / 9.6–18.9 / 4.5–13.2</td><td>150.2 / 129–144 / 77–123</td></tr>
+<tr><td>BC 200 条</td><td>25.87 / 16.4–26.7 / 10.6–19.3</td><td>26.13 / 22.2–24.7 / 15.2–20.5</td><td>17.16 / 15.4–20.3 / 10.3–17.1</td><td>152.5 / 136–143 / 78–116</td></tr>
+<tr><td>BC 500 条</td><td>32.36 / 26.7–28.6 / 19.9–23.8</td><td>26.34 / 21.9–24.3 / 17.7–20.9</td><td>17.86 / 15.8–22.6 / 15.3–19.5</td><td>151.9 / 133–143 / 76–121</td></tr>
+<tr><td>BC 1000 条</td><td>33.06 / 28.0–29.2 / 22.6–24.6</td><td>26.11 / 22.9–24.8 / 17.0–20.2</td><td>17.75 / 15.6–18.1 / 12.7–18.6</td><td>149.1 / 127–142 / 69–120</td></tr>
+</tbody></table></div>
+<p>LFPC 还有几种看法。一是数据增强；二是在相关的行为状态（这里沿名义轨迹采样）上同时匹配均值动作和雅可比。专家行为更多样或多模态时，应在能代表各行为模式的状态上用 LFPC，或者像扩展 LQR 树那样从目标状态往回扩。显式匹配雅可比在别处也有人提过（Sobolev 训练）。附录 C 有更多区分。</p>
+<p>用 LFPC 训练 NPMP 时，把式 (3) 改成：</p>
+<div class="eq"><div class="m">\[\mathbb E_{\delta s,q}\Big[\sum_{t=1}^{T}\log\pi(a_t+J_t\delta s_t\mid s_t+\delta s_t,z_t)+\beta\big(\log p_z(z_t\mid z_{t-1})-\log q(z_t\mid z_{t-1},x_t+\delta x_t)\big)\Big],\]</div><span class="no">(9)</span></div>
+<p>其中 \(\delta s_t\) 是从合适的扰动分布 Δ 独立抽的扰动，\(\delta x_t\) 是 \([\delta s_t,\delta s_{t+1},\dots,\delta s_{t+K}]\) 的拼接。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 式 (9) 给编码器的未来状态也加了独立扰动</span><p>按式 (9)，同一个 \(\delta s_{t+k}\) 既加在解码器看到的状态上，也出现在编码器看到的未来片段里，而各时刻的 δs 是独立同分布的。这样编码器看到的“扰动后的未来”并不满足动力学：真实的扰动会随时间传播、被专家的反馈修正，不会每步独立跳动。编码器因此学的是“对独立噪声稳健”，不是“从被扰动的轨迹里读出意图”。论文没讨论这一点，也没给 Δ 的具体形式。这是我的分析，没有实验支持。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 11 幕 · 可拖动、可切换</p>
+<p>第 3、4 幕在浏览器里当场算两个玩具（带噪声回放的“管子”、LFPC 的一阶误差和式 11 的对照）；第 6 幕当场从 AR(1) 先验采样；第 7、8、9、11 幕的柱子和曲线是从原文矢量图读出的数。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/npmp/index.html?embed=1" title="NPMP 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/npmp/index.html">新窗口打开，看结构表和“哪些是示意”↗</a></p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>实验</h2>
+<h3 id="s3-1"><span class="no">3.1</span>验证：单行为策略的迁移</h3>
+<p>先在简单设定里验证：把一个单技能、时间下标的策略从一个网络迁移到另一个。对图 1 的每个专家比较：原专家、沿专家名义（均值）轨迹的开环动作序列、沿名义轨迹的线性反馈策略、训练来匹配线性反馈行为的网络（LFPC），以及用 100、200、500、1000 条轨迹做行为克隆的策略。每种在无噪声、小噪声、中等噪声下比较：噪声是每个执行器独立的高斯，标准差 0.05 和 0.1，动作范围归一化到 [−1, 1]。</p>
+<p>状态哪怕只受一点扰动，开环控制几乎总会失败（意外的是后空翻因为接触少，开环也差不多能做）。值得注意的是，只用一条轨迹的 LFPC 和用几百条轨迹的行为克隆表现相当（图 3）。附录 D 有更多验证。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 3 读出来的几件事</span><p><b>自洽检查。</b>开环和线性反馈在无噪声时的分数和专家完全相同（四个片段都是），这正是应该的：确定性仿真里，按名义动作开环执行或在名义轨迹上做零修正，都复现同一条轨迹。说明读数的标定没问题。</p><p><b>“和几百条相当”大体成立，但不均匀。</b>噪声 0.05 下 LFPC 的范围和 BC 500/1000 条接近。BC 100 条在 run and dodge 和 backflip 上无噪声时明显偏低（26.65、12.03，专家 32.81、17.66）。twist 噪声 0.1 时 LFPC 最差一次只有 25.2，BC 四种的最低值都在 68.7 以上，线性反馈本身最低也只有 31.5，所以这一格的弱点来自线性化。“后空翻开环差不多能做”也看得到：噪声 0.05 下开环 14.1 到 17.6，专家 15.2 到 22.4。</p><p><b>图里没有的东西。</b>小提琴图只标了极值，没有中位数；每个小提琴是多少次回放，论文没写。所以“相当”只能按范围比，不能按中位数比。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 噪声等级的名字</span><p>正文说“无、小、中等”噪声（0、0.05、0.1），图 3 和图 4 的图例写 nom、med、high。按顺序对应 nom = 名义（无噪声）、med = 0.05、high = 0.1。图 4 的图注和 §3.2 没有再给噪声值，我假设沿用 §3.1 的 0.05 和 0.1，这是推断。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>核心结果：压缩几千个专家</h3>
+<p>单技能能迁移之后，看能把训练集 2707 个专家的行为压进 NPMP 多好。动作重建损失不直观，因为它不反映模型在环境里的表现，所以用基于模仿的指标：把一条专家轨迹编码成潜变量序列，然后在环境里以这串潜变量为条件执行策略。这对潜变量是开环的，对状态是闭环的。用训练专家时的跟踪奖励，比较训练片段和留出片段上相对专家的表现。这种做法能工作，本身就部分验证了本文的前提，因为动作序列的开环执行通常一受扰动就失败；NPMP 能在开环的带噪声潜变量轨迹条件下执行，说明解码器学会了在潜变量条件下稳住身体。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 8 页 · <a href="https://arxiv.org/html/1811.11711#S3.F4">看原图 ↗</a></span><p>上下两个面板（训练集、测试集）的箱线图，纵轴是相对专家的表现，0 到 1，顶部一条黑色虚线标专家 = 1。横轴七种配置：100 条 β = 0、β = 0.001、β = 0.1、β = 1.0、α = 0（β = 0.1）、20 维潜空间（β = 0.1）、LFPC（β = 0.1）。每种三个箱子，蓝、紫、红对应 nom、med、high 三档噪声。图注说比较了不同正则强度、用 20 维而不是其他实验都用的 60 维潜空间，以及 LFPC。下面是重画。</p></div>
+<div class="viz" id="c-fig4"><p class="cap">重画 · 从 PDF 第 8 页矢量路径读出，按 0 到 1 的网格线标定。点是中位数，竖线是箱体上下沿（四分位），原图的须线没有画。可悬停看数值。</p></div>
+<p>几个要点（图 4）。最明显的是每个专家 100 条回放、中等正则 β = 0.1 的行为克隆最好。参数相当的 LFPC 在这里差一些，但定性上表现相近。消融显示正则和大潜空间对结果重要。把自回归参数设成 α = 0（其他都是 0.95）使潜变量独立同分布，表现变差，验证了先验的选择。脚注 4：还试过按左右对称镜像策略（大约让专家数据翻倍），结果略好，这里比较的模型都用了镜像。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 图 4 读出来的几件事</span><p><b>压缩有损。</b>最好配置（BC 100 条、β = 0.1）的无噪声中位数，训练集 0.739、测试集 0.707。也就是一半的片段达不到专家回报的 74%（训练）或 71%（测试）。四分位上沿是 0.887 和 0.892，没有一个箱体碰到 1。</p><p><b>LFPC 在测试集上排第二。</b>正文说 LFPC“差一些”。训练集上它的中位数 0.543，七种里倒数第二；测试集上是 0.567，只低于 β = 0.1 的 0.707，高于 β = 0.001（0.538）、20 维（0.502）、β = 0（0.498）、α = 0（0.480）和 β = 1.0（0.453）。它用的回放是 BC 的 1/100。</p><p><b>正则和 α。</b>测试集无噪声中位数按 β 排开是 0.498、0.538、0.707、0.453，两头都差。α = 0 在训练集是 0.547，测试集 0.480，比 α = 0.95 低 0.19 和 0.23。</p><p>箱体中位线在 SVG 里是单独的水平线段，我按横坐标和所在箱体逐一配对，42 个箱体全部唯一配上。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>训好的模型的分析</h3>
+<p>作者不指望远离训练分布的轨迹能被编码器表示或被解码器执行。不过一次性模仿失败时，自然要问：是解码器表达不出想要的动作，还是编码器没把轨迹编成解码器能执行的样子？</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 9 页 · <a href="https://arxiv.org/html/1811.11711#S3.F5">看原图 ↗</a></span><p>三个面板 A、B、C（跑步、倒着走、跳），每个是潜空间前三个主成分里的训练点云（一大团蓝点），上面叠着两条潜变量轨迹：一次性模仿时编码器给出的原始轨迹和按式 (10) 优化后的轨迹。图注说跑步一次性就能做好，优化前后没有明显差别，作为参照；倒着走和跳的一次性模仿失败，优化后明显改善。这张是位图，没有读数。</p></div>
+<p>对边界情况，作者提出一个区分办法：对一次性模仿表现不好的留出轨迹，直接优化潜变量：</p>
+<div class="eq"><div class="m">\[\min_{z_1\dots z_T}\ \sum_{t=1}^{T}\|\mu_\theta(s_t,z_t)-a_t^\star\|_2^2,\]</div><span class="no">(10)</span></div>
+<p>其中 \(\mu_\theta\) 是解码器的均值。优化明显改善了执行出的行为，图 5 在前三个主成分里显示了偏移。三个例子的表现显著提高（见补充视频），说明潜空间能表示一次性模仿失败的行为。但执行仍不完美，说明错误可能主要在编码器，解码器对这些较少见的行为类别也可能训练得不够。定量地，在一批一次性模仿相对专家表现低于 50% 的片段上，优化把相对表现的中位数从 43% 提到 78%。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 43% 到 78% 无法核算</span><p>论文没有说这批片段有多少段、来自训练集还是测试集、优化用了多少步和什么优化器，式 (10) 里的 \(s_t\) 是参考轨迹的状态还是执行时的状态也没写。所以这两个数只能照录，未核实。</p></div>
+<p>其他探索性试验表明，有时把几段潜变量轨迹接起来、以这串为条件运行策略，能在行为之间无缝过渡（比如连续转弯），见补充视频。</p>
+<p><b>复用运动基元模块。</b>最后把解码器当运动基元模块复用。把潜空间当新的定制动作空间，训练一个新的高层策略在其中操作：每步高层输出一个潜变量 z<sub>t</sub>，实际动作由模块 \(p(a_t\mid s_t,z_t)\) 给出。训练用 SVG(0)，Q 函数用 Retrace 做离策略修正。</p>
+<p>能考验运动模块的一个自然任务，是需要急转和变速的突然的、频繁改向的移动。实现方式：给高层一个目标点，人形靠近它几步后，它随机跳到附近另一个位置。单个任务考不全模块，但这个任务需要很多种快速移动。只有稀疏任务奖励，高层也能学会通过学到的基元空间控制身体，动作相当像人。</p>
+<p>正则更强的模块接上未训练的高层时初始行为更稳（训练开始时更不容易摔）。和很弱正则（β = 0.001）的模块比，正则更强的模块训练更快，最终表现也更高（图 6a）。还试了目标点任务加上智能体看不见的颠簸地形；能解出来说明它对没专门训练过的扰动稳健。另一个实验要求以随机变化的目标速度移动，需要在走、慢跑、跑之间过渡（图 6b）。最后一个复用实验是要跳过沟的障碍赛（同 Merel 等 2018），高层用自我中心的视觉输入，也解出来了（这一段是 v2 新加的）。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 9 页 · <a href="https://arxiv.org/html/1811.11711#S3.F6">看原图 ↗</a></span><p>(a) 追目标任务，10 个种子的中位回报对训练步数，横轴 0 到 6×10⁹，四条线 β = 0.001、0.1、0.46、1.0。(b) 目标速度任务，三个回合的目标速度（阶梯线，带 ±1 个标准差的绿色阴影）和自我中心前向的实际速度，横轴 0 到 5000 步。图注说奖励是以目标速度为中心的高斯，阴影是正负一个标准差。下面重画 (a)。</p></div>
+<div class="viz" id="c-fig6a"><p class="cap">重画 · 图 6a，从 PDF 第 9 页矢量路径读出，按 0 到 200、0 到 6 的网格线标定，每 0.15×10⁹ 步取一点。可悬停看数值。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 图 6a：β = 0.46 只在这里出现，而且最好</span><p>四条线的最终中位回报：β = 0.46 是 182.5，β = 0.1 是 162.5，β = 1.0 是 152.2，β = 0.001 是 115.0。正文只说“和很弱正则（0.001）比，正则更强的模块训练更快、最终更高”，对三条线都成立；但不是越强越好，最强的 β = 1.0 排第三。β = 0.46 在图 4 和正文都没出现，论文没说它对应的压缩质量。</p><p>首次达到 100 的步数：β = 0.1 约 1.86×10⁹，β = 0.46 约 1.87×10⁹，β = 1.0 约 2.49×10⁹，β = 0.001 约 3.37×10⁹。</p><p>横轴标“Steps”，乘数 1e9；图注说是“learner steps”。60 亿次学习器更新是很大的数，也可能指环境步，论文没说清。图例颜色和曲线的对应我按图例小线段的纵向顺序确认过。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 图 6b：阴影宽度和回合边界</span><p>阶梯线有 15 段，每段约 333 步。读出的 15 个目标速度依次是 2.01、1.00、1.05、0.37、2.05、0.75、1.23、1.23、2.93、0.81、4.31、3.77、1.39、2.17、3.54。所有段的阴影都是目标 ±0.707（例如第一段 1.30 到 2.72）。如果阴影就是奖励高斯的标准差，那么 σ ≈ 1/√2，奖励形如 exp(−(v − v*)²)；这一换算是我的推断。</p><p>实际速度在约 1668 步和 3338 步处掉到 0 再爬升，对应图注说的“三个回合”拼在一起，每回合 5 段目标。速度的单位论文没写。</p></div>
+<p>作者强调三点：用预训练的模块，新控制器能在稀疏奖励任务上从头有效训练；不加额外约束，动作看起来就相当像人，说明嵌入空间结构良好；模块为基于物理的控制提供了相当全面和平滑的覆盖。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 下游时解码器冻没冻结</span><p>§3.3 说“把解码器当运动基元模块复用”、“训练一个新的高层策略在这个空间里操作”，图 2 图注说“学好之后解码器可在别的设定里当策略复用”。全文没有说解码器在这一步被冻结或固定（“fixed”只用于解码器的输出标准差和扰动分布 Δ，没有 “freeze”/“frozen”）。从“训练新的高层策略”的说法看，解码器应是不更新的，但这是推断。SuperMimic 表注里“后一段训练时冻结前一段”的约定，用在 NPMP 的下游这一格上是合理的，不过原文没有直接支持。</p></div>
+
+<h2 id="s4"><span class="no">4</span>讨论</h2>
+<p>本文描述了迁移和压缩控制策略的方法，展示了一个能表示和执行仿真人形运动行为的运动基元模块。用行为克隆的变体或 LFPC 都能训出稳健的一次性模仿，后者只需要每个专家一条回放。LFPC 在全尺度模型里不如带噪声回放的克隆，但作者认为只用一条回放就能迁移专家行为是值得注意的：在回放昂贵的场合（比如改到真实机器人上）也许有用，而且还有提升空间，因为一些参数没有仔细调，最重要的是边缘噪声分布 Δ。</p>
+<p>得到的模块可解释、可复用。作者乐观地认为这种结构可以成为持续学习运动技能的基础。本文只做了不涉及物体交互的运动，而且全部行为事先可得。有意义的扩展是大大丰富行为空间，或者展示如何持续学习和复用新技能。</p>
+
+<h2 id="apA">附录 A · 动捕专家</h2>
+<p>专家的做法详见 Merel 等 2018，简言之大体沿用 Peng 等 2018：取 SAMCON（Liu 等 2010）提出的能量函数作为逐步奖励，训练跟踪/模仿一个动捕参考片段的时间下标策略。如 Merel 等 2017 和 Peng 等 2018 所提，回合初始化到参考上各处的姿态，角色摔倒时提前终止回合。算法是离策略的 SVG(0)（Heess 等 2015）加 Retrace（Munos 等 2016）。和 Merel 等 2017、Peng 等 2018 等一样，训练随机策略，用均值（无噪声）动作当专家策略。</p>
+
+<h2 id="apB">附录 B · 结构和训练细节</h2>
+<ul>
+<li><b>解码器</b> \(p(a_t\mid s_t,z_t)\)：三层 1024 个隐单元的 MLP，输入是 s<sub>t</sub> 和 z<sub>t</sub> 的拼接。输出多元高斯，标准差固定为 0.1（动作归一化到 [−1, 1]）。作者发现固定标准差明显更容易防止过拟合；此时改 β 等价于改固定输出方差（差一个常数，见<a href="#n6">读者注 6</a>）。</li>
+<li><b>编码器</b> \(q(z_t\mid z_{t-1},x_t)\)：两层各 1024 个隐单元的 MLP，输入直接拼接，输出方差可学的多元高斯。</li>
+<li><b>潜空间</b>：多数实验 60 维。</li>
+<li><b>优化</b>：重参数化技巧，Adam，学习率 0.0001。每个专家 100 条轨迹的模型用 512 段长 30 的子序列做小批。</li>
+<li><b>LFPC</b>：采 32 段长 30 的子序列，每段生成 5 份扰动后的状态序列。初步实验里子序列长度对表现影响不大。</li>
+</ul>
+<div class="note" id="n16"><span class="lab">读者注 16 · 参数量只能算一半</span><p>论文没有给状态 s<sub>t</sub> 的维度、动作维度和激活函数，所以算不出总参数量。只看隐藏层之间：解码器三层 1024 之间有两个 1024 × 1024 的矩阵，共 2,097,152 个权重；编码器两层之间一个，1,048,576 个。第一层的大小取决于输入：编码器要吃 6 个状态加 60 维 z，状态维度只要有几百，第一层就会比隐藏层之间的矩阵还大。论文也没写人形有多少个执行器。</p></div>
+
+<h2 id="apC">附录 C · 和其他知识迁移思路的关系</h2>
+<p>首先，本文强调匹配专家策略在每个状态附近的响应性。这不同于激活匹配或 KL 匹配（Rusu 等 2015、Teh 等 2017），后者强调在特定状态上匹配动作或激活的分布。其次，这里的稳健迁移和其他场合看重的不一样。比如 Srinivas 和 Fleuret 2018 的思路是在学生输入受扰动时仍匹配老师的精确激活，这对大规模视觉系统合理。放到控制策略上，它是：</p>
+<div class="eq"><div class="m">\[\min_\theta\ \sum_{s\in\mathcal S^\star}\mathbb E_{\delta s\sim\Delta(s)}\big[(\mu_E(s)-\mu_\theta(s+\delta s))^2\big].\]</div><span class="no">(11)</span></div>
+<p>这实质上让学生“盲目地”在输入被扰动时仍复现专家原来的动作。如果噪声和系统的正常运作无关，这说得通；但对控制是很坏的主意，因为控制必须对小的输入扰动做出反应。技术上，这等于把局部反馈设成零，表现得像开环。动画<a href="../interactives/npmp/index.html?scene=4&amp;p=0.8">第 4 幕</a>可以在 LFPC 和式 (11) 的目标之间切换，两者之差正是 J δs。</p>
+
+<h2 id="apD">附录 D · 平稳策略行为的可视化</h2>
+<p>移动行为至少在最简单的情况下大致是一个极限环。作者另做了一个实验检验 LFPC：收集三个跑步步态周期，做 LFPC。这里学生策略不需要时间下标，即使示范来自时间下标的策略。这个受限情况在噪声下显示了惊人的泛化（图 A.1 和主补充视频）。</p>
+<div class="fig" id="figA1"><span class="lab">图 A.1 · 第 14 页 · <a href="https://arxiv.org/html/1811.11711#A4.F1">看原图 ↗</a></span><p>一个三维坐标框里的 PCA 投影：蓝色虚线是平稳克隆策略在噪声下多次回放的姿态轨迹，绿色点是来自时间下标专家的少量参考数据。轨迹画成一个扭成“8”字的环。图注说回放明显更嘈杂、总偏离参考轨迹，但克隆策略的轨迹会回到极限环上。</p></div>
+
+<h2 id="code">代码</h2>
+<p>我用 <code>gh search repos</code> 和 <code>gh search code "1811.11711"</code> 查过，作者没有公开 NPMP 的训练代码，也没有项目主页链接到代码。能找到的相关东西有三类：</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>仓库</th><th>是什么</th><th>版本和许可</th><th>和本文的关系</th></tr></thead><tbody>
+<tr><td><a href="https://github.com/google-deepmind/dm_control/tree/f9b2e9c304d3a07eb47dd82ade5b59735a368ff9/dm_control/locomotion">google-deepmind/dm_control · locomotion</a></td><td>CMU 人形环境、走廊/沟等任务</td><td>提交 f9b2e9c（2026-11-06），Apache-2.0</td><td>README 把本文列为“环境改编自”的论文之一。只有环境，没有 NPMP 的模型或训练代码</td></tr>
+<tr><td><a href="https://github.com/microsoft/MoCapAct/tree/58bbb0047942708d20abb4fb191e9771de30ea1e">microsoft/MoCapAct</a></td><td>第三方：CMU 片段专家、回放数据集、多片段策略</td><td>提交 58bbb00（2026-09-30），MIT</td><td><code>mocapact/distillation/model.py</code> 的 <code>NpmpPolicy</code> 注明按本文实现。只能当未核实的旁证</td></tr>
+<tr><td>RL Unplugged（tensorflow/datasets 的 rlu_locomotion）</td><td>离线 RL 数据集</td><td>–</td><td>说明里引用本文和 Merel 等 2019a，作为 CMU 人形用动捕数据的先例；不是本文代码</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · MoCapAct 的 NpmpPolicy 和论文对照（只读未运行）</span><p><b>一致的：</b>潜码 60 维（embed_size = 60）；编码器 2 × 1024、解码器 3 × 1024；解码器标准差 0.1；先验系数 0.95，标准差 \(\sqrt{1-0.95^2}\)；β 默认 0.1；子序列 30 步。这些和附录 B 一致。</p><p><b>论文没写、它自己定的：</b>激活默认 Tanh；初始 z 从 N(0, I) 采样；KL 用解析式按步求和，而式 (3) 是单样本的对数比（期望相同，方差不同）；编码器标准差下限 1e−5。</p><p><b>一处小问题：</b>关闭循环编码器（recurrent_encoder = False）时，代码把 embedding_correlation 设成 0，但 embedding_std_dev 仍按传入的 0.95 算成 0.312（第 522 到 523 行），先验变成 N(0, 0.312²) 而不是 N(0, I)。这只影响对应 α = 0 的消融，默认配置不受影响。</p><p>MoCapAct 的专家和回放是它自己训练和采集的，不是本文的 2707 个专家；它的回放文件同时存了采样动作和专家均值动作（README 的数据结构说明），和 §2.3“执行带噪声动作、记录均值动作”的做法一致。</p></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · v1 和 v2 的差别，和没比对的 OpenReview 版</span><p>我把 v1（2018-11-28）和 v2（2019-01-15）的 PDF 文字逐词比对。实质变化：v2 加了 Chentanez 等 2018 的同期工作一段和它的参考文献；加了 Paraschos 等 2013、Meier 和 Schaal 2016 两篇运动基元文献，重写了“运动基元”的定义；§3.3 末尾加了视觉跨沟的复用实验；附录顺序调整，结构和训练细节从 v1 的附录 D 移到 v2 的附录 B（正文引用相应改了）；讨论里 v1 单独一句“以后也许能用于回放昂贵的真机”，v2 并进了前一句。公式、数字和超参数的文字在两版之间没有变化（图没有逐像素比对）；“模仿和下游都用 SVG(0)＋Retrace”两版都有。</p><p>OpenReview 论坛（BJl6TjRcY7）的 PDF 和接口用脚本访问时返回 403 人机验证，我没有绕过，所以没有和 OpenReview 定稿比对。v2 页眉已写“Accepted as a conference paper at ICLR 2019”，很可能就是定稿，但未核实。</p></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 和本站 PULSE 页的对照</span><p>PULSE §4.2 说它的 L<sub>regu</sub>“像 NPMP 用的 AR(1) 先验”。两者形式不同：NPMP 的 AR(1) 是先验分布本身，通过 β·KL 进入目标，约束的是整个后验分布；PULSE 的先验是可学习网络，另加一项惩罚相邻帧后验均值的差，代码里是 \(\|\mu_t-0.99\,\mu_{t-1}\|\)（本站 PULSE 页读者注所记）。系数 0.99 对 0.95，按读者注 4 的算法，0.99 的半衰是 69 步，约束松得多。本站 PULSE 页的说法“系数 0.99 正是 AR(1) 的形式”和本文一致，不需要改。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">SuperMimic 表 1 的 NPMP 一行</a>：五格都准确；模仿和下游原文都是 SVG(0)＋Retrace，表里略去 Retrace。</li>
+<li><a href="#n2">“大体沿用 Peng 等”</a>指 RSI、提前终止等设定；算法是 SVG(0)，奖励是 SAMCON 能量，不是 PPO。</li>
+<li><a href="#n3">数据规模</a>：270,700 条回放（镜像约 541,400），测试集大小没写。</li>
+<li><a href="#n4">AR(1) 先验的数</a>：σ = 0.312，边缘方差 1，半衰 13.5 步，30 步首尾相关 0.226。</li>
+<li><a href="#n5">x<sub>t</sub> 是 6 个状态</a>，脚注 2 的替代也是 6 个，只改跨度。</li>
+<li><a href="#n6">β 和解码器方差</a>：等效 σ√β，β = 0.1 对应 0.0316；pdftotext 会丢式 (3) 的括号。</li>
+<li><a href="#n7">式 (5)(7)(9) 的记号</a>：s = s、缺星号、时间下标没写出。</li>
+<li><a href="#n8">式 (9) 的未来扰动</a>彼此独立，不满足动力学（我的分析）。</li>
+<li><a href="#n9">图 3 读数</a>：开环和线性反馈无噪声时等于专家；twist 高噪声下 LFPC 最低 25.2。</li>
+<li><a href="#n10">噪声等级的名字</a>：nom/med/high 对应 0/0.05/0.1，图 4 的噪声值是推断。</li>
+<li><a href="#n11">图 4 读数</a>：最好 0.739/0.707；测试集上 LFPC 0.567 排第二。</li>
+<li><a href="#n12">43% 到 78%</a>：无法核算，未核实。</li>
+<li><a href="#n13">图 6a</a>：β = 0.46 只在这里出现且最好（182.5）；横轴单位不清。</li>
+<li><a href="#n14">图 6b</a>：阴影都是 ±0.707；5000 步是三个回合拼接。</li>
+<li><a href="#n15">下游冻结</a>：原文没写，从“复用”推断。</li>
+<li><a href="#n16">参数量</a>：只能算隐藏层之间的 2,097,152 和 1,048,576。</li>
+<li><a href="#n17">MoCapAct 对照</a>：超参数和附录 B 一致；非循环模式下先验方差有小问题。</li>
+<li><a href="#n18">版本差异</a>：v2 加了跨沟实验和两段相关工作，公式数字不变；OpenReview 版未比对。</li>
+<li><a href="#n19">和 PULSE 页对照</a>：形式不同，PULSE 页的说法无需改。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 9 日核对过可以打开（OpenReview 对脚本返回人机验证，浏览器可开）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1811.11711">NPMP</a></td><td>本文</td><td>无官方代码</td><td><a href="https://arxiv.org/abs/1811.11711">1811.11711</a> · <a href="https://openreview.net/forum?id=BJl6TjRcY7">OpenReview</a></td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.cmu.edu/">CMU Mocap</a></td><td>动捕数据来源</td><td>mocap.cs.cmu.edu</td><td>–（数据库没有对应论文）</td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/dm_control">dm_control locomotion</a></td><td>CMU 人形环境</td><td>github.com/google-deepmind/dm_control</td><td><a href="https://arxiv.org/abs/2006.12983">2006.12983</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/microsoft/MoCapAct">MoCapAct</a></td><td>第三方 NPMP 式实现和数据集</td><td>github.com/microsoft/MoCapAct</td><td><a href="https://arxiv.org/abs/2208.07363">2208.07363</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1811.09656">Merel 等 2018</a></td><td>专家的训练做法；跨沟任务</td><td>–</td><td><a href="https://arxiv.org/abs/1811.09656">1811.09656</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1510.09142">SVG(0)</a></td><td>专家和高层策略的算法</td><td>–</td><td><a href="https://arxiv.org/abs/1510.09142">1510.09142</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1606.02647">Retrace</a></td><td>Q 函数的离策略修正</td><td>–</td><td><a href="https://arxiv.org/abs/1606.02647">1606.02647</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1703.09327">DART</a></td><td>带噪声回放克隆的对应方法</td><td>–</td><td><a href="https://arxiv.org/abs/1703.09327">1703.09327</a></td></tr>
+<tr><td><a class="ds" href="deepmimic.html">DeepMimic</a></td><td>专家设定的来源（Peng 等 2018）</td><td>本站精读</td><td><a href="https://arxiv.org/abs/1804.02717">1804.02717</a></td></tr>
+<tr><td><a class="ds" href="pulse.html">PULSE</a></td><td>后来的潜空间蒸馏，可学习先验</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2310.04582">2310.04582</a></td></tr>
+<tr><td><a class="ds" href="supermimic.html">SuperMimic</a></td><td>读这篇的起因</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 1811.11711 后的整理，不是作者的官方内容。原文：Josh Merel、Leonard Hasenclever、Alexandre Galashov、Arun Ahuja、Vu Pham、Greg Wayne、Yee Whye Teh、Nicolas Heess，《Neural Probabilistic Motor Primitives for Humanoid Control》，ICLR 2019；arXiv 登记为非独占分发许可（nonexclusive-distrib 1.0），原文和原图版权归作者所有，这里没有复制原图。“重画”的图只用了从原文矢量数据读出的数值。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="npmp/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
