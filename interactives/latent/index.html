@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LATENT 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2603.12686 LATENT（人形机器人网球）的框架做成 11 幕 3D 动画：场地和数据尺寸、跟踪器和手腕扰动、DAgger 蒸馏、条件先验和 KL、高层任务和来球、手腕修正、潜动作屏障、球速滑窗、真机部署、结果表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="latent.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/latent.html">返回精读</a><a href="../../papers/latent.html#s3-3">原文 §3.3</a><a href="../../papers/latent.html#s4">§4 仿真到真机</a><a href="https://arxiv.org/abs/2603.12686">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2603.12686 · LATENT · 人形网球</p>
+<h1>从 5 小时动作片段到和人对打：LATENT 一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 幕是场地和数据的尺寸；第 3 到 5 幕是潜动作空间怎样造出来（跟踪器、DAgger、条件先验）；第 6 到 8 幕是高层策略（任务、手腕修正、<b>第 8 幕潜动作屏障</b>）；第 9、10 幕是仿真到真机；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。场地尺寸来自原文图 3 的矢量读数；柱子是原文表格数字；第 4、5、6、8、9 幕的数字是页面当场算的玩具。小人和挥拍动作是手工做的示意，没有任何 LATENT 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 GalaxyGeneralRobotics/LATENT 提交 a931da5（2026-04-30），只读未运行；它目前只放出了第一阶段（跟踪器），后两阶段只能写论文。仓库根目录没有许可文件。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（a931da5）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>人体动作</td><td>5 位业余球员，5 小时片段，3 m × 5 m 动捕区，不剪辑不标注</td><td>只公开 4 段（Tennis/p1）</td></tr>
+<tr><td>D2</td><td>重定向</td><td>LocoMuJoCo → 29 自由度 G1</td><td>preprocess_motion.py：重采样到 50 Hz，重算速度，可选 IK 起步过渡</td></tr>
+<tr class="grp"><td colspan="4">阶段 (a) 跟踪器</td></tr>
+<tr><td>A1</td><td>π_tracker</td><td>RL（PPO），框架同 Any2Track；输入 s_t 和 s̃_{t+1}</td><td>Brax PPO；MLP (512, 512, 256, 256, 128)</td></tr>
+<tr><td>A2</td><td>观测</td><td>角速度、投影重力、关节位置速度、上一帧动作</td><td>同上加目标差；评论家另有特权观测</td></tr>
+<tr><td>A3</td><td>动作</td><td>关节动作 → PD</td><td>参考关节角 + 动作，26 维（去掉右手腕 3 维）</td></tr>
+<tr><td>A4</td><td>右手腕</td><td>去掉控制信号，加随机扰动</td><td>每 0.5–2.0 s 在全行程内重抽 PD 目标</td></tr>
+<tr><td>A5</td><td>频率</td><td>50 Hz；仿真 2000 Hz</td><td>ctrl_dt 0.02；跟踪器 sim_dt 0.002（500 Hz，无球）</td></tr>
+<tr><td>A6</td><td>PPO</td><td>没写</td><td>32768 环境，30 亿步，lr 3e-4，γ 0.97，λ 0.95，ε 0.2，≤ 8 设备</td></tr>
+<tr class="grp"><td colspan="4">阶段 (b) 在线蒸馏</td></tr>
+<tr><td>B1</td><td>后验编码器 ℰ</td><td>N(μᵉ(s, s̃), σᵉ(s, s̃))</td><td>未放出</td></tr>
+<tr><td>B2</td><td>条件先验 𝒫</td><td>N(μᵖ(s), σᵖ(s))，可学习</td><td>未放出</td></tr>
+<tr><td>B3</td><td>解码器 𝒟</td><td>𝒟(â | s, z)，不含右手腕</td><td>未放出</td></tr>
+<tr><td>B4</td><td>损失</td><td>式 (1) λ₁ L_action + λ₂ L_KL；式 (2) DAgger；式 (3) KL；λ、维数未给</td><td>未放出</td></tr>
+<tr class="grp"><td colspan="4">阶段 (c) 高层策略</td></tr>
+<tr><td>C1</td><td>π_planner 输入</td><td>s_t、根部全局位姿 g_t、球状态 b_t</td><td>未放出</td></tr>
+<tr><td>C2</td><td>输出</td><td>[a_latent, a_correct]，后者直接控右手腕</td><td>未放出</td></tr>
+<tr><td>C3</td><td>LAB 式 (4)</td><td>z = μᵖ + λσᵖ·tanh(a_latent)，λ 未给</td><td>未放出</td></tr>
+<tr><td>C4</td><td>任务</td><td>每回合 8 球、每 2 s 一个；奖励见表 1（只有名字和权重）</td><td>跟踪器奖励里有六项权重与表 1 相同</td></tr>
+<tr class="grp"><td colspan="4">阶段 (d) 仿真到真机</td></tr>
+<tr><td>R1</td><td>动力学随机化</td><td>表 2：机器人 7 项、网球 4 项</td><td>跟踪器阶段：脚摩擦 U(0.4, 1.5)、躯干质心 ±0.15、质量 ×U(0.75, 1.25)、Kp/Kd ×U(0.75, 1.25)</td></tr>
+<tr><td>R2</td><td>观测噪声</td><td>均匀噪声、丢帧、延迟；球速用四帧滑窗平均</td><td>跟踪器：关节位置 0.03、速度 1.5、重力 0.05、角速度 0.2</td></tr>
+<tr><td>R3</td><td>真机</td><td>G1 + 3D 打印接头装球拍，动捕拿机器人和球的全局状态</td><td>README：50+ 相机、120 Hz、19 m × 15 m、约 3 周</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人和挥拍。</b>圆柱拼的，动作是手写的，只为看出阶段。不是 G1 的模型，不是策略输出。</li>
+<li><b>第 2 幕。</b>尺寸都是真的：标准场来自 ITF，13 m × 6 m 来自原文图 3 的矢量读数，3 m × 5 m 来自 §3.1，19 m × 15 m 来自代码 README。</li>
+<li><b>第 3 幕的手腕曲线。</b>按代码的规则（0.5–2.0 s 重抽、全行程均匀）用固定种子当场生成；关节行程取 ±1 rad 是我设的。</li>
+<li><b>第 4 幕的 DAgger。</b>一维玩具：老师 a* = −0.6 − 2 sin(1.5e)（|e| > 1 以外再加线性回拉），学生是 9 个 RBF 的岭回归。BC 和 DAgger 的误差当场计算。论文的学生是变分编码器-解码器。</li>
+<li><b>第 5 幕的高斯。</b>两个状态的先验均值和标准差是我设的；KL 用对角高斯的闭式当场算。</li>
+<li><b>第 6 幕的球。</b>发球点和落点按图 3 的范围设；飞行按 f = −k m v‖v‖ 当场积分；反弹只用恢复系数 0.75，没有模拟切向阻尼和旋转。小人的移动是示意。</li>
+<li><b>第 7 幕的几何。</b>只按拍面法向偏转算回球方向，忽略拍速和旋转，是最粗的近似。</li>
+<li><b>第 8 幕的潜空间。</b>二维，σᵖ 和策略输出的分布是我设的；三种约束的落点比例是当场采样算的。</li>
+<li><b>第 9 幕的噪声。</b>位置噪声幅度是我设的，论文没给。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2603.12686 后的理解，不是作者的官方图。原图见<a href="../../papers/latent.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

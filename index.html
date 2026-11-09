@@ -20,6 +20,30 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/beyondmimic.html">BeyondMimic：一套跟踪设定上真机，再用引导扩散做新任务</a></p>
+<p class="en">BeyondMimic: From Motion Tracking to Versatile Humanoid Control via Guided Diffusion</p>
+<div class="meta"><span>arXiv 2508.08241</span><span>Science Robotics 2026</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">一套 MDP 和超参数跟踪几十条敏捷人体动作并直接上真机，再把技能蒸馏进潜空间扩散模型，推理时用代价引导完成新任务；含和 SuperMimic 附录 A 的逐项对照。</p>
+<div class="tags"><span class="pill">动作跟踪</span><span class="pill">引导扩散</span><span class="pill">真机</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">23 条读者注</span></div>
+<div class="links"><a class="go" href="papers/beyondmimic.html">读精读 →</a><a href="interactives/beyondmimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2508.08241">原文</a><a href="https://github.com/HybridRobotics/whole_body_tracking">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/pulse.html">PULSE：把 PHC+ 蒸馏成带先验的潜空间</a></p>
+<p class="en">Universal Humanoid Motion Representations for Physics-Based Control</p>
+<div class="meta"><span>arXiv 2310.04582</span><span>ICLR 2024</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">先训一个能模仿全部 AMASS 的老师 PHC+，再用在线蒸馏把它压进 32 维带可学习先验的潜空间，下游任务只学残差潜码。</p>
+<div class="tags"><span class="pill">动作表示</span><span class="pill">DAgger 蒸馏</span><span class="pill">分层 RL</span><span class="pill">CC BY-NC-SA 4.0 · 含原图</span><span class="pill rn">24 条读者注</span></div>
+<div class="links"><a class="go" href="papers/pulse.html">读精读 →</a><a href="interactives/pulse/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2310.04582">原文</a><a href="https://github.com/ZhengyiLuo/PULSE">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/latent.html">LATENT：从不完美动作数据学人形网球</a></p>
+<p class="en">Learning Athletic Humanoid Tennis Skills from Imperfect Human Motion Data</p>
+<div class="meta"><span>arXiv 2603.12686</span><span>SuperMimic 引作 IROS 2026（未核实）</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
+<p class="d">用 5 小时人体网球动作片段，经跟踪器、DAgger 蒸馏的可修正潜空间和受“潜动作屏障”约束的高层 PPO，让 Unitree G1 和人对打网球。</p>
+<div class="tags"><span class="pill">人形网球</span><span class="pill">潜动作屏障</span><span class="pill">真机</span><span class="pill">CC BY 4.0 · 含原图</span><span class="pill rn">20 条读者注</span></div>
+<div class="links"><a class="go" href="papers/latent.html">读精读 →</a><a href="interactives/latent/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2603.12686">原文</a><a href="https://github.com/GalaxyGeneralRobotics/LATENT">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/graspgen.html">GraspGen：扩散生成、成功率判别与 GAN 的区别</a></p>
 <p class="en">A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training</p>
 <div class="meta"><span>arXiv 2507.13097</span><span>NVIDIA · ICRA 2026</span><span>2026-11-06 升级为逐节精读</span></div>
