@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LATENT 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2603.12686 LATENT（人形机器人网球）的中文精读：按原文章节逐节整理，含全部编号公式、结果表、裁切的原图、官方代码对照、和 SuperMimic 表 1 的核对、11 幕 3D 框架动画和 20 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r3{min-width:880px}.t-r5{min-width:620px}.t-rw{min-width:560px}.t-dr{min-width:420px}.t-cmp{min-width:600px}.t-links{min-width:640px}.t-code{min-width:640px}.t-chk{min-width:600px}
+.t-r3 td,.t-r3 th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+.note.wide{max-width:100%}
+.ok{color:var(--good,#199e70);font-weight:600}.no2{color:var(--warn,#d95926);font-weight:600}.un{color:var(--muted);font-weight:600}
+td.b{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/latent/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2603.12686v1 · cs.RO · 2026 年 3 月 13 日 · SuperMimic 引作 IROS 2026 · 中文精读</p>
+<h1>LATENT：用“不完美”的人体动作片段，教人形机器人打网球</h1>
+<p class="orig">Learning Athletic Humanoid Tennis Skills from Imperfect Human Motion Data</p>
+<p>作者 Zhikai Zhang、Haofei Lu、Yunrui Lian（共同一作）、Ziqing Chen、Yun Liu、Chenghuai Lin、Han Xue、Zicheng Zeng、Zekun Qi、Shaolin Zheng、Qing Luan、Jingbo Wang、Junliang Xing、He Wang、Li Yi（通讯作者），来自清华大学、北京大学、银河通用（Galbot）、上海期智研究院和上海人工智能实验室。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2603.12686">arXiv 原文</a><a href="https://arxiv.org/pdf/2603.12686v1">PDF</a><a href="https://arxiv.org/html/2603.12686v1">HTML 版</a><a href="https://zzk273.github.io/LATENT/">项目主页</a><a href="https://github.com/GalaxyGeneralRobotics/LATENT">官方代码</a><span>正文到第 8 页，参考文献到第 10 页，附录第 11 到 13 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>我读的是 arXiv v1（2026 年 3 月 13 日，目前唯一的版本）。arXiv 摘要页登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>。我逐页看了 PDF：没有页脚版权声明，第 1 页只有 Galbot 的标志，和登记的许可没有矛盾。这里按原文顺序覆盖正文六节和附录 A、B，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1 到图 8 从 arXiv PDF 裁切，作者 Zhang et al.，CC BY 4.0，只做了裁切和格式转换（约 1400 px 宽的 webp），没有改内容。图下的文字是我写的。注意 arXiv 的 HTML 版漏掉了 PDF 的图 1，所以它的图号比 PDF 小 1（HTML 的图 1 是 PDF 的图 2）；本页按 PDF 编号，“看原图”链接已对应到 HTML 里的正确位置。标成“读者注”的框是我核算或对照的内容，不属于论文，页尾有汇总。</p>
+<p><b>代码。</b>官方仓库 <a class="ds" href="https://github.com/GalaxyGeneralRobotics/LATENT">GalaxyGeneralRobotics/LATENT</a>。我读的是当时最新的提交 <a href="https://github.com/GalaxyGeneralRobotics/LATENT/tree/a931da5a70320ba3f07d38debcf71458a005530d">a931da5</a>（2026-04-30），只读，没有运行，也没有下载动作数据。<b>仓库根目录没有 LICENSE 文件</b>，GitHub 也识别不出许可，所以默认是保留所有权利；部分文件头带 DeepMind 的 Apache 2.0 声明（来自 MuJoCo Playground），G1 模型文件带宇树的 BSD 3-Clause 声明。我只在本页引用了少量配置数值，没有复制代码。仓库目前<b>只放出了第一阶段（动作跟踪器）</b>，蒸馏和高层策略都还在 README 的待办里，所以代码只能对照 §3.2.1 和一部分随机化。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sm">和 SuperMimic 的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-1">3.1 数据</a><a href="#s3-2">3.2 潜动作空间</a><a href="#s3-3">3.3 高层策略</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 仿真到真机</a><a href="#s5">5 实验</a><a href="#s5-1">5.1 对比</a><a href="#s5-2">5.2 消融</a><a href="#s5-3">5.3 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>网球要求人跑过半个场地、对 15 到 30 m/s 的来球做出反应、在几毫秒的触球时间里打准。这样的动作没法靠遥操作收集机器人数据，完整的人类比赛动捕也很难拿到。</p>
+<p>这篇论文换了个思路：<b>只采动作片段</b>。请 5 位业余球员在 3 m × 5 m 的动捕区里做正手、反手、侧滑步、交叉步之类的基本动作，共 5 小时，不剪辑不标注。这些数据有两处“不完美”：手腕动作不准（不精确），也没有“什么时候用哪个动作”的信息（不完整）。系统叫 <b>LATENT</b>，分三步：</p>
+<ol>
+<li><b>跟踪器。</b>用 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 训练一个动作跟踪器模仿这些片段。持拍的右手腕不受它控制，反而被随机扰动。</li>
+<li><b>可修正的潜动作空间。</b>用 <a class="ds" href="https://proceedings.mlr.press/v15/ross11a.html">DAgger</a> 在线蒸馏到一个带条件先验的变分编码器-解码器，得到连续的技能空间。</li>
+<li><b>高层策略。</b>再用 PPO 训练高层策略：一边在潜空间里选动作（被“潜动作屏障” LAB 限制在先验附近），一边直接给右手腕下修正指令。</li>
+</ol>
+<ul>
+<li><b>仿真：</b>回球成功率（落点离目标 2.5 m 内）正手 96.52%、反手 82.10%，PULSE 基线是 71.85% 和 63.38%，从零开始的 PPO 和 MotionVAE 不收敛。</li>
+<li><b>真机：</b><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a> 装上网球拍，和人对打。正手 90.90%、反手 77.78%（成功 = 回到对方场内）。</li>
+<li><b>训练：</b><a class="ds" href="https://github.com/google-deepmind/mujoco_playground">MuJoCo Playground</a>（MJX）上 8 张 GPU；策略 50 Hz，仿真 2000 Hz。</li>
+</ul>
+<p>读完我认为最值得记住的三点：(1) 两个设计都针对数据的缺陷——手腕交给高层直接控制，技能的组合交给 RL，但用先验的方差把 RL 圈住；(2) 消融里 LAB 主要改善的是动作质量（关节力矩低 46% 到 79%），成功率只差 1.6 到 5.1 个点；(3) 论文的数字有几处要小心读：仿真里的球场其实是按比例缩小的 13 m × 6 m（<a href="#n9">读者注 9</a>），表 3 的四列不可能来自同一批试验的两种划分（<a href="#n14">读者注 14</a>），真机每组只有 9 到 11 次（<a href="#n17">读者注 17</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="latent/fig1.webp" width="1479" height="904" alt="图 1：上图是室内网球场上多个时刻的 G1 机器人叠加，对面有三位人类球员；下图是六张机器人正手和反手击球的特写" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2603.12686v1#page=1">PDF 里看 ↗</a></span>(a) 一块四周架着动捕相机桁架的室内绿色场地。远端是人类球员（叠了三个身影），近端把不同时刻的机器人叠在一起：它在场地不同位置用正手和反手接球，橙色曲线是来球的轨迹。(b) 六张特写，机器人面对高速来球（论文说峰值超过 15 m/s）做出的击球姿势，有正手、反手和跨步。</figcaption>
+</figure>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 名字和出处</span><p><b>名字。</b>摘要里写的是 “a system that <b>L</b>earns <b>A</b>thletic humanoid <b>TE</b>nnis skills from imperfect human motio<b>N</b> da<b>T</b>a”，粗体字母拼成 LATENT。它同时暗指方法的核心是潜（latent）动作空间。SuperMimic 表 1 里的 “LATENT [10]” 就是这个名字，参考文献 [10] 的作者、标题和 arXiv 号都和本文一致。</p><p><b>会议。</b>arXiv 页面没有 Comments 和 Journal-ref，PDF 里没有会议名，项目主页也没写。“IROS 2026” 只来自 SuperMimic 的参考文献 [10]，我没有找到其他来源，所以标为未核实。顺带一提，项目主页源码里有一段被注释掉的 “Conference on Robot Learning 2024 / Spotlight WCBM Workshop” 字样，是网页模板的残留，页面上不显示，和本文无关。</p></div>
+
+<h2 id="sm">和 SuperMimic 的关系</h2>
+<p>我读了 <a href="supermimic.html">SuperMimic</a> 全文，它提到 LATENT 只有两处，都在“可复用的动作表示与下游控制”这一类：</p>
+<ul>
+<li><b>§2 正文：</b>“PULSE [8] 和 LATENT [10] 用学到的动作表示做下游强化学习。”这和本文 §3.3 一致：潜空间学好后冻结，高层策略按网球任务自己的奖励用 PPO 训练。</li>
+<li><b>表 1：</b>把 LATENT 概括为 模仿 PPO / 潜变量 DAgger / 下游 PPO / 任务信号 RL / 上真机 ✓，三格互不合并，按表注意思是“依次训练，后一阶段开始前冻结前一阶段”。</li>
+</ul>
+<p>除此之外 SuperMimic 没有用到 LATENT 的公式、网络、数据或评测。所以<b>从原文看，SuperMimic 没有从 LATENT 拿任何技术</b>，只是把它当成“分阶段训练、下游用任务奖励、能上真机”这一格的代表。两篇论文的问题也不同：LATENT 要解决的是数据不完美，SuperMimic 要解决的是跟踪训练的算力。</p>
+
+<div class="note wide" id="n2"><span class="lab">读者注 2 · SuperMimic 表 1 对 LATENT 的概括，逐格核对</span>
+<div class="tablewrap"><table class="t-chk"><thead><tr><th>表 1 的格</th><th>结果</th><th>本文依据</th></tr></thead><tbody>
+<tr><td>模仿：PPO</td><td class="ok">对得上</td><td>§3 “用 PPO 作强化学习框架”；跟踪器沿用 Any2Track。代码（a931da5）的 <code>train_tracking.py</code> 是 Brax 的 PPO</td></tr>
+<tr><td>潜变量：DAgger</td><td class="ok">对得上</td><td>§3.2.2 式 (2) 明说是 DAgger [25] 的监督损失，学生自己滚出数据、老师标动作</td></tr>
+<tr><td>下游：PPO</td><td class="ok">对得上</td><td>§3 说整套用 PPO；§3.3 高层策略用 RL 训练。论文没有逐阶段单独写“PPO”，这是从 §3 的总述推出来的</td></tr>
+<tr><td>任务信号：RL</td><td class="ok">对得上</td><td>高层的奖励是表 1 的网球任务项（接近球、击中、落点、过网等），不是跟踪参考动作</td></tr>
+<tr><td>真机 ✓</td><td class="ok">对得上</td><td>§4.3、§5.3、表 5：Unitree G1 与人对打</td></tr>
+<tr><td>三格不合并（依次训练、冻结前一阶段）</td><td class="ok">基本对得上</td><td>图 2(c) 把先验和解码器标为 Frozen，高层是唯一可学的部分。跟踪器在蒸馏时作老师，论文没写“冻结”二字，但 DAgger 的老师按定义是固定的</td></tr>
+<tr><td>表 1 没体现的</td><td class="un">补充</td><td>高层的动作是混合的：潜动作 \(a^{\rm latent}\) 之外还直接输出右手腕的关节指令 \(a^{\rm correct}\)，绕过潜空间（§3.3.2）。表 1 的“下游”一栏看不出这一点，但它对结果影响最大（表 4 去掉后正手成功率掉 14 个点）</td></tr>
+</tbody></table></div>
+<p>结论：表 1 的这一行是准确的。另外，SuperMimic 正文里 “PULSE 和 LATENT 用学到的动作表示做下游强化学习” 这句话也准确。代码目前只放出了第一阶段，后两格只能对照论文，不能对照代码。</p></div>
+
+<p>下表是我从两篇论文各自读出来的对比，不是 SuperMimic 作者的说法。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>LATENT</th><th><a href="supermimic.html">SuperMimic</a></th></tr></thead><tbody>
+<tr><td>目标</td><td>一个具体任务：网球回球</td><td>通用的全身动作跟踪器，再接下游接口</td></tr>
+<tr><td>数据</td><td>自采 5 小时网球动作片段（只公开了很小一部分）</td><td>BONES-SEED 264.56 小时</td></tr>
+<tr><td>跟踪器怎样训</td><td>PPO，仿真里 rollout</td><td>穿过学到的世界模型做 BPTT</td></tr>
+<tr><td>潜空间</td><td>DAgger 蒸馏，条件先验的变分瓶颈</td><td>多编码器共享 32 维 tanh 潜变量，和跟踪器联合训练</td></tr>
+<tr><td>下游</td><td>PPO + 任务奖励，潜动作被 LAB 限制，另加手腕直控</td><td>蒸馏，或在世界模型里按接口奖励训练</td></tr>
+<tr><td>仿真器</td><td>MuJoCo（MJX），8 张 GPU</td><td>MuJoCo Warp，1 张 H100</td></tr>
+<tr><td>真机</td><td>G1 + 球拍，靠动捕拿全局状态和球的位置</td><td>G1，本体观测</td></tr>
+</tbody></table></div>
+<p>两者在结构上都属于“先学跟踪、再学可复用的表示、再接下游”这一家族，其他相关页：<a href="phc.html">PHC</a>（PULSE 的前身跟踪器）、<a href="sonic.html">SONIC</a>、<a href="deepmimic.html">DeepMimic</a>、<a href="controlvae.html">ControlVAE</a>、<a href="moconvq.html">MoConVQ</a>。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>运动项目要求动作快、反应快、精度高。以网球为例：冲刺速度超过 6 m/s，来球 15 到 30 m/s，球拍触球只有几毫秒。人通过遥操作根本做不出这样的机器人示范，所以没法直接做模仿学习。</p>
+<p><b>用人体动作当参考也难。</b>网球的动作覆盖半个场地、要连续多拍、触球时手腕动作又细又准，从真实比赛里动捕完整而精确的人-球动作极难。<a class="ds" href="https://research.nvidia.com/labs/toronto-ai/vid2player3d/">Vid2Player3D</a> 改用转播视频，但要一整条流水线：检测球员、估相机、2D 和 3D 姿态估计，最后模仿时还要在根部加外力修正伪影，工程量很大。</p>
+<p><b>LATENT 的做法。</b>只采基本技能的动作片段（正手、反手、侧滑步、交叉步等），不采完整比赛。“不完美”指两点：❶ <b>不精确</b>，动捕难度加上人和机器人身体结构的差异，挥拍时的手腕动作不准；❷ <b>不完整</b>，片段只告诉你自然的动作长什么样，不告诉你怎样用它们回球。作者的判断是：这种“准真实”的数据仍然提供了足够的技能先验，加以修正和组合就能学会网球，同时保持像人的动作。</p>
+<p><b>两个设计</b>，都建立在“潜动作空间 + 高层策略”的分层框架上：</p>
+<ul>
+<li>为弥合网球需要的高精度和数据的不精确，把潜空间设计成能接受高层策略的动作修正（手腕）。</li>
+<li>数据里没有“怎么用”的知识，高层策略学任务时很容易钻潜空间的空子。为在任务表现和贴近技能先验之间取得平衡，设计<b>潜动作屏障</b>，按状态相关的动作先验分布限制高层的 RL 探索。</li>
+</ul>
+<p>再加上对机器人和球都做动力学随机化和观测噪声，部署到 Unitree G1，能和人稳定地多拍对打。</p>
+<p><b>四项贡献：</b>提出 LATENT 系统；提出构造和使用潜动作空间的两个新设计；真机部署并能和人多拍对打；在仿真和真机上做了大量实验验证主要设计。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>人形控制的潜动作空间</h3>
+<p>人形自由度高，从零学技能样本效率低、动作也不自然。常见办法是先从人体动作数据学一个编码可复用技能的潜动作空间，再训练高层策略在里面采样。路线有两条：一类（Vid2Player3D、InsActor）学<b>运动学</b>动作的潜空间，再交给预训练的跟踪器执行，问题是生成的运动学动作经常物理上不可行，跟踪器吃不消；另一类直接学<b>关节动作</b>的潜空间，包括 <a href="controlvae.html">ControlVAE</a>、<a href="moconvq.html">MoConVQ</a>、CALM、ASE 等。<a class="ds" href="https://arxiv.org/abs/2310.04582">PULSE</a> 从通用跟踪器蒸馏出 VAE 式的潜动作空间；R²S²（作者组的前作）把这个思路搬到真机，从一组预训练的基本技能学潜空间，做移动操作。本文的区别是数据只含不精确、不完整的基本技能，需要修正和组合。</p>
+<h3 id="s2-2"><span class="no">2.2</span>运动项目中的人形</h3>
+<p>在角色动画里，网球（Vid2Player3D）、篮球（SkillMimic 等）、足球（PhysicsFC）都有工作。最接近的是 Vid2Player3D：仿真角色能用多种击球把球打到目标点，但它依赖无限关节力矩、根部残差力等物理上不可行的假设，也没考虑仿真到真机的差距。真机方面，已有乒乓球、羽毛球、足球、拳击等工作，但作者认为它们往往缺少高动态动作、灵活的全身协调或快速反应。</p>
+
+<h2 id="s3"><span class="no">3</span>用 LATENT 学网球技能</h2>
+<p>总体分三段（图 2）：§3.1 用一个紧凑的动捕系统采不完美的人体动作数据；§3.2 用这些数据构造可修正的潜动作空间；§3.3 训练高层策略修正并组合潜空间里的技能来打网球。整套用 <a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a> 训练，用 <a class="ds" href="https://mujoco.org/">MuJoCo</a> 的 JAX 版本（MJX，<a class="ds" href="https://github.com/google-deepmind/mujoco_playground">MuJoCo Playground</a>）仿真，8 张 GPU 并行。高层规划器和低层控制器都是 50 Hz，仿真频率设为 2000 Hz，以便准确模拟球与球拍、球与地面的接触。</p>
+
+<figure class="pfig" id="fig2">
+<img src="latent/fig2.webp" width="1333" height="861" alt="图 2：四个面板。(a) 跟踪器预训练，(b) 在线蒸馏，(c) 高层策略学习，(d) 仿真到真机的随机化和观测噪声" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#S3.F1">看原图 ↗</a></span>(a) 当前状态 \(s_t\) 和下一帧目标 \(\tilde s_{t+1}\) 进入动作跟踪器，输出 \(\hat a^{\rm body}_t\)。(b) 后验编码器看 \(s_t,\tilde s_{t+1}\)，先验只看 \(s_t\)，二者的 \(z^q_t,z^p_t\) 之间有 KL；解码器给出 \(a^{\rm body}_t\)，和老师之间用 DAgger 连接。右边放大了机器人的右手腕，标出 roll、pitch、yaw 三个被扰动的关节。(c) 仿真画面旁，高层策略（标 Learnable）收到 \(g_t,b_t\)，输出 \(a^{\rm correct}_t\) 直接给手腕，输出 \(a^{\rm latent}_t\) 经过 LAB 和先验后进入解码器；先验和解码器标 Frozen。(d) 动力学随机化的图标（身体质量、脚摩擦、球拍质心、关节摩擦、身体质心、恢复系数、球拍质量、空气阻力）和观测噪声的方块（关节位置速度、球位置速度、根部位置速度、根部朝向、球拍位置）。</figcaption>
+</figure>
+
+<h3 id="s3-1"><span class="no">3.1</span>采集不完美的人体动作数据</h3>
+<p>从真实比赛采集完整的人-球动作又难又贵：场地大、要多拍、精度要求高。但只采网球里用到的基本技能就容易得多。作者请了 5 位业余球员，在光学动捕系统里做正手、反手、侧滑步、交叉步等动作。因为只采片段，动捕的要求低得多：有效区域只有 3 m × 5 m，论文说比标准网球场小 17 倍以上，场地和相机数都省了很多。</p>
+<p>总共采了 5 小时，不做任何剪辑或标注。采完后用 <a class="ds" href="https://github.com/robfiras/loco-mujoco">LocoMuJoCo</a> 把人体动作重定向到人形机器人。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · “小 17 倍以上”的算术，以及真机部署的场地</span><p>标准双打场 23.77 m × 10.97 m = 260.8 m²，除以 3 × 5 = 15 m² 得 17.4，和“17× 以上”一致；按单打场（8.23 m 宽）算只有 13.0 倍。所以作者是拿双打场比的。</p><p>不过省下的只是<b>采数据</b>的场地。代码 README 的“真机部署”一节写着：实验场地由第三方动捕服务商提供，50 多台 2048 × 2048、120 Hz 的相机，动捕区 19 m × 15 m（285 m²，是采集区的 19 倍），租了约 3 周，花费约 35 万元人民币。部署时机器人和球的全局状态都靠这套动捕（§4.3）。论文正文没有这些数字。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>构造可修正的潜动作空间</h3>
+<p>先训练一个跟踪器模仿采来的数据，再把它蒸馏成带变分信息瓶颈的潜变量模型。</p>
+<h4 id="s3-2-1">3.2.1 预训练动作跟踪器</h4>
+<p>为了把带噪的人形动作变成机器人能执行的基本技能，训练一个跟踪器，框架沿用 <a class="ds" href="https://arxiv.org/abs/2509.13833">Any2Track</a>（作者组的前作）。它是一个 RL 策略 \(\pi_{\rm tracker}(\hat a^{\rm body}_t\mid s_t,\tilde s_{t+1})\)：输入当前状态 \(s_t\)（角速度、投影重力、各关节位置和速度、上一帧动作）和数据里的下一帧目标 \(\tilde s_{t+1}\)，输出关节动作，交给 PD 控制器算出力矩。目标是 \(t+1\) 时刻的状态尽量接近 \(\tilde s_{t+1}\)，同时保持平衡和安全。</p>
+<p><b>手腕的处理。</b>数据里击球时的手腕动作本来就不准，重定向又放大了误差，所以后面要让高层策略修正手腕。为了让跟踪器在这种修正下仍然稳定，训练时<b>去掉 \(\hat a^{\rm body}_t\) 里右手腕（持拍手）的控制信号</b>，并对右手腕关节施加额外的随机扰动。跟踪器要在手腕被未知扰动的情况下模仿其余关节。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 跟踪器：论文和代码</span><p>代码（a931da5，<code>g1_env_tracking_tennis.py</code>）和论文能对上的：控制周期 <code>ctrl_dt = 0.02</code>（50 Hz）；策略观测是目标差（关节位置、速度之差）、投影重力、角速度、关节位置、速度、上一帧电机目标，和论文列的一致。</p><p>论文没写、代码里有的：</p><ul>
+<li><b>动作是残差。</b>电机目标 = 参考关节角 + 动作（<code>action_scale = 1.0</code>）。论文只说“输出关节动作交给 PD”。</li>
+<li><b>非对称演员-评论家。</b>评论家另有特权观测（各刚体的位置、旋转、速度差，脚接触等）。</li>
+<li><b>超参数。</b>32768 个并行环境，30 亿步，学习率 3e-4，折扣 0.97，GAE λ 0.95，裁剪 0.2，策略和价值网络都是 MLP (512, 512, 256, 256, 128)，最多用 8 个设备（和“8 张 GPU”一致）。</li>
+<li><b>仿真步长。</b>跟踪器环境的 <code>sim_dt = 0.002</code>，即 500 Hz，不是正文说的 2000 Hz。正文说 2000 Hz 是为了球的接触，而跟踪器环境里没有球（模型文件名就是 <code>racket_wo_ball</code>），所以这不一定矛盾，只说明 2000 Hz 指的是有球的高层训练。</li>
+</ul><p>README 说跟踪器基于 <a href="https://github.com/GalaxyGeneralRobotics/OpenTrack">OpenTrack</a>，那是 Any2Track 的开源实现。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 手腕扰动在代码里长什么样</span><p>论文只说“随机扰动”。代码里被排除的是右手腕 roll、pitch、yaw 三个关节：它们从策略的动作里去掉（29 维变成 26 维），对应的三个连杆也从跟踪奖励里去掉。每隔 0.5 到 2.0 秒，给这三个关节重新抽一个 PD 目标，<b>在整个关节行程内均匀采样</b>。也就是说扰动不是小噪声，而是让手腕在全行程里乱摆，比高层将来可能给的修正大得多。</p><p>常量文件里这几行的注释写着“这些关节将直接跟踪参考动作”，但环境代码在 <code>enable_random_targets = True</code>（默认）时会用随机目标覆盖它们。注释和默认行为不一致，我按代码读。</p></div>
+
+<h4 id="s3-2-2">3.2.2 带变分瓶颈的在线蒸馏</h4>
+<p>学会模仿以后，跟踪器已经包含打网球需要的基本技能。为了得到紧凑、有结构的技能表示，用在线蒸馏训练一个带潜变量的学生网络（做法同 PULSE、R²S² 和作者的另一篇 [17]）。学生是编码器-解码器结构，带条件变分信息瓶颈，把技能编码进连续空间：</p>
+<ul>
+<li>后验编码器 \(\mathcal E(z^q_t\mid s_t,\tilde s_{t+1})=\mathcal N(z^q_t;\mu^e(s_t,\tilde s_{t+1}),\sigma^e(s_t,\tilde s_{t+1}))\)，看状态和目标；</li>
+<li>解码器 \(\mathcal D(\hat a^{\rm body}_t\mid s_t,z^q_t)\)，把潜码和状态变成动作。</li>
+</ul>
+<p>训练时编码 \((s_t,\tilde s_{t+1})\)，采样 \(z^q_t\sim\mathcal N(\mu^e,\sigma^e)\)，解码得到 \(a^{\rm body}_t\)，去重建老师（跟踪器）的动作 \(\hat a^{\rm body}_t\)，同时让潜分布靠近先验。总损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\lambda_1\mathcal L_{\rm action}+\lambda_2\mathcal L_{\rm KL} \]</div><span class="no">(1)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm action}=\mathbb E_{(s_t,\hat a^{\rm body}_t)\sim\mathcal D_{\rm agg}}\Bigl[\bigl\lVert\hat a^{\rm body}_t-a^{\rm body}_t\bigr\rVert^2\Bigr] \]</div><span class="no">(2)</span></div>
+<p>式 (2) 是 DAgger 的监督损失。\(\mathcal D_{\rm agg}\) 是缓存，存的是学生自己滚出来的状态和老师在这些状态上给的动作。前面说过，\(\hat a^{\rm body}_t\) 和 \(a^{\rm body}_t\) 都不含右手腕；蒸馏时继续扰动右手腕，让潜空间也对这种扰动鲁棒。</p>
+<p><b>可学习的条件先验。</b>VAE 常用固定的单峰高斯先验，这里换成可学习的 \(\mathcal P(z^p_t\mid s_t)=\mathcal N(z^p_t;\mu^p(s_t),\sigma^p(s_t))\)，因为不同状态下的动作分布差别很大（比如侧滑步和挥拍击球）。KL 损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm KL}=D_{\rm KL}\bigl(\mathcal E(z^q_t\mid s_t,\tilde s_{t+1})\,\Vert\,\mathcal P(z^p_t\mid s_t)\bigr) \]</div><span class="no">(3)</span></div>
+<p>它促使编码出的后验靠近这个可学习的先验。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 (1)–(3) 没给的东西</span><p>论文没给 \(\lambda_1,\lambda_2\)、潜变量维数、编码器/解码器/先验的网络结构、DAgger 的老师混合比例或缓存大小。代码里这一阶段还没放出（README 待办“Release DAgger online distillation codebase”），所以也查不到。</p><p>两个对角高斯之间的 KL 有闭式解，每一维是 \(\log\frac{\sigma^p}{\sigma^e}+\frac{(\sigma^e)^2+(\mu^e-\mu^p)^2}{2(\sigma^p)^2}-\frac12\)，再对维度求和。它的含义是：先验在某一维的 \(\sigma^p\) 大，后验在这一维就可以离先验均值远一些而不受多少罚。§3.3.3 的 LAB 正是利用这个 \(\sigma^p\) 来决定高层能走多远。第 5 幕可以拖动看这个式子怎样变化。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>高层策略学习</h3>
+<p>训练高层策略 \(\pi_{\rm planner}\)，修正并组合预先构造好的潜空间里的技能，打出网球。每一步它的输入是机器人当前状态 \(s_t\)、机器人根部位姿的全局信息 \(g_t\) 和球的状态 \(b_t\)。</p>
+
+<p class="tcap" id="t1">表 1 · LATENT 用的奖励项（照录原文。分三类：任务、正则、终止）</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th>项</th><th>权重</th><th>项</th><th>权重</th></tr></thead><tbody>
+<tr><td colspan="4"><b>任务</b></td></tr>
+<tr><td>接近球 Approach to ball</td><td>10.0</td><td>落点 Ball landing</td><td>30.0</td></tr>
+<tr><td>击中 Hit success</td><td>200.0</td><td></td><td></td></tr>
+<tr><td colspan="4"><b>正则</b></td></tr>
+<tr><td>高层动作 High-level action</td><td>−5·10⁻³</td><td>力矩 Torque penalty</td><td>−2·10⁻⁵</td></tr>
+<tr><td>下肢动作变化率</td><td>−1.0</td><td>全身动作变化率</td><td>−0.5</td></tr>
+<tr><td>球拍加速度</td><td>−1·10⁻⁶</td><td>关节平滑 Joint smoothness</td><td>−2·10⁻⁶</td></tr>
+<tr><td>修正动作 Correction action</td><td>−5.0</td><td>修正动作变化率</td><td>−1.0</td></tr>
+<tr><td>手腕力矩</td><td>−4·10⁻⁵</td><td>手腕关节平滑</td><td>−4·10⁻⁶</td></tr>
+<tr><td>关节位置限位</td><td>−10.0</td><td>关节速度限位</td><td>−5.0</td></tr>
+<tr><td>自碰撞</td><td>−10.0</td><td>过网高度 Net clearance</td><td>100.0</td></tr>
+<tr><td>球速约束</td><td>50.0</td><td>拍速约束</td><td>50.0</td></tr>
+<tr><td>骨盆朝前</td><td>1.0</td><td></td><td></td></tr>
+<tr><td colspan="4"><b>终止</b></td></tr>
+<tr><td>摔倒 Fall</td><td>−200.0</td><td>漏球 Miss ball</td><td>−200.0</td></tr>
+<tr><td>球触网</td><td>−50.0</td><td>出界</td><td>−50.0</td></tr>
+<tr><td>击球姿势违规 Stroke style violation</td><td>−50.0</td><td></td><td></td></tr>
+</tbody></table></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 1 的项没有定义；正则项和跟踪器配置高度重合</span><p>论文只给了名字和权重，没有一个奖励项的公式。“球速约束”“拍速约束”“过网高度”是正的 50 和 100，从名字看像是满足约束时的奖励；“击球姿势违规”怎样判定也没写。</p><p>拿跟踪器代码的奖励配置对照：力矩 −0.00002、全身动作变化率 −0.5、关节位置限位 −10、关节速度限位 −5、自碰撞 −10、终止 −200，<b>六项和表 1 完全相同</b>；关节平滑在代码里是 −1e-6，表 1 是 −2·10⁻⁶。所以表 1 的正则部分很可能是从跟踪器沿用的。高层的代码没放出，我无法核对高层实际用的值。另外代码把加权和乘以 dt = 0.02 再作为每步奖励，论文没提这个缩放。</p></div>
+
+<h4 id="s3-3-1">3.3.1 任务设定</h4>
+<p>每个回合开始时，机器人以准备姿势随机放在球场上。一个回合里要连续把 8 个球打回目标位置，每个球的初始位置和速度不同，每 2 秒发一个。球的轨迹见图 3，奖励见表 1。</p>
+<figure class="pfig" id="fig3">
+<img src="latent/fig3.webp" width="1392" height="519" alt="图 3：左边是很多条彩色的三维抛物线球轨迹，右边是俯视图，叉号是落点、菱形是发球点" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#S3.F2">看原图 ↗</a></span>(a) 三维轨迹：几十条彩色抛物线从右侧（x 约 5 到 7 m）飞过中间的黑色球网，落在左半场，最高约 4 m。(b) 俯视图：绿色是场地边界，菱形是发球点（都在右侧底线附近或外面），叉号是落点（左半场 x 约 −5.3 到 −2 m），细线连起每一对。这张图在 PDF 里是矢量，所以可以精确读坐标，见读者注 9。</figcaption>
+</figure>
+<div class="note" id="n8"><span class="lab">读者注 8 · 一个回合有多长</span><p>8 个球、每 2 秒一个，所以一个回合至少 16 秒，在 50 Hz 下是 800 个控制步。仿真 2000 Hz，每个控制步 40 个物理子步，一个回合 32,000 个物理步。论文没给回合长度、并行环境数和训练时长，这些只是由给出的频率推出的下限。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 仿真里的球场是按比例缩小的</span><p>我用 <code>pdftocairo -svg</code> 导出第 5 页，图 3(b) 的场地线和刻度都是矢量路径。用刻度标定（x 方向每米 43.37 单位，y 方向每米 43.36 单位，网在 x = 0）得到：</p><ul>
+<li>场地外框 x ∈ [−6.50, 6.50] m，y ∈ [−3.00, 3.00] m，即 <b>13 m × 6 m</b>；</li>
+<li>里面两条纵线在 y = ±2.25 m，发球线在 x = ±3.50 m。</li></ul>
+<p>标准场（ITF）是长 23.77 m、双打宽 10.97 m、单打宽 8.23 m、发球线离网 6.40 m。四个比值是 0.547、0.547、0.547、0.547，完全一致。也就是说仿真用的是一块<b>约 0.55 倍等比缩小</b>的网球场，面积只有标准场的 30%。图 5 的热力图用的是同一块场地。论文正文没有说明场地尺寸。</p>
+<p>这影响怎样读结果：成功判据“落点离目标 2.5 m 以内”是在 6 m 宽的场上算的；机器人要覆盖的半场只有 6.5 m × 6 m。真机场地的尺寸论文也没写；README 说动捕区 19 m × 15 m，装不下 23.77 m 长的标准场，所以真机场地大概也是缩小的，这一点是我的推断，未核实。</p></div>
+
+<h4 id="s3-3-2">3.3.2 动作修正</h4>
+<p>挥拍时人手腕的细微动作极难捕捉，人和人形的身体差异又放大了误差，所以重定向后的手腕动作很不准，不能直接用。为此采用和 Vid2Player3D 相同的混合控制：高层策略同时输出 \(a^{\rm planner}_t=[a^{\rm latent}_t,a^{\rm correct}_t]\)，前者是潜动作，后者是对右手腕的直接控制指令。因为潜空间在构造时就对右手腕的修正鲁棒，高层可以任意调整手腕，而不影响下肢的稳定和敏捷。</p>
+
+<h4 id="s3-3-3">3.3.3 潜动作屏障</h4>
+<p>学到的潜空间是一个紧凑、连续的技能流形，由预先采集的人体动作刻画。目标是让高层修正并组合这些技能完成回球，同时保持动作自然。难点在于：数据只给了自然动作的先验，没给怎样用它们回球，高层必须通过 RL 自己摸索。如果不加约束，高层很容易在潜空间里钻空子，采样次优的动作并拼成不自然、抖动的序列。比如跑向来球时在不同的移动技能之间来回切换，动作质量很差但任务照样完成。</p>
+<figure class="pfig" id="fig4">
+<img src="latent/fig4.webp" width="1355" height="497" alt="图 4：四个圆形示意图，分别标 Hacking、Out-of-Distribution、Mode Collapse、Fit，对应 PPO、残差先验、AMP 和 LAB" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 5 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#S3.F3">看原图 ↗</a></span>每个圆是潜空间（深灰外圈），绿色的云是技能流形，蓝线是探索区域，黄线是收敛区域。(a) PPO：探索区域覆盖整个圆，收敛到流形外的一小块（钻空子）。(b) 残差先验：探索区域仍然很大，收敛区域跑到流形边缘（分布外）。(c) AMP：探索区域贴着流形，但收敛到一小片（模式坍缩）。(d) LAB：探索和收敛区域都贴合流形（Fit）。这是示意图，不是实验数据。</figcaption>
+</figure>
+<p><b>做法。</b>限制高层的探索空间。可学习的条件先验 \(\mathcal P\) 刻画了状态相关的动作分布，是一个好起点：可以像 PULSE、R²S² 那样，把 \(a^{\rm latent}_t\) 当作相对先验均值 \(\mu^p_t\) 的残差。但技能流形不只由先验均值决定，也由方差决定。残差不受约束时，高层仍可能采到离 \(\mu^p_t\) 很远的潜动作，解码出次优的动作。所以把残差限制在 \(\mu^p_t\) 周围的一个“屏障”里。作者观察到先验的标准差 \(\sigma^p_t\) 在不同状态、不同维度之间差别很大，所以屏障按马氏距离而不是欧氏距离设计，即范围随状态相关的标准差自适应缩放。最终的 PD 目标动作：</p>
+<div class="eq"><div class="m">\[ a^{\rm full}_t=\bigl[\mathcal D\bigl(s_t,\ \mu^p_t+\lambda\sigma^p_t\cdot\tanh(a^{\rm latent}_t)\bigr),\ a^{\rm correct}_t\bigr] \]</div><span class="no">(4)</span></div>
+<p>超参数 \(\lambda\) 控制探索范围。图 4 是这个设计的直观动机。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 式 (4) 画出来是一个盒子，不是椭球</span><p>tanh 是逐维作用的，所以 \(|z_i-\mu^p_i|/\sigma^p_i\le\lambda\) 对每一维单独成立。在按 \(\sigma^p\) 缩放后的坐标里，可达区域是一个边长 \(2\lambda\) 的<b>超立方体</b>，不是马氏距离 \(\le\lambda\) 的椭球。它的马氏距离上界是 \(\lambda\sqrt d\)（\(d\) 是潜维数），盒子的角落比 \(\lambda\) 远得多。论文说“基于马氏距离”，准确的说法应该是“每一维按先验标准差缩放”。效果上二者都让屏障随 \(\sigma^p\) 自适应，这正是作者想要的；但 \(\lambda\) 和 \(d\) 都没给，所以无法知道角落离均值多远。第 8 幕可以切换三种约束看区别。</p><p>另一个细节：高层输出的是 \(a^{\rm latent}\) 经 tanh 压缩，PPO 的高斯探索噪声加在 tanh 之前，所以 \(|a|\) 大时梯度接近 0。表 1 的“高层动作 −5·10⁻³”项可能就是为了防止它饱和，这是我的推测。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、场地和数据的尺寸、跟踪器和手腕扰动、DAgger 蒸馏（玩具，当场算）、条件先验和 KL（当场算）、高层任务和来球（带阻力的球当场积分）、手腕修正、<b>潜动作屏障（第 8 幕）</b>、球速估计的滑窗（当场算）、真机部署、结果表。可以暂停、拖进度、旋转画面、切换开关。</p>
+<iframe src="../interactives/latent/index.html?embed=1&amp;scene=8" title="LATENT 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/latent/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>仿真到真机</h2>
+<p>人形动作高动态、球速快、人-球交互要求高精度，迁移到真机并不容易。§4.1 介绍动力学随机化，§4.2 介绍观测噪声，§4.3 介绍真机部署。</p>
+<h3 id="s4-1"><span class="no">4.1</span>动力学随机化</h3>
+<p>对人形和网球都做随机化（表 2）。机器人方面随机化摩擦、电机转子惯量（armature）、质量和质心。网球方面，主要难点是球与地面、球与球拍的接触，以及空气动力学，它们会明显改变轨迹，是仿真到真机差距的主要来源。已有工作通常依赖精确的系统辨识和对复杂气动效应的显式建模；作者发现足够的随机化就能有效迁移，并大大提高系统鲁棒性。网球随机化质量、球-地恢复系数、切向阻尼和空气阻力系数 \(k\)，空气阻力建模为 \(f_{\rm air}=-k\,m\,\boldsymbol v\lVert\boldsymbol v\rVert\)。</p>
+<p class="tcap" id="t2">表 2 · LATENT 的动力学随机化（照录原文。U 是均匀分布，× 表示乘在标称值上）</p>
+<div class="tablewrap"><table class="t-dr"><thead><tr><th>项</th><th>取值</th></tr></thead><tbody>
+<tr><td colspan="2"><b>机器人</b></td></tr>
+<tr><td>脚摩擦</td><td>U(1.0, 2.5)</td></tr>
+<tr><td>关节摩擦</td><td>×U(0.75, 1.25)</td></tr>
+<tr><td>Armature</td><td>×U(1.0, 1.05)</td></tr>
+<tr><td>身体质量</td><td>×U(0.75, 1.25)</td></tr>
+<tr><td>身体质心</td><td>U(−0.05, 0.05)</td></tr>
+<tr><td>球拍质心</td><td>U(−0.1, 0.1)</td></tr>
+<tr><td>球拍质量</td><td>×U(0.8, 1.2)</td></tr>
+<tr><td colspan="2"><b>网球</b></td></tr>
+<tr><td>球质量</td><td>×U(0.95, 1.05)</td></tr>
+<tr><td>球-地恢复系数</td><td>U(0.71, 0.79)</td></tr>
+<tr><td>球-地切向阻尼</td><td>U(0.4, 0.7)</td></tr>
+<tr><td>空气阻力系数</td><td>U(0.01, 0.04)</td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 球的两个参数和真实网球比</span><p><b>空气阻力。</b>按 \(f=-k m v\lVert v\rVert\)，\(k=\tfrac12\rho C_dA/m\)，单位是 1/m。取空气密度 1.2 kg/m³、阻力系数约 0.55、直径 6.7 cm、质量 57.7 g（ITF 标准球的中值，这些数是我取的，不在论文里），得到 \(k\approx0.020\) 1/m，落在 U(0.01, 0.04) 里面，大约在区间的三分之一处。对应的减速度：15 m/s 时 \(0.020\times15^2\approx4.5\) m/s²，30 m/s 时约 18 m/s²，后者接近 2 g，所以阻力不能忽略。</p><p><b>恢复系数。</b>ITF 规定球从 254 cm 落下反弹到 135 到 147 cm，恢复系数 \(e=\sqrt{h_2/h_1}\) 是 0.729 到 0.761，也落在 U(0.71, 0.79) 内。这说明表 2 的网球范围是围绕真实值取的。“切向阻尼 U(0.4, 0.7)”在 MuJoCo 里具体对应哪个参数，论文没说，我没法核对。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 跟踪器代码里的随机化和表 2 不同</span><p>代码 <code>domain_randomize_tracking.py</code>（跟踪器阶段用）：</p><ul>
+<li>脚摩擦 U(0.4, 1.5)，表 2 是 U(1.0, 2.5)；</li>
+<li>质心只扰动躯干，±0.15 m（行内注释写 ±0.05），表 2 是 U(−0.05, 0.05)；</li>
+<li>所有连杆质量 ×U(0.75, 1.25)，和表 2 一致（注释写的是 0.9 到 1.1）；</li>
+<li>关节摩擦 ×U(0.75, 1.25)、armature ×U(1.0, 1.05)，和表 2 一致；</li>
+<li>表 2 没有、代码有的：躯干加减 1 kg、默认关节角 ±0.05 rad、PD 增益 Kp 和 Kd 各 ×U(0.75, 1.25)。</li></ul>
+<p>表 2 很可能描述的是高层训练阶段（它有球拍和球），所以和跟踪器阶段不同不算矛盾。但论文没说表 2 用在哪个阶段，高层的代码也没放出，这一点未核实。代码里三处注释和数值不一致，读代码时以数值为准。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>观测噪声</h3>
+<p>为缓解真实世界状态估计不准和系统延迟，在仿真里给策略观测加均匀噪声、按帧丢失和延迟。网球速度快，球的状态估计尤其关键。先得到球的位置，再用有限差分算速度。作者发现位置里哪怕一点噪声也会严重拉低速度估计的精度，所以在仿真和真机上都维持一个<b>四帧滑动窗口</b>，用窗口内的平均速度作为球的观测。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 四帧平均速度等于三步差分</span><p>如果窗口是 4 个位置 \(p_{t-3},\dots,p_t\)，3 个相邻差分的平均 \(\frac13\sum_{i=0}^{2}\frac{p_{t-i}-p_{t-i-1}}{\Delta t}\) 会逐项抵消，正好等于 \((p_t-p_{t-3})/(3\Delta t)\)。所以“平均速度”和“隔 3 帧的差分”是一回事。如果窗口是 4 个速度（5 个位置），就是隔 4 帧的差分。</p><p>代价和收益：位置噪声标准差为 \(\sigma\) 时，单步差分的速度噪声是 \(\sqrt2\sigma/\Delta t\)，三步差分降到三分之一。在 50 Hz、\(\sigma=5\) mm（我假设的值，论文没给噪声幅度）时，从 0.35 m/s 降到 0.12 m/s。代价是延迟：平均速度对应窗口中点，晚了 1.5 帧 = 30 ms。竖直方向在这 30 ms 里重力会改变速度 \(9.81\times0.03\approx0.29\) m/s。仿真和真机用同样的窗口，策略可以学着补偿。第 9 幕可以当场比较。</p></div>
+<h3 id="s4-3"><span class="no">4.3</span>真机部署</h3>
+<p>用 3D 打印的连接件把球拍装在机器人右手腕上，替换右手。机器人和球的全局状态用光学动捕获取：在机器人基座上贴多个反光标记，作为刚体估计 6D 位姿；网球包上反光胶带，作为被动标记。</p>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>实验在 MuJoCo 仿真和真机上进行，全部使用 29 自由度的 Unitree G1。要回答三个问题：Q1 和现有方法比怎样；Q2 每个部件贡献多少；Q3 真机表现如何。</p>
+<h3 id="s5-1"><span class="no">5.1</span>性能对比</h3>
+<p><b>设定。</b>评测仿真里的回球任务，按 §3.3 的方式随机初始化球和机器人。分别统计不同击球方式（正手、反手）和不同场区（前场、后场）的表现，共 10,000 次试验取平均。</p>
+<p><b>指标。</b>任务表现两项：成功率 SR，把来球回到目标 2.5 m 以内的比例；距离误差 DE，回球实际落点到目标的平均距离。动作质量两项：平滑度 Smth，各关节平均加速度，衡量自然和稳定；力矩 Torque，各关节平均力矩，衡量物理可行和硬件安全。</p>
+<p><b>基线。</b></p>
+<ul>
+<li><b>PPO：</b>不用任何人体动作先验，直接用 PPO 训练回球。</li>
+<li><b>MotionVAE：</b>Vid2Player3D 里的框架，训练运动学动作 VAE，高层在运动学潜空间里采样，解码成运动学动作，再交给独立的跟踪器。</li>
+<li><b><a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a>：</b>用对抗训练引入人体动作先验的 RL 框架。</li>
+<li><b><a class="ds" href="https://arxiv.org/abs/2205.01906">ASE</a>：</b>学对抗训练的可复用技能嵌入，用于高层任务。</li>
+<li><b>PULSE：</b>从预训练跟踪器在线蒸馏出 VAE 式的动作表示。和本文的关键区别是：严格按原论文的方式构造和采样潜空间，不做手腕修正。</li>
+</ul>
+<p class="tcap" id="t3">表 3 · 和基线方法的对比（照录原文。SR 单位 %，DE 单位 m；Smth 和 Torque 论文没给单位。N/A 表示不收敛）</p>
+<div class="tablewrap"><table class="t-r3"><thead>
+<tr><th rowspan="2">方法</th><th colspan="4">正手 Forehand</th><th colspan="4">反手 Backhand</th><th colspan="4">前场 Forecourt</th><th colspan="4">后场 Backcourt</th></tr>
+<tr><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th></tr></thead><tbody>
+<tr><td>PPO</td><td colspan="16">N/A（全部 16 格）</td></tr>
+<tr><td>MotionVAE</td><td colspan="16">N/A（全部 16 格）</td></tr>
+<tr><td>AMP</td><td>41.32</td><td>4.71</td><td>46.52</td><td>13.79</td><td>36.81</td><td>5.22</td><td>37.68</td><td>15.74</td><td>49.48</td><td>4.20</td><td>36.16</td><td>18.26</td><td>41.73</td><td>4.85</td><td>41.77</td><td>19.20</td></tr>
+<tr><td>ASE</td><td>63.47</td><td>3.62</td><td>38.91</td><td>11.84</td><td>55.22</td><td>4.01</td><td>31.75</td><td>12.92</td><td>71.36</td><td>3.28</td><td>30.84</td><td>14.05</td><td>68.59</td><td>3.90</td><td>35.12</td><td>15.27</td></tr>
+<tr><td>PULSE</td><td>71.85</td><td>3.01</td><td>32.44</td><td>9.76</td><td>63.38</td><td>3.15</td><td>29.60</td><td>10.83</td><td>74.52</td><td>2.97</td><td>28.11</td><td>12.01</td><td>72.94</td><td>3.02</td><td>31.27</td><td>13.44</td></tr>
+<tr><td>Ours</td><td class="b">96.52</td><td class="b">1.32</td><td class="b">25.61</td><td class="b">7.40</td><td class="b">82.10</td><td class="b">1.89</td><td class="b">27.76</td><td class="b">7.71</td><td class="b">86.35</td><td class="b">1.73</td><td class="b">25.51</td><td class="b">7.47</td><td class="b">89.80</td><td class="b">1.55</td><td class="b">27.20</td><td class="b">7.60</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>LATENT 在任务表现和动作质量上都超过基线。原版 PPO 没有动作先验，几乎学不会网球。MotionVAE 的生成器和跟踪器解耦，对两者都要求很高：生成的动作质量差，跟踪就难；跟踪差又让自回归生成的运动学动作更差，误差累积，机器人很快失衡摔倒。Vid2Player3D 靠残差力和不现实的物理假设缓解了这个问题，但要上真机就不能用这些假设。AMP 和 ASE 这类对抗方法难以兼顾完成任务和贴近动作先验。PULSE 构造和使用潜空间的方式导致采样的动作质量偏低，而且没有手腕修正，任务表现更差。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 3 的四列不可能是同一批试验的两种划分</span><p>论文说“按击球方式和场区分别统计，共 10,000 次试验”。如果正手/反手和前场/后场是<b>同一批</b>试验的两种分类，那么总成功率必须同时是正反手的加权平均和前后场的加权平均，也就是同时落在两个区间里。</p><ul>
+<li>Ours：[82.10, 96.52] 和 [86.35, 89.80] 有交集，正手占比在 29% 到 53% 之间即可。两个消融行也都有交集。</li>
+<li>AMP：[36.81, 41.32] 和 [41.73, 49.48] <b>没有交集</b>（41.32 &lt; 41.73）。</li>
+<li>ASE：[55.22, 63.47] 和 [68.59, 71.36] 没有交集。</li>
+<li>PULSE：[63.38, 71.85] 和 [72.94, 74.52] 没有交集。</li></ul>
+<p>所以至少对三个基线，这四列不是同一批试验的两种划分。可能的解释是四列各是一组单独的试验条件（比如强制来球到正手侧、让球落在前场），或者每个方法的试验集不同，或者数字有问题。论文没定义“前场/后场”指来球落点、机器人位置还是回球落点，我判断不了是哪一种。10,000 次试验时成功率的标准误约 0.3 个点，这个矛盾不是噪声能解释的。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 3 的比较口径</span><ul>
+<li>PULSE 基线明确“不做手腕修正”，AMP 和 ASE 有没有手腕修正，论文没说。表 4 里只去掉手腕修正的“w/o Corr.”正手是 82.36%，已经比 PULSE 的 71.85% 高。所以 PULSE 的差距里有两个因素：潜空间的用法和手腕修正，表 3 没把它们分开。</li>
+<li>Smth 和 Torque 没给单位；Torque 是“每个关节的平均力矩”，是取绝对值的平均还是均方根也没写。</li>
+<li>DE 是对成功的回球算还是对所有回球算，论文没写。</li></ul></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>关键部件消融</h3>
+<p>设定和指标同 §5.1。两个消融：</p>
+<ul>
+<li><b>w/o Corr.（去掉修正）：</b>训练包括右手腕在内的全身跟踪器，蒸馏成所有关节的潜空间，高层不允许修正右手腕。</li>
+<li><b>w/o LAB（去掉潜动作屏障）：</b>去掉屏障，高层不受约束地输出残差潜动作。</li>
+</ul>
+<p class="tcap" id="t4">表 4 · 消融（照录原文，单位同表 3）</p>
+<div class="tablewrap"><table class="t-r3"><thead>
+<tr><th rowspan="2">方法</th><th colspan="4">正手</th><th colspan="4">反手</th><th colspan="4">前场</th><th colspan="4">后场</th></tr>
+<tr><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th><th>SR↑</th><th>DE↓</th><th>Smth↓</th><th>Torque↓</th></tr></thead><tbody>
+<tr><td>w/o Corr.</td><td>82.36</td><td>3.41</td><td>26.72</td><td>8.85</td><td>68.94</td><td>3.03</td><td>29.55</td><td>8.92</td><td>74.21</td><td>3.18</td><td>26.86</td><td>9.64</td><td>79.05</td><td>3.52</td><td>29.94</td><td>9.38</td></tr>
+<tr><td>w/o LAB</td><td>93.12</td><td>2.17</td><td>37.64</td><td>12.53</td><td>76.96</td><td>2.21</td><td>31.77</td><td>12.11</td><td>84.73</td><td>1.96</td><td>30.59</td><td>10.94</td><td>87.44</td><td>2.05</td><td>32.08</td><td>13.62</td></tr>
+<tr><td>Ours</td><td class="b">96.52</td><td class="b">1.32</td><td class="b">25.61</td><td class="b">7.40</td><td class="b">82.10</td><td class="b">1.89</td><td class="b">27.76</td><td class="b">7.71</td><td class="b">86.35</td><td class="b">1.73</td><td class="b">25.51</td><td class="b">7.47</td><td class="b">89.80</td><td class="b">1.55</td><td class="b">27.20</td><td class="b">7.60</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>两个设计都有贡献。没有手腕修正，成功率明显下降。没有潜动作屏障，高层会钻潜空间的空子、采次优动作，导致动作序列抖动，整体性能下降。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 两个消融各伤在哪里</span><p>表 4 的 Ours 行和表 3 完全相同。</p><p><b>去掉手腕修正</b>主要伤任务：成功率掉 14.16、13.16、12.14、10.75 个点，DE 变成 1.6 到 2.6 倍；动作质量只差一点（Torque 高 16% 到 29%）。</p><p><b>去掉 LAB</b> 主要伤动作质量：成功率只掉 3.40、5.14、1.62、2.36 个点，但 Smth 高 47%、14%、20%、18%，Torque 高 69%、57%、46%、79%。正文说“整体性能下降”，按数字看准确的说法是：LAB 主要换来的是平滑和低力矩，任务成功率的收益较小。这和图 4 的动机一致，也说明 w/o LAB 的成功率已经比所有基线高。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>真机评测</h3>
+<p><b>设定。</b>做 20 次连续的人-机对打，球的初始位置和速度随机。每个成功回过去的球，记录落点，归入前场或后场，并统计正反手的使用。</p>
+<p><b>指标。</b>仍用 SR 和 DE。由于仿真到真机的差距，真机的落点精度比较低，所以只要把球回到对方场内就算成功。</p>
+<p><b>基线。</b>人形本身的仿真到真机已有大量研究（Any2Track、H2O、OmniH2O），不是本文重点，所以基线主要验证对<b>球</b>做动力学随机化和观测噪声的作用：w/o DR 去掉所有施加在球上的动力学随机化；w/o ON 去掉所有施加在球上的观测噪声。</p>
+<p class="tcap" id="t5">表 5 · 真机表现（照录原文。DE 单位 m）</p>
+<div class="tablewrap"><table class="t-rw"><thead>
+<tr><th rowspan="2">方法</th><th colspan="2">正手</th><th colspan="2">反手</th><th colspan="2">前场</th><th colspan="2">后场</th></tr>
+<tr><th>SR↑</th><th>DE↓</th><th>SR↑</th><th>DE↓</th><th>SR↑</th><th>DE↓</th><th>SR↑</th><th>DE↓</th></tr></thead><tbody>
+<tr><td>w/o DR</td><td>16.67%</td><td>5.60</td><td>25.00%</td><td>4.57</td><td>28.57%</td><td>3.59</td><td>14.29%</td><td>6.23</td></tr>
+<tr><td>w/o ON</td><td>50.00%</td><td>3.28</td><td>0.00%</td><td>N/A</td><td>28.57%</td><td>3.69</td><td>37.50%</td><td>3.97</td></tr>
+<tr><td>Ours</td><td class="b">90.90%</td><td class="b">3.15</td><td class="b">77.78%</td><td class="b">3.89</td><td class="b">88.89%</td><td class="b">3.57</td><td class="b">81.82%</td><td class="b">3.80</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>LATENT 在真机上表现很好。充分随机化球的动力学和观测，不靠精确的系统辨识也能有效迁移。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 5 的百分比可以还原成次数</span><p>我枚举了 40 次以内所有分数，要求正手+反手的次数和成功数分别等于前场+后场的：</p><ul>
+<li><b>Ours：</b>正手 10/11（90.909%，原文写 90.90，是截断不是四舍五入）、反手 7/9、前场 8/9、后场 9/11。合计 <b>20 次，成功 17 次</b>（85%），和“20 次对打”一致。这是 40 次以内唯一的最小解。</li>
+<li><b>w/o DR：</b>最小解是正手 1/6、反手 2/8、前场 2/7、后场 1/7，合计 14 次、成功 3 次。</li>
+<li><b>w/o ON：</b>最小解是正手 5/10、反手 0/5、前场 2/7、后场 3/8，合计 15 次、成功 5 次。</li></ul>
+<p>所以每格只有 4 到 11 次。17/20 的 95% Wilson 区间约是 64% 到 95%，反手 7/9 约 45% 到 94%。三行的试验次数也不同（20、14、15，后两行是我的推算）。</p><p>另外两点：真机的成功判据（回到对方场内）比仿真（离目标 2.5 m 内）宽很多，两张表的 SR 不能比；真机 DE 是 3.15 到 3.89 m，按仿真的判据大多数回球都不算成功。“按落点归入前后场”只对成功回过去的球有意义，失败的球怎样归类，论文没说。</p></div>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>LATENT 从不完美的人体动作数据学会了人形网球技能，在真机上能和人稳定多拍对打。虽然只做了回球任务，作者认为这个框架可以推广到缺少完整高质量人体动作数据的其他任务，比如足球和跑酷。</p>
+<p><b>局限和方向。</b>第一，真机部署依赖动捕系统，引入主动视觉可以缓解。第二，任务是把随机来球打到目标点，和真正的双人比赛还有差距，要达到职业水平可能需要多智能体训练。</p>
+
+<h2 id="apA"><span class="no">A</span>附录 A：补充实验</h2>
+<h3 id="apA-1"><span class="no">A.1</span>机器人的场地覆盖</h3>
+<p>统计连续回球时骨盆位置的空间分布（图 5）：把 8、16、80、400 次连续回球的骨盆轨迹累积起来，看覆盖范围怎样随交互次数变化。密度低于 0.01% 的位置被滤掉。结果显示机器人始终覆盖场地的大片区域，回合之间的移动结构稳定，能在多拍中动态调整站位。</p>
+<figure class="pfig" id="fig5">
+<img src="latent/fig5.webp" width="1411" height="460" alt="图 5：四组场地俯视热力图，每组两张，分别累积 8、16、80、400 次回球的骨盆位置" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 11 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#A1.F4">看原图 ↗</a></span>四个子图 (a) 8、(b) 16、(c) 80、(d) 400 次回球，每个子图里有两张俯视热力图。绿色是场地（同图 3 的 13 m × 6 m），热区都在左半场。8 次时只有一两团，回球次数增加后覆盖到整个左半场，最热的地方在 x ≈ −4.5 m 附近。</figcaption>
+</figure>
+<div class="note" id="n18"><span class="lab">读者注 18 · 图 5 的两点</span><p>每个子图都有两张热力图，论文没说两张分别是什么（两个回合？两个随机种子？自对打里的两个机器人？）。四个子图的色标上限各不相同（大约 1.6、10、20、50），没有归一化，所以子图之间只能比形状，不能比颜色深浅。</p><p>最热的位置在 x ≈ −4.5 m，也就是缩小场地的发球线（−3.5 m）和底线（−6.5 m）之间。按 0.547 的比例换算，相当于标准场离网约 8.2 m 处。</p></div>
+<h3 id="apA-2"><span class="no">A.2</span>机器人自对打</h3>
+<p>在仿真里让同一个策略的两个实例站在两边互相回球。两台机器人能保持稳定对打，最多连续 25 拍。</p>
+<figure class="pfig" id="fig6">
+<img src="latent/fig6.webp" width="1338" height="417" alt="图 6：左边是两台机器人在仿真球场两端自对打的画面，右边是连续拍数分布的柱状图" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 11 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#A1.F5">看原图 ↗</a></span>(a) 仿真中两台机器人在场地两端对打，叠了一张透视图和一张俯视图。(b) 50 局随机比赛的连续拍数分布：横轴 0 到 25 拍，纵轴是概率，2 拍最高（0.14），6 拍次之（0.12），最右端 25 拍有一根 0.02 的柱子。</figcaption>
+</figure>
+<div class="note" id="n19"><span class="lab">读者注 19 · 图 6(b) 的读数</span><p>柱子上印着数值，我照读：1 拍 0.04、2 拍 0.14、3 拍 0.08、4 和 5 拍各 0.06、6 拍 0.12、7 和 8 拍各 0.08、9 和 10 拍各 0.02、11 拍 0.06、12 拍 0.04、13 拍 0.06、14 拍 0.04、16 到 19 拍各 0.02、25 拍 0.02。合计正好 1.00，乘以 50 都是整数（2、7、4、3、3、6、4、4、1、1、3、2、3、2、1、1、1、1、1 局）。</p><p>由此：平均 7.78 拍，中位数 6.5 拍，42% 的比赛到 8 拍以上。正文“最多 25 拍”是 50 局里的一局。这里的“拍”是两台机器人合计的连续击球次数（横轴写 consecutive hits）。</p></div>
+<p>要进一步提升人-机和机-机对打，未来可以加入自对弈 RL，比如 NFSP 和其他多智能体方法。</p>
+
+<h2 id="apB"><span class="no">B</span>附录 B：补充可视化</h2>
+<h3 id="apB-1"><span class="no">B.1</span>仿真训练</h3>
+<p>图 7 是仿真里的代表性击球。红线是来球轨迹（发球或对手回球），机器人姿势是触球瞬间，绿线是击回的轨迹。说明策略能根据不同来球调整身体姿态和挥拍，回球稳定。</p>
+<figure class="pfig" id="fig7">
+<img src="latent/fig7.webp" width="1386" height="488" alt="图 7：六张仿真球场截图，机器人在触球瞬间，红色来球线和绿色回球线" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 12 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#A2.F6">看原图 ↗</a></span>六张从机器人身后看的仿真画面，白色的网在中间。红线从对面飞来落地弹起，机器人在触球瞬间，绿线是打回去的弧线。第一张在边线附近大幅侧身，其余几张在中场附近。</figcaption>
+</figure>
+<h3 id="apB-2"><span class="no">B.2</span>真机对打特写</h3>
+<p>硬件改动：机身加了漫反射表面，提高动捕稳定性、消除杂散反光；用 3D 打印转接件在右侧末端装上标准网球拍；重新设计末端关节连接件，提高高动态动作时的结构稳定性。图 8 显示机器人面对不同来球会调整身体姿态和挥拍时机，类似人类球员。</p>
+<figure class="pfig" id="fig8">
+<img src="latent/fig8.webp" width="1375" height="1709" alt="图 8：四行四列的真机照片，机器人用正手、反手击球，各种步法" loading="lazy" style="max-width:640px">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · Zhang et al.，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2603.12686v1#A2.F7">看原图 ↗</a></span>16 张真机对打的照片，有正手、反手、大跨步和全身协调动作，背景是绿色场地和动捕桁架。</figcaption>
+</figure>
+
+<h2 id="code">代码对照（a931da5，只读）</h2>
+<p>仓库是 JAX/Brax + MJX 的实现，目录 <code>latent_mj/</code>。目前放出的是跟踪器训练、评测和 ONNX 导出，加上很小一部分重定向后的网球动作（常量文件里只列了 4 段 “Random_00x_Tennis 001”）。下表只列和论文有关的部分。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>部件</th><th>论文</th><th>代码（a931da5）</th></tr></thead><tbody>
+<tr><td>跟踪器框架</td><td>Any2Track</td><td>README 说基于 OpenTrack；Brax PPO，<code>train_tracking.py</code></td></tr>
+<tr><td>频率</td><td>策略 50 Hz，仿真 2000 Hz</td><td>跟踪器 ctrl_dt 0.02（50 Hz），sim_dt 0.002（500 Hz）</td></tr>
+<tr><td>观测</td><td>角速度、投影重力、关节位置速度、上一帧动作 + 目标</td><td>一致；评论家另有特权观测</td></tr>
+<tr><td>动作</td><td>关节动作给 PD</td><td>参考关节角 + 动作（残差），26 维</td></tr>
+<tr><td>右手腕</td><td>去掉控制，加随机扰动</td><td>3 个关节，每 0.5 到 2 s 在全行程内重抽 PD 目标</td></tr>
+<tr><td>网络</td><td>没写</td><td>MLP (512, 512, 256, 256, 128)，策略和价值</td></tr>
+<tr><td>PPO</td><td>没写</td><td>lr 3e-4，γ 0.97，λ 0.95，ε 0.2，32768 环境，30 亿步</td></tr>
+<tr><td>随机化</td><td>表 2</td><td>见读者注 12，脚摩擦和质心不同</td></tr>
+<tr><td>球拍</td><td>3D 打印连接件</td><td>MJCF 里拍面是半径 0.12 m、厚 0.005 m 的圆柱碰撞体，中心离腕部约 0.4 m</td></tr>
+<tr><td>蒸馏、高层、LAB</td><td>§3.2.2、§3.3</td><td>未放出（README 待办）</td></tr>
+</tbody></table></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 仓库现状</span><p>README 的待办列表里，“全部动作数据”“训练好的跟踪器”“DAgger 蒸馏代码”“潜动作模型”“高层策略代码”“仿真到真机设计”都还没勾。所以 LATENT 的两个核心设计（可修正潜空间、LAB）目前都无法从代码核对。</p><p>README 给的训练命令是 <code>python -m latent_mj.learning.train.train_ppo_track_tennis</code>，但在 a931da5 的文件树里没有 <code>latent_mj/learning/train/</code> 这个目录，只有 <code>learning/policy/ppo/train_tracking.py</code>。我没有运行，只是按文件树判断这条命令现在找不到模块。仓库根目录没有许可文件，转载或改用代码前要先问作者。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">名字和出处</a>：LATENT 是标题里的字母拼的；“IROS 2026”只见于 SuperMimic 的引用，未核实。</li>
+<li><a href="#n2">SuperMimic 表 1 逐格核对</a>：<b>五格和“依次训练”都对得上</b>；表 1 看不出高层还直接控制手腕。</li>
+<li><a href="#n3">“小 17 倍”的算术</a>：按双打场 17.4 倍；但真机部署用了 19 m × 15 m 的动捕区（README）。</li>
+<li><a href="#n4">跟踪器：论文和代码</a>：动作是残差，评论家有特权观测，跟踪器仿真是 500 Hz。</li>
+<li><a href="#n5">手腕扰动</a>：3 个关节在全行程内每 0.5 到 2 s 重抽目标；注释和代码不一致。</li>
+<li><a href="#n6">式 (1)–(3) 没给的东西</a>：λ、潜维数、网络都没给；对角高斯 KL 的闭式。</li>
+<li><a href="#n7">表 1 和跟踪器配置</a>：六项正则权重完全相同，平滑项差一倍。</li>
+<li><a href="#n8">一个回合多长</a>：至少 16 s、800 控制步、32,000 物理步。</li>
+<li><a href="#n9">球场按比例缩小</a>：矢量读数 13 m × 6 m，四个尺寸都是标准场的 0.547 倍。</li>
+<li><a href="#n10">式 (4) 是盒子</a>：逐维 tanh 给出超立方体，马氏距离上界 λ√d。</li>
+<li><a href="#n11">球的参数和真实网球比</a>：阻力 k ≈ 0.020、恢复系数 0.73 到 0.76，都在随机化区间内。</li>
+<li><a href="#n12">跟踪器代码的随机化和表 2 不同</a>：脚摩擦、质心不同；三处注释和数值不一致。</li>
+<li><a href="#n13">四帧平均速度 = 三步差分</a>：噪声降到 1/3，延迟 30 ms。</li>
+<li><a href="#n14">表 3 的四列不是同一批试验的两种划分</a>：AMP、ASE、PULSE 的两个区间不相交。</li>
+<li><a href="#n15">表 3 的比较口径</a>：PULSE 的差距混了手腕修正；单位缺。</li>
+<li><a href="#n16">两个消融各伤在哪里</a>：去 LAB 成功率只掉 1.6 到 5.1 点，力矩高 46% 到 79%。</li>
+<li><a href="#n17">表 5 还原成次数</a>：Ours 是 20 次中 17 次；每格只有 4 到 11 次。</li>
+<li><a href="#n18">图 5 的两点</a>：每格两张图没解释；色标没归一化。</li>
+<li><a href="#n19">图 6(b) 的读数</a>：50 局，平均 7.78 拍，中位数 6.5，25 拍只有一局。</li>
+<li><a href="#n20">仓库现状</a>：只有第一阶段；README 的训练模块在树里找不到；没有许可文件。</li>
+</ol>
+<p>论文没写、我也没找到的：高层策略和潜空间的网络结构与维数、λ、λ₁、λ₂；奖励项的公式；观测噪声的幅度、丢帧率和延迟；训练时长；真机场地尺寸；前场/后场的定义。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据、仿真器、硬件和方法。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://zzk273.github.io/LATENT/">LATENT</a></td><td>本文</td><td><a href="https://github.com/GalaxyGeneralRobotics/LATENT">代码</a></td><td><a href="https://arxiv.org/abs/2603.12686">2603.12686</a></td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>29 自由度人形机器人</td><td>unitree.com/g1</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td><td>物理仿真器</td><td>mujoco.org</td><td>Todorov 等，IROS 2012</td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/mujoco_playground">MuJoCo Playground</a></td><td>MJX 上的 GPU 训练环境</td><td>github.com/google-deepmind/mujoco_playground</td><td><a href="https://arxiv.org/abs/2502.08844">2502.08844</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/robfiras/loco-mujoco">LocoMuJoCo</a></td><td>重定向用的基准和工具</td><td>github.com/robfiras/loco-mujoco</td><td><a href="https://arxiv.org/abs/2311.02496">2311.02496</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2509.13833">Any2Track</a></td><td>跟踪器框架（作者组前作）</td><td><a href="https://github.com/GalaxyGeneralRobotics/OpenTrack">OpenTrack 代码</a></td><td><a href="https://arxiv.org/abs/2509.13833">2509.13833</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2505.10918">R²S²</a></td><td>真机可用的技能空间（作者组前作）</td><td>–</td><td><a href="https://arxiv.org/abs/2505.10918">2505.10918</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2310.04582">PULSE</a></td><td>基线：蒸馏的潜动作空间</td><td><a href="https://github.com/ZhengyiLuo/PULSE">代码</a></td><td><a href="https://arxiv.org/abs/2310.04582">2310.04582</a></td></tr>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/toronto-ai/vid2player3d/">Vid2Player3D</a></td><td>从转播视频学网球（MotionVAE 基线的来源）</td><td>research.nvidia.com/labs/toronto-ai/vid2player3d</td><td>Zhang 等，TOG 2023</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a></td><td>基线：对抗动作先验</td><td>–</td><td><a href="https://arxiv.org/abs/2104.02180">2104.02180</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2205.01906">ASE</a></td><td>基线：对抗技能嵌入</td><td><a href="https://github.com/nv-tlabs/ASE">代码</a></td><td><a href="https://arxiv.org/abs/2205.01906">2205.01906</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>强化学习算法</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://proceedings.mlr.press/v15/ross11a.html">DAgger</a></td><td>在线模仿学习（数据聚合）</td><td>–</td><td>Ross 等，AISTATS 2011</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2006.07364">RFC</a></td><td>残差力控制（参考文献 [42]，PDF 里这一条被截断，没有出处）</td><td>–</td><td><a href="https://arxiv.org/abs/2006.07364">2006.07364</a></td></tr>
+<tr><td><a class="ds" href="https://www.itftennis.com/en/about-us/governance/rules-and-regulations/">ITF 规则</a></td><td>球场和球的标准尺寸（读者注 9、11 用）</td><td>itftennis.com</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2603.12686 后的整理，不是作者的官方内容。原文：Zhikai Zhang、Haofei Lu、Yunrui Lian、Ziqing Chen、Yun Liu、Chenghuai Lin、Han Xue、Zicheng Zeng、Zekun Qi、Shaolin Zheng、Qing Luan、Jingbo Wang、Junliang Xing、He Wang、Li Yi，《Learning Athletic Humanoid Tennis Skills from Imperfect Human Motion Data》，arXiv 2603.12686v1（2026），以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 8 从原文 PDF 裁切，只做了裁切和格式转换。表格数字照录原文；读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

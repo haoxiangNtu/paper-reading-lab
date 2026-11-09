@@ -8,6 +8,9 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| BeyondMimic: From Motion Tracking to Versatile Humanoid Control via Guided Diffusion（[arXiv 2508.08241](https://arxiv.org/abs/2508.08241)，Science Robotics 2026，SuperMimic 引用） | [beyondmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/beyondmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/beyondmimic/index.html) | 同一套跟踪 MDP 上真机做空翻冲刺，再用 DAgger 蒸馏的 VAE 加状态-潜变量扩散，推理时代价引导零样本完成摇杆、路点、避障和关键帧补全；含和 SuperMimic 附录 A 的逐项对照。 | 23 条 |
+| Universal Humanoid Motion Representations for Physics-Based Control（[arXiv 2310.04582](https://arxiv.org/abs/2310.04582)，ICLR 2024，CC BY-NC-SA 4.0，SuperMimic 引用） | [pulse 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/pulse.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/pulse/index.html) | 先训能模仿全部 AMASS 的老师 PHC+，在线蒸馏成 32 维带可学习先验的潜空间，下游任务只学残差潜码。 | 24 条 |
+| Learning Athletic Humanoid Tennis Skills from Imperfect Human Motion Data（LATENT，[arXiv 2603.12686](https://arxiv.org/abs/2603.12686)，SuperMimic 引作 IROS 2026，未核实，CC BY 4.0，SuperMimic 引用） | [latent 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/latent.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/latent/index.html) | 不完美的网球动作片段 → 跟踪器 → DAgger 潜空间 → 潜动作屏障约束的高层 PPO 加手腕直控，Unitree G1 和人对打。 | 20 条 |
 | A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training（[arXiv 2507.13097](https://arxiv.org/abs/2507.13097)，ICRA 2026，CC BY-SA 4.0） | [GraspGen 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/graspgen.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/graspgen/index.html) | 扩散生成抓取，再用见过生成器错误的判别器打分；含代码核对和它为什么不是 GAN | 23 条 |
 | SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control（[arXiv 2511.07820](https://arxiv.org/abs/2511.07820)，Science Robotics 2026，SuperMimic 引用） | [sonic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/sonic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/sonic/index.html) | 把动作跟踪放大到 128 卡、1 亿帧、42M 参数，并用 FSQ 通用 token 接上规划器、遥操作和 VLA。 | 18 条 |
 | Perpetual Humanoid Control for Real-time Simulated Avatars（[arXiv 2305.06456](https://arxiv.org/abs/2305.06456)，ICCV 2023，SuperMimic 引用） | [phc 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/phc.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/phc/index.html) | 不加外力模仿 AMASS 98.9%：动作越练越难就新建 primitive 并冻结旧的，再用 composer 组合，摔倒能自己爬起走回去。 | 25 条 |
@@ -40,6 +43,30 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## BeyondMimic 读后要点
+
+- 跟踪设定（奖励表、终止、域随机化、低增益 PD）被 SONIC、SuperMimic 和 mjlab 沿用最多，但论文文字、旧仓库、mjlab 三处数值不完全一样，引用时要说清是哪一处。
+- 倾斜终止：论文写旋转误差 0.8 rad（约 46°），代码是重力 z 分量差 0.8（直立时约 78.5°）；SuperMimic 用的是代码版。
+- SuperMimic 附录 A 声明的改动都属实，另有观测、摩擦写法、根部刚体三处不同没有注明。
+- 潜空间扩散是 v4 才加的，v1–v3 是直接的状态加动作扩散。
+- 任务代价只在推理时引导扩散，完全不进训练。
+
+## PULSE 读后要点
+
+- 三段式：PPO 老师 PHC+ → DAgger 式在线蒸馏（编码器、先验、解码器）→ 冻结解码器和先验，用 PPO 训下游。
+- 消融影响最大的是“从先验均值出发的残差动作”：去掉后 VR 跟踪从 93.4% 掉到 18.1%。
+- 蒸馏保住了成功率（测试集 134/138 对 137/138），但全局误差比老师大约 50%。
+- 强调“在线”蒸馏，却没有和离线行为克隆比较。
+- 附录的样本数（β 退火区间）和表 4、代码、图 4 都差约 10 倍。
+
+## LATENT 读后要点
+
+- 两个设计各补数据的一处缺陷：手腕不准就交给高层直接控制；不会组合技能就交给 RL，但用先验的 σ 圈住（潜动作屏障）。
+- 潜动作屏障主要改善平滑度和力矩，成功率只多 1.6–5.1 个点。
+- 仿真球场是标准场按 0.547 等比缩小的 13 m × 6 m，论文没写。
+- 表 3 的两种划分在数值上互相矛盾；表 5 每格只有 4–11 次试验。
+- SuperMimic 表 1 对它的概括准确，但看不出手腕直控这条路。
 
 ## GraspGen 读后要点
 
@@ -231,8 +258,8 @@ index.html          论文列表与写法约定
 papers/supermimic.html       SuperMimic 精读
 papers/supermimic/charts.js  精读页的折线图，数据从原文矢量图读出，是重画的
 papers/supermimic/*.webp     从 PDF 裁切的原图 8 张（图 1-7、图 A.1），版权归作者
-papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
-interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}/  对应的 3D 框架动画
+papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent}.html  SuperMimic 引用论文的精读（图表数据和开放许可论文的原图在同名目录）
+interactives/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno,beyondmimic,pulse,latent}/  对应的 3D 框架动画
 interactives/supermimic/     SuperMimic 的 11 幕 3D 框架动画（精读页内嵌）
 papers/3dws.html   3D World Simulator 精读
 papers/3dws/       3D World Simulator 的原文插图，按 CC BY 4.0 使用，只做了裁切

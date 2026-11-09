@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PULSE 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2310.04582 PULSE 的核心框架做成 11 幕 3D 动画：PHC+ 老师、数据清洗、在线蒸馏（当场算的 BC 与 DAgger 玩具）、编码器-先验-解码器、损失和 β 退火、潜码平滑、随机生成、残差动作、下游任务、结果表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="pulse.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/pulse.html">返回精读</a><a href="../../papers/pulse.html#s4-2">原文 §4.2</a><a href="../../papers/pulse.html#apC">附录 C</a><a href="https://arxiv.org/abs/2310.04582">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2310.04582 · ICLR 2024 · PULSE</p>
+<h1>把一个模仿器压进 32 维，再拿来做下游任务</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是老师 PHC+ 和数据清洗；<b>第 4 幕是核心：学生自己跑、老师来标注</b>，带一个当场计算的玩具；第 5 到 7 幕拆开变分瓶颈和损失；第 8 幕随机生成；第 9 幕残差动作；第 10 幕五个下游任务；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。网络尺寸和超参数来自论文和官方代码（提交 1665985）；第 2、7、9、11 幕的柱子是原文表格数字。小人是手工做的示意，没有任何 PULSE 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个网络和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 <a href="https://github.com/ZhengyiLuo/PULSE/tree/166598584d043ee7566883a82d9c617d7d26062c">ZhengyiLuo/PULSE 提交 1665985</a>（2025-02-08），只读未运行。仓库没有许可证文件。输入维度和参数量是我按代码算的（本体 358 维、模仿目标 576 维，和 PHC 代码相同）。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（1665985）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">老师 PHC+</td></tr>
+<tr><td>T1</td><td>结构</td><td>3 个 primitive 学会恢复并达到 100%；composer 组合</td><td>env_im_vae.yaml：num_prim 3，has_lateral False；输出 Σwᵢμᵢ</td></tr>
+<tr><td>T2</td><td>网络</td><td>6 层 MLP [2048, 1536, 1024, 1024, 512, 512]，SiLU</td><td>im_pnn_big.yaml、im_mcp_big.yaml 相同；按 934 维输入算，每个 primitive 8,508,485 个参数，3 个加 composer 共 34.0 M</td></tr>
+<tr><td>T3</td><td>训练</td><td>批 3072，学习率 2×10⁻⁵，σ 0.05，γ 0.99，ε 0.2，约 10¹⁰ 样本</td><td>learning_rate 2e-5；sigma_init −2.9（log std，std 0.055）；num_envs 3072</td></tr>
+<tr class="grp"><td colspan="4">学生 PULSE</td></tr>
+<tr><td>E</td><td>编码器</td><td>三层 MLP，输出 N(μᵉ, σᵉ)</td><td>934 → [1536, 1024, 512] SiLU → 160 → μ、log σ² 各 32；3,627,232 个参数</td></tr>
+<tr><td>R</td><td>先验</td><td>三层 MLP，只看 s^p</td><td>358 → [1536, 1024, 512] → μ、log σ² 各 32；2,682,944 个参数</td></tr>
+<tr><td>D</td><td>解码器</td><td>三层 MLP，D(a | s^p, z)</td><td>390 → [3096, 2048, 1024] SiLU → 69；9,722,093 个参数</td></tr>
+<tr><td>Z1</td><td>潜码</td><td>32 维；评估时用 μᵉ</td><td>embedding_size 32；flags.test 时 z = μᵉ；两个 log σ² 都夹在 [−5, 2]</td></tr>
+<tr class="grp"><td colspan="4">蒸馏损失</td></tr>
+<tr><td>L1</td><td>L_action</td><td>‖a^PHC+ − a‖²</td><td>torch.norm(pred − gt, dim=−1).mean()，不平方</td></tr>
+<tr><td>L2</td><td>L_regu</td><td>‖μᵉ_t − μᵉ_{t−1}‖²，α = 0.005</td><td>‖μᵉ_t − 0.99 μᵉ_{t−1}‖ 的平均，跨回合和开头 2 步置 0；ar1_coefficient 0.005</td></tr>
+<tr><td>L3</td><td>L_KL</td><td>KL(E ‖ R)，β 0.01 → 0.001，2.5×10⁹ 到 5×10⁹ 样本</td><td>kl_multi 按维求和；epoch 2500 到 5000 线性退火（2.46×10⁸ 到 4.92×10⁸ 样本）</td></tr>
+<tr><td>L4</td><td>优化</td><td>学习率 5×10⁻⁴，批 3072，约 10⁹ 样本</td><td>kin_lr 默认 5e-4，Adam；梯度裁剪 50；学生用 D 的均值动作推进仿真</td></tr>
+<tr><td>L5</td><td>蒸馏环境</td><td>正文未写起始状态</td><td>recoveryEpisodeProb 0.3、fallInitProb 0.1：一部分回合从倒地开始；auto_pmcp_soft True</td></tr>
+<tr class="grp"><td colspan="4">下游</td></tr>
+<tr><td>H1</td><td>残差动作</td><td>z = π_task + μᵖ（式 4）</td><td>humanoid_z.py：action_z = prior_mu + action_z</td></tr>
+<tr><td>H2</td><td>探索方差</td><td>固定 0.22</td><td>sigma_init −1（std 0.368）生成类；−1.5（std 0.223）VR</td></tr>
+<tr><td>H3</td><td>任务策略</td><td>§5：6 层；附录 C.4：生成类 3 层 [2048, 1024, 512]，VR 6 层</td><td>pulse_z_task.yaml [2048, 1024, 512]；pulse_z_vr.yaml 6 层；地形另有 [512, 256] 的高度图分支</td></tr>
+<tr><td>H4</td><td>AMP</td><td>下游不用对抗奖励</td><td>disc_reward_w 0，task_reward_w 1</td></tr>
+<tr><td>H5</td><td>并行数</td><td>未写</td><td>env_pulse_amp 1536；env_pulse_im（VR）3072；地形 1536</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段。不是 SMPL 人形，也不是解码器的输出。</li>
+<li><b>第 3 幕的弹飞。</b>弹簧刚度 4×10⁴ N/m 是我设的；右边的速度按图 6 的数字和 120 Hz 精确换算。</li>
+<li><b>第 4 幕的玩具。</b>二维不稳定系统、老师的反馈律、169 个 RBF 的岭回归学生、噪声 0.05、成功判据，都是我设的。训练和评估当场计算（pulse.js 的 buildDagger）。玩具的成功率和论文没有可比性。</li>
+<li><b>第 5 幕的两维切片。</b>μ、σ 是我设的，KL 按公式当场算。</li>
+<li><b>第 7 幕的潜码轨迹。</b>“真实”轨迹、抖动和 λ 都是我设的，平滑问题当场解。</li>
+<li><b>第 8 幕的先验点云。</b>轨迹和 σ 是我设的；噪声倍数只改变点云大小和动作节奏。</li>
+<li><b>第 9 幕的先验。</b>μᵖ = (1.4, 0.8)、σᵖ = 0.25 是我设的；三个探索 σ 来自论文和代码。</li>
+<li><b>第 10 幕的场景。</b>台阶、柱子、小球和 VR 三点的位置是手写的。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2310.04582 后的理解，不是作者的官方图。原图见<a href="../../papers/pulse.html">精读页</a>（CC BY-NC-SA 4.0，只做裁切）。本页文字按 CC BY-NC-SA 4.0 提供。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
