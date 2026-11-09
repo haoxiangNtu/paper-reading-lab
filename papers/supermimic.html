@@ -262,6 +262,16 @@
 </tbody></table></div>
 <p>去掉了 BeyondMimic 的根部速度扰动，因为状态突变是确定性模型抓不住的。作者发现只随机化物理参数就足以迁移到真机。</p>
 <div class="note" id="n9"><span class="lab">读者注 10 · 观测里没有位置和线速度</span><p>观测表没有基座线速度，也没有相对参考的位姿，策略靠本体感觉和未来参考帧来跟踪。论文没有讨论长时间下的累积漂移。第三方的 SuperMimic-Reproduced 报告：按论文观测在 100 到 300 秒的整段 LAFAN1 片段上，偏航误差约 9 秒就超过 15°，回报只有 0.56 到 0.59（论文 0.82），加上相对锚点的观测后到 0.904；另一个复现 <a class="ds" href="https://github.com/zita-ch/supermimic_vibed">supermimic_vibed</a> 则报告 0.829。两者设置不同，我没有跑过，也没有核实，不能据此判断对错，但这可能是复现时最先遇到的差距。</p></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · “沿用 BeyondMimic”没写全的地方（2026-11-09 补）</span><p>对照 <a href="beyondmimic.html#sm">BeyondMimic 精读</a>的逐项表（arXiv 2508.08241v4 和官方代码 HybridRobotics/whole_body_tracking），附录 A 自己声明的改动（未来 10 帧目标、关节限位 −10 改 −2、去掉自碰撞项、不按末端终止、去掉根部推搡）都属实，奖励表 A.2 其余项也一致。但还有几处不同，原文没有标成改动：</p><ul>
+<li><b>倾斜终止。</b>BeyondMimic 论文文字写的是锚点旋转误差 \(\lVert e_{R,
+m anchor}
+Vert&gt;0.8\) rad（约 46°，含偏航）；它的代码（<code>terminations.py</code>）判的是重力方向 z 分量之差 \(&gt;0.8\)（直立时约 78.5°，不看偏航）。SuperMimic 的 \(e_{tilt}\) 是代码这一版。</li>
+<li><b>根部刚体。</b>SuperMimic 写骨盆；BeyondMimic 的 G1 配置里锚点是 <code>torso_link</code>（论文说锚点“通常是根或躯干”）。</li>
+<li><b>摩擦。</b>BeyondMimic 对所有刚体分别随机静摩擦 \(U[0.3,1.6]\)、动摩擦 \(U[0.3,1.2]\) 和恢复系数 \(U[0,0.5]\)；表 A.3 只有一个 \(\mu\sim U[0.3,1.2]\)，没说作用在哪些刚体。mjlab 的实现是只随机脚底、\(U[0.3,1.2]\)，和这里更像。</li>
+<li><b>观测。</b>BeyondMimic 的策略观测是单帧、不堆叠的：参考相位 \(\psi=[	heta^{
+m ref},\dot	heta^{
+m ref}]\)、锚点位姿误差 \(e_{
+m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步动作。SuperMimic 的本体观测（表 A.1）去掉了锚点误差和线速度，加了投影重力，并取最近 10 帧；参考信息改由目标 \(g_t\)（未来 10 帧）进编码器。BeyondMimic 自己也说没有可靠状态估计时可以去掉线性分量，所以这一点不算错，只是“沿用”二字掩盖了观测结构的变化，读者注 10 的漂移问题和它有关。</li></ul></div>
 
 <h2 id="apB"><span class="no">B</span>跨目标接口联合训练</h2>
 <p>身体的物理是共享的，所以同一个动力学模型能训练多种目标接口（完整参考、速度命令、末端位姿、SMPL 姿态）。每个接口有自己的目标空间、奖励、终止和评论家 \(V_{\psi_i}\)。同一个策略网络由各接口的编码器和一个共享解码器组成：</p>
@@ -394,6 +404,7 @@
 <li><a href="#n15">这个对比能说明什么</a>：672 条对得上；一个种子，命令分布也不同。</li>
 <li><a href="#n16">对比方法的一点疑问</a>：PPO-Sim 没说调过参。</li>
 <li><a href="#n17">没有的东西</a>：没有官方代码；demo 不可用于提取。</li>
+<li><a href="#n19">“沿用 BeyondMimic”没写全的地方</a>：倾斜终止用的是 BeyondMimic 代码版而非论文版；根部刚体、摩擦写法、观测结构也和原设定不同，没有标成改动。</li>
 </ol>
 
 <h2 id="links">链接表</h2>
