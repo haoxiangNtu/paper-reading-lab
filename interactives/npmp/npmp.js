@@ -43,13 +43,13 @@
         '<p>开关“镜像”：按左右对称把专家镜像一份，论文说“大约让专家数据翻倍”，结果略好，图 4 的所有模型都用了镜像（脚注 4）。</p>' +
         guess('左边的片段条长度是随机抽的 2 到 6 秒，只示意切分；格子里只画了 280 个方块代表 2707 个专家。小人的动作是手写的。') +
         src('§2.1 · 图 1 · 附录 A · §3.2 脚注 4') },
-    { n: 3, part: '§2.3 带噪声回放', title: '行为克隆：带噪声跑专家，记下它想做的动作', sub: '玩具：专家周围的“管子”。切换回放条数和噪声', dur: 15, cam: [0, 1.2, 24, [0, 3.6, 0]],
+    { n: 3, part: '§2.3 带噪声回放', title: '行为克隆：带噪声跑专家，记下它想做的动作', sub: '玩具：专家周围的“管子”。切换回放条数和噪声', dur: 15, cam: [0, 1.2, 26, [0, 4.4, 0]],
       html: dl([['做法', '让专家带动作噪声 η 执行，记录访问到的状态 s 和专家的<b>均值</b>动作 μ_E(s)'], ['损失', '式 (4)：min E‖μ_E(s) − μ_θ(s)‖²'], ['对应', '一种版本等价于 DART（Laskey 等 2017）'], ['规模', '图 4 里每个专家 100 条'], ['代价', '要跑很多条回放']]) +
         '<p>只在专家的名义轨迹上回归，学生一偏离就没见过这个状态。让专家带噪声跑，状态会散成一根“管子”，学生在整根管子上都学到专家的纠正动作。执行的是带噪声的动作，记录的是不带噪声的均值动作，这一点很关键。</p>' +
         '<p>它和 DAgger 的区别：数据仍然来自专家自己跑，不需要在训练时执行学生。所以可以离线、按专家一个个采，扩到几千个专家。</p>' +
         toyb('一维状态随时间走一条参考曲线，专家是 a = a*(t) − 3 (s − s*(t))，动作噪声 σ = η。画出的每条线是一次带噪声回放，点是记下的 (s, μ_E(s))。当场计算，数字和论文无关。') +
         src('§2.3 式 (4) · 附录 B') },
-    { n: 4, part: '§2.3 LFPC', title: '线性反馈策略克隆：一条轨迹加雅可比', sub: '玩具：扰动状态处的目标动作。切换 LFPC 和式 (11)', dur: 15, cam: [0, 1.22, 24, [-0.8, 3.6, 0]],
+    { n: 4, part: '§2.3 LFPC', title: '线性反馈策略克隆：一条轨迹加雅可比', sub: '玩具：扰动状态处的目标动作。切换 LFPC 和式 (11)', dur: 15, cam: [0, 1.22, 27.5, [-0.9, 4.3, 0]],
       html: dl([['记录', '名义轨迹上的 s*_t、a*_t 和雅可比 J*_t = ∂μ_E/∂s'], ['反馈策略', '式 (6)：μ_FB(s_t) = a*_t + J*_t (s_t − s*_t)'], ['训练', '式 (8)：在 s* + δs 上回归 a* + J* δs'], ['扰动 Δ', '对所有片段用同一个固定的边缘分布'], ['批', '32 段长 30 的子序列，每段 5 份扰动'], ['数据', '每个专家只跑 1 条']]) +
         '<p>专家在名义轨迹附近近似线性：μ_E(s + δs) = μ_E(s) + J δs + O(‖δs‖²)（式 5）。于是不必再跑专家，只要把名义状态随机扰动，用一阶展开当目标动作，就能离线造出任意多的训练对。论文把它看作一种数据增强，也是同时匹配均值动作和雅可比。</p>' +
         '<p>附录 C 指出另一种做法（式 11）是错的：在扰动输入上仍然要求输出原来的动作 μ_E(s)。对图像分类这是合理的去噪，对控制就等于把反馈增益设成 0，学生会变成开环。开关可以切换两种目标，看箭头的差别就是 J δs。</p>' +
@@ -61,7 +61,7 @@
         '<p>脚注 2：试过看更远的未来，x_t = [s_t, s_{t+1}, s_{t+3}, s_{t+6}, s_{t+10}, s_{t+15}]，结果差不多。两种都是 6 个状态，输入维度相同，只是跨度从 5 步变成 15 步。</p>' +
         '<p>解码器的标准差固定为 0.1，作者说这样明显更不容易过拟合。论文没有给状态的维度和激活函数，所以下面的参数量只能算隐藏层部分：解码器两层 1024 × 1024 之间是 2,097,152 个权重，编码器的 1024 × 1024 一层是 1,048,576 个。</p>' +
         src('§2.2 式 (1) · 脚注 2 · 附录 B') },
-    { n: 6, part: '§2.2 先验', title: 'AR(1) 先验：相邻时刻的 z 要挨着', sub: '当场采样。切换 α，看轨迹和自相关', dur: 14, cam: [0, 1.25, 26, [0, 4.2, 0]],
+    { n: 6, part: '§2.2 先验', title: 'AR(1) 先验：相邻时刻的 z 要挨着', sub: '当场采样。切换 α，看轨迹和自相关', dur: 14, cam: [0, 1.25, 27, [0, 4.7, 0]],
       html: dl([['式 (2)', 'z_t = α z_{t−1} + σ ε，ε ~ N(0, I)'], ['σ', '√(1 − α²)，保证边缘分布始终是 N(0, I)'], ['α', '0.95（消融 α = 0）'], ['α = 0.95 时', 'σ = 0.312；k 步自相关 0.95^k，半衰 13.5 步'], ['图 4', 'α = 0 时测试集无噪声中位数 0.480，α = 0.95 时 0.707']]) +
         '<p>作者希望同一段动作里相邻时刻的片段在潜空间里也相邻，于是给 z 一个一阶自回归的弱先验。它进入证据下界的 log p_z(z_t | z_{t−1}) 一项：后验 q 被拉向“上一步的 z 乘 0.95”附近。α = 0 时先验变成每步独立的 N(0, I)，相邻 z 之间没有约束。</p>' +
         '<p>作者在结尾说以后可以试别的 α 和可学习的先验。后来的 PULSE 用的就是只看本体感觉的可学习先验，同时另加一个系数 0.99 的相邻帧惩罚（本站 PULSE 页）。</p>' +
@@ -73,12 +73,12 @@
         '<p>附录 B 说固定解码器方差时，调 β 等同于调输出方差（差一个常数）。把整个目标除以 β 就看得出来：重建项的系数变成 1/(2σ²β)，等于把 σ 换成 σ√β。所以 β = 0.1 相当于用 σ = 0.032 的高斯去拟合动作。</p>' +
         '<p>右边柱子是图 4 测试集、无噪声时的中位相对表现，按 β 排开：0.498、0.538、0.707、0.453。太小和太大都不好。</p>' +
         src('§2.2 式 (3) · 附录 B · 图 4（矢量读数）') },
-    { n: 8, part: '§3.1 单技能', title: '一个专家复制给另一个网络', sub: '图 3 的读数。切换四个片段', dur: 13, cam: [0, 1.22, 29, [0, 4.4, 0]],
+    { n: 8, part: '§3.1 单技能', title: '一个专家复制给另一个网络', sub: '图 3 的读数。切换四个片段', dur: 13, cam: [0, 1.22, 29.5, [0, 4.9, 0]],
       html: dl([['片段', 'Run and dodge、Cartwheel、Backflip、Twist（图 1）'], ['对照', '专家、开环动作序列、线性反馈策略、LFPC（1 条）、BC 100/200/500/1000 条'], ['噪声', '无、0.05、0.1（每个执行器独立高斯，动作范围 [−1, 1]）'], ['纵轴', '回合回报，越高越像参考']]) +
         '<p>柱高是无噪声（名义）回合的回报；两根竖条是噪声 0.05 和 0.1 时的最小到最大值（原图是小提琴图，只画了极值，没有中位数）。</p>' +
         '<p>能看到的几件事：开环和线性反馈在无噪声时与专家完全相同，这是应该的（确定性仿真里复现同一条轨迹）；一加噪声，开环在 run and dodge 上掉到 8 到 18，twist 上掉到 12 到 41。LFPC 用 1 条轨迹，在多数格子里和几百条的 BC 接近；BC 100 条在 run and dodge 和 backflip 上无噪声时反而偏低（26.65、12.03）。Twist 高噪声下 LFPC 最差的一次只有 25，BC 都在 69 以上。</p>' +
         src('§3.1 · 图 3（矢量读数，见精读页读者注 9）') },
-    { n: 9, part: '§3.2 压缩', title: '2707 个专家压进一个模型', sub: '图 4 的中位数和四分位。切换训练集和测试集', dur: 14, cam: [0, 1.2, 31, [-0.3, 4.4, 0]],
+    { n: 9, part: '§3.2 压缩', title: '2707 个专家压进一个模型', sub: '图 4 的中位数和四分位。切换训练集和测试集', dur: 14, cam: [0, 1.2, 31.5, [-0.3, 4.9, 0]],
       html: dl([['评测', '把专家轨迹编码成 z 序列，再在环境里按这串 z 执行解码器'], ['开环 / 闭环', '对 z 是开环，对状态是闭环'], ['指标', '跟踪奖励，除以专家的回报'], ['最好', 'BC 100 条、β = 0.1：训练集中位 0.739，测试集 0.707'], ['LFPC', '训练 0.543，测试 0.567']]) +
         '<p>这里不看动作重建误差，而是让模型真的去跑：一串固定的 z 喂给解码器，如果解码器不会稳住身体，按开环的 z 执行很快就会摔。能跑起来本身就说明解码器学会了反馈。</p>' +
         '<p>论文的结论：BC 100 条加中等正则（β = 0.1）最好；LFPC 较差但定性接近；正则和大潜空间都重要；α = 0 变差。读数也说明压缩是有损的：最好的配置下，仍有一半片段的回报不到专家的 74%（训练集）或 71%（测试集）。测试集上 LFPC 的中位数 0.567 排在第二。</p>' +
@@ -89,7 +89,7 @@
         '<p>图 5 的三例：跑步一次性就能做好，优化前后几乎不变；倒着走和跳在一次性模仿时失败，优化后明显改善但仍不完美。作者的解释是错主要在编码器，但解码器对这些少见动作也可能训练不足。</p>' +
         guess('点云和两条 z 轨迹是我生成的，只示意“优化后的轨迹离开原来的位置”。43% 和 78% 是论文的数。') +
         src('§3.3 式 (10) · 图 5') },
-    { n: 11, part: '§3.3 复用', title: '解码器当动作空间，训练高层策略', sub: '切换任务；右边是图 6a 的读数', dur: 16, cam: [0.2, 1.15, 30, [2.0, 3.8, 0]],
+    { n: 11, part: '§3.3 复用', title: '解码器当动作空间，训练高层策略', sub: '切换任务；右边是图 6a 的读数', dur: 16, cam: [0.2, 1.15, 32, [0.8, 4.0, 0]],
       html: dl([['高层策略', '每步输出 z_t，动作由 p(a_t | s_t, z_t) 给出'], ['算法', 'SVG(0)，Q 函数用 Retrace 做离策略修正'], ['任务', '追目标点（稀疏奖励）、看不见的颠簸地形、变化的目标速度、带视觉的跨沟'], ['图 6a', '追目标，10 个种子的中位回报；β = 0.001 最差'], ['图 6b', '目标速度，奖励是以目标为中心的高斯']]) +
         '<p>把潜空间当成新的连续动作空间，高层策略只决定“做哪种短期运动”。追目标任务里目标点在人形靠近几步后跳到附近别处，需要急转和变速。只给稀疏奖励，高层也能学会，而且动作像人。</p>' +
         '<p>正则强的模块接上未训练的高层时更不容易摔。图 6a 有四条线，β = 0.46 只在这张图出现，它的最终中位回报最高（182.5），然后是 β = 0.1（162.5）、1.0（152.2）、0.001（115.0）。所以“正则越强越好”只对比 0.001 成立，不是单调的。</p>' +
@@ -120,8 +120,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -245,7 +247,7 @@
     wire(G, [[x0, y0, o.z ?? 0], [x0 + w, y0, o.z ?? 0]], COL.noise, { opacity: 0.7 }); wire(G, [[x0, y0, o.z ?? 0], [x0, y0 + h, o.z ?? 0]], COL.noise, { opacity: 0.7 });
     (o.yt || []).forEach(v => { const p = m(xr[0], v); wire(G, [p, [x0 + w, p[1], p[2]]], COL.dim, { opacity: 0.45 }); G.add(lab(String(v), [x0 - 0.75, p[1], p[2]], { size: 15 })); });
     if (o.xl) G.add(lab(o.xl, [x0 + w / 2, y0 - 0.95, o.z ?? 0], { size: 16 }));
-    if (o.yl) G.add(lab(o.yl, [x0 + 0.2, y0 + h + 0.7, o.z ?? 0], { size: 16 }));
+    if (o.yl) { const yl = lab(o.yl, [x0, y0 + h + 0.95, o.z ?? 0], { size: 16 }); yl.position.x = x0 - 1.1 + yl.scale.x / 2; G.add(yl); } /* left-aligned with the tick column so long titles don't run off the left edge */
     return m;
   }
   /* toy reference trajectory for scenes 3 and 4 */
@@ -350,7 +352,7 @@
     const curve = ribbon(G, 61, COL.s2, 0.06); curve.userData.set(Array.from({ length: 61 }, (_, i) => { const d = -1.5 + i * 0.05; return mp2(d); }));
     function mp2(d) { const muE = -1.5 * Math.tanh(2 * d), fb = -3 * d; return ms(d, Math.min(2.5, Math.abs(muE - fb))); }
     const mk = L.sphere(0.13, COL.gold); G.add(mk);
-    const info = liveLab(G, [-4.5, 8.6, 0], { size: 18 }), info2 = liveLab(G, [6.5, 8.6, 0], { size: 17 });
+    const info = liveLab(G, [-5.5, -1.3, 0], { size: 18 }), info2 = liveLab(G, [6.4, -1.3, 0], { size: 17 });
     return { ctls: [{ label: '目标动作', items: ['LFPC：a* + J δs', '式 (11)：a*（反馈为 0）'], get: () => mode, set: k => { mode = k; } }], update(p) {
       let k = 0; const show = Math.floor(seg(p, 0, 0.6) * tk.length * NP);
       tk.forEach((t, a) => DS[a].forEach((d, b) => {
@@ -377,7 +379,7 @@
     G.add(lab('编码器 2 × 1024', [-4.75, 5.9, 0], { size: 18 }));
     const zc = inst(BOX, 60); zc.material.color.setHex(COL.z); G.add(zc);
     for (let i = 0; i < 60; i++) setI(zc, i, [-1.2 + (i % 6) * 0.3, 2.0 + Math.floor(i / 6) * 0.3, 0], 0.22); done(zc);
-    G.add(lab('z_t（60 维，对角高斯）', [-0.45, 5.6, 0], { size: 17 }));
+    G.add(lab('z_t（60 维，对角高斯）', [-0.45, 6.6, 0], { size: 17 }));
     const loop = L.torus(0.7, 0.06, COL.z); loop.position.set(-2.8, 1.2, 0); G.add(loop, lab('z_{t−1}', [-2.8, 0.2, 0], { size: 15 }));
     const dec = mlpStack(G, 2.6, 3.6, 0, [1024, 1024, 1024], COL.dec, { k: 1 / 600, d: 1.4, gap: 0.9 });
     G.add(lab('解码器 3 × 1024', [3.5, 5.9, 0], { size: 18 }));
@@ -401,7 +403,7 @@
     const trail = inst(BALL, T); trail.material.color.setHex(COL.z); G.add(trail); const dot = L.sphere(0.18, COL.gold); G.add(dot);
     const ms = frame(G, 0.5, 1, 10, 6.6, [0, 31], [0, 1], { yt: [0, 0.5, 1], xl: '滞后 k（步）', yl: '自相关 α^k' });
     const bars = Array.from({ length: 31 }, (_, k) => { const b = block(0.26, 1, 0.3, COL.s1, [0, 0, 0], { edges: false }); G.add(b); return b; });
-    const info = liveLab(G, [4.5, 8.9, 0], { size: 18 });
+    const info = liveLab(G, [5.5, 9.7, 0], { size: 18 });
     return { ctls: [{ label: 'α', items: ['0.95（论文）', '0（消融）'], get: () => ai, set: k => { ai = k; } }], update(p) {
       const a = AL[ai], sg = Math.sqrt(1 - a * a), n = Math.max(2, Math.floor(seg(p, 0, 0.85) * T));
       const z = [[0, 0]]; for (let t = 1; t < T; t++) z.push([a * z[t - 1][0] + sg * E[t][0], a * z[t - 1][1] + sg * E[t][1]]);
@@ -450,7 +452,7 @@
         sub.add(lab(F3M[i], [x + 0.3, 0.3, 0.6], { size: 14 }));
         parts.push({ b, r1, r2, row, mp });
       });
-      sub.add(lab('柱：无噪声　橙竖条：噪声 0.05 的范围　红竖条：噪声 0.1 的范围', [0, 8.9, 0], { size: 15 }));
+      sub.add(lab('柱：无噪声　橙竖条：噪声 0.05 的范围　红竖条：噪声 0.1 的范围', [2.5, 9.7, 0], { size: 15 }));
     }
     return { ctls: [{ label: '片段', items: F3K.map(k => k[1]), get: () => ci, set: k => { ci = k; } }], update(p) {
       if (built !== ci) rebuild();
@@ -474,7 +476,7 @@
       for (let j = 0; j < 3; j++) { const x = mp(i + 0.25 + j * 0.25, 0)[0]; const b = block(0.7, 1, 0.5, NC[j], [x, 0, 0], { edges: false }), q = block(0.1, 1, 0.1, COL.white, [x, 0, 0.32], { edges: false }); G.add(b, q); parts.push({ b, q, i, j }); }
     });
     wire(G, [mp(0, 1), mp(7, 1)], COL.white, { dashed: true, opacity: 0.6 }); G.add(lab('专家 = 1', [mp(7, 1)[0] + 1.0, mp(7, 1)[1], 0], { size: 14 }));
-    G.add(lab('蓝：无噪声　黄：0.05　橙：0.1（噪声值按 §3.1 推断）', [0, 8.9, 0], { size: 15 }));
+    G.add(lab('蓝：无噪声　黄：0.05　橙：0.1（噪声值按 §3.1 推断）', [2.5, 9.7, 0], { size: 15 }));
     return { ctls: [{ label: '数据', items: ['训练集', '测试集'], get: () => si, set: k => { si = k; } }], update(p) {
       const d = F4[SET[si]], g = seg(p, 0, 0.5), g2 = seg(p, 0.45, 0.8), y0 = mp(0, 0)[1];
       parts.forEach(({ b, q, i, j }) => { const [m, lo, hi] = d[i][j]; const h = Math.max(0.001, (mp(0, m)[1] - y0) * g); b.scale.y = h; b.position.y = y0 + h / 2; const a = mp(0, lo)[1], c = mp(0, hi)[1], hq = Math.max(0.001, (c - a) * g2); q.scale.y = hq; q.position.y = a + hq / 2; q.visible = g2 > 0.01; });
@@ -507,7 +509,7 @@
     G.add(L.grid(30, 30));
     let ti = +(OPT[0] ?? 0); const TK = ['追目标点', '目标速度', '跨沟（视觉）'];
     const hl = block(1.6, 1.8, 1.2, COL.hl, [-12.5, 3.4, 0]), zb = L.sphere(0.4, COL.z, { emissive: 0x332200 }), dec = block(1.6, 2.2, 1.2, COL.frozen, [-8.3, 3.4, 0]); zb.position.set(-10.4, 3.4, 0);
-    G.add(hl, zb, dec, lab('高层策略', [-12.5, 4.9, 0], { size: 17 }), lab('z_t', [-10.4, 4.3, 0], { size: 16 }), lab('解码器', [-8.3, 5.1, 0], { size: 17 }), lab('SVG(0)＋Retrace', [-12.5, 1.6, 1.0], { size: 15 }));
+    G.add(hl, zb, dec, lab('高层策略', [-12.5, 4.9, 0], { size: 17 }), lab('z_t', [-10.4, 4.3, 0], { size: 16 }), lab('解码器', [-8.3, 5.1, 0], { size: 17 }), lab('SVG(0)＋Retrace', [-12.3, 1.6, 1.0], { size: 16 }));
     const f = stream(G, 6, COL.hl, 0.12);
     const rob = robot(COL.robot); G.add(rob);
     const flag = L.cyl(0.05, 0.05, 1.4, COL.gold), ball = L.sphere(0.22, COL.gold); G.add(flag, ball);

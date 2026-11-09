@@ -22,7 +22,7 @@
         '<p>上半层是部署时留下的东西：参考动作和仿真状态合成状态 s，composer 给权重，门控把 primitive 的输出合成一个动作，交给 PD 和物理仿真。</p>' +
         '<p>下半层只在训练时存在：判别器看最近 10 帧本体状态，给风格奖励；任务奖励由模仿或恢复任务决定；PPO 更新。图 3 画的是最终产品，每个 primitive 和 composer 都走这同一套流程。</p>' +
         '<p>点画面里的方块可以跳到对应那一幕。</p>' + src('§3.1 · 图 3 · 算法 1') },
-    { n: 2, part: '§3.1 输入输出', title: '状态怎么拼，动作为什么不用残差', sub: '切换旋转版和关键点版；切换绝对动作和残差动作', dur: 13, cam: [0.06, 1.28, 25, [0.8, 4.2, 0]],
+    { n: 2, part: '§3.1 输入输出', title: '状态怎么拼，动作为什么不用残差', sub: '切换旋转版和关键点版；切换绝对动作和残差动作', dur: 13, cam: [0.06, 1.28, 25, [0.8, 5.3, 0]], camE: [0.06, 1.28, 25, [0.8, 6.8, 0]],
       html: dl([['本体 s^p', '1 + 24×15 − 3 = 358 维（代码）'], ['旋转版 s^g', '24 体 × 24 = 576 维'], ['关键点版 s^g', '24 体 × 9 = 216 维'], ['动作', 'a ∈ ℝ^(23×3)，τ = kᵖ(a−q) − kᵈq̇']]) +
         '<p>目标状态是“下一帧参考减当前仿真”再加上参考本身，都换到人形当前朝向和根部的局部坐标里。关键点版只要 3D 位置，不要关节旋转，所以视频关键点估计器可以直接接上。</p>' +
         '<p>动作是 PD 目标本身。不少动作模仿方法（RFC、UHC 等）用残差写法 q^d = q̂ + a，训练快，但参考带噪声时噪声直接进了 PD 目标。PHC 要吃带噪输入，所以去掉了这个依赖。</p>' +
@@ -69,7 +69,7 @@
         '<p><b>代码和论文的差别：</b>切换距离代码默认 0.25（demo 里 0.5）；r^point 在代码里是 clamp(d_{t−1}−d_t, max=1/3)×9。可以切换阈值看切换时刻。</p>' +
         guess('小人的起身和走路是手写的，轨迹也是我设的，不是策略输出。但 d、r^point 和切换时刻是按这条轨迹和式 (3) 算的，24 个小方块的亮灭表示目标是否被屏蔽。d 是 3D 根部距离，所以倒地时的高度差（我设 0.72 m）也算在内。') +
         src('§3.2 Fail-state Recovery 式 (3)(4) · §4.2 表 4 · humanoid.py:328-329 · humanoid_im.py:783-796, 890-898') },
-    { n: 9, part: '§3.2 组合', title: '组合器：把高斯相乘', sub: '拖权重，式 (6) 当场算，再用数值积分核对', dur: 18, cam: [0, 1.12, 17, [0.2, 3.4, 0]],
+    { n: 9, part: '§3.2 组合', title: '组合器：把高斯相乘', sub: '拖权重，式 (6) 当场算，再用数值积分核对', dur: 18, cam: [0, 0.98, 17, [0.2, 3.0, 0]],
       html: dl([['式 (5)', 'π = (1/Z) Π P⁽ⁱ⁾(a|s)^{Cᵢ(s)}，Cᵢ ≥ 0'], ['式 (6)', 'μ = Σ(Cᵢ/σᵢ)μᵢ / Σ(Cᵢ/σᵢ)，σ = (ΣCᵢ/σᵢ)⁻¹'], ['composer', 'MLP [1024, 512]，输入和 primitive 相同'], ['训练', '混入恢复任务，全部 primitive 冻结']]) +
         '<p>每个 primitive 是独立高斯。带权连乘后还是高斯，方差里的 σ 读作方差时，式 (6) 正是精确解（下面的数值积分在核对这件事）。和 top-1 MOE 比，这里所有 primitive 同时起作用，所以 composer 能搜的动作空间更大。</p>' +
         '<p><b>同方差时：</b>PHC 的 σ 是固定且相同的，式 (6) 退化成均值的加权平均，方差变成 σ/ΣC。</p>' +
@@ -113,8 +113,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -289,7 +291,7 @@ function buildToy(){
       L.clear(stack); LABS = LABS.filter(s => s.parent !== stack);
       const rows = kp ? SEG.kp : SEG.rot; let y = 0.1; const total = rows.reduce((a, r) => a + r[1], 0), H = 0.0098;
       rows.forEach(([t, d, c], i) => { const h = d * H; const b = block(1.6, h - 0.05, 1.4, c, [-8.6, y + h / 2, 0]); stack.add(b); stack.add(lab(t, [-5.8, y + h / 2, 0], { size: 19 })); y += h; });
-      stack.add(lab(`输入 ${total} 维`, [-8.6, y + 0.65, 0], { size: 24, border: 'rgba(56,209,255,.8)' }));
+      stack.add(lab(`输入 ${total} 维`, [-8.6, -0.9, 1.8], { size: 24, border: 'rgba(56,209,255,.8)' }));
     }
     rebuild();
     /* a one-joint PD toy, integrated in place. Policy runs at 30 Hz, physics at 240 Hz inside. */
@@ -354,7 +356,7 @@ function buildToy(){
     const surf = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.72, depthWrite: false })); surf.frustumCulled = false; G.add(surf);
     const X = u => (u - 0.5) * SZ, Z = u => (u - 0.5) * SZ, H = 3.2;
     const imR = inst(BALL, NR), imF = inst(BALL, NF); imR.material.color.setHex(COL.ok); imF.material.color.setHex(COL.bad); G.add(imR, imF);
-    G.add(lab('绿：动捕样本（真）', [8.6, 5.6, -2.6], { size: 20, color: '#7ee0a8' }), lab('红：策略样本（假）', [8.6, 4.8, -2.6], { size: 20, color: '#ff9a8a' }), lab('曲面高度 = D', [8.6, 4.0, -2.6], { size: 20 }), lab('步频 →', [0, -0.5, 5.8], { size: 18 }), lab('抖动 →', [-5.9, -0.5, 0], { size: 18 }));
+    G.add(lab('绿：动捕样本（真）', [6.6, 5.6, -2.6], { size: 20, color: '#7ee0a8' }), lab('红：策略样本（假）', [6.6, 4.8, -2.6], { size: 20, color: '#ff9a8a' }), lab('曲面高度 = D', [6.6, 4.0, -2.6], { size: 20 }), lab('步频 →', [0, -0.5, 5.8], { size: 18 }), lab('抖动 →', [-5.9, -0.5, 0], { size: 20 }));
     const bR = bar(G, 7.6, 1.8, 0.9, COL.rew); G.add(lab('r^amp', [7.6, -0.5, 3.0], { size: 20 }));
     return { update(p) {
       const k = Math.round(p * STEPS), h = hist[k];
@@ -492,8 +494,8 @@ function buildToy(){
     const rd = ribbon(G, TN, COL.prim, 0.07), rth = ribbon(G, 2, COL.gold, 0.035, { opacity: 0.85 }); [rd, rth].forEach(m => { m.position.z = -2.1; }); const mk = block(0.17, 0.17, 0.17, COL.white, [0, 0, -2], { edges: false }); G.add(mk);
     G.add(lab('d(t) 和切换阈值', [XP + WP / 2, YP + HP + 0.2, -2.1], { size: 19 }));
     const T4 = { Ours: [95.0, 98.8, 83.7, 99.5, 93.4, 98.8], 'Ours-kp': [92.5, 94.6, 95.1, 96.0, 79.4, 93.2] };
-    const bars = []; ['Ours', 'Ours-kp'].forEach((m, j) => { for (let k = 0; k < 2; k++) { const b = bar(G, -9.6 + j * 2.6 + k * 0.95, 3.2, 0.8, j ? COL.gate : COL.prim, { d: 0.8 }); bars.push({ b, j, k }); } });
-    G.add(lab('表 4：Ours    Ours-kp', [-7.3, 0, 4.9], { size: 18 }), lab('每组左 5 秒，右 10 秒', [-7.3, 0, 5.8], { size: 17 }));
+    const bars = []; ['Ours', 'Ours-kp'].forEach((m, j) => { for (let k = 0; k < 2; k++) { const b = bar(G, -9.3 + j * 3.2 + k * 1.35, 3.2, 0.8, j ? COL.gate : COL.prim, { d: 0.8 }); bars.push({ b, j, k }); } });
+    G.add(lab('表 4：Ours        Ours-kp\n每组左 5 秒，右 10 秒', [-7.0, 0, 5.3], { size: 18 }));
     const vLab = { s: null, t: '' };
     const ctls = [{ label: '场景', items: ['倒地', '远离 3 m', '倒地 + 远离'], get: () => sc, set: k => { sc = k; } }, { label: '切换阈值', items: ['0.5 m（论文）', '0.25 m（代码默认）'], get: () => thr, set: k => { thr = k; } }];
     return { ctls, update(p) {
@@ -522,7 +524,7 @@ function buildToy(){
     const MU = [-0.7, -0.1, 0.45, 1.0], VS = [[0.05, 0.05, 0.05, 0.05], [0.03, 0.12, 0.05, 0.2]], CL = [COL.prim, 0x6fd8a8, COL.rew, COL.fail], NM = ['P¹', 'P²', 'P³', 'Pᶠ'];
     const SX = 2.5, Xc = 1.4, X = a => Xc + a * SX * 1.4, n = 161, A = i => -2 + 4 * i / (n - 1), Ybase = 0.3, DS = 1.35;
     G.add(L.grid(22, 22));
-    const lanes = MU.map((m, i) => { const z = -3.2 + i * 1.1, r = ribbon(G, n, CL[i], 0.05); r.position.z = z; const lb = lab(NM[i], [-5.6, 0.6, z], { size: 20 }); const wb = block(0.3, 1, 0.5, CL[i], [-4.6, 0.5, z], { edges: false }); G.add(lb, wb); return { r, wb, z }; });
+    const lanes = MU.map((m, i) => { const z = -3.2 + i * 1.1, r = ribbon(G, n, CL[i], 0.05); r.position.z = z; const lb = lab(NM[i], [-5.7, 0.6, z], { size: 22 }); const wb = block(0.3, 1, 0.5, CL[i], [-4.6, 0.5, z], { edges: false }); G.add(lb, wb); return { r, wb, z }; });
     const comp = ribbon(G, n, COL.gold, 0.11, { order: 4 }); comp.position.z = 1.6; G.add(lab('组合后的 π(a|s)', [X(1.25), 3.7, 1.6], { size: 21, color: '#f2c14e' }));
     const axis = wire(G, [[X(-2), 0.28, 1.6], [X(2), 0.28, 1.6]], COL.sim, { opacity: 0.7 }); G.add(lab('动作 a', [X(1.85), -0.15, 2.2], { size: 18 }));
     const mk = block(0.06, 3.0, 0.06, COL.gold, [0, 1.8, 1.6], { edges: false, opacity: 0.6 }); G.add(mk);
@@ -631,7 +633,7 @@ function buildToy(){
     cur = (i + SCENES.length) % SCENES.length; showInfo(cur);
     if (!S) return;
     L.clear(root); LABS = []; PICKS = []; lastCap = null;
-    const sc = SCENES[cur]; fly(...sc.cam); refDist = sc.cam[2] * aspectFix();
+    const sc = SCENES[cur], cam = document.body.classList.contains('embed') && sc.camE ? sc.camE : sc.cam; fly(...cam); refDist = cam[2] * aspectFix();
     const G = new THREE.Group(); root.add(G); pNow = p0; api = BUILD[cur](G); OPT = [];
     buildCtl();
     t0 = performance.now() - p0 * sc.dur * 1000; api.update(pNow); $('scrub').value = Math.round(pNow * 1000);

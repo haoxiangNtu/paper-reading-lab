@@ -34,7 +34,7 @@
         '<p>四种序轮流给不同的 block 用，弥补任意一条曲线的断点。</p>' +
         '<p><b>代码里的一个细节：</b>走到后面点数少于 1024 时，一个物体只有一组，组内注意力已经是这个物体上的全局注意力。本幕读数给出这个例子的每阶段点数和分组数。</p>' +
         guess('左边的点数和分组是按我造的杯子算的，换物体会变。层内部的注意力没有运行，方块亮度不是激活值。') + src('§3.1 Object Tokenization · ptv3.py · model_utils.py convert_to_ptv3_pc_format') },
-    { n: 4, part: '生成器', title: '噪声头：三个 512 拼成 1536', sub: '点击方块看形状；可切换序列长度，权重当场算', dur: 14, cam: [0, 1.0, 37, [0, 2.6, 0]],
+    { n: 4, part: '生成器', title: '噪声头：三个 512 拼成 1536', sub: '点击方块看形状；可切换序列长度，权重当场算', dur: 14, cam: [0, 0.9, 37, [0, 2.6, 0]],
       html: dl([['抓取', '[B, 6] → Linear 512 → ReLU → Linear 512'], ['时间', 't → Sinusoidal 512 → 2048 → Mish → 512'], ['物体', '[#obj, 512] 重复成 [B, 512]'], ['拼接', '[1, B, 1536]（序列长 1）'], ['块', '3 ×（8 头注意力 ＋ FFN 1536→512→1536）'], ['输出', '1536 → 768 → 384 → 6'], ['参数', '约 3690 万（噪声头，不含 PTv3，我按层算的）']]) +
         '<p>论文图 2 把噪声和抓取都标成 [B × 4 × 4]；代码进网络前先转成 6 维（<code>r3_so3</code>）。</p>' +
         '<p><b>切换序列长度看看：</b>这条 <code>cat_attn</code> 路径 unsqueeze 后序列长是 1，softmax 只有一个元素，权重恒为 1。所以这三层“注意力”实际上是投影、残差、归一化和 FFN，没有在挑选任何东西。真正的空间注意力在 PTv3 里。</p>' +
@@ -53,7 +53,7 @@
         '<p>这个生成器只见过成功的抓取，却仍然产生红色和黄色：这就是论文说的 false positive，来自拟合误差，不是我手工加的。下面几幕都用它。</p>' +
         '<p><b>可以试：</b>T 从 2 加到 10，成功率明显上升，再往上变化不大。这和论文“T = 10 够用”的方向一致，但只是玩具。把调度器换成两路都用余弦，看红黄比例怎么变。</p>' +
         toy('二维平面上的一个胶囊物体，抓取是 (x, y, 朝向) 三维。切换时当场重新训练，大约 1 秒。结果不能外推到真实的 6 维抓取和 PTv3。') + src('§3.1 · 步进公式出自 diffusers 0.11.1') },
-    { n: 7, part: '判别器', title: '判别器：MLP 给每个候选打分', sub: '可切换阈值和批大小，精度当场算', dur: 13, cam: [0.02, 0.86, 28, [2.4, 2.2, 0.6]],
+    { n: 7, part: '判别器', title: '判别器：MLP 给每个候选打分', sub: '可切换阈值和批大小，精度当场算', dur: 13, cam: [0.02, 0.86, 28, [3.0, 2.2, 0.6]],
       html: dl([['物体', '[#obj, 512]，论文配方里冻结复用生成器的编码器'], ['抓取', '[B, 6] → 512 → ReLU → 512'], ['拼接', '[B, 1024]'], ['头', '1024 → 512 → 256 → 1（logit）'], ['损失', 'BCE，取每批损失最大的 75% 求均值'], ['省内存', '约 34,053 对 1,611 MiB（图 11 柱高读数，比值 21）']]) +
         '<p>判别器回答“在这个姿态抓下去会不会成功”。之前的 6-DOF GraspNet 把抓取变成 5 个点并和物体点云拼接后过 PointNet++，显存随 N×B 增长；这里只给 6 个数，显存随 B 增长。</p>' +
         '<p><b>§6.10 的权衡：</b>阈值很低时，低质量抓取混进来；阈值很高时，留下的太少，要把批大小加大。切换阈值和批大小，看右上角的精度和保留数量。</p>' +
@@ -276,8 +276,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   function relabel(G, sp, text, pos, o) { if (sp) { G.remove(sp); L.dispose(sp); LABS = LABS.filter(s => s !== sp); } const n = lab(text, pos, o); G.add(n); return n; }
@@ -458,9 +460,9 @@
   function s4(G) {
     G.add(L.grid(44, 44));
     const parts = [
-      { n: '抓取 [B, 6]\n→ 512', c: COL.noise, p: [-13, 0, 3.4], s: [2.4, 1, 1.6], d: '抓取：[B, 6] → Linear(6, 512) → ReLU → Linear(512, 512)。平移乘过 κ，轴角除过 π。' },
+      { n: '抓取 [B, 6]\n→ 512', c: COL.noise, p: [-13, 0, 4.4], s: [2.4, 1, 1.6], d: '抓取：[B, 6] → Linear(6, 512) → ReLU → Linear(512, 512)。平移乘过 κ，轴角除过 π。' },
       { n: '时间 t\n→ 512', c: COL.time, p: [-13, 0, 0], s: [2.4, 1, 1.6], d: '时间：Sinusoidal 512 → Linear 2048 → Mish → Linear 512。T = 10 时 t 只取 0 到 9。' },
-      { n: '物体 PTv3\n→ 512', c: COL.enc, p: [-13, 0, -3.4], s: [2.4, 1, 1.6], d: '物体：PTv3 输出 [#obj, 512]，按 mask_batch 复制成 [B, 512]。整个去噪过程只算一次。' },
+      { n: '物体 PTv3\n→ 512', c: COL.enc, p: [-13, 0, -4.4], s: [2.4, 1, 1.6], d: '物体：PTv3 输出 [#obj, 512]，按 mask_batch 复制成 [B, 512]。整个去噪过程只算一次。' },
       { n: '拼接 1536\n[1, B, 1536]', c: COL.sim, p: [-8, 0, 0], s: [1.6, 4, 2.6], d: '沿特征维拼接：[B, 1536]，unsqueeze(0) 变成 [1, B, 1536]。MultiheadAttention 默认序列在第 0 维，所以序列长 1。' },
       { n: '注意力 1', c: COL.gen, p: [-4.2, 0, 0], s: [1.4, 3.2, 2.6], d: 'nn.MultiheadAttention(1536, 8)，每头 192 维；残差 ＋ LayerNorm；query 位置编码是可学的 1 个向量。序列长 1 时权重恒为 1。' },
       { n: 'FFN', c: COL.gen, p: [-2.4, 0, 0], s: [0.9, 2.2, 2.6], d: 'FFN：1536 → 512 → GELU → 1536，残差 ＋ LayerNorm。' },
@@ -533,7 +535,7 @@
   const TH7 = [0.2, 0.5, 0.7, 0.8, 0.85], B7 = [5, 25, 100, 500, 1500];
   function s7(G) {
     const d = dis('on'), sc = d.sc, P = ToyPlane(G, { s: 5.2, at: [-5, 0, 1] }), n = 300, gl = P.glyphs(n), th = TH7[STATE.th7], B = B7[STATE.b7], picked = sc.slice(0, B), kept = picked.filter(g => g.score >= th), prec = kept.length ? kept.filter(g => g.ok).length / kept.length : NaN, raw = picked.filter(g => g.ok).length / picked.length;
-    const bl = [['物体 512', COL.enc, [3.2, 0, 3.0], [1.5, 1.2, 1.4]], ['抓取 512', COL.noise, [3.2, 0, 6.0], [1.5, 1.2, 1.4]], ['拼接 1024', COL.sim, [6.0, 0, 4.5], [1.2, 2.4, 2]], ['512', COL.dis, [8.2, 0, 4.5], [1, 1.8, 2]], ['256', COL.dis, [9.9, 0, 4.5], [0.9, 1.2, 2]], ['1 → sigmoid', COL.gen, [11.6, 0, 4.5], [0.8, 0.7, 2]]];
+    const bl = [['物体 512', COL.enc, [3.2, 0, 3.0], [1.5, 1.2, 1.4]], ['抓取 512', COL.noise, [3.2, 0, 6.0], [1.5, 1.2, 1.4]], ['拼接 1024', COL.sim, [6.0, 0, 4.5], [1.2, 2.4, 2]], ['512', COL.dis, [8.2, 0, 4.5], [1, 1.8, 2]], ['256', COL.dis, [9.9, 0, 4.5], [0.9, 1.2, 2]], ['1 → sigmoid', COL.gen, [12.4, 0, 4.5], [0.8, 0.7, 2]]];
     const ms = bl.map(q => { const m = block(q[3][0], q[3][1], q[3][2], q[1], [q[2][0], q[3][1] / 2, q[2][2]]); G.add(m, lab(q[0], [q[2][0], q[3][1] + 0.7, q[2][2]], { size: 20 })); return m; });
     wire(G, [[4, 0.5, 3], [5.4, 0.8, 4.5]], COL.sim); wire(G, [[4, 0.5, 6], [5.4, 0.8, 4.5]], COL.sim); wire(G, [[6.6, 0.6, 4.5], [11.2, 0.4, 4.5]], COL.sim);
     G.add(lab('编码器冻结（论文）', [3.2, 2.7, 2.2], { size: 18 }));

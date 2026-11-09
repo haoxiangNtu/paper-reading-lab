@@ -20,7 +20,7 @@
   const FIG9 = { a: ['0.3', '0.01', '0.003', '0.001', '0.0003', '0'], loco: [18.3, 44.8, 52.9, 49.1, 48.2, 21.8], dance: [35.5, 41.7, 45.7, 58.8, 47.9, 38.5], box: [26.3, 32.2, 35.8, 57.5, 45.0, 31.0] };
 
   const SCENES = [
-    { n: 1, part: '总览', title: '四段流水线：模仿、造数据、学潜空间、下游', sub: '每一段在前一段冻结后再训', dur: 15, cam: [0.1, 1.12, 27, [0, 2.6, 0]],
+    { n: 1, part: '总览', title: '四段流水线：模仿、造数据、学潜空间、下游', sub: '每一段在前一段冻结后再训', dur: 15, cam: [0.1, 1.12, 28, [0.6, 2.6, 0]],
       html: dl([['① 模仿', 'DeepMimic 式控制器，DD-PPO 训'], ['② 专家数据', '每片段展开 10 次，带噪声 ε = 0.05'], ['③ 条件 VAE', '先训仿真层并冻结，再训编码器 + 运动解码器'], ['④ 下游', '任务编码器（+ 帮手），DD-PPO，解码器冻结']]) +
         '<p>这就是 SuperMimic 表 1 里那一行：Mimic = PPO、Latent = BC（带一步一致性项）、Downstream = PPO、Task signal = RL。三列不合并，意思是一段训完冻结再训下一段。</p>' +
         '<p>运行时只留下右边两块：任务编码器（或者随机采样）给 z，运动解码器给 PD 目标，交给 PyBullet。仿真层只在第 ③ 段训练时用到。</p>' +
@@ -36,12 +36,12 @@
         '<p>全部量表示在“朝向坐标系”里：竖轴是重力方向，前方是角色朝向，原点是根部在地面的投影。这样同一个动作在地图上哪里做、朝哪做，输入都一样。</p>' +
         '<p>参数量按预训练权重 loco_modelV1.pt 的形状算：编码器 267,328，运动解码器 754,742，仿真层 1,845,609，价值头 251,137，共 3,118,816。最大的是仿真层。</p>' +
         src('§3 · env_humanoid_base.py facing_R6_h · loco.urdf · loco_modelV1.pt') },
-    { n: 4, part: '§5.1.2 仿真层', title: '先学一个一步动力学，然后冻结', sub: '切换学习率写法；曲线是当场算的', dur: 14, cam: [0.05, 1.18, 26, [0, 3.6, 0]],
+    { n: 4, part: '§5.1.2 仿真层', title: '先学一个一步动力学，然后冻结', sub: '切换学习率写法；曲线是当场算的', dur: 14, cam: [0.05, 1.18, 29.5, [-2.0, 3.8, 0]],
       html: dl([['输入', '(s_t, a_t)：361 + 54 = 415'], ['网络', 'MLP 1024 × 2，ReLU'], ['输出', 's_{t+1}，361 维（直接输出，不是增量）'], ['损失', '‖s_{t+1} − f(s_t, a_t)‖²，用专家动作'], ['训练', '300 轮，3 到 4 小时，只用 CPU']]) +
         '<p>论文叫它“可导物理仿真层”，代码叫 <code>_world_model</code>。它只在固定的专家数据上学，学完就冻结（雪花色），之后不再更新，也不会见到条件 VAE 自己生成的动作分布。</p>' +
         '<p>右边的曲线是学习率：论文写初值 0.01、每 50 轮乘 0.7；代码默认初值 5e−4。300 轮末论文写法是 1.18e−3。</p>' +
         src('§3 · §5.1.2 · 表 2 · train_physics_vae.py') },
-    { n: 5, part: '§3 结构', title: '条件 VAE：图 2 的 3D 版', sub: '这一幕是核心：编码 → 采样 → 解码成动作 → 仿真层算后果', dur: 16, cam: [0.08, 1.12, 30, [0, 3.4, 0]],
+    { n: 5, part: '§3 结构', title: '条件 VAE：图 2 的 3D 版', sub: '这一幕是核心：编码 → 采样 → 解码成动作 → 仿真层算后果', dur: 16, cam: [0.08, 1.12, 28.5, [-3.2, 3.2, 0]],
       html: dl([['编码器', '(s_t, s_{t+1}) 722 → 256 → 256 → (μ, log σ²) 各 32'], ['采样', 'z_t = μ + σ·ε'], ['运动解码器', '(s_t, z_t) 393 → 512 × 3 → a′_t 54'], ['仿真层', '(s_t, a′_t) → s′_{t+1}，冻结'], ['运行时', '只留运动解码器，z ~ N(0, I)']]) +
         '<p>编码器“看见”下一状态，所以它的 z 告诉解码器“要去哪里”。KL 把这些 z 压向标准正态，运行时就能用随机 z 代替编码器。</p>' +
         '<p>解码器的输出不止和专家动作比（BC），还要穿过冻结的仿真层，看导致的下一状态是否和数据一致。这就是 SuperMimic 表 1 脚注说的“一步一致性项”。</p>' +
@@ -62,7 +62,7 @@
         '<p>去掉 KL 后，编码器的 z 不再被压向标准正态，运行时采到的 z 落在解码器没见过的区域，输出无意义的动作。</p>' +
         guess('10 条轨迹是我按平滑随机游走画的，形状模仿图 4 的样子（有的走远，有的打转），不是模型输出。小人的步态是手写的。') +
         src('§5.1.3 图 4 · §5.5.1') },
-    { n: 9, part: '§4 帮手', title: '帮手分支：在冻结的解码器上加有界修正', sub: '切换 σ，看允许改动多少度', dur: 13, cam: [0.1, 1.12, 28, [0, 3.6, 0]],
+    { n: 9, part: '§4 帮手', title: '帮手分支：在冻结的解码器上加有界修正', sub: '切换 σ，看允许改动多少度', dur: 13, cam: [0.1, 0.92, 29, [-0.6, 2.6, 1.5]],
       html: dl([['式 (2)', 'Δa_t = σ ⊗ Tanh(H(s_t, z_t))'], ['动作', 'â_t = a_t + Δa_t'], ['σ = 0.1', '±5.73°，5.2 节四个任务、打沙袋'], ['σ = 0.5', '±28.65°，打沙袋对照'], ['σ = 1.0', '±57.3°，不平地形和人群']]) +
         '<p>任务编码器给 z，冻结的运动解码器给 a_t。帮手看同样的 (s_t, z_t)，输出经 tanh 压到 (−1, 1)，再乘 σ。所以无论帮手怎么学，每个关节最多被改 σ 弧度。</p>' +
         '<p>σ 小：动作像数据，任务可能做不好；σ 大：更能适应，比如不平地形，但动作可能走样。打沙袋上，σ = 0.5 的接触力到 500 N，σ = 0.1 约 200 N、更像原始拳击。</p>' +
@@ -105,8 +105,10 @@
   catch (e) { $('nogl').hidden = false; }
   const root = S ? new THREE.Group() : null; if (S) S.scene.add(root);
   let LABS = [], refDist = 24, PICKS = [];
+  /* label font floor: small sizes grow most, big ones barely (default view keeps body text >= ~13 px on a 680 px stage); shorter stages (embed 520 px, phones) get up to 1.2x */
+  const LSZ = (s, sc) => { const k = sc / 0.012, hs = Math.min(1.2, Math.max(1, Math.sqrt(680 / (document.getElementById('stage')?.clientHeight || 680)))); return Math.round(Math.max(s, (0.5 * s * k + 17.5) / k) * hs); };
   function lab(text, pos, o = {}) {
-    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: o.size || 24, pos, color: o.color, border: o.border, bg: o.bg });
+    const sp = L.label(text, { scale: (o.scale || 0.012) * refDist / 22, size: LSZ(o.size || 24, o.scale || 0.012), pos, color: o.color, border: o.border, bg: o.bg });
     sp.userData.s0 = sp.scale.clone(); LABS.push(sp); return sp;
   }
   const _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _Q0 = new THREE.Quaternion(), _Sv = new THREE.Vector3(), _C = new THREE.Color();
@@ -211,7 +213,8 @@
   /* a network drawn as a row of slabs; slab height follows the layer width */
   function net(G, x0, y, z, widths, color, o = {}) {
     const gap = o.gap ?? 0.9, k = o.k ?? 0.0042, out = [];
-    widths.forEach((w, i) => { const h = 0.5 + w * k; const m = block(0.36, h, o.d ?? 1.4, color, [x0 + i * gap, y + h / 2, z]); G.add(m); out.push(m); if (o.dims !== false) G.add(lab(String(w), [x0 + i * gap, y + h + 0.45, z], { size: 16 })); });
+    let ly = -99; /* width labels: bump one row up when the neighbour's label sits at about the same height */
+    widths.forEach((w, i) => { const h = 0.5 + w * k; const m = block(0.36, h, o.d ?? 1.4, color, [x0 + i * gap, y + h / 2, z]); G.add(m); out.push(m); let yy = y + h + 0.45; if (Math.abs(yy - ly) < 0.6) yy = ly + 0.62; ly = yy; if (o.dims !== false) G.add(lab(String(w), [x0 + i * gap, yy, z], { size: 16 })); });
     return out;
   }
   const flake = (ms, k) => ms.forEach(m => { const c = hex3(COL.sim), f = hex3(COL.frozen); m.material.color.setRGB(L.lerp(c[0], f[0], k), L.lerp(c[1], f[1], k), L.lerp(c[2], f[2], k)); });
@@ -230,8 +233,8 @@
     G.add(mocap, mimic, demo, sim, vae, task, dec2);
     [[mocap, 1], [mimic, 1], [demo, 1], [sim, 3], [vae, 4], [task, 9], [dec2, 8]].forEach(([m, g]) => { m.userData.go = g; PICKS.push(m); });
     G.add(lab('动捕 10 分钟', [X[0], 2.3, 0], { size: 20 }), lab('① 模仿控制器\nDD-PPO', [X[1], 2.6, 0], { size: 20 }), lab('② 专家数据\n180,000 对', [X[2], 2.6, 0], { size: 20 }),
-      lab('③ 仿真层 → 条件 VAE', [X[3], 2.3, 0], { size: 20 }), lab('④ 任务编码器 + 冻结解码器', [X[4], 2.3, 0], { size: 20 }));
-    G.add(lab('Mimic = PPO', [X[1], -0.2, 2.2], { size: 18, color: '#c9b8ff' }), lab('Latent = BC¹', [X[3], -0.2, 2.2], { size: 18, color: '#8fc1f2' }), lab('Downstream = PPO · Task = RL', [X[4], -0.2, 2.2], { size: 18, color: '#7fe0a8' }));
+      lab('③ 仿真层 → 条件 VAE', [X[3], 2.3, 0], { size: 20 }), lab('④ 任务编码器\n+ 冻结解码器', [X[4], 2.6, 0], { size: 20 }));
+    G.add(lab('Mimic = PPO', [X[1], -0.2, 2.2], { size: 18, color: '#c9b8ff' }), lab('Latent = BC¹', [X[3], -0.2, 2.2], { size: 18, color: '#8fc1f2' }), lab('Downstream = PPO\nTask = RL', [X[4], -0.4, 2.2], { size: 18, color: '#7fe0a8' }));
     const rob = robot(COL.robot); G.add(rob);
     const f = [stream(G, 5, COL.data), stream(G, 5, COL.mimic), stream(G, 5, COL.data), stream(G, 5, COL.dec)];
     const all = [mocap, mimic, demo, sim, vae, task, dec2];
@@ -258,7 +261,7 @@
     let mode = +(OPT[0] ?? 0);
     G.add(L.grid(30, 30));
     const bars = []; for (let i = 0; i < 10; i++) { const b = bar(G, -8 + i * 0.9, -6, 0.6, COL.data, { d: 0.6 }); bars.push(b); }
-    G.add(lab('10 段 bvh，每段 1801 帧 ≈ 60 s', [-4, 4.4, -6], { size: 18 }));
+    G.add(lab('10 段 bvh，每段 1801 帧 ≈ 60 s', [-4, 4.2, -6], { size: 21 }));
     const n = 140, ref = []; for (let i = 0; i < n; i++) { const t = i / (n - 1); ref.push([-9 + 18 * t, 0.05, 3 + 2.2 * Math.sin(t * 5.2)]); }
     G.add(L.line(ref, COL.ref, { opacity: 1 }));
     const lines = [], R = L.rng(7), walks = [];
@@ -314,7 +317,7 @@
   function s4(G) {
     let mode = +(OPT[0] ?? 0);
     const L1 = net(G, -11, 0, 0, [415, 1024, 1024, 361], COL.sim, { gap: 1.1 });
-    G.add(lab('仿真层 f(s_t, a_t) → s_{t+1}', [-9.3, 6.6, 0], { size: 21 }));
+    G.add(lab('仿真层 f(s_t, a_t) → s_{t+1}', [-9.3, 7.1, 0], { size: 21 }));
     const inS = block(1.2, 1.2, 1.2, COL.data, [-14, 0.6, 0]); G.add(inS); G.add(lab('专家 (s_t, a_t)', [-14, 1.8, 0], { size: 18 }));
     const outS = block(1.2, 1.2, 1.2, COL.data, [-5.4, 0.6, 0]); G.add(outS); G.add(lab('对比 s_{t+1}', [-5.4, 1.8, 0], { size: 18 }));
     const fs = stream(G, 6, COL.data);
@@ -346,7 +349,7 @@
     R.a = block(1.0, 1.0, 1.0, COL.gate, [1.4, 0.5, 0]); G.add(R.a); G.add(lab("a′_t", [1.4, 1.5, 0], { size: 18 }));
     R.sim = net(G, 3.2, y, 0, [415, 1024, 1024, 361], COL.sim, { gap: 0.8, k: 0.004 }); flake(R.sim, 1);
     R.sp = block(1.0, 1.0, 1.0, COL.data, [7.6, 0.5, 0]); G.add(R.sp); G.add(lab("s′_{t+1}", [7.6, 1.5, 0], { size: 18 }));
-    G.add(lab('编码器', [-11.2, 4.4, 0], { size: 19 }), lab('z_t（32）', [-5.6, 2.0, 0], { size: 17 }), lab('运动解码器', [-2.0, 4.6, 0], { size: 19 }), lab('仿真层（冻结）', [4.4, 6.4, 0], { size: 19 }));
+    G.add(lab('编码器', [-11.2, 5.0, 0], { size: 19 }), lab('z_t（32）', [-5.7, 2.9, 0], { size: 17 }), lab('运动解码器', [-2.0, 4.7, 0], { size: 19 }), lab('仿真层（冻结）', [4.4, 6.9, 0], { size: 19 }));
     wire(G, [[-14.5, 0.1, 2.6], [5.6, 0.1, 2.6]], COL.data, { opacity: 0.6 }); [-11.2, -3.6, 3.2].forEach(x => wire(G, [[x, 0.1, 2.6], [x, 0.1, 0.7]], COL.data, { opacity: 0.6 }));
     G.add(lab('s_t 同时进入编码器、解码器、仿真层', [-4.5, 0, 3.6], { size: 16 }));
     R.f = [stream(G, 4, COL.enc), stream(G, 4, COL.kl), stream(G, 4, COL.dec), stream(G, 4, COL.sim)];
@@ -372,11 +375,11 @@
   function s6(G) {
     let ai = +(OPT[0] ?? 1), sm = +(OPT[1] ?? 0);
     const R = vaeRig(G); R.setZ(1, true);
-    const pills = [lab('① ‖a_t − a′_t‖²', [1.4, 4.2, 0], { size: 19, border: 'rgba(240,150,60,.9)' }), lab("② α‖s_{t+1} − s′_{t+1}‖²", [7.6, 4.2, 0], { size: 19, border: 'rgba(56,209,255,.9)' }), lab('③ β·KL', [-7.4, 4.0, 0], { size: 19, border: 'rgba(212,95,160,.9)' })];
+    const pills = [lab('① ‖a_t − a′_t‖²', [0.6, 5.6, 0], { size: 19, border: 'rgba(240,150,60,.9)' }), lab("② α‖s_{t+1} − s′_{t+1}‖²", [9.2, 5.2, 0], { size: 19, border: 'rgba(56,209,255,.9)' }), lab('③ β·KL', [-7.4, 4.3, 0], { size: 19, border: 'rgba(212,95,160,.9)' })];
     pills.forEach(x => G.add(x));
     const gb = [stream(G, 5, COL.gate, 0.12), stream(G, 7, COL.help, 0.12), stream(G, 4, COL.kl, 0.12)];
     const bA = bar(G, 11.5, 0, 1.0, COL.gate, { d: 1 }), bS = bar(G, 13, 0, 1.0, COL.help, { d: 1 });
-    G.add(lab('BC', [11.5, -0.4, 1.2], { size: 16 }), lab('一致性 ×1000', [13.2, -0.4, 1.2], { size: 16 }));
+    G.add(lab('BC', [11.3, -0.4, 1.2], { size: 16 }), lab('一致性\n×1000', [13.2, -0.6, 1.2], { size: 16 }));
     const AL = [0, 1e-4, 1e-3];
     const ctls = [{ label: 'α', items: ['0', '1e−4（表 1）', '1e−3（代码、图 9 最好）'], get: () => ai, set: k => { ai = k; } }, { label: '求和', items: ['论文：平方和', '代码：MSE 平均'], get: () => sm, set: k => { sm = k; } }];
     return { ctls, update(p) {
@@ -395,10 +398,10 @@
     let ds = +(OPT[0] ?? 0); G.add(L.grid(34, 34));
     const N = ['loco', 'dance', 'box'], NM = ['走跑', '舞蹈', '拳击'], CL = [COL.ok, COL.enc, COL.prim]; const B = [];
     FIG9.a.forEach((a, i) => { const x = -12.5 + i * 5; G.add(lab('α = ' + a, [x, -0.3, 3.0], { size: 18 }));
-      N.forEach((k, j) => { const xx = x + (j - 1) * 1.25, b = block(1.05, 1, 1.05, CL[j], [xx, 0.5, 0], { edges: false }); G.add(b); const l = lab(FIG9[k][i].toFixed(1), [xx, 0, 0], { size: 15 }); G.add(l); B.push({ b, l, v: FIG9[k][i], j }); }); });
+      N.forEach((k, j) => { const xx = x + (j - 1) * 1.45, b = block(1.05, 1, 1.05, CL[j], [xx, 0.5, 0], { edges: false }); G.add(b); const l = lab(FIG9[k][i].toFixed(1), [xx, 0, 0], { size: 15 }); G.add(l); B.push({ b, l, v: FIG9[k][i], j }); }); });
     NM.forEach((t, j) => G.add(lab(t, [-12 + j * 3.4, 9.2, 0], { size: 19, color: '#' + CL[j].toString(16).padStart(6, '0') })));
     G.add(lab('直到摔倒的时间（s），上限 60 · 位图读数', [6, 9.2, 0], { size: 19, border: 'rgba(56,209,255,.7)' }));
-    const cap60 = block(30, 0.03, 0.03, COL.bad, [0, 60 / 60 * 7.5, -0.6], { edges: false }); G.add(cap60); G.add(lab('60 s 上限', [14.5, 7.9, -0.6], { size: 15 }));
+    const cap60 = block(30, 0.03, 0.03, COL.bad, [0, 60 / 60 * 7.5, -0.6], { edges: false }); G.add(cap60); G.add(lab('60 s 上限', [12.6, 8.2, -0.6], { size: 15 }));
     const ctls = [{ label: '数据集', items: ['全部', '走跑', '舞蹈', '拳击'], get: () => ds, set: k => { ds = k; } }];
     return { ctls, update(p) {
       const g = seg(p, 0, 0.5); B.forEach(({ b, l, v, j }) => { const on = ds === 0 || ds - 1 === j, h = Math.max(0.02, v / 60 * 7.5 * g); b.scale.y = h; b.position.y = h / 2; b.material.opacity = on ? 1 : 0.18; b.material.transparent = !on; l.visible = on; l.position.y = h + 0.35; });
@@ -418,7 +421,7 @@
     const colors = [COL.prim, COL.task, COL.enc, COL.help, COL.kl, COL.mimic, COL.sim, COL.ok, COL.white, COL.gate];
     const rib = P.map((pts, k) => { const l = L.line(pts.map(p => [p[0], 0.05, p[1]]), colors[k], { opacity: 0.9 }); G.add(l); return l; });
     const robs = P.map(() => { const r = robot(COL.robot); G.add(r); return r; });
-    G.add(lab('网格 1 m · 同一起点 · 每步 z ~ N(0, I)', [0, 0.3, 13.5], { size: 18 }));
+    G.add(lab('网格 1 m · 同一起点 · 每步 z ~ N(0, I)', [0, 0.3, 7.6], { size: 18 }));
     const ctls = [{ label: '模型', items: ['完整（有 KL）', '去掉 KL'], get: () => nokl, set: k => { nokl = k; } }];
     return { ctls, update(p) {
       const t = p * T, idx = Math.min(n - 1, Math.round(p * (n - 1)));
@@ -434,13 +437,13 @@
   function s9(G) {
     let si = +(OPT[0] ?? 0); const SIG = [0.1, 0.5, 1.0];
     const g = block(1.0, 1.0, 1.0, COL.task, [-14, 0.5, 0]); G.add(g); G.add(lab('g_t', [-14, 1.5, 0], { size: 18 }));
-    const te = net(G, -12.4, 0, 0, [256, 256, 32], COL.task, { gap: 0.8, k: 0.006 });
-    const dec = net(G, -8.8, 0, 0, [393, 512, 512, 512, 54], COL.frozen, { gap: 0.75, k: 0.004 });
-    const hp = net(G, -8.8, 0, 4.2, [393, 128, 128, 54], COL.help, { gap: 0.75, k: 0.006 });
+    const te = net(G, -12.6, 0, 0, [256, 256, 32], COL.task, { gap: 1.0, k: 0.006 });
+    const dec = net(G, -8.8, 0, 0, [393, 512, 512, 512, 54], COL.frozen, { gap: 0.95, k: 0.004 });
+    const hp = net(G, -8.8, 0, 4.2, [393, 128, 128, 54], COL.help, { gap: 0.95, k: 0.006 });
     const th = block(1.1, 0.8, 1.0, COL.help, [-4.6, 0.4, 4.2]); G.add(th); G.add(lab('tanh', [-4.6, 1.3, 4.2], { size: 17 }));
     const mul = L.sphere(0.45, COL.gold); mul.position.set(-2.8, 0.5, 4.2); G.add(mul); G.add(lab('× σ', [-2.8, 1.4, 4.2], { size: 18 }));
     const add = L.sphere(0.5, COL.gold); add.position.set(-1.6, 0.5, 0); G.add(add); G.add(lab('+', [-1.6, 1.5, 0], { size: 20 }));
-    G.add(lab('任务编码器（训）', [-11.6, 3.0, 0], { size: 18 }), lab('运动解码器（冻结）', [-7.3, 4.0, 0], { size: 18 }), lab('帮手 H（训）', [-7.6, -0.4, 5.6], { size: 18 }), lab('â_t = a_t + Δa_t', [-1.6, 2.4, 0], { size: 18 }));
+    G.add(lab('任务编码器（训）', [-12.4, 4.0, 0], { size: 18 }), lab('运动解码器（冻结）', [-6.8, 4.8, 0], { size: 18 }), lab('帮手 H（训）', [-7.6, -0.4, 5.6], { size: 18 }), lab('â_t = a_t + Δa_t', [-1.6, 3.0, 0], { size: 18 }));
     const fs = [stream(G, 4, COL.task), stream(G, 5, COL.frozen), stream(G, 5, COL.help)];
     const rob = robot(COL.robot); G.add(rob);
     const fan = sector(G, 3.6, COL.help, { opacity: 0.55 }), base = L.line([[0, 0, 0], [3.6, 0, 0]], COL.white, { opacity: 1 }), mid = L.line([[0, 0, 0], [3.9, 0, 0]], COL.gold, { opacity: 0.9 }); G.add(base, mid);
