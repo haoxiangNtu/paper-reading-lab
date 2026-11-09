@@ -20,6 +20,14 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/superdyno.html">SuperDyno：可微神经动力学的人形跟踪</a></p>
+<p class="en">Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics</p>
+<div class="meta"><span>OpenReview</span><span>ICLR 2025 Workshop</span><span>SuperMimic 引用</span><span>2026-11-09 全文精读</span></div>
+<p class="d">学一个只预测速度、再积分的小 MLP 动力学模型，策略穿过它反传 32 步，在单张 A6000 上约 3 天跟踪 AMASS 的 11313 段动作；方法几乎是 SuperTrack 的配方加上 GPU 并行。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">BPTT</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">25 条读者注</span></div>
+<div class="links"><a class="go" href="papers/superdyno.html">读精读 →</a><a href="interactives/superdyno/index.html">11 幕 3D 框架动画</a><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">原文</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/maskedmimic.html">MaskedMimic：遮住一部分目标，统一各种控制方式</a></p>
 <p class="en">MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting</p>
 <div class="meta"><span>arXiv 2409.14393</span><span>SIGGRAPH Asia 2024 · TOG</span><span>SuperMimic 引用</span><span>2026-11-09 读</span></div>
@@ -98,14 +106,6 @@
 <p class="d">把几十小时动作压成离散索引、再用物理解码回来，穿过世界模型训练，并接上 GPT 和大语言模型。</p>
 <div class="tags"><span class="pill">VQ-VAE</span><span class="pill">残差量化</span><span class="pill">物理角色</span><span class="pill">版权保留 · 文字描述图</span><span class="pill rn">18 条读者注</span></div>
 <div class="links"><a class="go" href="papers/moconvq.html">读精读 →</a><a href="interactives/moconvq/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2310.10198">原文</a><a href="https://github.com/heyuanYao-pku/MoConVQ">官方代码</a></div>
-</article>
-<article class="paper">
-<p class="t"><a href="papers/superdyno.html">SuperDyno（全文未读）：可微神经动力学</a></p>
-<p class="en">Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics</p>
-<div class="meta"><span>OpenReview</span><span>ICLR 2025 Workshop</span><span>SuperMimic 引用</span><span>2026-11-06 读</span></div>
-<p class="d">全文未读到，只整理摘要和项目页存档：可微神经动力学把人形跟踪扩展到大规模动作库。不是逐节精读。</p>
-<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">全文未读</span><span class="pill">文字描述图</span><span class="pill rn">10 条读者注</span></div>
-<div class="links"><a class="go" href="papers/superdyno.html">读整理页 →</a><a href="interactives/superdyno/index.html">10 幕 3D 框架动画</a><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">原文</a></div>
 </article>
 <article class="paper">
 <p class="t"><a href="papers/rwm-u.html">RWM-U：给世界模型加不确定性，离线训练上真机</a></p>
@@ -197,7 +197,7 @@
 <li>动作从 1 小时加到 264 小时，算力只多约 3.5 倍，预测误差保持在 0.007 到 0.011。</li>
 <li>评论家让 32 步的短窗口够用：按折扣算，约 73% 的回报其实在窗口之外。</li>
 </ul>
-<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">BPTT</span><span class="pill">版权保留 · 含原图</span><span class="pill rn">19 条读者注</span></div>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">人形控制</span><span class="pill">BPTT</span><span class="pill">版权保留 · 含原图</span><span class="pill rn">20 条读者注</span></div>
 <div class="links"><a class="go" href="papers/supermimic.html">读精读 →</a><a href="interactives/supermimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2610.28480">arXiv 原文</a><a href="https://supermimic.github.io">项目主页</a></div>
 </article>
 <article class="paper">

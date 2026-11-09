@@ -3,24 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>SuperDyno 现有材料整理（全文未读到） · Paper Reading Lab</title>
-<meta name="description" content="SuperDyno（Lei 等，ICLR 2025 World Models 工作坊）。论文全文没有读到，这一页只整理摘要、项目页存档和 SuperMimic、∇Mimic 的引用句，附 10 幕 3D 动画（含现场计算的玩具）和核算过的读者注。">
+<title>SuperDyno 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="SuperDyno（Lei、Luo、He、Cao、Shi、Kitani，ICLR 2025 工作坊）的中文逐节精读：按原文章节整理，含全部编号公式和算法 1、表 1 和表 2、图的文字描述、从矢量图读出数据重画的图 4 到图 7、和 SuperTrack、SuperMimic 的详细对照、11 幕 3D 框架动画和读者注。">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
-.t-a{min-width:520px}.t-b{min-width:820px}.t-c{min-width:560px}.t-links{min-width:560px}
+.t-a{min-width:520px}.t-b{min-width:820px}.t-c{min-width:760px}.t-d{min-width:600px}.t-links{min-width:600px}
 .i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
 .i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
 .i3d p{max-width:none;font-size:14.5px}
 .i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
 .i3d .go{margin:6px 0 0;font-size:14px}
 @media (max-width:760px){ .i3d iframe{height:900px} }
-.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
-@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834} }
-:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834}
+.algo{font-family:var(--font-mono);font-size:13px;line-height:1.75;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;overflow-x:auto}
+.algo .t{font-weight:600;color:var(--fg);margin-bottom:4px;font-family:var(--font-body)}
+.algo .c{color:var(--muted)}
+.algo div{white-space:nowrap}
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
 .viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
 .viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
-.viz-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
 .viz-box{position:relative}
 .viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
 .viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
@@ -35,123 +39,191 @@
 .hist2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:640px){.hist2{grid-template-columns:1fr}}
 .notes li{max-width:74ch}
-.st-ok{color:var(--accent);font-weight:600}.st-no{color:var(--note);font-weight:600}
+.st-ok{color:var(--accent);font-weight:600}.st-no{color:var(--note);font-weight:600}.st-mid{color:var(--muted);font-weight:600}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
-<nav><a href="../index.html#list">论文列表</a><a href="../interactives/superdyno/index.html">3D 动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/superdyno/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
 
-<p class="eyebrow">ICLR 2025 WORLD MODELS 工作坊 · 口头报告 · 现有材料整理，不是全文精读</p>
+<p class="eyebrow">ICLR 2025 WORLD MODELS 工作坊 · 口头报告 · 2025 年 4 月 · 逐节精读</p>
 <h1>SuperDyno：用可微神经动力学学可扩展的人形全身控制</h1>
 <p class="orig">Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics</p>
-<p>作者 Yu Lei、Zhengyi Luo、Tairan He、Jinkun Cao、Guanya Shi、Kris Kitani。没有查到 arXiv 编号。“SuperDyno”这个名字出现在项目页和 SuperMimic 里，工作坊标题里没有。</p>
+<p>作者 Yu Lei、Zhengyi Luo、Tairan He、Jinkun Cao、Guanya Shi、Kris Kitani（卡内基梅隆大学机器人研究所；Luo 和 Kitani 共同指导）。没有 arXiv 版本。“SuperDyno”这个名字在标题里没有，正文和项目页里有。同组作者的 <a href="phc.html">PHC</a> 和 <a href="pulse.html">PULSE</a> 是这篇的基线，本站有精读。</p>
 <div class="meta"><a href="https://openreview.net/forum?id=FPgKt7bA8w">OpenReview</a><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">PDF（OpenReview）</a><a href="https://iclr.cc/virtual/2025/37555">ICLR 页面</a><a href="https://mlanthology.org/iclrw/2025/lei2025iclrw-scalable/">ML Anthology</a><a href="https://web.archive.org/web/20260303123801/https://dynamics-humanoid.github.io/dynamics-humanoid/">项目页存档</a><a href="../interactives/superdyno/index.html">3D 动画</a></div>
 
 <div class="callout" id="sources">
-<p><b>论文全文没有读到。</b>这一页不是逐节精读，没有原文章节号，也没有编号公式。OpenReview 的 PDF 和论题页对脚本返回 403 或浏览器验证，我没有伪装客户端，也没有去找绕过它的镜像。如果你能在浏览器里下载这份 PDF 交给我，我可以把这一页改成真正的逐节精读。</p>
-<p>我实际读过的来源只有下表这些：</p>
-<div class="tablewrap"><table class="t-a">
-<thead><tr><th>来源</th><th>状态</th><th>读到了什么</th></tr></thead>
-<tbody>
-<tr><td><a href="https://mlanthology.org/iclrw/2025/lei2025iclrw-scalable/">ML Anthology</a></td><td class="st-ok">读了</td><td>完整摘要、作者、BibTeX</td></tr>
-<tr><td><a href="https://iclr.cc/virtual/2025/37555">ICLR 海报页</a>、<a href="https://iclr.cc/virtual/2025/10000107">口头报告页</a></td><td class="st-ok">读了</td><td>同一份摘要；工作坊 Oral #4；视频栏是空的</td></tr>
-<tr><td><a href="https://web.archive.org/web/20260303123801/https://dynamics-humanoid.github.io/dynamics-humanoid/">项目页的 Wayback 存档</a>（2026-03-03）</td><td class="st-ok">读了</td><td>文字、1 张 HTML 表、6 张图；2 段视频抽帧。其余视频没看</td></tr>
-<tr><td><a href="supermimic.html#s2">SuperMimic §2</a>、<a href="https://arxiv.org/html/2610.41654v1">∇Mimic</a></td><td class="st-ok">读了</td><td>只有引用句，见下一节</td></tr>
-<tr><td><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">OpenReview PDF</a>、<a href="https://openreview.net/forum?id=FPgKt7bA8w">论题页</a></td><td class="st-no">没读到</td><td>PDF 返回 403；论题页只给浏览器验证</td></tr>
-<tr><td><a href="https://dynamics-humanoid.github.io/dynamics-humanoid">项目页线上版</a></td><td class="st-no">没读到</td><td>2026-11-06 我访问时返回 404</td></tr>
-<tr><td>项目页的交互 3D 图（9 个 plot_*.html）</td><td class="st-no">没读到</td><td>Wayback 没有存，返回 404</td></tr>
-<tr><td>其他公开副本</td><td class="st-no">没找到</td><td>网页搜索、arXiv 标题检索都没有。OpenAlex 按标题过滤是 0 条。Semantic Scholar 接口两次都返回 429，这一路没查成</td></tr>
-</tbody></table></div>
-<p><b>图和许可。</b>项目页和摘要都没有写开放许可，所以按不开放处理：这里没有放原图，只有文字描述和“看原图”链接。标着“重画”的图是我从项目页 PNG 按网格线标定读出像素后画的，精度只到目测级。表格数字照录。</p>
-<p><b>代码。</b>没有找到官方代码。摘要页、ICLR 页和项目页存档都没有代码链接。GitHub 用户 <code>dynamics-humanoid</code> 下只有一个公开仓库 <code>cotraining-anonymous</code>（提交 f1d99a3），从文件列表和提交信息看，是另一个项目的答辩网站（扩散模型共训练的玩具视频和 sim2sim 图），和这篇无关。我只看了文件列表和提交信息，没有克隆。</p>
+<p><b>版本。</b>这一页按用户提供的 PDF 逐节整理。它是 12 页（正文 10 页、参考文献、1 页附录），每页页眉是 “Published as a workshop paper at ICLR 2025”，标题、6 位作者、单位和 ML Anthology、ICLR 页面上的一致，脚注里的项目页地址也一致，PDF 内部生成时间是 2025-04-11。OpenReview 上的 PDF 对脚本返回 403，我没有绕过，所以没能逐字节比对这两份是不是同一个文件。下文的“原文第 N 页”按这份 12 页 PDF 计。</p>
+<p><b>这一页以前的样子。</b>2026-11-06 的旧版只读到了摘要和项目页存档，标着“全文未读”，有 10 条读者注。这一版读完了全文，<a href="#recheck">逐条核对了旧版的推断</a>：有的被证实，有的被推翻。项目页里有、论文里没有的材料（球墙实验、激活函数表、和 DreamerV1 的比较、误差直方图）挪到了页尾<a href="#pp">“项目页补充材料”</a>一节，和论文内容分开。</p>
+<p><b>许可和图。</b>OpenReview 上的工作坊论文，PDF 里没有任何开放许可的字样，按版权保留处理：这里不放原图，本地仓库里也不存原图。每张图用我自己的话描述，“看原图”指向 OpenReview 的 PDF 并注明页码。标着“重画”的图 4 到图 7 是我从 PDF 的矢量图读出数据点（<code>pdftocairo -svg</code>，按刻度和网格线标定）后画的，可以悬停看数值。表格数字照录原文。正文不逐字翻译。</p>
+<p><b>代码。</b>没有找到官方代码。论文、项目页、ICLR 页面都没有代码链接；项目页线上版现在返回 404；GitHub 用户 <code>dynamics-humanoid</code> 下只有一个和本文无关的仓库；按 “SuperDyno” 和 “Cycled Synchronous Early Termination” 搜索 GitHub 代码，只找到第三方笔记。所以这一页没有“论文和代码对照”。</p>
 <p>标成“读者注”的框是我核算或对照后写的，不属于论文。</p>
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#rel">和 SuperMimic 的关系</a><a href="#why">为什么用网络</a><a href="#i3d">3D 动画</a><a href="#act">激活函数</a><a href="#bench">AMASS 基准</a><a href="#dreamer">对比 DreamerV1</a><a href="#eval">动力学模型评估</a><a href="#tasks">稀疏奖励和迁移</a><a href="#scale">规模</a><a href="#unread">没读到的内容</a><a href="#notes">读者注汇总</a><a href="#links">链接核对</a>
+<a href="#tldr">摘要与速览</a><a href="#recheck">旧版推断的核对</a><a href="#rel">和 SuperMimic、SuperTrack 的关系</a><a href="#abs">摘要</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3-2">3.2 可微动力学</a><a href="#s3-2-3">3.2.3 训练框架</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 全身控制</a><a href="#s4-2">4.2 消融</a><a href="#s4-3">4.3 动力学模型的性质</a><a href="#s5">5 讨论</a><a href="#sA">附录</a><a href="#pp">项目页补充材料</a><a class="rn" href="#notes">读者注汇总</a><a href="#links">链接核对</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
-<p>以下转述摘要。无模型强化学习能学会跟踪大型动捕库，但样本和训练时间的开销很大。作者学一个神经动力学模型，提出一个把监督学习和强化学习结合起来的框架，用来学可扩展的人形控制器。摘要报告四件事：比之前的方法样本效率更高、跟踪误差更低，并能扩展到几万段动作；中等规模的动力学模型就可以当作可微的神经仿真器，用于预测和策略优化；框架在稀疏奖励任务上有效；学到的动力学模型能迁移到不同任务。</p>
-<p>下面这张表把每句话和我能找到的证据对上。</p>
-<div class="tablewrap"><table class="t-a">
-<thead><tr><th>摘要的说法</th><th>我读到的证据</th></tr></thead>
-<tbody>
-<tr><td>监督学习和强化学习结合的框架</td><td>只有这一句。怎么结合没读到</td></tr>
-<tr><td>样本效率更高</td><td>只有训练天数和环境数，没有样本数，见<a href="#n7">读者注 7</a></td></tr>
-<tr><td>跟踪误差更低</td><td><a href="#bench">基准表</a>，但不是每列都最低，见<a href="#n5">读者注 5</a></td></tr>
-<tr><td>几万段动作</td><td>我读到的具体数字是 11313 + 140，见<a href="#n10">读者注 10</a></td></tr>
-<tr><td>中等规模模型可作可微仿真器</td><td>开环误差的一句话和两张直方图。“中等规模”的大小没读到</td></tr>
-<tr><td>稀疏奖励任务</td><td>只有两段视频，没有数字</td></tr>
-<tr><td>动力学模型可迁移</td><td>没有证据：项目页这一节被注释掉了</td></tr>
-</tbody></table></div>
+<p>这篇做的事情和 <a href="supertrack.html">SuperTrack</a> 一样：学一个可导的神经网络去近似物理仿真器，再让跟踪误差穿过它直接反传到策略。不同的是规模。SuperTrack 在几个小时的动画数据上训练游戏角色；这篇把它搬到 <a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> 的 1024 个并行环境里，去跟踪 <a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a>（<a href="https://arxiv.org/abs/1904.03278">论文</a>）的 11313 段动作，并和同组的 PHC 比。</p>
+<ul>
+<li><b>两个网络：</b>动力学模型 \(f_w\) 是 2 层 512 宽的 SiLU MLP，只预测每个刚体的线速度和角速度，位置和旋转由写死的积分公式算出（式 5 到 7）。策略 \(\pi_\theta\) 是 [1024, 512] 的 SiLU MLP，输出 PD 目标。</li>
+<li><b>训练循环：</b>每个 epoch 先用当前策略在仿真里采数据，再更新 \(f_w\) 8 次（窗口 \(T_w=8\)，自回归滚动），再更新策略 4 次（穿过 \(f_w\) 滚动 \(T_\pi=32\) 步，损失直接反传）。没有评论家，没有 PPO。</li>
+<li><b>为大数据加的两件事：</b>CSET（让所有环境同步结束回合，采集时间从 7 秒多降到约 1.5 秒）和困难样本挖掘（按失败次数调采样概率）。</li>
+<li><b>结果：</b>单张 A6000 约 3 天（引言写 80 小时），训练集成功率 99.2%，在 PHC 原文的五项指标上全部更好，但不是在每列都超过 PHC+。图 4：到 90% 成功率，PPO+AMP 至少要多 3 倍的仿真样本。</li>
+<li><b>其他：</b>稀疏奖励任务和迁移只有定性结果或训练曲线；动力学模型在策略视野内准，更长就失败。</li>
+</ul>
+<p><b>读后要点。</b>(1) 摘要说“几万段动作”，正文和实验实际是一万一千多段（AMASS 的 11313 段），SuperMimic 照搬了摘要的说法。(2) 方法几乎就是 SuperTrack 的配方：窗口 8 和 32、约 15 万样本的缓存、损失权重的调法都相同；新增的是速度积分、CSET、困难样本挖掘和 GPU 并行环境。(3) 摘要里的“结合监督学习和强化学习”指的是在 RL 式的交互环境里采数据、用监督式的可导损失训练策略，策略梯度并不来自回报或评论家。(4) 样本效率的证据是图 4，到 90% 成功率的样本数差 3 倍以上，但横轴只画到 12 亿个转移，对照曲线那时还没到 90%。(5) 几张消融图之间有对不上的地方：默认配置在图 5a 和 5b 里是两条不同的曲线，而图 5c、5d、6b 的默认曲线是同一次运行。</p>
 
-<h2 id="rel">和 SuperMimic 的关系</h2>
-<p>SuperMimic 的<a href="supermimic.html#s2">相关工作</a>里提到 SuperDyno 只有一句，原文是 “SuperDyno [14] scales differentiable neural dynamics to tens of thousands of motion clips”。接着它把 <a href="supertrack.html">SuperTrack</a>、<a href="controlvae.html">ControlVAE</a>、MoConVQ 和 SuperDyno 放在一起，说这些方法确立了学到的动力学加解析策略梯度对可扩展仿真角色控制的有效性。然后说 SuperMimic 把这个方向推进到单 GPU 训练大规模人形跟踪器，以及虚实迁移。</p>
-<p>所以从 SuperMimic 的文字能确定的只有：它把 SuperDyno 当作同一方向的前作，在规模这一点上引用它。它没有说自己具体从 SuperDyno 拿了哪个组件或改了哪个组件。全文没读到，我也不能替它做这个比较。</p>
-<p>可以并排放的只有下面几个来自各自来源的数字，它们的数据集和指标都不同，不能当作性能对比。</p>
+<h2 id="recheck">旧版推断的核对</h2>
+<p>旧版凭摘要和项目页写了 10 条读者注，还列了一张“没读到的内容”。读完全文后的结论如下。“证实”指全文支持旧版的说法，“推翻”指全文给出了旧版以为没有的东西，或者和旧版的说法相反。</p>
 <div class="tablewrap"><table class="t-c">
-<thead><tr><th></th><th>SuperDyno</th><th><a href="supermimic.html">SuperMimic</a></th></tr></thead>
+<thead><tr><th>旧版</th><th>旧版说法</th><th>结论</th><th>全文怎么说</th></tr></thead>
 <tbody>
-<tr><td>动作规模</td><td>摘要：几万段。项目页：训练 11313、测试 140</td><td>基准 129,514 段</td></tr>
-<tr><td>硬件和时间</td><td>单张 A6000，3 天（Ours*），2 天（Ours+*）</td><td>单 GPU 3 小时超过 SONIC 的回报；两张 GPU 9.8 小时零失败</td></tr>
-<tr><td>真机</td><td>没读到；项目页把“可以直接部署到真机”列为优势，没有给实验</td><td>Unitree G1</td></tr>
-<tr><td>激活函数</td><td>项目页比较了 SiLU 和 ReLU</td><td>我在它的文本里没搜到 SiLU、ELU 或 activation</td></tr>
+<tr><td>注 1</td><td>项目页是审稿回复材料，可能和工作坊 PDF 不是同一版本</td><td class="st-ok">大体证实</td><td>项目页的基准表和论文表 1 逐格一致。但激活函数表、球墙、DreamerV1、误差直方图在论文里都没有，Ours+ 一行的含义也只在项目页写了。项目页是后来补充的材料，见<a href="#n10">读者注 10</a></td></tr>
+<tr><td>注 2</td><td>MJX 对比视频是四足，不是人形</td><td class="st-mid">不变</td><td>论文没有这组对比，结论只属项目页</td></tr>
+<tr><td>注 3</td><td>重算球墙例子</td><td class="st-mid">不变</td><td>论文没有球墙例子</td></tr>
+<tr><td>注 4</td><td>激活函数配对比较；P 是策略、W 是世界模型</td><td class="st-ok">证实</td><td>论文没有这张表。记号 \(\pi_\theta\)、\(f_w\) 和 P、W 的推断一致；表 2 的默认配置两边都是 SiLU</td></tr>
+<tr><td>注 5</td><td>加粗不等于每列最优；“只有带 * 的行明确在单张 A6000 上”</td><td class="st-no">部分推翻</td><td>前半句证实。后半句错了：论文表 1 里的 * 表示“去掉人和物体交互的序列”，不是硬件。论文说自己的所有实验都在单张 A6000 上，PHC 在 A100 上训练约一周。百分比算术不变。见<a href="#n11">读者注 11</a></td></tr>
+<tr><td>注 6</td><td>24 小时比 3 天的全局误差还低；前提是 P(SiLU) W(SiLU) 就是 Ours*</td><td class="st-mid">前提证实，矛盾仍在</td><td>表 2 证实默认配置两边都用 SiLU。24 小时的数只在项目页，论文没有，原因仍然核实不了</td></tr>
+<tr><td>注 7</td><td>“样本效率更高”现有数字算不出来</td><td class="st-no">推翻</td><td>论文有图 4，横轴就是仿真转移数，还给了约 15000 样本/秒。见<a href="#n13">读者注 13</a>、<a href="#n14">14</a></td></tr>
+<tr><td>注 8</td><td>0.066 m 大概是直方图第 2 根柱子的右端</td><td class="st-mid">不变</td><td>论文没有这个数，也没有直方图，只说模型“在策略训练的视野内稳定、更长就失败”。见<a href="#n22">读者注 22</a></td></tr>
+<tr><td>注 9</td><td>迁移和 scaling law 在项目页里是空的</td><td class="st-no">推翻</td><td>论文 4.3.1 有图 6（动作数、环境数），4.3.2 有图 7（迁移到 H36M），都是训练曲线，没有表格</td></tr>
+<tr><td>注 10</td><td>“几万段”和 11313 对不上</td><td class="st-ok">证实</td><td>论文只用 AMASS 的 11313 段训练，引言和图 1 的图注自己说的是“一万段”。摘要的“几万”是夸大。见<a href="#n2">读者注 2</a></td></tr>
+<tr><td>没读到</td><td>网络结构、预测量、监督和强化怎么组合、数据怎么来、仿真器、样本数、消融、稀疏奖励数字</td><td class="st-ok">大多补上</td><td>结构见附录表 2；预测速度再积分；无评论家、无策略梯度；在线同步训练；Isaac Gym，策略 30 Hz、仿真 60 Hz；图 4、图 5。稀疏奖励仍然只有定性图，没有数字</td></tr>
+<tr><td>旧版</td><td>真机：没读到</td><td class="st-ok">已确认</td><td>论文没有真机实验，“搬到真机”写在未来工作里</td></tr>
 </tbody></table></div>
-<p>另一篇同期论文 ∇Mimic 把 SuperTrack、ControlVAE 和 Lei 等并列，说它们“train tracking controllers through learned dynamics”，并在参考文献里注明 SuperMimic 把它称为 SuperDyno。这也是一句话的转述。</p>
 
-<div class="note" id="n1"><span class="lab">读者注 1 · 项目页和工作坊论文可能不是同一个版本</span><p>项目页的小标题是 “Paper ID: 15294 -- Rebuttal &amp; Supplementary Materials”。我由此推断它是给某次投稿的审稿回复（rebuttal）写的材料，不是工作坊论文的配套页。存档日期是 2026-03-03，晚于 ICLR 2025 工作坊。这一页所有表格数字都来自它，所以<b>可能和工作坊 PDF 里的数字不同</b>，我没有办法核对。那次投稿的会议名我没找到。</p></div>
-
-<h2 id="why">为什么用网络：项目页的论证</h2>
-<p>项目页第一节解释为什么选神经网络动力学，不选可微仿真器。</p>
-<p><b>策略对比。</b>三段视频，标题分别是参考动作、用 <a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a>（MuJoCo 的 JAX 版，可微分）的梯度、用神经网络的梯度。页面没有给数字。</p>
-<div class="note" id="n2"><span class="lab">读者注 2 · 这组对比视频里是四足机器人</span><p>我抽帧看了后两段（<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_trot_apg_nolastact.mp4">MJX</a>、<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_superdyno1.mp4">神经网络</a>），各 4.08 秒，画面里是一台红色四足机器人，MJX 那段的文件名含 <code>trot</code> 和 <code>apg</code>。所以这组证据不是人形，也是单个任务。两段视频里机器人的运动不同，MJX 那段身体离初始位置更远，但没有数字，我不从这里下结论。</p></div>
-
-<h3>球和墙</h3>
-<p>简化问题：球从地面以速度 \(v\)、角度 \(\theta\) 发出，距离 \(L\) 处有一堵高 \(H\) 的墙，球碰墙就粘住。目标是选 \(\theta\) 让前进距离 \(x\) 最大，写成 \(\max x=f(\theta,v,H,L)\)。项目页的图给出：</p>
-\[
-t_{land}=\frac{2v\sin\theta}{g},\quad t_{hit}=\frac{L}{v\cos\theta},\quad y_{hit}=v\sin\theta\,t_{hit}-\frac12 g t_{hit}^2
-\]
-\[
-x=f(\theta)=\begin{cases}L, & t_{hit}\lt t_{land}\ \cap\ y_{hit}\lt H\\[2pt] \dfrac{v^2\sin 2\theta}{g}, & \text{else}\end{cases}
-\]
-<p>这里 \(y_{hit}\) 原图写的是 \(t\)，我按上下文写成 \(t_{hit}\)。这些式子没有原文编号，因为它们来自项目页的图，不是论文。</p>
-<div class="fig" id="fig-bw"><span class="lab">项目页图 · 球墙实验 · <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/ball_wall_example4.png">看原图 ↗</a></span><p>左边是地面上的绿色圆球，标了速度箭头 \(v\) 和角度 \(\theta\)，向右距离 \(L\) 处是一根黑色竖墙，高 \(H\)。两条绿色虚线抛物线，一条落在墙前方上空，一条越过墙。左上标重力 \(g\) 和坐标轴。右边是上面这组公式。</p></div>
-<p>设置：两个 MLP 去拟合这个函数，一个用 ReLU，一个用 SiLU。两者初始参数相同，用 <a class="ds" href="https://arxiv.org/abs/1908.03265">RADAM</a> 优化器（Adam 的一个变体，训练初期自动压小步长）训练 200 个 epoch，批量 \(B=300\)。<a class="ds" href="https://arxiv.org/abs/1702.03118">SiLU</a>（sigmoid-weighted linear unit）定义为 \(x\cdot\sigma(x)\)，处处可导，ReLU 在 0 点有折角。</p>
-<p>项目页的结论：学到的面比真值更光滑，所以梯度也更光滑。真值在这里代表可微仿真器。比如在 \(X(\theta,v)\) 切片上，真值面有一片梯度恒为零的区域，策略容易困在那里。页面放了 3 × 3 的交互 3D 图（三个切片乘真值、ReLU、SiLU），存档里没有这些图。</p>
-<div class="note" id="n3"><span class="lab">读者注 3 · 我重算了这个例子</span><p><b>公式的形状</b>（\(v=12,L=8,H=2.5,g=9.81\)，这些取值是我选的）：平台不止一段。\(16.5°\) 到 \(36.1°\) 球上升途中撞墙，\(71.2°\) 到 \(73.5°\) 球下落途中撞墙，两段上 \(dx/d\theta\) 都恰好为 0。在 \(36.1°\) 处 \(x\) 从 8 跳到约 14.0。真正的最优解在 \(45°\)，\(x\approx14.68\)。</p>
-<p><b>梯度上升</b>（同一条规则走 80 步）：真值面从 8° 出发停在 16.5°，\(x=8\)；从 25° 出发原地不动；从 70° 出发能到 45°。这和项目页说的“困在梯度为零的地方”一致。</p>
-<p><b>重新拟合</b>（4→32→32→1，1500 样本，都是我选的，项目页没给）：学习率 0.005 时，ReLU 和 SiLU 从三个起点都到了 \(x\approx14.6\) 附近。SiLU 的梯度总变差（沿 θ 累加相邻梯度差的绝对值）约 0.43，ReLU 约 0.92，确实更平滑。但这个结果依赖拟合质量：学习率 0.002 时，SiLU 从 8° 出发也停在 \(x=8\)。网络拟合误差也不小，均方根约 2.8 到 3.0 米。所以我确认的是“这种现象可以出现”，不是“网络总能逃出局部最优”。这是一维优化的玩具，不能直接外推到人形。</p>
-<p>这一段可以在 <a href="../interactives/superdyno/index.html?scene=5">3D 动画第 5 幕</a>里切换起点看。</p></div>
-<h3>优缺点</h3>
-<p>项目页列的优势：梯度更光滑，能跳出局部最优，比仿真器更少出现梯度爆炸或消失；容易放大，天然支持并行；有助于域迁移，泛化能力强；可以直接部署到真机。缺点：长期预测不准；不清楚怎样从无结构的多模态数据里学习。除了第一项有球墙例子，其他几项页面只是列举，没有给实验。</p>
-
-<div class="i3d" id="i3d"><p class="lab">3D 动画 · 10 幕</p>
-<p>这不是论文架构的动画，因为架构没读到。第 1 幕区分读到和没读到的内容；第 2、4、5、6 幕是现场计算的玩具；第 3、7、8、9、10 幕是项目页的数字。</p>
-<iframe src="../interactives/superdyno/index.html?embed=1" title="SuperDyno 3D 动画" loading="lazy"></iframe>
-<p class="go"><a href="../interactives/superdyno/index.html">打开完整页面</a>，那里有结构表和“哪些是示意”的清单。</p></div>
-
-<h2 id="act">激活函数的 2 × 2 比较</h2>
-<p>项目页的假设：SiLU 梯度更光滑，所以动力学模型用 SiLU 应当更好。下表都在 <a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a>（<a href="https://arxiv.org/abs/1904.03278">论文</a>，统一到 SMPL 人体模型的动捕数据集）上训练 24 小时。表里的 P、W 项目页没有展开，我推断 P 是策略，W 是世界模型。表上没写单位，也没写是在训练集还是测试集上评估。</p>
-<div class="tablewrap"><table class="t-a">
-<thead><tr><th></th><th>Success Rate</th><th>Global MPJPE</th><th>Local MPJPE</th><th>Acc</th><th>Vel</th></tr></thead>
+<h2 id="rel">和 SuperMimic、SuperTrack 的关系</h2>
+<p><a href="supermimic.html">SuperMimic</a> 提到 SuperDyno 只有一处，在相关工作的“学到的可微动力学用于动作控制”一段：“SuperDyno [14] scales differentiable neural dynamics to tens of thousands of motion clips”。它把 SuperTrack、<a href="controlvae.html">ControlVAE</a>、<a href="moconvq.html">MoConVQ</a> 和 SuperDyno 放在一起，说这些方法确立了学到的动力学加解析策略梯度对可扩展的<b>仿真角色</b>控制有效，然后说 SuperMimic 把这个方向推进到单 GPU 训练大规模人形跟踪器和虚实迁移。SuperMimic 的表 1 没有列 SuperDyno。</p>
+<p>下表把三篇按同样的维度并排。SuperTrack 和 SuperMimic 一列来自本站的 <a href="supertrack.html">SuperTrack 精读</a>和 <a href="supermimic.html">SuperMimic 精读</a>（SuperMimic 的数字我又对照了它的原文 §3、§4 和附录表 A.4、A.5）。三篇的数据集、角色和指标都不同，这张表比的是做法，不是性能。</p>
+<div class="tablewrap"><table class="t-c">
+<thead><tr><th></th><th>SuperTrack（2021）</th><th>SuperDyno（本文，2025）</th><th>SuperMimic（2026）</th></tr></thead>
 <tbody>
-<tr><td>P(SiLU) W(SiLU)</td><td>96.8</td><td>24.3</td><td>19.8</td><td>2.3</td><td>3.1</td></tr>
-<tr><td>P(SiLU) W(ReLU)</td><td>93.9</td><td>30.6</td><td>24.4</td><td>2.6</td><td>3.6</td></tr>
-<tr><td>P(ReLU) W(ReLU)</td><td>95.8</td><td>25.7</td><td>19.9</td><td>2.7</td><td>3.3</td></tr>
-<tr><td>P(ReLU) W(SiLU)</td><td>97.9</td><td>21.1</td><td>16.6</td><td>2.5</td><td>3.0</td></tr>
+<tr><td>世界模型结构</td><td>5 层 × 1024，ELU；约 479 万参数</td><td>2 层 × 512，SiLU；我估计约 56 万参数（<a href="#n21">读者注 21</a>）</td><td>3 层 × 2048 的 MLP，另有奖励、观测、终止头；仅中间两层就约 839 万参数</td></tr>
+<tr><td>模型预测什么</td><td>根坐标系下的刚体线加速度和角加速度，半隐式欧拉积分出速度和位置</td><td>每个刚体的线速度和角速度，再积分出位置和旋转（式 5 到 7）</td><td>下一状态 \(\hat s_{t+1}\)，以仿真上下文 \(\xi\)（摩擦、标定偏差、躯干质心）为条件</td></tr>
+<tr><td>模型训练</td><td>窗口 \(N_{\mathcal W}=8\)，每次迭代 1 步</td><td>窗口 \(T_w=8\)，自回归，世界坐标系损失；每 epoch 8 步</td><td>窗口 \(k=8\)，自回归；每次迭代 10 批 × 2048 个窗口</td></tr>
+<tr><td>训练数据来源</td><td>当前策略在仿真里采样，256 个角色，约 5000 样本/秒，约 15 万样本的循环缓存</td><td>当前策略在 Isaac Gym 里采样，1024 个环境，CSET，约 15000 样本/秒，约 15 万样本的循环缓存；动作噪声 0.05</td><td>当前策略在 MuJoCo Warp 里采样，每 GPU 4096 个环境，动作噪声 \(\mathcal N(0,0.1^2)\)，每环境 1000 步的缓存</td></tr>
+<tr><td>梯度怎么用</td><td>BPTT，策略穿过 W 滚 32 帧（60 Hz，0.53 秒）</td><td>BPTT，策略穿过 \(f_w\) 滚 \(T_\pi=32\) 步（30 Hz，1.07 秒），每 epoch 4 步</td><td>BPTT，想象视野 \(H=32\)（50 Hz，0.64 秒），每次世界模型更新配 1 次策略更新</td></tr>
+<tr><td>有没有评论家</td><td>没有</td><td>没有</td><td>有，\(V_\psi\) 用 GAE（\(\lambda=0.95\)）拟合，接在视野末端</td></tr>
+<tr><td>策略的目标</td><td>局部坐标系下的跟踪损失（监督）</td><td>局部坐标系下的跟踪损失加动作正则和根高度项（监督）</td><td>BeyondMimic 的跟踪奖励之和加评论家的值（回报最大化）</td></tr>
+<tr><td>监督学习和 RL 怎么组合</td><td>不用 RL，只借用 RL 式的 gym 环境采数据</td><td>同 SuperTrack：MDP 记号和 RL 式环境采数据，策略按可导损失优化；摘要的“结合监督和强化学习”就是这个意思。稀疏奖励任务里的损失也是可导的式 10、11</td><td>世界模型监督拟合；策略是短视野演员–评论家（SHAC 那一类），作者归为基于模型的 RL</td></tr>
+<tr><td>数据规模</td><td>LaFAN 约 6.5 小时等几个库</td><td>AMASS 11313 段训练、140 段测试（引言说 AMASS 约 40 小时）</td><td><a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a> 129,514 段，最多 264 小时</td></tr>
+<tr><td>角色</td><td>游戏动画角色，仿真</td><td>SMPL 人形（24 个刚体，69 维动作），仿真；真机是未来工作</td><td>Unitree G1，29 个关节，部署到真机</td></tr>
+<tr><td>硬件和时间</td><td>GTX 1070 级显卡，20 到 40 小时</td><td>单张 A6000，约 3 天（引言写 80 小时）</td><td>1 张 H100 3 小时超过 SONIC 的回报；2 张 H100 9.8 小时零失败</td></tr>
+<tr><td>样本效率的证据</td><td>LaFAN 上 20 小时，回合完成度约 0.91 对 PPO 约 0.40</td><td>图 4：到 90% 成功率，PPO+AMP 至少多 3 倍转移（我读出 3.7 亿对 12 亿以上）</td><td>GPU 小时比 SONIC 少 1000 倍以上；达到 PPO-WM 最好回报少用约 64 倍想象步</td></tr>
 </tbody></table></div>
-<p>MPJPE（mean per-joint position error）是每关节位置误差的平均。Global 在世界坐标下算，Local 一般指相对根节点算；这里的定义没读到。</p>
-<div class="note" id="n4"><span class="lab">读者注 4 · 配对比较</span><p>固定 P，把 W 从 ReLU 换成 SiLU：P(SiLU) 时成功率 +2.9、Global −6.3、Local −4.6、Acc −0.3、Vel −0.5；P(ReLU) 时成功率 +2.1、Global −4.6、Local −3.3、Acc −0.2、Vel −0.3。5 个指标全部变好，和假设方向一致。没有重复实验和方差，所以差距多少算显著我判断不了。</p>
-<p>固定 W，把 P 从 SiLU 换成 ReLU：除 Acc 外都变好，Acc 在两组里都变差（2.6→2.7，2.3→2.5）。最好的组合是 P(ReLU) W(SiLU)，不是两个都用 SiLU。这和基准表说明里 “Our+ also changes the activation of policy network from SiLU to ReLU” 相符。项目页没有解释为什么策略这边 ReLU 更好。</p></div>
+<p>能看出的继承关系：窗口 8 和 32 在三篇里完全相同；SuperDyno 和 SuperTrack 的缓存都约 15 万样本，最大回合长度都是 512，损失权重都“调到训练开始时各项贡献大致相等”、动作正则小两个数量级。SuperDyno 引用了 SuperTrack，但没有说这些数是沿用的；SuperMimic 也没有说它的 8 和 32 来自哪里。这是我对照出来的，见<a href="#n20">读者注 20</a>。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · SuperMimic 对 SuperDyno 的概括准不准</span><p><b>“扩到几万段动作”：不准确。</b>这句话照搬了 SuperDyno 摘要的 “tens of thousands of motion clips”。但 SuperDyno 全文只用了 AMASS 的 11313 段训练、140 段测试（合计 11453），引言写的是 “scales up to ten thousand motion clips”，图 1 的图注也是 “ten thousands of motions”。更准确的说法是“一万多段”。</p>
+<p><b>“仿真角色控制”：准确。</b>SuperDyno 只在 Isaac Gym 里控制 SMPL 人形，没有真机，第 5 节把真机列为未来工作。SuperMimic 把它和 SuperTrack、ControlVAE 一起归为仿真角色这一类，并以“虚实迁移”和它区分，这是对的。</p>
+<p><b>“学到的动力学加解析策略梯度”：准确。</b>SuperDyno 的策略梯度就是穿过 \(f_w\) 的 BPTT（式 3、4）。</p>
+<p><b>一处遗漏。</b>SuperMimic §3.3 说之前用解析梯度训练的跟踪控制器“常常省略评论家，只优化 H 步的奖励和”，引的是 SuperTrack 和 ControlVAE。SuperDyno 也属于这一类（没有评论家，只优化 \(T_\pi=32\) 步的损失），但那里没有引它。</p>
+<p><b>一处观点相反。</b>SuperMimic §3.1 说旧策略采的转移拟合世界模型“仍然有效，因为动力学不依赖采集它的策略”。SuperDyno §4.2 的看法相反：\(N_w\) 太大会让模型过拟合缓存里当前的分布，应当把模型限制在“策略附近的那部分动力学”。两篇都没有直接做实验对比这一点。</p></div>
 
-<h2 id="bench">AMASS 模仿基准</h2>
-<p>项目页称 AMASS-Train* 和 AMASS-Test* 分别有 11313 和 140 段高质量动捕序列。FT 是 future tracks（字面是未来轨迹，具体怎么用没读到）。带 * 的结果在单张 NVIDIA A6000 上得到。Our+ 还把策略的激活函数从 SiLU 换成 ReLU。PULSE 是蒸馏方法，项目页说不能直接比。基线 <a href="https://arxiv.org/abs/2305.06456">PHC</a> 是 Luo 等的跟踪器，PHC+ 出自 <a href="https://arxiv.org/abs/2310.04582">PULSE</a> 那篇论文。</p>
-<div class="fig" id="fig-bench"><span class="lab">项目页图 · 基准表 · <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/benchmark.png">看原图 ↗</a></span><p>下表是这张图的数字。原图中 Ours* 整行加粗，PHC+* 和 Ours+* 两行在虚线之下。</p></div>
+<h2 id="abs">摘要</h2>
+<p>以下转述。可扩展的人形全身控制器对动画和具身智能都重要。无模型 RL 能学会跟踪大型动捕库，但样本和训练时间开销太大。作者学一个神经动力学模型，提出把监督学习和强化学习结合起来的框架 SuperDyno。摘要声称：样本效率明显更高、跟踪误差更低，并能无缝扩展到“几万段”动作；中等规模的动力学模型就能当作可微的神经仿真器，用于预测和策略优化；框架在稀疏奖励任务上有效；学到的动力学模型能迁移到不同任务。脚注给出项目页 dynamics-humanoid.github.io/dynamics-humanoid。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 摘要的几项说法在正文里的证据</span><p><b>几万段动作。</b>正文只有 AMASS 的 11313 段训练、140 段测试，H36M 的 140 段用于迁移。引言自己写的是 “ten thousand motion clips”，并说 AMASS 是 “ten thousand clips, 40 hours of motion”。所以“tens of thousands”比正文多说了一个量级的复数。</p>
+<p><b>样本效率。</b>有图 4，见<a href="#n13">读者注 13</a>。<b>跟踪误差更低。</b>有表 1，但不是每列都低于 PHC+，见<a href="#n11">读者注 11</a>。<b>中等规模。</b>表 2 是 2 层 512，正文没说“中等”和谁比。<b>稀疏奖励。</b>只有图 3 的几帧画面，没有数字。<b>迁移。</b>图 7 是一组训练曲线。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>动作跟踪（让策略模仿选定的动捕片段）是获得类人动作技能的自然方式。主流做法是借 GPU 并行仿真跑 PPO 这类无模型 RL。它们样本效率低、训练长，对超参数、奖励和特征设计敏感。例子是 <a href="phc.html">PHC</a>：跟踪整个 AMASS（约一万段、40 小时）要在一张 A100 上训练约一周。数据需求随问题复杂度和动作多样性快速增长，所以用一个策略模仿大数据集很难。</p>
+<p>基于模型的方法一般认为更高效。学到的“世界模型”常用于规划（Nagabandi 2018、<a href="td-mpc.html">TD-MPC</a>）或生成数据给无模型算法（Ha 和 Schmidhuber 2018、Sekar 2020），效果取决于模型准不准。作者认为学到的动力学模型的关键性质是<b>可微</b>：损失的梯度能穿过它反传，训练目标就能直接监督策略，也叫一阶方法。SuperTrack 和 ControlVAE 已经用这一点跟踪复杂人体动作，但作者引述它们“在大规模动作数据集上效率较低”。</p>
+<p>本文目标是一个能扩展到一万段动作的高效控制器。框架在强化学习和监督学习之间交替。和一些一阶方法（如 PWM，Georgiev 2024）不同，策略和动力学模型同时训练，不需要先收集大量离线数据。训练中用困难样本挖掘，让策略关注更难的动作。作者还系统分析了框架的各项设置，展示稀疏奖励任务的定性结果，探索世界模型随动作数的 scaling law 和可迁移性。</p>
+<p>贡献：(1) 一个高效、可扩展的控制器 SuperDyno，能模仿 AMASS 99% 以上的动作，连同一个预测能力不错的神经动力学模型，在单张 A6000 上只用 80 小时；(2) 一个结合监督学习的基于模型框架，能解稀疏奖励的移动任务，并给出用法；(3) 动力学模型带来的可迁移性，以及它对策略学习的 scaling law。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 2 页 · <a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=2">看原图 ↗</a></span><p>上半部分是一张渲染图：棋盘格地面上站着几十个不同颜色的人形，前景是一个青色人形，关节处是红色小球，表示大量动作在并行仿真。下半部分从左到右三格：红色和青色两个人形重叠（参考和仿真）；一个灰色人形，红色关节上画着绿色小箭头，上方标 \(\nabla_a s\)；箭头指向第三个调整后的灰色人形。图注说：学到神经动力学模型后，训练目标能通过 \(\nabla_a s\) 直接监督关节动作；方法能扩展到“一万段”动作。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 80 小时、3 天和“99% 以上”</span><p>80 小时 = 3.33 天，表 1 的 Ours* 写 “3 days”，算是取整，大体一致。“模仿 AMASS 99% 以上”：Ours* 训练集 99.2% 成立；Ours(FT)* 99.0% 刚好；Ours+* 是 98.8%，不成立。测试集三行都在 98.5% 以下。所以这句话只对训练集上的 Ours* 和 Ours(FT)* 成立。</p></div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p>只有一段。用仿真角色跟踪参考动作在视觉和图形学里历史很长（<a href="deepmimic.html">DeepMimic</a>、AMP、Won 2020、UHC、PHC 等），最近进入机器人（H2O、OmniH2O、ExBody）。动作来源可以是关键帧动画或动捕；跟踪可以按风格，也可以逐帧。规模从单段（DeepMimic），到几千段（Won 2020、SuperTrack），到几万段（PHC）。因为物理仿真通常不可导，主流方法靠无模型 RL，PHC 和 Won 2020 要几十亿样本、几周的墙钟时间。监督学习（SuperTrack）和可微仿真器（DiffMimic）的尝试都难以扩展到大数据集。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 同一段里 PHC 的规模说法</span><p>相关工作把 PHC 列在“tens of thousands of motion sequences”一档，引言说 AMASS 是“ten thousand clips”，而 PHC 用的就是 11313 段。所以这篇自己对同一个数据集用了两种说法。摘要说本文“几万段”，大概沿用了相关工作里对 PHC 的这一档。这是我的推测。</p></div>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<p>3.1 节定义问题，3.2 节介绍带可微神经动力学模型的监督学习框架。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 3 页 · <a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=3">看原图 ↗</a></span><p>框架总览，分三块背景色。左边绿色块 “Step1: Parallel Trajectory Collection”：一个 “Physics Simulation (Isaac Gym)” 面板，里面是几帧灰色人形的渲染；下方是 “Cycled Synchronous Early Termination (CSET)” 示意，几条绿色波动曲线在竖直虚线处被截断，右下标最小长度 \(L_{min}\)；策略的动作 \(a_t\) 从上方进入仿真，轨迹 \(\tau\) 从下方流进中间的蓝色圆柱 “Data Buffer B”。中间是一个站立人形的渲染，左侧标 \(\hat s_t\)。右上红色块 “Step3: Supervised Policy Optimization”：“Whole-body Policy \(\pi_\theta\)” 网络图，输入 \(s_t\)，输出 \(a_t\)，旁边一个循环箭头标 \(T_\pi\)。右下橙色块 “Step2: Learning Neural Dynamics”：“Neural Dynamics Model \(f_w\)” 网络图，输入 \(s_t\) 和 \(a_t\)，循环箭头标 \(T_w\)，输出沿箭头回到策略那边。</p></div>
+
+<h3 id="s3-1"><span class="no">3.1</span>问题定义</h3>
+<p>和 UHC、DeepMimic 一样，把任务写成 MDP \(\mathcal M=\langle\mathcal S,\mathcal A,\mathcal T,\mathcal G,\mathcal R,\gamma\rangle\)：状态和动作连续；转移 \(\mathcal T\) 由物理仿真器决定；\(\mathcal G\) 是目标空间，\(\mathcal R\) 是和目标 \(g\) 相关的奖励，\(\gamma\) 是折扣。要找一个目标条件策略 \(\pi_\theta:\mathcal S\times\mathcal G\to\mathcal A\)，最大化折扣累计奖励：</p>
+<div class="eq"><div class="m">\[ \max_\theta J(\pi_\theta)=\max_\theta \mathbb E_{\pi_\theta,s_0\sim\rho_0}\Big[\sum_{t=0}^{T}\gamma^t\mathcal R(s_t,a_t,g)\Big] \]</div><span class="no">(1)</span></div>
+<p>\(\rho_0\) 是初始状态分布。沿用 PHC 的记号：参考姿态 \(\hat q_t\triangleq(\hat\theta_t,\hat p_t)\)，包括 \(J\) 个连杆的 3D 旋转 \(\hat\theta_t\in\mathbb R^{J\times6}\)（6D 旋转表示）和位置 \(\hat p_t\in\mathbb R^{J\times3}\)；参考速度 \(\hat{\dot q}_t\triangleq(\hat w_t,\hat v_t)\) 由有限差分得到，是角速度和线速度，各 \(J\times3\)。上标约定：帽子表示动捕真值，波浪号表示动力学模型的预测，不带符号的是物理仿真的量。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>基于监督学习的动作模仿和可微神经动力学模型</h3>
+<p>通常的策略梯度写成</p>
+<div class="eq"><div class="m">\[ \nabla_\theta J(\pi_\theta)=\mathbb E_{\pi_\theta,s_0\in\rho_0}\Big[\nabla_\theta\Big(\sum_{t=0}^{T}\gamma^t\mathcal R(s_t,a_t,g)\Big)\Big]=\mathbb E_{\pi_\theta,s_0\in\rho_0}\Big[\sum_{t=0}^{T}\gamma^t\nabla_\theta\mathcal R(s_t,a_t,g)\Big] \]</div><span class="no">(2)</span></div>
+<p>拿不到仿真器转移函数的时候，这条路走不通。学一个神经动力学模型 \(f_w(s_t,a_t)\) 以后，可以继续展开：</p>
+<div class="eq"><div class="m">\[ \nabla_\theta\mathcal R(s_t,a_t,g)=\nabla_{s_t}\mathcal R\,\nabla_\theta s_t+\nabla_{a_t}\mathcal R\,\nabla_\theta\pi_\theta(a_t|s_t) \]</div><span class="no">(3)</span></div>
+<div class="eq"><div class="m">\[ \nabla_\theta s_t=\nabla_{s_{t-1}}f_w\,\nabla_\theta s_{t-1}+\nabla_{a_{t-1}}f_w\,\nabla_\theta a_{t-1} \]</div><span class="no">(4)</span></div>
+<p>\(\nabla_{s_{t-1}}f_w\)、\(\nabla_{a_{t-1}}f_w\) 正是学到的模型的雅可比矩阵。有了这两项就能沿时间反传（BPTT），作者期望策略优化更高效。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 2 到式 4 成立的前提</span><p>式 2 把梯度直接移进期望，只在“期望的分布不依赖 \(\theta\)”时成立。这里的期望是对 \(\pi_\theta\) 和初始状态取的，分布本身依赖 \(\theta\)；要这样写，需要策略和动力学都是确定性的（或者把噪声重参数化），梯度才是沿路径的导数。PPO 那一类用的是另一项（对数似然的梯度），式 2 把它省掉了。论文用的策略在优化时是确定性的（式 9 里直接写 \(\pi_\theta\)），所以结论没问题，只是式 2 的写法不严谨。</p>
+<p>式 4 的 \(\nabla_\theta a_{t-1}\) 要理解成全导数：\(a_{t-1}=\pi_\theta(s_{t-1})\) 既直接依赖 \(\theta\)，也通过 \(s_{t-1}\) 依赖 \(\theta\)，展开是 \(\partial_\theta\pi+\partial_s\pi\,\nabla_\theta s_{t-1}\)。只取偏导会漏掉“策略看到的状态被自己之前的动作改变”这条路径。式 3 的 \(\nabla_\theta\pi_\theta(a_t|s_t)\) 同理。自动求导框架会自动算全导数，这只是记号问题。</p></div>
+
+<h3 id="s3-2-1"><span class="no">3.2.1</span>神经网络动力学模型</h3>
+<p>动力学模型把策略梯度乘上自己的雅可比矩阵，所以它“控制”着优化方向。作者根据经验说两个关键因素。</p>
+<p><b>注入物理先验。</b>最直接的参数化是输入 \(s_t,a_t\)、输出下一状态 \(\tilde s_{t+1}\)。但相邻两个状态太像、动作的影响看起来很小时，这个函数很难学。Nagabandi 2018 改为预测状态的变化量 \(\tilde s_{t+1}=s_t+f_w(s_t,a_t)\)。它的问题是对速度、位置这些不同物理量之间几乎没有约束，预测可能违反物理规律；数据多了会好转，但为此付出的采集代价和收益不相称。所以作者引入人体物理的先验：模型只预测部分状态，即速度 \(\tilde v\) 和角速度 \(\tilde w\)，再积分到当前状态上。记积分操作为 \(\Phi\)：</p>
+<div class="eq"><div class="m">\[ \tilde w_{t+1},\ \tilde v_{t+1}=f_w(s_t,a_t) \]</div><span class="no">(5)</span></div>
+<div class="eq"><div class="m">\[ \Phi:=\begin{cases}\tilde p_{t+1}=\tilde v_{t+1}\Delta t+\tilde p_t\\[2pt]\tilde\theta_{t+1}=\exp\!\big(\tfrac{\tilde w_{t+1}\Delta t}{2}\big)\otimes\tilde\theta_t\end{cases} \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ \Longrightarrow\ \tilde s_{t+1}=\Phi(f_w,s_t) \]</div><span class="no">(7)</span></div>
+<p>积分时把旋转从 6D 表示转成四元数，\(\otimes\) 是四元数乘法（原文写“quaternion-vector product”）。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 5 到 7 的细节和 SuperTrack 的差别</span><p><b>积分顺序。</b>位置用的是<b>下一步</b>的速度 \(\tilde v_{t+1}\)，和 SuperTrack 一样是半隐式欧拉。旋转用 \(\exp(\tilde w\Delta t/2)\) 构造一个转角为 \(|\tilde w|\Delta t\) 的单位四元数，再左乘当前旋转，这是标准做法，但这里是四元数乘四元数，不是原文说的“四元数乘向量”。</p>
+<p><b>和 SuperTrack 不同。</b>SuperTrack 预测根坐标系下的<b>加速度</b>，再积分两次（加速度到速度，速度到位置）；SuperDyno 直接预测<b>速度</b>，只积分一次。所以物理先验只约束了位置和旋转与速度的一致性，速度本身由网络直接给出。论文没说预测的是绝对速度还是速度增量，也没说模型输入是否像策略输入那样按朝向归一化。</p>
+<p><b>\(\Delta t\)。</b>论文没写。策略 30 Hz、仿真 60 Hz（第 4 节），动力学模型一步对应策略一步，所以 \(\Delta t\) 应是 1/30 秒。这是我的推断。</p></div>
+<p><b>自回归训练。</b>另一个关键因素是训练方式。在收集到的轨迹上滑动大小为 \(T_w\) 的窗口，把模型往前推 \(T_w\) 次做多步开环预测，在世界坐标系下算 \(T_w\) 步的误差：</p>
+<div class="eq"><div class="m">\[ \mathcal L_w=\sum_{t=0}^{T_w-1}\big\|\tilde s_{t+1}-\Phi(f_w,s_t)\big\|^2 \]</div><span class="no">(8)</span></div>
+<p>动作数据时间相关性强，另一个流行选择是 teacher forcing（每步都把真值喂回模型，Williams 和 Zipser 1989）。它可以看成 \(T_w=1\) 的自回归训练，并行度更高。但作者的实验（图 5d）表明 teacher forcing 不适合这里，讨论见 4.2 节。</p>
+
+<h3 id="s3-2-2"><span class="no">3.2.2</span>策略优化</h3>
+<p>监督信号能直接穿过动力学模型反传，所以用监督学习优化策略。和训练动力学模型一样，策略也按自回归方式训练：用大小为 \(T_\pi\) 的窗口从数据缓存取出初始状态和参考状态，让当前策略在神经动力学模型里滚动 \(T_\pi\) 次做多步闭环预测，在局部坐标系下算 \(T_\pi\) 步的误差：</p>
+<div class="eq"><div class="m">\[ \mathcal L_\theta=\sum_{t=0}^{T_\pi-1}\big\|\tilde s_{t+1}-\Phi\big(f_w(s_t,\pi_\theta),s_t\big)\big\|^2 \]</div><span class="no">(9)</span></div>
+<p>和以往基于 RL 的动作模仿相比，这里没有用 AMP 那样的判别器损失，但作者说框架完全兼容它。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 式 8、式 9 和附录损失的记号</span><p><b>式 8</b> 写成 \(\tilde s_{t+1}-\Phi(f_w,s_t)\)，按 3.1 节的约定，两项都是预测，减出来是零。按正文的意思，应是仿真真值和模型开环预测之差：\(s_{t+1}-\tilde s_{t+1}\)，其中 \(\tilde s_{t+1}=\Phi(f_w,\tilde s_t)\) 从 \(\tilde s_0=s_0\) 开始滚。<b>式 9</b> 同样应是参考状态 \(\hat s_{t+1}\) 和策略在模型里滚出的 \(\tilde s_{t+1}\) 之差。附录的 \(\mathcal L_\pi\) 用帽子表示参考，这一点和正文对得上。</p>
+<p><b>名字。</b>式 9 叫 \(\mathcal L_\theta\)，算法 1 第 11 行写“用 \(\mathcal L_\pi\)（式 9）”，附录也叫 \(\mathcal L_\pi\)。是同一个东西。</p>
+<p><b>求和上限。</b>式 8 是 \(t=0\) 到 \(T_w-1\)，附录的 \(\mathcal L_w\) 是 \(t=0\) 到 \(T_w\)，差一项。<b>权重名。</b>附录的 \(\mathcal L_w\) 里旋转项和速度项都写成 \(w_{vel}\)，下一句却列出 \(w_{pos},w_{vel},w_{rot},w_{ang}\)，旋转项应是 \(w_{rot}\)；\(\mathcal L_\pi\) 里同样把 \(w_{lvel}\) 写了两次。<b>引用。</b>3.2.1 节说 “Sec. 5d”，应是图 5d；4.1.1 节 “Table. ??” 是没解析的引用，应是表 1。这些都不影响理解。</p></div>
+
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 5 页 · <a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=5">看原图 ↗</a></span><p>五条定性结果的胶片带。(a) 青绿色人形做前空翻，旁边小的红色人形是参考，几帧里人形从站立到倒立再落地。(b) 蓝色人形跟踪 H36M 的动作，红色参考在一旁。(c) 橙色人形在地面上走，地上有红色短线，标题是稀疏奖励的速度任务。(d) 紫色人形在有障碍物的场景里沿一串蓝点走，标题是轨迹跟随。(e) 浅灰背景上一排人形：红色是参考，蓝色是策略的跟踪，橙色是动力学模型的开环预测；上方用双箭头标出 \(T_\pi\) 的范围，中间一处小双箭头标 \(T_w\)；越往右，橙色和红、蓝两个分开得越明显。</p></div>
+
+<h3 id="s3-2-3"><span class="no">3.2.3</span>可扩展的训练框架</h3>
+<p>训练时先收集一批仿真轨迹，然后依次更新动力学模型 \(N_w\) 次、策略 \(N_\pi\) 次（算法 1）。但直接这样做在大数据集上效率不高，作者加了两个设计。</p>
+<p><b>并行高效的轨迹收集。</b>训练环境做成类似 RL gym 的样子（参照 Luo 2022）。训练时用参考状态初始化（RSI，DeepMimic），随机挑一段动作的随机起点。为了不让缓存一开始就塞满坏轨迹，沿用 PHC：关节平均偏离参考超过 0.5 米就结束回合。和 PHC 不同的是，回合必须先达到最小长度才能结束，因为要做自回归训练。SuperTrack 和 ControlVAE 是任何一个回合结束就把样本倒进缓存。环境多、数据集大时这样很慢：不同环境结束的时间不同步，每次倒数据和后处理时其他环境都要停下来等。作者提出循环同步提前终止（Cycled Synchronous Early Termination，CSET），专门用来尽快收集尽可能多的、达到最小长度的完整轨迹：达到终止距离的轨迹，会在下一个 epoch 里继续推进，直到长度成为每个 epoch 滚动步数的整数倍。默认设置下收集够数据只要约 <b>1.5 秒</b>，以前的采样方式要 <b>7 秒</b>以上，整个训练速度<b>翻倍</b>。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · CSET 的几个数对不太上</span><p>论文没写每个 epoch 滚动多少步。如果按“最小回合长度”32 步算（第 4 节），1024 个环境一个 epoch 产生 \(1024\times32=32{,}768\) 个样本，1.5 秒收集完就是约 21,800 样本/秒。论文另说“约 15000 样本/秒”，如果这是包含训练的平均速度，每个 epoch 约 \(32{,}768/15{,}000\approx2.2\) 秒，训练部分约 0.7 秒。</p>
+<p>但“训练速度翻倍”要求：设训练部分为 \(u\) 秒，\(7+u=2(1.5+u)\)，得 \(u=4\) 秒，每个 epoch 从 11 秒降到 5.5 秒。这和上面 0.7 秒的估计差很多。三个数（1.5 秒、15000 样本/秒、翻倍）在“每 epoch 32 步”的假设下不能同时成立，可能每个 epoch 滚动步数不是 32，也可能 15000 指的是别的口径。没有代码，我核实不了。</p>
+<p>另外，最小回合长度正文写 32，附录表 2 写 36，两处不一致。</p></div>
+<p><b>困难样本挖掘。</b>在大动作库上学习，后期要多练难序列才能拿到有信息的经验。做法和 PHC 类似：开始时每段动作被抽中的机会相等；训练中在整个数据集上评估当前策略，按每段动作的失败次数调整采样概率：</p>
+\[ p_i=\frac{N_{failed,i}}{\sum_i N_{failed,i}} \]
+<div class="note" id="n9"><span class="lab">读者注 9 · 这个采样公式的边界情况</span><p>按字面，从没失败过的动作 \(p_i=0\)，以后再也抽不到；如果某次评估全部成功，分母为 0。PHC 的困难挖掘是把失败的序列组成子集 \(\hat Q_{\rm hard}\) 单独训练，同样面临“学新忘旧”，PHC 原文也承认挖掘只能缓解遗忘（本站 <a href="phc.html">PHC 精读</a>）。SuperMimic 的重置采样专门留了 50% 均匀和 10% 的“历史权重”来防这个问题。SuperDyno 实际实现里可能有平滑或下限，但论文没写，也没有代码可查。</p></div>
+<div class="algo" id="alg1"><div class="t">算法 1：SuperDyno（原文第 6 页）</div>
+<div>1: 输入：参考动作数据集 \(\hat Q\)，空数据缓存 \(B\)，随机初始化的 \(f_w,\pi_\theta\)</div>
+<div>2: while 未收敛 do</div>
+<div>3: 　\(\tau\leftarrow\) 在环境中用 \(\hat Q\) 滚动当前策略 \(\pi_\theta\)，使用 CSET</div>
+<div>4: 　把 \(\tau\) 存入 \(B\)</div>
+<div>5: 　for \(i=1\) to \(N_w\) do</div>
+<div>6: 　　用大小为 \(T_w\) 的滑动窗口从 \(B\) 取出状态和动作</div>
+<div>7: 　　向前推进 \(f_w\)，用 \(\mathcal L_w\)（式 8）训练 \(f_w\)</div>
+<div>8: 　end for</div>
+<div>9: 　for \(i=1\) to \(N_\pi\) do</div>
+<div>10: 　　用大小为 \(T_\pi\) 的滑动窗口从 \(B\) 取出状态和目标</div>
+<div>11: 　　在 \(f_w\) 里滚动 \(\pi_\theta\)，用 \(\mathcal L_\pi\)（式 9）训练</div>
+<div>12: 　end for</div>
+<div>13: end while</div>
+</div>
+
+<div class="i3d" id="i3d"><p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>算法 1 的循环、输入输出维度和网络、积分 \(\Phi\)、开环预测（玩具现算）、穿过 \(f_w\) 的 32 步反传和三篇的视野对比、梯度来源（玩具现算）、CSET 和困难样本挖掘、图 5 消融、表 1、图 4/6/7、项目页补充材料。论文给了的结构和数字都换成了原文的；橙色“示意”框标出我推断或为演示选的部分。</p>
+<iframe src="../interactives/superdyno/index.html?embed=1" title="SuperDyno 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/superdyno/index.html">全屏打开，还有完整结构表 ↗</a></p></div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>4.1 节评估大规模动捕模仿，4.2 节做消融，4.3 节看动力学模型的可迁移性和 scaling law，最后看模型的预测能力。</p>
+<p><b>实现细节。</b>并行收集阶段仿真 1024 个环境，最小回合长度 32，约每秒 15000 个样本，存进约 15 万样本的大循环缓存。策略和动力学模型都是普通 MLP。默认每个 epoch 先更新动力学模型 8 次，再更新策略 4 次。超参数见表 2。每个实验都在单张 NVIDIA A6000 上做；把批量调小一点也能在单张 RTX 3090 上训练。训练好的策略超过 30 FPS。物理仿真用 Isaac Gym，策略 30 Hz、仿真 60 Hz。评估不考虑体形变化，用平均 SMPL 体形。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 缓存有多“新”，以及和 SuperTrack 一样的 15 万</span><p>15 万样本 ÷ 每 epoch 32,768 个 ≈ 4.6 个 epoch。也就是说缓存里只有最近四五个 epoch 的数据，模型和策略几乎是在策略自己当前的分布上训练的，这和 §4.2 说的“让模型只学策略附近的动力学”一致。SuperTrack 的缓存也是约 15 万样本（本站 SuperTrack 精读算出约 30 秒的数据）。</p>
+<p>这一节的 “1024 个环境、约 15000 样本/秒” 和项目页基准表 “Ours+*（env 1024）” 一致。项目页还说 Ours+ 把策略的激活从 SiLU 换成 ReLU，论文正文对 Ours+ 和 PHC+*(env 3072) 两行一个字都没解释，说明项目页是后来补的材料（旧版读者注 1 的推断）。</p></div>
+<p><b>数据集和指标。</b>在 AMASS 训练划分上训练。沿用 PHC，去掉有噪声和人与物体交互的序列，得到 11313 段高质量训练序列、140 段测试序列。指标和 PHC 相同：成功率 Succ（模仿过程中任一时刻身体关节平均偏离参考超过 0.25 m 就算失败，用来衡量是否失衡或明显滞后）；根坐标系下的平均每关节位置误差 \(E_{\rm mpjpe}\) 和全局的 \(E_{\rm g\text-mpjpe}\)（mm）；为体现物理真实性，比较仿真和动捕之间的加速度差 \(E_{\rm acc}\)（mm/帧²）和速度差 \(E_{\rm vel}\)（mm/帧）。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>人形全身控制实验</h3>
+<h4 id="s4-1-1">4.1.1 AMASS 上的动作跟踪</h4>
+<p>和 PHC 比（用官方实现）。作者说本文几乎在所有指标上都超过 PHC，时间却少得多：约 3 天对 PHC 一整周。成功率更高，MPJPE、速度、加速度误差都明显更低，作者认为这体现了监督学习框架的优势。另外本文只用单个模型，PHC 是多个 primitive 组合的策略。</p>
 <div class="tablewrap"><table class="t-b">
-<thead><tr><th rowspan="2">方法</th><th colspan="5">AMASS-Train*</th><th rowspan="2">时间</th><th colspan="5">AMASS-Test*</th></tr>
+<caption>表 1 · 模仿动捕序列的定量结果（原文第 7 页，照录。* 表示去掉了包含人与物体交互的序列；AMASS-Train*、AMASS-Test* 分别有 11313 和 140 段；FT 表示 future tracks。原表 Ours* 整行加粗，最后两行在虚线之下）</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="5">AMASS-Train*</th><th rowspan="2">Time↓</th><th colspan="5">AMASS-Test*</th></tr>
 <tr><th>Succ↑</th><th>E<sub>g-mpjpe</sub>↓</th><th>E<sub>mpjpe</sub>↓</th><th>E<sub>acc</sub>↓</th><th>E<sub>vel</sub>↓</th><th>Succ↑</th><th>E<sub>g-mpjpe</sub>↓</th><th>E<sub>mpjpe</sub>↓</th><th>E<sub>acc</sub>↓</th><th>E<sub>vel</sub>↓</th></tr></thead>
 <tbody>
 <tr><td>PHC</td><td>98.9</td><td>37.5</td><td>26.9</td><td>3.3</td><td>4.9</td><td>7 days</td><td>96.4</td><td>47.4</td><td>30.9</td><td>6.8</td><td>9.1</td></tr>
@@ -162,81 +234,193 @@ x=f(\theta)=\begin{cases}L, & t_{hit}\lt t_{land}\ \cap\ y_{hit}\lt H\\[2pt] \df
 <tr><td>PHC+*(env 3072)</td><td>98.4</td><td>30.9</td><td>23.6</td><td>2.4</td><td>3.6</td><td>2 days</td><td>97.8</td><td>30.5</td><td>23.5</td><td>5.6</td><td>8.0</td></tr>
 <tr><td>Ours+*(env 1024)</td><td>98.8</td><td>16.9</td><td>13.3</td><td>2.3</td><td>2.7</td><td>2 days</td><td>97.9</td><td>26.5</td><td>19.5</td><td>5.6</td><td>6.5</td></tr>
 </tbody></table></div>
-<div class="note" id="n5"><span class="lab">读者注 5 · 怎么读这张表</span><p><b>加粗不代表每列最优。</b>Ours* 在训练集成功率 99.2 低于 PHC+ 的 100 和 PULSE 的 99.8；训练集 E<sub>g-mpjpe</sub> 27.7 高于 PHC+ 的 26.6；测试集成功率 98.5 低于 PHC+ 的 99.2。它在 E<sub>mpjpe</sub>、E<sub>acc</sub>、E<sub>vel</sub> 和测试集 E<sub>g-mpjpe</sub> 上低于前三行。</p>
-<p><b>“7 天对 3 天”不是同一硬件。</b>只有带 * 的行明确在单张 A6000 上。PHC、PHC+、PULSE 三行没有星号，硬件没写。最接近同条件的是虚线下两行：都是 2 天，同一张卡。</p>
-<p><b>同条件下，测试集的优势比训练集小很多。</b>Ours+* 相对 PHC+*：训练集 E<sub>g-mpjpe</sub> 低 45.3%，E<sub>mpjpe</sub> 低 43.6%；测试集分别只低 13.1%、17.0%。Ours+* 从训练到测试 E<sub>g-mpjpe</sub> 涨了 56.8%（16.9→26.5），PHC+* 几乎不变（30.9→30.5）。测试集只有 140 段，波动可能不小。成功率两者接近（97.9 对 97.8），E<sub>acc</sub> 相同（5.6）。</p>
-<p><b>PHC+ 自身的两行也不单调。</b>7+ 天那行的测试集 E<sub>g-mpjpe</sub> 是 36.1，2 天的星号行是 30.5，训练更短反而更低，但成功率也更低（97.8 对 99.2）。如果 MPJPE 只在成功的序列上算，成功率低会让误差看起来更好。这只是我的推测，表里没写口径，我也没有查证 PHC 系列是不是这样算。不管原因是什么，都不宜单看一列。</p></div>
-<div class="note" id="n6"><span class="lab">读者注 6 · 24 小时比 3 天的全局误差还低</span><p>如果 P(SiLU) W(SiLU) 就是 Ours*（这是我的推断，页面没有明说），那么 24 小时的 E<sub>g-mpjpe</sub> 是 24.3，3 天却是 27.7，同时成功率从 96.8 升到 99.2。可能的解释有：两张表的评估集不同，或者上面推测的成功序列口径。这两个解释我都核实不了。相对地，P(ReLU) W(SiLU) 从 24 小时（21.1，16.6）到 Ours+* 2 天（16.9，13.3）是单调变好的，前提同样是这两行对应同一配置。</p></div>
-<div class="note" id="n7"><span class="lab">读者注 7 · “样本效率更高”这里算不出来</span><p>摘要说样本效率明显更高。我读到的只有训练天数和环境数，没有总样本数或每秒步数。可以算的只有环境数之比：3072 / 1024 = 3，这是同样 2 天内并行环境数的差别。但实际样本数还取决于仿真速度和训练循环里世界模型占多少时间，所以 3 倍只是环境数之比，不是样本效率的倍数。全文里可能有这个数字。</p></div>
+<p><b>Future tracks。</b>在方法上再加“未来轨迹”：策略的输入除下一帧目标外，还有几个更远的未来帧目标，\(s_t=(s^p_t,s^g_t,s^g_{t+\Delta t},\dots,s^g_{t+n\Delta t})\)，实验里 \(\Delta t=10\) 帧、\(n=2\)。结果变好。作者的解释是：在未来帧上显式算损失后，更有信息的梯度能沿时间反传，策略也被训练成考虑未来目标再行动。作者还指出 PHC 用默认设置跑，环境数是 1536，本文只有 1024。定性结果见图 3。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 怎么读表 1</span><p><b>加粗不代表每列最优</b>（旧版读者注 5，证实）。Ours* 的训练集成功率 99.2 低于 PHC+ 的 100 和 PULSE 的 99.8，训练集 \(E_{\rm g\text-mpjpe}\) 27.7 高于 PHC+ 的 26.6，测试集成功率 98.5 低于 PHC+ 的 99.2。正文说的“几乎所有指标都超过 PHC”是对的：和 PHC 一行比，十项全部更好，例如测试集 \(E_{\rm g\text-mpjpe}\) 32.1 对 47.4，低 32.3%。</p>
+<p><b>前三行来自两篇论文，测试集也不是同一个。</b>PHC 一行和 PHC 原文表 1 的 Ours 完全一致（测试集 140 段，见 <a href="phc.html">PHC 精读</a>）。PHC+ 和 PULSE 两行和 <a href="pulse.html">PULSE</a> 原文表 1 一致，而 PULSE 的测试集是重新清洗过的 138 段（PULSE 精读读者注 13、18）。所以测试集几列里，PHC 一行和 PHC+、PULSE 两行不是在同一组序列上算的，表 1 的表头却统一写成 140 段。</p>
+<p><b>* 的含义。</b>表注说 * 表示去掉人物交互的序列，可是所有行用的都是 AMASS-Train* 和 AMASS-Test*，方法名上的 * 只加在作者自己跑的四行上。项目页把同一张表的 * 解释为“单张 A6000 上的结果”，两处说法不同。按论文，作者自己的实验都在单张 A6000 上；PHC 的“7 days”是 PHC 原文在 A100 上的数（引言）。所以“3 天对 7 天”不是同一硬件，最接近同条件的是虚线下两行：同一张卡、都是 2 天。</p>
+<p><b>同条件下测试集的优势小很多</b>（旧版算术，不变）。Ours+* 对 PHC+*：训练集 \(E_{\rm g\text-mpjpe}\) 低 45.3%、\(E_{\rm mpjpe}\) 低 43.6%；测试集只低 13.1%、17.0%。Ours+* 从训练到测试 \(E_{\rm g\text-mpjpe}\) 涨 56.8%（16.9→26.5），PHC+* 几乎不变（30.9→30.5）。成功率两者接近（97.9 对 97.8），\(E_{\rm acc}\) 相同。</p>
+<p><b>Ours+ 和 PHC+*(env 3072) 两行正文没有说明。</b>Ours+ 换了什么只有项目页写了；PHC+*(env 3072) 是作者在自己机器上用 3072 个环境跑了 2 天的 PHC+，而它正文说 PHC 默认用 1536 个环境。</p></div>
+<h4 id="sample">样本效率</h4>
+<p>作者认为框架的另一优势是样本效率，即达到相近性能需要多少来自物理仿真器的转移对。图 4 比较 PHC 和本文的成功率曲线。作者预期真实的样本效率还要更高，因为本文用更少的环境也能有相近的表现（图 6b）。尽管 GPU 物理仿真越来越快，本文的基于模型学习主要消耗的是学到的世界模型生成的合成数据，作者期望它能用到真实机器人这类数据稀缺的领域。</p>
+<div class="viz"><p class="cap">重画 · 图 4 Sample efficiency comparison（原文第 7 页，<a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=7">看原图 ↗</a>）· 矢量图读数 · 悬停看数值</p><div id="c-f4"></div></div>
+<p>原图注：“PHC 达到 90% 成功率所需的样本至少是本文的三倍。”原图图例是 “Our method” 和 “PPO+AMP”。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 4 读出来的数</span><p>本文的曲线每 1 亿个转移一个点，共 10 个点，在 3 亿到 4 亿之间越过 0.9（线性插值约 3.74 亿）。PPO+AMP 曲线每 1.5 亿一个点，最高 0.891（9 亿处），之后回落到 0.854 和 0.882，到图的右端 12 亿还没有越过 0.9。所以“至少三倍”是下界：\(12/3.74\approx3.2\)，真正的倍数要看 PPO+AMP 什么时候到 90%，图里看不出来。</p>
+<p><b>图例和图注不一致。</b>图例写 PPO+AMP，图注和正文写 PHC。PHC 本身就是 PPO 加 AMP 风格的判别器奖励，所以大概是同一条曲线，但它是单个 primitive 还是完整 PHC、用了多少环境，没写。作为参照，PHC 原文约用 100 亿样本训练到 98.9%（本站 <a href="phc.html">PHC 精读</a>），图 4 只画了前 12 亿。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 总样本数的粗估</span><p>如果“约 15000 样本/秒”是整个训练的平均速度，80 小时约 \(15000\times80\times3600\approx4.3\times10^9\) 个样本，大约是 PHC 的 100 亿的 43%，即少约 2.3 倍。PHC 的平均速度约 16,500 样本/秒（PHC 精读读者注 17），两者每秒产生的样本相近。所以“3 天对 7 天”的差别主要来自需要的样本少，而不是仿真快。按同一速度，图 4 横轴的 10 亿个转移约是 18.5 小时。这些都依赖“15000 是平均速度”这个假设（读者注 8），未核实。</p></div>
 
-<h2 id="dreamer">和 DreamerV1 比单段动作</h2>
-<p>项目页给了两张平均奖励曲线，在单段动作上过拟合。“DreamerV1 和 DreamerV3 在 AMASS 全集上的结果之后再补”，存档里没有这部分。<a href="dreamer.html">Dreamer</a> 和 <a href="dreamerv3.html">DreamerV3</a> 的精读在本站。</p>
+<h4 id="s4-1-2">4.1.2 推广到稀疏奖励任务</h4>
+<p>作者认为框架也适用于其他稀疏奖励任务，并说这可以从 3.2 节在理论上看出来。沿用 <a href="pulse.html">PULSE</a>，研究两个常见下游任务：达到某个 x 方向速度（0 到 5 m/s），以及在有障碍物的环境里跟随一条轨迹。速度任务里，\(\vec v^*\) 是目标速度向量，\(h^*_0\) 是根高度的摔倒阈值：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{speed}=w_v|\vec v^*-\vec v|^2+w_h\max(h^*_0-h_0,0) \]</div><span class="no">(10)</span></div>
+<p>轨迹跟随任务里，\(p^*\in\mathbb R^2\) 是 xy 平面上的下一个目标位置，\(p_0\) 是根的 xy 坐标：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{traj}=w_p|p^*-p_0|^2+w_h\max(h^*_0-h_0,0) \]</div><span class="no">(11)</span></div>
+<p>为了让行为更像人，策略建立在 PULSE 之上；另一种选择是训练时加 AMP。定性结果见图 3。作者特别指出，SuperTrack 这类之前的基于模型方法依赖专门的轨迹跟随数据集，本文不需要。用全身跟踪任务学到的动力学模型还能加快训练。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · “稀疏奖励”在这里指什么</span><p>式 10、11 每一步都有定义，而且对状态可导，从优化角度看是稠密的损失。这里的“稀疏”是相对全身跟踪而言：只给速度或下一个路点，不给每帧的参考姿态。“建立在 PULSE 之上”应是让策略输出 PULSE 的潜变量、由 PULSE 的解码器出动作，论文没展开。这一节没有任何数字，只有图 3c、3d 的画面；“理论上可以从 3.2 节看出”也没有给出定理或推导。“用跟踪学到的动力学模型能加快训练”没有曲线。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>消融</h3>
+<p>都在全身跟踪任务上做。</p>
+<p><b>窗口大小。</b>基于窗口的训练让梯度沿时间反传，比单步方法更稳地学到长程预测。策略要学需要长期意识的动作，窗口要大；但策略在长时间上的动作质量又取决于动力学模型能否保持长期预测准确，模型窗口太短就做不到。反过来，模型窗口太大，预测状态可能偏离目标，让模型忽略动作。结论：策略窗口 32、模型窗口 8 在所有尝试里最稳、最高效。</p>
+<div class="viz"><p class="cap">重画 · 图 5a 动力学模型的窗口（原文第 8 页，<a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=8">看原图 ↗</a>）· 原图每条线只有 4 个点</p><div id="c-f5a"></div></div>
+<div class="viz"><p class="cap">重画 · 图 5b 策略的窗口 · 原图每条线只有 5 个点</p><div id="c-f5b"></div></div>
+<p><b>策略和动力学的更新比。</b>和 Nagabandi 2018、PWM 先收集大量离线数据单独训练模型不同，这里的模型和策略一起学。每个 epoch 更新模型 \(N_w\) 次、策略 \(N_\pi\) 次。性能取决于模型能否给出正确梯度，所以 \(N_w\) 设得比 \(N_\pi\) 略大。\(N_w\) 大时平均奖励上升更快，但可能有害：一是训练效率低，离线训练模型某种程度上等于把 \(N_w\) 设成总训练步数；二是模型会过拟合缓存里当前的动力学分布，而不是只学策略附近那部分可能的动力学。默认 \(N_w/N_\pi=2\)。</p>
+<div class="viz"><p class="cap">重画 · 图 5c 每个 epoch 的更新比 · 100 步分箱均值（原图噪声大）</p><div id="c-f5c"></div></div>
+<p><b>自回归训练。</b>作者强调自回归训练对框架至关重要，换成 teacher forcing 性能会严重退化（图 5d）。他们认为原因是状态和动作空间连续且随机，开环预测难以稳定，而自回归训练能有效稳住它。</p>
+<div class="viz"><p class="cap">重画 · 图 5d 训练方式 · 100 步分箱均值</p><div id="c-f5d"></div></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 图 5a 和 5b 的默认配置不是同一条线</span><p>默认配置是 \(T_w=8,T_\pi=32\)。它在图 5a 里是 \(T_w=8\) 那条线，在图 5b 里是 \(T_\pi=32\) 那条线，两者应当是同一次训练，但读出来差很多：在 1500、3000、4500 步处，5a 是 0.334、0.623、0.824，5b 是 0.571、0.934、0.960。所以这两个消融不是在同样条件下做的（可能是不同的数据子集、不同的成功率口径或不同的种子），论文没说。</p>
+<p>其他细节：5a 里 \(T_w=4\) 在前三个点都领先 \(T_w=8\)（0.426 对 0.334、0.732 对 0.623），只在最后一个点落后 0.01，所以“8 最好”主要靠最后一个点。5b 里 \(T_\pi=64\) 在 3000 步后下降（0.864 → 0.782），和正文“窗口太大会发散”一致。每条线只有 4 到 5 个点，没有多次运行。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 一条默认曲线画了三次</span><p>图 5c 的 4:8、图 5d 的自回归、图 6b 的 1024 envs，按 100 步分箱后的均值逐箱相同（差别在 0.03 以内，是标定误差），长度都是约 9000 步。所以这三张图的“默认”是同一次运行。这本身合理，但说明每张图都只有一次运行做对照。</p>
+<p>图 5c 里，三条线共同的范围是 0 到 4000 步，4:12 在每个分箱上都最高（比如 3500 到 3600 步：19.5 对 4:8 的 18.8、4:4 的 18.0）。作者选 4:8 的理由是效率和过拟合，但横轴是优化步数，看不到墙钟时间，也看不到过拟合的后果；4:12 那条线在 4000 步就结束了。图 5d 的 teacher forcing 最高只到约 5，之后降到负值，和自回归的约 20.5 差得很远，结论清楚。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>动力学模型的性质</h3>
+<p>除了加速和改进策略优化，作者想看动力学模型的其他性质：通过动作跟踪这个视角，看它的 scaling law 和迁移效率。</p>
+<h4 id="s4-3-1">4.3.1 策略学习的 scaling law</h4>
+<p>只看“数据”这一维。图 6a：用不同数量的 AMASS-Train* 动作训练动力学模型，再用这个预训练模型在 AMASS-Test* 里随机选的 100 段动作上训练一个新策略。动作越多样，模型越有效。图 6b：用不同数量的仿真环境从头训练策略和模型，用少得多的环境也有相近表现，作者说这证明了 4.1.1 节的样本效率观点。</p>
+<div class="viz"><p class="cap">重画 · 图 6a 左：成功率对动作数（原文第 9 页，<a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf#page=9">看原图 ↗</a>）</p><div id="c-f6a1"></div></div>
+<div class="viz"><p class="cap">重画 · 图 6a 右：Global MPJPE 对动作数</p><div id="c-f6a2"></div></div>
+<div class="viz"><p class="cap">重画 · 图 6b 左：平均奖励对环境数 · 100 步分箱均值</p><div id="c-f6b1"></div></div>
+<div class="viz"><p class="cap">重画 · 图 6b 右：策略训练损失对环境数 · 100 步分箱均值</p><div id="c-f6b2"></div></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 图 6 说明了什么、没说明什么</span><p><b>6a。</b>横轴是 \(\log_{10} n\)，0 到 4 对应 1 到 1 万段（全集 11313 段是 4.05）。冻结模型时：只用 1 段动作训练的模型让新策略成功率为 0，1 万段时是 0.70，全局误差从 283 降到 26.7。一起微调时，1 段就有 0.57，1 万段到 1.0。所以动作越多，模型越有用，这一点清楚；但即使用 1 万段，<b>冻结</b>的模型也只能让策略在 100 段新动作上成功 70%，要靠微调补上。图里没写 MPJPE 的单位，按表 1 应是 mm。每种设置只有一个点。</p>
+<p><b>6b。</b>横轴是优化步数，不是样本数。64、256、1024 个环境在共同的范围内（约 0 到 2800 步）奖励接近，比如 2400 到 2500 步分别约 16.5、15.7、18.0。如果每个 epoch 的样本数和环境数成正比（论文没明说），64 个环境每步只用 1/16 的新数据，这支持“样本效率高”。但 64、256、2048 三条线分别在约 2800、3000、1500 步就停了，看不出长时间训练后是否仍然相近。</p></div>
+<h4 id="s4-3-2">4.3.2 泛化和迁移学习</h4>
+<p>作者说 RL 方法常常难以泛化和迁移到新任务、新环境；这里的策略和动力学模型因为显式建模了环境动力学，容易泛化。<b>不同的动作动力学：</b>先在 AMASS-Train* 上预训练策略和模型，再在 <a class="ds" href="http://vision.imar.ro/human3.6m/">Human3.6M</a>（<a href="https://doi.org/10.1109/TPAMI.2013.248">论文</a>）上微调，用 PHC 划分的 H36M-Motion* 子集（140 段高质量动捕）。图 7 比较平均奖励：“动力学模型迁移”指用学到的模型从头训练新策略；“策略迁移”指同时微调策略和模型。结论：学到的神经动力学模型能加快策略学习。</p>
+<div class="viz"><p class="cap">重画 · 图 7 从 AMASS 迁移到 H36M（原文第 9 页）· 50 步分箱均值</p><div id="c-f7"></div></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 图 7 的倍数，以及 H36M 到底是什么数据</span><p><b>加速多少。</b>平均奖励首次达到 14、15、16 时，不迁移约在 680、1010、1390 步，迁移动力学模型约在 270、330、730 步，分别快约 2.5、3.0、1.9 倍；到 2700 步两者是 17.3 对 17.8。策略迁移一开始就在约 20.6，几乎不变（只画到 1500 步），说明在 AMASS 上训好的策略直接就能跟踪 H36M-Motion*，这一条曲线更像零样本，而不是“迁移学习加快了训练”。</p>
+<p><b>前后说法矛盾。</b>图 3 的图注说 (b) 是在“从视频估计出的噪声动作数据集 H36M”上模仿；4.3.2 节说用的是 PHC 划分的 H36M-Motion*，“140 段高质量动捕”。在 PHC 里这是两个不同的子集：H36M-Motion* 是动捕，H36M-Test-Video* 才是从视频估计的 160 段（本站 PHC 精读）。图 3b 用的是哪一个，论文没说清。</p></div>
+<h4 id="s4-3-3">4.3.3 动力学模型的预测能力</h4>
+<p>作者认为动力学模型不必把整条长轨迹都预测准，只要在策略优化的视野内误差低于阈值就很有用。图 3e 给出开环预测的可视化：模型在策略训练的视野内稳定、准确，但更长的预测仍然会失败。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 预测视野有多长</span><p>按 30 Hz，策略窗口 \(T_\pi=32\) 步约 1.07 秒，模型窗口 \(T_w=8\) 步约 0.27 秒。论文只说“视野内准、更长失败”，没有给误差数字。项目页另写“每关节误差在 1.5 秒后小于 0.066 m”，1.5 秒是 45 步，已经超出 \(T_\pi\)；按旧版的直方图读数，0.066 m 是一个分箱边界，只覆盖训练集约 94%、测试集 80% 的动作（<a href="#n22">读者注 22</a>）。SuperTrack 说超过 64 帧难以保持关节约束，SuperMimic 说它的模型“在无限长的滚动上保持稳定”。三篇的说法不同，都没有给出同口径的误差曲线。</p></div>
+
+<h2 id="s5"><span class="no">5</span>讨论</h2>
+<p><b>局限。</b>在 AMASS 上还到不了 100%。速度和角速度很大的高动态动作仍然困难，因为它们的动力学分布和其余动作差别很大。和无模型 RL 相比，这个方法更难发现“迈一步防止摔倒”这类行为，作者认为结合更有探索性的方法可能缓解。动力学模型没有考虑环境本身的变化，所以在台阶、崎岖斜坡这类高度不连续的环境里还很难学。</p>
+<p><b>结论和未来工作。</b>SuperDyno 是一个可扩展、高效的框架，主要为基于物理的动作模仿设计，也适用于其他目标条件任务。作者说它比以前的方法更高效，用更少的样本、更短的时间达到更好的表现和更低的跟踪误差，学到的神经动力学也能用于预测未来。未来方向：(1) 加入地形和场景感知，更新动力学建模以支持人与物体交互；(2) 把框架搬到真实机器人上；(3) 结合无模型方法以发现新行为。</p>
+
+<h2 id="sA">附录</h2>
+<h3 id="sA1"><span class="no">A.1</span>其他表示细节</h3>
+<p><b>状态。</b>沿用 PHC。仿真状态 \(s_t\triangleq(s^p_t,s^g_t)\)，包括人形本体感觉 \(s^p_t\) 和目标状态 \(s^g_t\)。本体感觉 \(s^p_t\triangleq(q_t,\dot q_t,\beta)\) 包括 3D 身体姿态、速度和（可选的）体形 \(\beta\)；用不同体形训练时，\(\beta\) 包含每个连杆的长度信息。目标状态是下一步参考量和仿真量之差，再加参考量本身：</p>
+\[ s^g_t\triangleq\big(\hat\theta_{t+1}\ominus\theta_t,\ \hat p_{t+1}-p_t,\ \hat v_{t+1}-v_t,\ \hat w_t-w_t,\ \hat\theta_{t+1},\ \hat p_{t+1}\big) \]
+<p>输入策略前，\(s^g_t\) 和 \(s^p_t\) 按人形当前的朝向和根位置归一化。</p>
+<p><b>损失函数。</b>动力学模型的损失：</p>
+\[ \mathcal L_w=\sum_{t=0}^{T_w}\big(w_{pos}\|\tilde p_t-p_t\|+w_{vel}\|\tilde q_t\ominus q_t\|+w_{vel}\|\tilde v_t-v_t\|+w_{ang}\|\tilde w_t-w_t\|\big) \]
+<p>各项权重调到训练开始时贡献大致相等，\(\ominus\) 是四元数差。策略的损失和它类似，区别是在局部坐标系下算（加撇号表示变换到局部观测）：</p>
+\[ \mathcal L_\pi=\sum_{t=0}^{T_\pi}\big(w_{lpos}\|\hat p'_t-p'_t\|+w_{lvel}\|\hat q'_t\ominus q'_t\|+w_{lvel}\|\hat v'_t-v'_t\|+w_{lang}\|\hat w'_t-w'_t\|+w_{act}\|a_t\|+w_{height}\|\hat h_0-h_0\|\big) \]
+<p>各部分的权重同样做了平衡，\(w_{act}\) 小两个数量级。</p>
+<p><b>动作。</b>沿用 PHC，每个自由度用 PD 控制器，动作 \(a_t\) 就是 PD 目标 \(q^d_t=a_t\)，关节力矩 \(\tau^i=k^p\circ(a_t-q_t)-k^d\circ\dot q_t\)。这不同于以前动作模仿里常用的残差动作 \(q^d_t=\hat q_t+a_t\)（加在参考姿态上以加快训练）。不用任何外力，也不用 meta-PD 控制。</p>
+<p><b>人形。</b>控制器可以支持任何人体运动学结构，这里用 <a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a> 的结构：24 个刚体，其中 23 个有驱动，动作空间 \(a_t\in\mathbb R^{23\times3}\)。身体比例随体形参数 \(\beta\in\mathbb R^{10}\) 变化。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 附录里从 PHC 和 SuperTrack 继承的部分</span><p><b>目标状态照抄了 PHC 的笔误。</b>第四项写 \(\hat w_t-w_t\)，其余各项都是 \(t+1\)。PHC 原文就是这样写的，PHC 的代码用的是下一帧（PHC 精读读者注 1）。</p>
+<p><b>损失的写法几乎和 SuperTrack 相同。</b>“权重调到训练开始时各项贡献大致相等”“\(\ominus\) 是四元数差”“正则项小两个数量级”这几句和 SuperTrack §3.4、§3.5 的说法一一对应；模型窗口 8、策略窗口 32、约 15 万样本的循环缓存、最大回合长度 512 也和 SuperTrack 相同。不同的地方：SuperDyno 预测速度而不是加速度；动作是绝对 PD 目标而不是参考上的偏移；SuperTrack 在策略训练里给动作加 \(\sigma=0.1\) 的探索噪声，SuperDyno 表 2 只写了采集时的动作噪声 0.05；环境从 256 个角色换成 Isaac Gym 的 1024 个，并加了 CSET 和困难样本挖掘。论文引用了 SuperTrack，但没有说这些数是沿用的，这是我对照出来的。</p></div>
+
+<h3 id="sA2"><span class="no">A.2</span>超参数</h3>
+<div class="tablewrap"><table class="t-a">
+<caption>表 2 · 框架用到的超参数（原文第 12 页，照录）</caption>
+<thead><tr><th>部分</th><th>超参数</th><th>值</th></tr></thead>
+<tbody>
+<tr><td rowspan="4">轨迹收集</td><td>Minimum Episode Length</td><td>36</td></tr>
+<tr><td>Termination Distance (m)</td><td>0.5</td></tr>
+<tr><td>Maximum Episode Length</td><td>512</td></tr>
+<tr><td>Action Noise Scale</td><td>0.05</td></tr>
+<tr><td rowspan="6">神经动力学模型</td><td>Hidden Layers</td><td>2</td></tr>
+<tr><td>Hidden Units</td><td>512</td></tr>
+<tr><td>Activation</td><td>SiLU</td></tr>
+<tr><td>Batchsize</td><td>4096</td></tr>
+<tr><td>Learning Rate</td><td>2e-3</td></tr>
+<tr><td>Window \(T_w\)</td><td>8</td></tr>
+<tr><td rowspan="6">策略</td><td>Hidden Layers</td><td>2</td></tr>
+<tr><td>Hidden Units</td><td>[1024, 512]</td></tr>
+<tr><td>Activation</td><td>SiLU</td></tr>
+<tr><td>Batchsize</td><td>4096</td></tr>
+<tr><td>Learning Rate</td><td>1e-5</td></tr>
+<tr><td>Window \(T_\pi\)</td><td>32</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 维度和参数量（我的估计）</span><p>论文没给输入输出维度。按 PHC 代码算（PHC 精读读者注 2）：本体感觉 358 维，目标状态 \(24\times24=576\) 维，策略输入 934 维；动作 \(23\times3=69\) 维。如果 \(f_w\) 的输入是本体感觉加动作（427 维）、输出 24 个刚体的线速度和角速度（144 维），它的参数量是 \((427\cdot512+512)+(512\cdot512+512)+(512\cdot144+144)=555{,}664\)，约 56 万。策略 \(934\to1024\to512\to69\) 是 1,517,637 个参数，约 152 万。加 future tracks（\(n=2\)，输入多两个 576 维目标，共 2086 维）后约 270 万。</p>
+<p>对照：SuperTrack 的 W 约 479 万（SuperTrack 精读），SuperMimic 的 \(f_\omega\) 只算两层 2048 × 2048 的中间连接就有 8,392,704 个参数。所以摘要说的“中等规模”在三篇里是最小的，比 SuperMimic 小 15 倍以上。这些数都依赖“\(f_w\) 不看目标状态”和 PHC 代码的维度这两个假设，论文没写。</p>
+<p>学习率：策略 1e-5，模型 2e-3，相差 200 倍。SuperTrack 是 1e-4 和 1e-3，SuperMimic 两者相同（单卡 2e-4）。策略学习率这么小，可能和 BPTT 梯度的尺度有关，论文没解释。</p></div>
+
+<h2 id="pp">项目页补充材料（论文里没有）</h2>
+<p>这一节是旧版的主体，来自<a href="https://web.archive.org/web/20260303123801/https://dynamics-humanoid.github.io/dynamics-humanoid/">项目页的 Wayback 存档</a>（2026-03-03）。项目页的小标题是 “Paper ID: 15294 -- Rebuttal &amp; Supplementary Materials”，是给另一次投稿准备的审稿回复材料，内容比工作坊论文多。下面的东西<b>论文里都没有</b>，和上面的论文内容分开看。项目页线上版现在返回 404，交互 3D 图（9 个 plot_*.html）存档里也没有。项目页同样没有开放许可，这里只放文字描述和从 PNG 读数重画的图。</p>
+
+<h3 id="pp-why">为什么用网络：球和墙</h3>
+<p><b>策略对比视频。</b>三段视频，标题分别是参考动作、用 <a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a>（MuJoCo 的 JAX 版，可微）的梯度、用神经网络的梯度，没有数字。</p>
+<div class="note" id="n23"><span class="lab">读者注 23 · 这组对比视频里是四足机器人（旧版注 2）</span><p>我抽帧看了后两段（<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_trot_apg_nolastact.mp4">MJX</a>、<a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/videos/video/output_superdyno1.mp4">神经网络</a>），各 4.08 秒，画面里是一台红色四足机器人，MJX 那段的文件名含 <code>trot</code> 和 <code>apg</code>。这组证据不是人形，是单个任务，没有数字。</p></div>
+<p><b>球墙例子。</b>球从地面以速度 \(v\)、角度 \(\theta\) 发出，距离 \(L\) 处有高 \(H\) 的墙，碰墙就粘住，要选 \(\theta\) 让前进距离 \(x\) 最大。项目页的图给出 \(t_{land}=2v\sin\theta/g\)、\(t_{hit}=L/(v\cos\theta)\)、\(y_{hit}=v\sin\theta\,t_{hit}-\tfrac12gt_{hit}^2\)；若 \(t_{hit}\lt t_{land}\) 且 \(y_{hit}\lt H\)，\(x=L\)，否则 \(x=v^2\sin2\theta/g\)。两个 MLP（ReLU、SiLU，相同初值，RAdam，200 epoch，批量 300）去拟合它，项目页的结论是学到的面更光滑，梯度也更光滑，真值面上有梯度恒为零的平台，策略容易困住。</p>
+<div class="fig" id="fig-bw"><span class="lab">项目页图 · 球墙实验 · <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/ball_wall_example4.png">看原图 ↗</a></span><p>左边是地面上的绿色圆球，标了速度箭头 \(v\) 和角度 \(\theta\)，向右距离 \(L\) 处是一根黑色竖墙，高 \(H\)。两条绿色虚线抛物线，一条落在墙前方上空，一条越过墙。左上标重力 \(g\) 和坐标轴。右边是上面这组公式。</p></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · 重算球墙（旧版注 3）</span><p>取 \(v=12,L=8,H=2.5,g=9.81\)（我选的）：平台不止一段，\(16.5°\) 到 \(36.1°\) 上升途中撞墙，\(71.2°\) 到 \(73.5°\) 下落途中撞墙，两段上 \(dx/d\theta=0\)；\(36.1°\) 处 \(x\) 从 8 跳到约 14.0；最优在 \(45°\)，\(x\approx14.68\)。同一条梯度上升规则走 80 步：真值面从 8° 出发停在 16.5°，从 25° 出发不动，从 70° 出发到 45°。我自己重新拟合（4→32→32→1，1500 样本，学习率 0.005）时，ReLU 和 SiLU 从三个起点都到了 \(x\approx14.6\) 附近，SiLU 的梯度总变差约 0.43、ReLU 约 0.92；但学习率 0.002 时 SiLU 从 8° 出发也停在 \(x=8\)，网络拟合的均方根误差有 2.8 到 3.0 米。所以“这种现象可以出现”成立，“网络总能逃出局部最优”不成立。这是一维玩具，见 <a href="../interactives/superdyno/index.html?scene=11&amp;k=0">3D 动画第 11 幕</a>。</p></div>
+
+<h3 id="pp-act">激活函数的 2 × 2 比较</h3>
+<p>项目页的假设：SiLU 梯度更光滑，所以动力学模型用 SiLU 应当更好。四种组合都在 AMASS 上训练 24 小时。P 是策略，W 是世界模型（和论文的 \(\pi_\theta\)、\(f_w\) 对应）。表上没写单位，也没写评估集。</p>
+<div class="tablewrap"><table class="t-a">
+<thead><tr><th></th><th>Success Rate</th><th>Global MPJPE</th><th>Local MPJPE</th><th>Acc</th><th>Vel</th></tr></thead>
+<tbody>
+<tr><td>P(SiLU) W(SiLU)</td><td>96.8</td><td>24.3</td><td>19.8</td><td>2.3</td><td>3.1</td></tr>
+<tr><td>P(SiLU) W(ReLU)</td><td>93.9</td><td>30.6</td><td>24.4</td><td>2.6</td><td>3.6</td></tr>
+<tr><td>P(ReLU) W(ReLU)</td><td>95.8</td><td>25.7</td><td>19.9</td><td>2.7</td><td>3.3</td></tr>
+<tr><td>P(ReLU) W(SiLU)</td><td>97.9</td><td>21.1</td><td>16.6</td><td>2.5</td><td>3.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n25"><span class="lab">读者注 25 · 配对比较，以及和表 1 的出入（旧版注 4、6）</span><p>固定 P，把 W 从 ReLU 换成 SiLU：P(SiLU) 时成功率 +2.9、Global −6.3、Local −4.6、Acc −0.3、Vel −0.5；P(ReLU) 时 +2.1、−4.6、−3.3、−0.2、−0.3，五项全好。固定 W，把 P 从 SiLU 换成 ReLU，除 Acc 外都变好。最好的是 P(ReLU) W(SiLU)，对应项目页说的 Ours+。没有重复实验。</p>
+<p>论文表 2 证实默认配置 P、W 都用 SiLU，所以 P(SiLU) W(SiLU) 就是 Ours* 的配置。它训练 24 小时的 \(E_{\rm g\text-mpjpe}\) 是 24.3，表 1 里 3 天的 Ours* 却是 27.7，同时成功率从 96.8 升到 99.2。可能是评估集不同，也可能 MPJPE 只在成功的序列上算（成功率高了，难序列进入平均）。两个解释都核实不了。</p></div>
+
+<h3 id="pp-dreamer">和 DreamerV1 比单段动作</h3>
+<p>两张平均奖励曲线，在单段动作上过拟合。“DreamerV1 和 DreamerV3 在 AMASS 全集上的结果之后再补”，存档里没有。<a href="dreamer.html">Dreamer</a> 和 <a href="dreamerv3.html">DreamerV3</a> 的精读在本站。</p>
 <div class="viz" id="c-standing"><p class="cap">重画 · Standing · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/dreamerv1_standing2.png">dreamerv1_standing2.png ↗</a>，每段取中位数，比原图光滑</p></div>
 <div class="viz" id="c-handball"><p class="cap">重画 · Handball · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/dreamerv1_handball.png">dreamerv1_handball.png ↗</a>，每段取中位数，比原图光滑</p></div>
-<p>按我的读数，Standing 上 SuperDyno 到约 4.4k 步时约 30.3，DreamerV1 到约 7.4k 步时约 21.9。Handball 上 SuperDyno 到约 3.8k 步时约 24.2，DreamerV1 到约 3.2k 步时约 5.3。原图横轴只写 Step，没有说一步是环境步还是梯度步，两条曲线是否同一单位也没写，所以这里只比终值。</p>
+<p>按我的读数，Standing 上 SuperDyno 到约 4.4k 步时约 30.3，DreamerV1 到约 7.4k 步时约 21.9；Handball 上 SuperDyno 到约 3.8k 步时约 24.2，DreamerV1 到约 3.2k 步时约 5.3。横轴只写 Step，两条曲线是否同一单位没写，所以只比终值。</p>
 
-<h2 id="eval">动力学模型评估</h2>
-<p>项目页说，训练好的动力学模型在 AMASS 训练集和测试集上都能稳定预测未来状态，每关节误差在 1.5 秒后小于 0.066 m。它还放了开环预测视频：红色是参考动作，蓝色是策略的跟踪，橙色是动力学模型的开环预测。开环指模型的输入来自自己上一步的输出，不看真实状态。</p>
-<div class="viz"><p class="cap">重画 · 标题 “Short Horizon World Eval MPJPE Distribution” · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_amass_train.png">训练集 ↗</a> 和 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_test.png">测试集 ↗</a>。纵轴改成了占比，方便两边比较</p>
+<h3 id="pp-eval">动力学模型的误差直方图</h3>
+<p>项目页说，模型在 AMASS 训练集和测试集上都能稳定预测，每关节误差在 1.5 秒后小于 0.066 m，并放了两张标题为 “Short Horizon World Eval MPJPE Distribution” 的直方图。</p>
+<div class="viz"><p class="cap">重画 · 读自 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_amass_train.png">训练集 ↗</a> 和 <a href="https://web.archive.org/web/20260303123801im_/https://dynamics-humanoid.github.io/dynamics-humanoid/imgs/world_eval_test.png">测试集 ↗</a>。纵轴改成了占比</p>
 <div class="hist2"><div id="c-h-train"></div><div id="c-h-test"></div></div>
 <div class="viz-table"><p>训练集（约）：6165、4455、415、129、87、53，其余合计约 9</p><p>测试集：16、96、15、8、2、3</p></div></div>
-<div class="note" id="n8"><span class="lab">读者注 8 · 0.066 m 大概是第 2 根柱子的右端</span><p>我按 y 轴网格线标定读了柱高。测试集读出来是 16、96、15、8、2、3，都接近整数，合计正好 140，和测试集段数相同。训练集前 6 根合计约 11304，单像素约 17 段，和 11313 相符，余下约 9 段分布在图上看不清的长尾里（图上尾巴大约到 0.33）。所以每个样本应当是一段动作。</p>
-<p>柱宽约 1/30 m（15 根覆盖 0 到 0.5），第 2 根右端约 0.0667 m。所以我推断“小于 0.066 m”指的是这个分箱边界，不是所有动作的上限。按这个切分，约 93.9% 的训练动作和 80.0%（112 / 140）的测试动作落在里面。其余的误差更大，测试集最大的一档到 0.2 m。</p>
-<p>用分箱中点估算均值：训练集约 0.035 m，测试集约 0.058 m，测试集大约是训练集的 1.6 倍。众数也从第 1 根移到了第 2 根。另外两张图的标题只写 “Short Horizon”，1.5 秒来自正文，图上没有写时长。</p></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · 0.066 m 大概是第 2 根柱子的右端（旧版注 8）</span><p>按 y 轴网格线标定读柱高。测试集读出 16、96、15、8、2、3，合计正好 140；训练集前 6 根合计约 11304，和 11313 相符。所以每个样本是一段动作。柱宽约 1/30 m，第 2 根右端约 0.0667 m，“小于 0.066 m”应是这个分箱边界，不是所有动作的上限：约 93.9% 的训练动作和 80.0%（112/140）的测试动作落在里面。用分箱中点估算均值，训练集约 0.035 m、测试集约 0.058 m。论文里没有这组数，也没有说 1.5 秒；论文只说在策略视野（32 步，约 1.07 秒）内准。</p></div>
 
-<h2 id="tasks">稀疏奖励和迁移</h2>
-<p>项目页展示了两个稀疏奖励的下游任务：指定方向的速度跟踪、轨迹跟随。还有 AMASS 训练集、难度较高的动作、测试集的跟踪视频，以及 SuperDyno 和 PHC+ 做 Handball 动作的并排视频。全部是视频，没有数字，我没有逐段看。项目页说渲染的 <a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a> 网格直接来自仿真结果，没有后处理。</p>
-<div class="note" id="n9"><span class="lab">读者注 9 · 迁移和 scaling law 在页面里是空的</span><p>项目页 HTML 源码的目录里有一段被注释掉的条目：Transfer Learning(Todos) 下面是任务级和环境级迁移，还有 A Glimpse into Scaling Law of Dynamics Model for Policy Learning(Todos)。页面正文没有这些节。摘要声称的“动力学模型可迁移到不同任务”，以及动力学模型大小和策略学习的关系，我在读过的来源里都找不到数据。全文可能有。这是“我没读到”，不是“论文没做”。</p></div>
-
-<h2 id="scale">规模</h2>
-<p>标题和摘要的重点是规模，SuperMimic 引用的也是这一点。</p>
-<div class="note" id="n10"><span class="lab">读者注 10 · “几万段”和 11313</span><p>摘要写 “scaling seamlessly to datasets with tens of thousands of motion clips”，SuperMimic 照用了这个说法。我读到的唯一具体数字是项目页的 AMASS-Train* 11313 段和 AMASS-Test* 140 段，合计 11453，够不上“几万”。这不算矛盾：全文可能用了更大的数据集，也可能按别的方式计数（比如切片）；项目页也可能和工作坊论文不是同一版本（<a href="#n1">读者注 1</a>）。我核对不了，所以只报告这个差距。作为参照，SuperMimic 的基准 129,514 段约是 11313 的 11.4 倍，但它们是不同的数据集和过滤流程。</p></div>
-
-<h2 id="unread">没读到的内容</h2>
-<p>下面这些问题读者很可能想问，我读过的来源里都没有答案。它们不等于论文没写。</p>
-<ul>
-<li>动力学模型的结构：层数、宽度、参数量，“中等规模”到底多大。</li>
-<li>状态和动作的表示，模型预测什么，是否像 <a href="supertrack.html">SuperTrack</a> 那样预测加速度再积分。</li>
-<li>监督学习和强化学习如何结合：各自的损失、权重、更新顺序，是否用评论家，梯度穿过模型滚动多少步。</li>
-<li>动力学模型的训练数据来源和训练时机，是预训练再冻结还是和策略一起训练。</li>
-<li>仿真器、角色模型（项目页只提到渲染用 SMPL 网格）、控制频率。</li>
-<li>总样本数、每秒步数、消融实验。</li>
-<li>稀疏奖励和迁移实验的数字。</li>
-<li>“几万段”具体用了哪个数据集。</li>
-</ul>
-<p>因此这一页和本站其他精读不一样：没有原文章节、没有编号公式和算法。拿到 PDF 后，这些部分才能补上。</p>
+<h3 id="pp-other">其他</h3>
+<p>项目页还列了神经网络动力学的优缺点。优势：梯度更光滑、能跳出局部最优、比仿真器更少梯度爆炸或消失；容易放大、天然并行；有助于域迁移；可以直接部署到真机。缺点：长期预测不准；不清楚怎样从无结构的多模态数据里学。除第一项有球墙例子外都只是列举。“可以直接部署到真机”在论文里是未来工作。项目页 HTML 里被注释掉的 Transfer Learning 和 Scaling Law 两节（标着 Todos），对应的内容论文 4.3 节有。</p>
 
 <h2 id="notes">读者注汇总</h2>
-<p>都是我核算或对照后写的，不属于论文。表格数字来自项目页存档，读数来自它的 PNG。</p>
+<p>都是我核算或对照后写的，不属于论文。注 1 到 21 针对论文，注 22 到 25 针对项目页。</p>
 <ol class="notes">
-<li><a href="#n1">版本问题</a>：项目页是审稿回复材料，数字可能和工作坊 PDF 不同。</li>
-<li><a href="#n2">对比视频是四足</a>：MJX 对神经网络的视频不是人形，也没有数字。</li>
-<li><a href="#n3">重算球墙</a>：平台有两段；真值面会卡住；网络能否逃出依赖拟合质量。</li>
-<li><a href="#n4">激活函数配对</a>：W 换 SiLU 五项全好；最好的是 P(ReLU) W(SiLU)。</li>
-<li><a href="#n5">基准表</a>：加粗不等于每列最优；同硬件下测试集优势明显缩小。</li>
-<li><a href="#n6">24 小时对 3 天</a>：全局误差不单调，原因核实不了。</li>
-<li><a href="#n7">样本效率</a>：现有数字算不出来。</li>
-<li><a href="#n8">0.066 m</a>：大概是分箱边界，覆盖训练集约 94%、测试集 80%。</li>
-<li><a href="#n9">迁移和 scaling law</a>：项目页这两节被注释掉，没有数据。</li>
-<li><a href="#n10">几万段</a>：我读到的具体数字是 11313 + 140。</li>
+<li><a href="#n1">SuperMimic 的概括</a>：“几万段”不准确，实为一万一千多段；“仿真角色”“解析梯度”准确；省略评论家的那句没引它；对旧数据的看法和它相反。</li>
+<li><a href="#n2">摘要的说法</a>：“tens of thousands”比正文多了一个量级的复数；稀疏奖励、迁移只有定性或曲线。</li>
+<li><a href="#n3">80 小时和 99%</a>：80 小时 ≈ 3.33 天；“99% 以上”只对训练集上的 Ours* 和 Ours(FT)* 成立。</li>
+<li><a href="#n4">PHC 的规模说法</a>：同一个 11313 段，相关工作说“几万”，引言说“一万”。</li>
+<li><a href="#n5">式 2 到 4</a>：梯度移进期望要求确定性策略；式 4 的 \(\nabla_\theta a\) 要按全导数理解。</li>
+<li><a href="#n6">式 5 到 7</a>：半隐式欧拉；四元数乘四元数；预测速度而非加速度；\(\Delta t\) 未写，应是 1/30 秒。</li>
+<li><a href="#n7">记号</a>：式 8、9 写成预测减预测；\(\mathcal L_\theta\) 和 \(\mathcal L_\pi\)；求和上限、权重名、两处引用笔误。</li>
+<li><a href="#n8">CSET 的数</a>：1.5 秒、15000 样本/秒、“翻倍”在每 epoch 32 步的假设下不能同时成立；最小长度 32 对 36。</li>
+<li><a href="#n9">困难样本公式</a>：从没失败的动作概率为 0，全成功时分母为 0。</li>
+<li><a href="#n10">缓存</a>：约 4.6 个 epoch 的数据，和 SuperTrack 同样 15 万；Ours+ 和 PHC+* 两行只在项目页有说明。</li>
+<li><a href="#n11">表 1</a>：加粗不等于每列最优；前三行来自两篇论文、测试集 140 和 138 混用；* 的含义两处不同；同条件下测试集优势缩小。</li>
+<li><a href="#n12">图 4</a>：本文约 3.74 亿到 90%，PPO+AMP 到 12 亿还没到，“三倍”是下界；图例和图注名字不同。</li>
+<li><a href="#n13">总样本数</a>：按 15000 样本/秒约 43 亿，约是 PHC 的 43%；两者每秒样本数相近。未核实。</li>
+<li><a href="#n14">稀疏奖励</a>：式 10、11 是稠密可导损失；没有数字；“理论上”没有推导。</li>
+<li><a href="#n15">图 5a 对 5b</a>：默认配置在两张图里是两条不同的线；\(T_w=4\) 前三个点领先。</li>
+<li><a href="#n16">同一条默认曲线</a>：5c、5d、6b 的默认线是同一次运行；4:12 在共同范围内每箱最高。</li>
+<li><a href="#n17">图 6</a>：冻结模型最多到 0.70；6b 横轴是优化步数，其他环境数的线提前结束。</li>
+<li><a href="#n18">图 7 和 H36M</a>：迁移模型快约 1.9 到 3.0 倍；策略迁移近于零样本；图 3 说 H36M 是视频估计，4.3.2 说是动捕。</li>
+<li><a href="#n19">预测视野</a>：32 步约 1.07 秒；三篇对长滚动稳定性的说法不同，都没有同口径数据。</li>
+<li><a href="#n20">继承</a>：目标状态照抄 PHC 的笔误；损失写法和多项超参数与 SuperTrack 相同。</li>
+<li><a href="#n21">参数量</a>：估计 \(f_w\) 约 56 万、策略约 152 万，是三篇里最小的；学习率差 200 倍。</li>
+<li><a href="#n22">0.066 m</a>（项目页）：分箱边界，覆盖训练集约 94%、测试集 80%。</li>
+<li><a href="#n23">四足视频</a>（项目页）：MJX 对网络的对比不是人形，没有数字。</li>
+<li><a href="#n24">球墙重算</a>（项目页）：两段平台；网络能否逃出依赖拟合质量。</li>
+<li><a href="#n25">激活函数</a>（项目页）：W 换 SiLU 五项全好；24 小时比 3 天的全局误差还低，原因核实不了。</li>
 </ol>
 
 <h2 id="links">链接核对</h2>
-<p>状态码是我脚本访问时的结果（2026-11-06）。</p>
+<p>状态码是我脚本访问时的结果（2026-11-09）。</p>
 <div class="tablewrap"><table class="t-links">
 <thead><tr><th>名称</th><th>用途</th><th>地址</th><th>状态</th></tr></thead>
 <tbody>
-<tr><td><a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a></td><td>数据集</td><td>amass.is.tue.mpg.de；论文 arxiv.org/abs/1904.03278</td><td>200；200</td></tr>
-<tr><td><a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a></td><td>人体模型</td><td>smpl.is.tue.mpg.de</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a></td><td>可微仿真器</td><td>mujoco.readthedocs.io</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://arxiv.org/abs/2305.06456">PHC</a></td><td>基线</td><td>arxiv.org/abs/2305.06456</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://arxiv.org/abs/2310.04582">PULSE</a></td><td>基线，PHC+ 的出处</td><td>arxiv.org/abs/2310.04582</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://arxiv.org/abs/1908.03265">RAdam</a></td><td>优化器</td><td>arxiv.org/abs/1908.03265</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://arxiv.org/abs/1702.03118">SiLU</a></td><td>激活函数</td><td>arxiv.org/abs/1702.03118</td><td>200</td></tr>
-<tr><td><a class="ds" href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">OpenReview PDF</a></td><td>论文全文</td><td>openreview.net</td><td>403（脚本）；我没有绕过</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de">AMASS</a></td><td>训练和测试数据</td><td>amass.is.tue.mpg.de；论文 arxiv.org/abs/1904.03278</td><td>200；200</td></tr>
+<tr><td><a class="ds" href="http://vision.imar.ro/human3.6m/">Human3.6M</a></td><td>迁移实验（H36M-Motion*）</td><td>vision.imar.ro/human3.6m；论文 doi.org/10.1109/TPAMI.2013.248</td><td>Ionescu 等，TPAMI 2014</td></tr>
+<tr><td><a class="ds" href="https://smpl.is.tue.mpg.de">SMPL</a></td><td>人形结构</td><td>smpl.is.tue.mpg.de</td><td>200</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a></td><td>物理仿真</td><td>developer.nvidia.com/isaac-gym；论文 arxiv.org/abs/2108.10470</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a></td><td>项目页里的可微仿真器</td><td>mujoco.readthedocs.io</td><td>200</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2305.06456">PHC</a></td><td>基线</td><td>arxiv.org/abs/2305.06456；本站 <a href="phc.html">PHC 精读</a></td><td>200</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2310.04582">PULSE</a></td><td>基线，PHC+ 的出处；稀疏奖励任务的底座</td><td>arxiv.org/abs/2310.04582；本站 <a href="pulse.html">PULSE 精读</a></td><td>200</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2407.02466">PWM</a></td><td>对比的一阶方法</td><td>arxiv.org/abs/2407.02466</td><td>—</td></tr>
+<tr><td><a href="https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf">OpenReview PDF</a></td><td>论文全文</td><td>openreview.net</td><td>403（脚本）；我没有绕过，用的是用户提供的 PDF</td></tr>
+<tr><td>项目页</td><td>补充材料</td><td>dynamics-humanoid.github.io/dynamics-humanoid</td><td>404（现在）；用 2026-03-03 的存档</td></tr>
 </tbody></table></div>
 
-<footer><p>这一页是我读摘要和项目页存档后的整理，不是作者的官方内容，也不是全文精读。原文和原图版权归作者，这里没有放原图。“重画”的图只用了从项目页 PNG 读出的数值。</p></footer>
+<footer><p>精读是我读 SuperDyno 的 ICLR 2025 工作坊论文（OpenReview，Lei、Luo、He、Cao、Shi、Kitani，卡内基梅隆大学）和项目页存档后的整理，不是作者的官方内容。论文没有声明开放许可，原文和原图版权归作者，这里没有复制原图。“重画”的图只用了从原文矢量图或项目页 PNG 读出的数值。</p></footer>
 </div>
 <a class="totop" href="#toc">目录</a>
 <script src="superdyno/charts.js" defer></script>
