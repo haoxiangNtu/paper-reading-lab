@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hilbert 曲线在 PTv3 里做什么 · Paper Reading Lab</title>
+<meta name="description" content="交互说明：PTv3 为什么用空间填充曲线把点排成一条线、Hilbert 和 Z-order 的区别、按序切块后组员是不是真邻居、为什么要轮换四种序。所有数字在浏览器里当场算。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+body{background:var(--bg)}
+.wrap{max-width:1180px}
+.hc{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:14px 16px 16px;margin:22px 0}
+.hc h2{margin:2px 0 6px;font-size:20px;border-top:0;padding-top:0}
+.hc h2 .no{font-family:var(--font-mono);color:var(--accent);margin-right:8px;font-size:15px}
+.hc p{max-width:80ch}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:8px 0 10px;font-size:13.5px;color:var(--muted)}
+.ctl .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 10px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600;border-color:var(--accent)}
+.row{display:grid;gap:12px}
+.row.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.row.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.row.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.pane{min-width:0}
+.pane h3{margin:0 0 4px;font-size:15px}
+.pane h3 small{color:var(--muted);font-weight:400;margin-left:6px}
+.pane canvas{display:block;width:100%;border:1px solid var(--line);border-radius:8px;background:var(--bg);touch-action:none}
+.st{font-size:13px;color:var(--muted);margin:5px 0 0;min-height:2.6em;line-height:1.45}
+.st b.bad{color:#ff5d6c}.st b.good{color:#3fc98a}
+.take{border-left:3px solid var(--accent);padding:6px 12px;margin:10px 0 0;background:color-mix(in srgb,var(--accent) 7%,transparent);border-radius:0 8px 8px 0}
+.take p{margin:4px 0}
+.legend{font-size:13px;color:var(--muted);margin:4px 0 0}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px dashed #ff5d6c;vertical-align:middle;margin:0 4px}
+.legend em{display:inline-block;width:18px;height:3px;background:linear-gradient(90deg,hsl(200 75% 55%),hsl(40 75% 55%));vertical-align:middle;margin:0 4px}
+table.avg{border-collapse:collapse;margin:10px 0 0;font-size:14px}
+table.avg th,table.avg td{border:1px solid var(--line);padding:4px 10px;text-align:center}
+table.avg td:first-child,table.avg th:first-child{text-align:left}
+table.avg caption{caption-side:top;text-align:left;font-size:13px;color:var(--muted);padding:0 0 4px}
+table.avg tr.cur td{background:color-mix(in srgb,var(--accent) 10%,transparent);font-weight:600}
+.canvas3d{max-width:520px}
+@media (max-width:860px){.row.c3,.row.c5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.row.c2,.row.c3,.row.c5{grid-template-columns:minmax(0,1fr)}}
+body.embed header.top,body.embed .intro,body.embed footer{display:none}
+</style>
+<script src="hilbert.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/graspgen.html#generator">返回 GraspGen 精读</a><a href="arch.html?scene=3">结构拆解第 3 幕</a><a href="index.html">GraspGen 动画</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互说明 · PTv3 的序列化 · GraspGen 物体编码器</p>
+<h1>Hilbert 曲线在 PTv3 里做什么</h1>
+<p>PTv3 的做法是：把点按一条空间填充曲线排成一条线，再每 K 个点切一块，块里做注意力。这样就不用给每个点去找邻居了。这个办法好不好用，取决于一件事：<b>排在一起的点，在空间里是不是真的挨着</b>。下面六节用二维格子把这件事拆开看，最后一节回到三维。</p>
+<p class="legend">图例：<em></em>曲线上一步只走 1 格（颜色从蓝到黄表示先后）；<i></i>红色虚线是“跳”，一步跨过不止 1 格。页面上所有数字都是浏览器按规则当场算的，不是从论文抄的。</p>
+</div>
+
+<section class="hc" id="s1">
+<h2><span class="no">1</span>把格子排成一条线，有三种走法</h2>
+<p>最直接的是一行一行扫。Z-order 是把 x、y 坐标的二进制位交错，得到每个格子的编号（PTv3 代码里每组位 x 在最高位）。Hilbert 曲线则按一种递归的“U”形走法给格子编号。点“播放”看它们一格一格走完。</p>
+<div class="ctl"><span>格子</span><div class="grp bits"></div><span>速度</span><div class="grp spd"></div><div class="grp"><button class="play" type="button">❚❚ 暂停</button><button class="end" type="button">直接画完</button></div></div>
+<div class="row c3">
+<div class="pane"><h3>逐行扫描</h3><canvas data-o="raster"></canvas><p class="st" data-st="raster"></p></div>
+<div class="pane"><h3>Z-order<small>（Morton 码）</small></h3><canvas data-o="z"></canvas><p class="st" data-st="z"></p></div>
+<div class="pane"><h3>Hilbert</h3><canvas data-o="h"></canvas><p class="st" data-st="h"></p></div>
+</div>
+<div class="take"><p><b>看什么：</b>逐行扫描每到行尾就跳回行首；Z-order 每走完一个子块就跳到下一个子块，格子越多跳得越远；Hilbert 不管多少格，每一步都只走到上下左右相邻的格子，一次都不跳。</p></div>
+</section>
+
+<section class="hc" id="s2">
+<h2><span class="no">2</span>Hilbert 为什么能一步都不跳：递归时把子块转一下</h2>
+<p>两种曲线都是递归造出来的：把正方形分成 4 个子块，每个子块里放一份上一阶的曲线，再按顺序连起来。区别只在子块里那一份要不要转。</p>
+<div class="ctl"><span>阶数</span><div class="grp lvl"></div></div>
+<div class="row c2">
+<div class="pane"><h3>Hilbert<small>子块里的曲线旋转或翻转过</small></h3><canvas data-o="h"></canvas></div>
+<div class="pane"><h3>Z-order<small>子块里的曲线原样复制</small></h3><canvas data-o="z"></canvas></div>
+</div>
+<div class="take"><p class="note2"></p></div>
+</section>
+
+<section class="hc" id="s3">
+<h2><span class="no">3</span>按序切块：每 K 个连续的格子算一块</h2>
+<p>PTv3 排好序以后，每 K 个点切一块（GraspGen 里 K 最多 1024），块内做注意力。这里换成一个有形状的物体，只有物体占据的格子参与排序。同一块涂同一种颜色。如果一块的格子在空间里分成了互不相连的几团，就用红色虚框标出来：这种块里的注意力会把隔得很远的点放在一起算。</p>
+<div class="ctl"><span>物体</span><div class="grp shape"></div><span>块大小</span><div class="grp kk"></div></div>
+<div class="row c2">
+<div class="pane"><h3>按 Z-order 切</h3><canvas data-o="z"></canvas><p class="st" data-st="z"></p></div>
+<div class="pane"><h3>按 Hilbert 切</h3><canvas data-o="h"></canvas><p class="st" data-st="h"></p></div>
+</div>
+<div class="take"><p><b>看什么：</b>在实心圆盘上，Z-order 有好几块被拆成两团（红虚框），Hilbert 的块几乎都是一整团，外接框也更小。原因就是第 1 节里的“跳”：一块如果正好跨过一次跳跃，就会包含两处不相连的格子。</p><p><b>但别把差别想得太大。</b>切到“杯子侧影”这种薄壁形状，两者被拆散的块数差不多，有时 Z-order 还少一些：物体本身是空心的，不管哪种曲线，经过空的地方都会“跳”。再把块大小设成 16 或 64（4 的幂）放在整块正方形上，两种曲线切出来的块完全一样，都是对齐的小方块。</p></div>
+</section>
+
+<section class="hc" id="s4">
+<h2><span class="no">4</span>点一个格子：它的组员是不是它真正的邻居</h2>
+<p>点任意一个格子（白点）。蓝色是和它分到同一块、会一起做注意力的格子；橙色方框是离它最近的同样多个格子，也就是“理想的邻居”。两者重合得越多，按序切块就越接近“给每个点找近邻”，而后者正是 PointNet++ 花大量时间去算的东西。</p>
+<div class="ctl"><span>物体</span><div class="grp shape"></div><span>块大小</span><div class="grp kk"></div></div>
+<div class="row c2">
+<div class="pane"><h3>Z-order 的组员</h3><canvas data-o="z"></canvas><p class="st" data-st="z"></p></div>
+<div class="pane"><h3>Hilbert 的组员</h3><canvas data-o="h"></canvas><p class="st" data-st="h"></p></div>
+</div>
+<table class="avg"></table>
+<div class="take"><p><b>看表：</b>最大的差距在“逐行扫描”和“空间填充曲线”之间，后者的重合率高出将近一倍。Hilbert 比 Z-order 一般再多几个百分点；在薄壁的杯子上两者基本打平，个别块大小下 Z-order 还略高。所以 Hilbert 的好处是真的，但是小幅、和形状有关的。PTv3 也没有只押 Hilbert 一种，而是几种序混着用，下一节看为什么。</p><p>重合率也不会到 100%：一块是曲线上连续的一段，形状由曲线决定，不是以某个点为中心的圆。块边上的点吃亏最大，它的一部分真邻居被分到了隔壁块。</p></div>
+</section>
+
+<section class="hc" id="s5">
+<h2><span class="no">5</span>为什么要轮换四种序：让块的边界每层都换个地方</h2>
+<p>PTv3 准备了四种序：Z、z-trans（先交换 x、y 再算 Z）、Hilbert、hilbert-trans，相邻的 Block 轮流用。下面四张图是同一个物体在四种序下的切块，红线是“相邻两格被块边界切开”的地方。点任意一格（白点），蓝色是它在这一层的组员。第五张图把四层的组员合在一起，红线只画四层都被切开的边。</p>
+<div class="ctl"><span>物体</span><div class="grp shape"></div><span>块大小</span><div class="grp kk"></div></div>
+<div class="row c5">
+<div class="pane"><h3>z</h3><canvas data-o="z"></canvas><p class="st" data-st="z"></p></div>
+<div class="pane"><h3>z-trans</h3><canvas data-o="zt"></canvas><p class="st" data-st="zt"></p></div>
+<div class="pane"><h3>hilbert</h3><canvas data-o="h"></canvas><p class="st" data-st="h"></p></div>
+<div class="pane"><h3>hilbert-trans</h3><canvas data-o="ht"></canvas><p class="st" data-st="ht"></p></div>
+<div class="pane"><h3>四层合起来</h3><canvas data-o="union"></canvas><p class="st" data-st="union"></p></div>
+</div>
+<div class="take"><p class="sum5"></p><p>这和 Swin Transformer 的“移位窗口”是同一个思路：单层的窗口必然有边界，那就让每层的边界错开，信息经过几层后就能跨块传开。PTv3 每次前向还会随机打乱四种序的先后（<code>shuffle_orders=True</code>）。</p></div>
+</section>
+
+<section class="hc" id="s6">
+<h2><span class="no">6</span>三维里也一样</h2>
+<p>PTv3 实际处理的是三维体素：每个格子的编号是 x、y、z 三个坐标交错（Z-order）或按三维 Hilbert 规则算出来的整数（页面按 PTv3 代码 <code>serialization/hilbert.py</code> 用的 Skilling 方法重写）。拖动画面可以旋转。</p>
+<div class="ctl"><span>格子</span><div class="grp bits"></div><span>曲线</span><div class="grp ord"></div><div class="grp"><button class="play" type="button">❚❚ 暂停</button></div></div>
+<div class="pane canvas3d"><canvas></canvas><p class="st" data-st></p></div>
+<div class="take">
+<p><b>回到 GraspGen。</b>序的好坏只在物体被切成多块时才有影响。GraspGen 的块大小 K 取 1024 和本批里点数最少那个物体的点数中的较小值。Franka 生成器训练用 3500 个点，第 1 阶段要切成 4 块，这时曲线的局部性和轮换都有用。每过一次池化（2×2×2 个格子合成 1 个），点数就大幅减少；在<a href="arch.html?scene=6">结构拆解第 6 幕</a>的玩具杯子上，从第 2 阶段起整个物体只剩一块，等于全局注意力。这时没有相对位置编码，块内注意力对点的先后不敏感，用哪种曲线结果都一样（这是我按代码的推断）。</p>
+<p>所以在 GraspGen 里，Hilbert 曲线和四种序的轮换主要在头一两个阶段起作用：让最细的那几层注意力尽量只看真正的邻居。</p>
+</div>
+</section>
+
+<footer><p>交互说明是我读 PTv3 论文（Wu et al., CVPR 2024，<a href="https://arxiv.org/abs/2312.10035">arXiv 2312.10035</a>）和 GraspGen 官方代码（NVlabs/GraspGen，<code>grasp_gen/models/ptv3/</code>）后的理解，不是作者的官方图。二维的 Z-order、Hilbert 编码是教科书写法；三维 Hilbert 按代码的步骤重写成 JS，没有复制代码。物体形状是我造的玩具。</p></footer>
+</div>
+</body>
+</html>
