@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Real-to-Sim Robot Policy Evaluation with Gaussian Splatting Simulation of Soft-Body Interactions（[arXiv 2511.04665](https://arxiv.org/abs/2511.04665)，v2 2025-11，CC BY 4.0） | [real2sim-eval 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2sim-eval.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/real2sim-eval/index.html) | 3DGS 外观 + PhysTwin 软体孪生做仿真评测，仿真与真机成功率 r 0.90–0.94；复算全部 r，MMRV 只有对调 SIMPLER 函数参数才算得出。 | 20 条 |
 | Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics（SuperDyno，[OpenReview](https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf)，ICLR 2025 Workshop，无开放许可，SuperMimic 引用） | [superdyno 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/superdyno.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/superdyno/index.html) | SuperTrack 式可微神经动力学搬到 Isaac Gym：预测速度再积分，策略穿过模型反传 32 步，无评论家，跟踪 AMASS 11313 段。 | 25 条 |
 | MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting（[arXiv 2409.14393](https://arxiv.org/abs/2409.14393)，SIGGRAPH Asia 2024，CC BY-NC-SA 4.0，SuperMimic 引用） | [maskedmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/maskedmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/maskedmimic/index.html) | 全身跟踪器蒸馏进只看遮挡目标的条件 VAE，任务靠推理时的“目标工程”完成；含 V1 代码核对。 | 21 条 |
 | Physics-based Character Controllers Using Conditional VAEs（PhysicsVAE，[doi:10.1145/3528223.3530067](https://doi.org/10.1145/3528223.3530067)，SIGGRAPH 2022，无 arXiv，SuperMimic 引用） | [physicsvae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/physicsvae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/physicsvae/index.html) | 条件 VAE 加冻结的一步可导仿真层蒸馏模仿控制器，下游 PPO 训任务编码器和有界帮手分支。 | 21 条 |
@@ -46,6 +47,14 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## Real-to-Sim 评测 读后要点
+
+- 外观靠 3DGS 加 ICP 对齐和颜色对齐，动力学靠 PhysTwin 弹簧-质点孪生，抓取只靠摩擦和力阈值。
+- 三个任务、四种策略、多个检查点：r = 0.944 / 0.901 / 0.915；IsaacLab 只有 0.237 / 0.649，玩具任务做不了。
+- 图 3、9、10 能从矢量图精确读点：r 全部对上；MMRV 只有把 SIMPLER 官方函数的仿真、真机参数对调才对上，按 SIMPLER 原定义 IsaacLab 绳子一格是 0.480，不是“低”。
+- 每个检查点只有 16–27 次试验，单点误差约 ±0.2，结论靠的是整体相关性。
+- 代码开源（MIT），但颜色对齐、LBS、抓取判据的细节和论文文字不完全一样。
 
 ## MaskedMimic 读后要点
 
@@ -295,6 +304,7 @@ interactives/3dws/ 3D World Simulator 的 3D 可交互架构图 index.html 和�
 assets/lab3d.js    3D 交互图共用的 three.js 工具
 papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
+papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/real2sim-eval/，11 幕动画在 interactives/real2sim-eval/）
 papers/gauge.html   GAUGE 精读
 papers/foundationpose.html  FoundationPose 架构专题
 papers/wapr.html            WAPR 架构专题

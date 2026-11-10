@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Real-to-Sim 策略评测论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.04665 Real-to-Sim Robot Policy Evaluation with Gaussian Splatting Simulation of Soft-Body Interactions 的中文精读：逐节整理正文和附录，含全部编号公式、8 张表、11 张裁切原图、官方代码对照、和 SIMPLER / PhysTwin 的对照、11 幕 3D 框架动画和 20 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght400;500;700&family=JetBrains+Mono:wght400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-t1{min-width:640px}.t-v12{min-width:640px}.t-cmp{min-width:700px}.t-pts{min-width:720px}.t-links{min-width:640px}.t-sm{min-width:460px}.t-t5{min-width:620px}.t-t6{min-width:660px}.t-t8{min-width:600px}.t-code{min-width:640px}.t-mmrv{min-width:640px}
+.t-pts td{font-family:var(--font-mono);font-size:12.5px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+media (max-width:760px){ .i3d iframe{height:900px} }
+.algo{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg2);font-size:14px;margin:14px 0;max-width:74ch;overflow-x:auto}
+.algo ol{margin:4px 0;padding-left:2.4em}
+.algo li{margin:2px 0;max-width:none}
+.algo .h{font-weight:600}
+.algo .in{padding-left:1.4em}.algo .in2{padding-left:2.8em}.algo .in3{padding-left:4.2em}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/real2sim-eval/index.html">3D 框架动画</a><a href="simpler.html">SIMPLER</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2511.04665 · cs.RO · v2 2025 年 11 月 10 日 · 中文精读</p>
+<h1>用高斯泼溅和软体数字孪生，在仿真里评测真机操作策略</h1>
+<p class="orig">Real-to-Sim Robot Policy Evaluation with Gaussian Splatting Simulation of Soft-Body Interactions</p>
+<p>作者 Kaifeng Zhang*、Shuo Sha*、Hanxiao Jiang、Matthew Loper、Hyunjong Song、Guangyan Cai、Zhuo Xu、Xiaochen Hu、Changxi Zheng、Yunzhu Li，来自哥伦比亚大学、SceniX Inc. 和 Google DeepMind（* 共同一作，部分工作在 SceniX 实习期间完成）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2511.04665">arXiv 原文</a><a href="https://arxiv.org/pdf/2511.04665v2">PDF</a><a href="https://arxiv.org/html/2511.04665v2">HTML 版</a><a href="https://real2sim-eval.github.io/">项目主页</a><a href="https://github.com/kywind/real2sim-eval">官方代码</a><a href="https://huggingface.co/collections/shashuo0104/real-to-sim-policy-eval">资产和检查点</a><span>正文加参考文献 9 页，附录第 10 到 15 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。我查了 PDF 每一页的页脚，除 arXiv 的版本戳外没有别的版权声明，和登记的许可不矛盾。本页按原文顺序覆盖正文五节和附录 I、II，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文 v2。</p>
+<p>图 1 到图 11 从 arXiv v2 PDF 裁切，作者 Kaifeng Zhang 等，CC BY 4.0；只做了裁切、缩放和格式转换，没有改内容。图下的文字是我写的。本页的“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>版本。</b>v1 是 2025-11-06，v2 是 2025-11-10。用户提供的 PDF 和 arXiv 上的 v2 逐字节相同。两版的差别见 <a href="#n19">读者注 19</a>，最大的一处是表 I、图 9、图 10 的 MMRV 全部换了数。</p>
+<p><b>代码。</b>官方代码 <a href="https://github.com/kywind/real2sim-eval">kywind/real2sim-eval</a>，MIT 许可。我读的是提交 <a href="https://github.com/kywind/real2sim-eval/tree/8bd70918307aa23d0ebdd3c231aac18300533dab">8bd7091</a>（2025-11-10，和 v2 同一天），只读，没有运行。策略训练是子模块 <a href="https://github.com/shuosha/policy_training/tree/32abb1a86ed73073c8e93fa8c484e75de2298933">shuosha/policy_training</a>（提交 32abb1a，2025-11-08，MIT）。仓库里的 <code>third-party/diff-gaussian-rasterization-w-depth</code> 是 Inria 的非商业许可，本页不引它的代码。代码是 MIT，所以下面个别地方引了几行配置值；引用都注明了文件。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SIMPLER、PhysTwin 的关系</a><a href="#s1">I 引言</a><a href="#s2">II 相关工作</a><a href="#s3">III 方法</a><a href="#s3-b">III-B PhysTwin</a><a href="#s3-c">III-C 高斯泼溅仿真</a><a href="#i3d">3D 框架动画</a><a href="#s3-d">III-D 策略评测</a><a href="#s4">IV 实验</a><a href="#s4-c">IV-C 相关性</a><a href="#s4-e">IV-E 消融</a><a href="#s5">V 结论</a><a href="#apI">附录 I</a><a href="#apII">附录 II</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>在真机上评测操作策略又慢又贵，还难以复现，涉及软体物体时更麻烦。仿真本来是规模化的替代品，但现有仿真器很难同时把软体交互的外观和物理做像。这篇论文搭了一个评测用的仿真器：外观用 3D 高斯泼溅（3DGS）从手机扫描重建，动力学用 PhysTwin 从人手摆弄物体的视频里辨识出弹簧-质点数字孪生。然后在三个任务上比较同一批策略在仿真和真机上的成功率。</p>
+<ul>
+<li><b>外观：</b>用 iPhone 扫一遍工作台和每个物体，把重建切成机器人、物体、背景三类。机器人用 ICP 对齐到 URDF，每个高斯按最近邻分到一个连杆；再用一个二次多项式把高斯的颜色对齐到 RealSense 相机的色彩空间。</li>
+<li><b>动力学：</b>毛绒玩具和绳子用 PhysTwin 训练出的弹簧-质点模型，T 形块用刚度很高的弹簧网格近似刚体。物理引擎基于 NVIDIA Warp，夹爪和物体之间只有摩擦接触，不把节点“焊”在夹爪上；夹爪合拢到力超过阈值就停。物体上的高斯用线性混合蒙皮（LBS）跟着节点动。</li>
+<li><b>评测：</b>三个任务（装毛绒玩具、绳子穿卡扣、推 T 形块），四种策略（ACT、Diffusion Policy、π0、SmolVLA），每种取多个训练阶段的检查点。策略只用真机数据训练。仿真与真机成功率的 Pearson r 分别是 0.944、0.901、0.915；IsaacLab 基线在绳子和推 T 上只有 0.237 和 0.649，玩具任务在 IsaacLab 里根本做不出来。</li>
+<li><b>速度：</b>单 GPU 5 到 30 FPS，多 GPU 并行加上不用人工复位，评测比真机快几倍（论文没给具体倍数）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，论文没有逐策略的成功率表，但图 3 是矢量图，可以精确读出每个点；用读出的点算 r，七个 r 全部和论文一致（<a href="#n6">读者注 6</a>）。第二，同样的点算 MMRV，v2 的数只有在<b>把 SIMPLER 官方函数的两个参数交换</b>之后才对得上，也就是用仿真成功率的差而不是真机成功率的差给错排加权；按 SIMPLER 原定义，IsaacLab 在绳子任务上的 MMRV 是 0.480，是我能复算的五格里最差的（本文同一格 0.154），而不是论文说的“偏低”（<a href="#n7">读者注 7</a>、<a href="#n8">8</a>）。第三，每个检查点只评测 16 到 27 次，单点的 95% 置信区间宽约 ±0.2，所以靠的是“很多检查点一起看”的相关性，单个检查点的仿真成功率不能当真机成绩用（<a href="#n5">读者注 5</a>、<a href="#n20">20</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="real2sim-eval/fig1.webp" width="1583" height="414" alt="图 1：左边是仿真成功率对真机成功率的示意散点，右边是三个任务的仿真画面和真实画面对照" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2511.04665v2#page=1">看原图 ↗</a></span>左边是示意散点：横轴真机成功率，纵轴仿真成功率，ACT、DP、π0、SmolVLA 的点沿对角线排开。右边上排是仿真渲染，下排是真机照片，三列分别是装毛绒树懒、绳子穿卡扣、推 T 形块，粉色箭头标出动作方向。这张散点没有刻度，是示意；真实的数据在图 3。</figcaption>
+</figure>
+
+<h2 id="rel">和 SIMPLER、PhysTwin 的关系</h2>
+<p>站内已经有 <a href="simpler.html">SIMPLER</a> 的精读。这两篇问的是同一个问题：一个仿真器给出的策略成绩，能不能代替真机成绩来<b>比较</b>策略。本文 §IV-A 明说“按 [20] 用 MMRV 和 Pearson r 衡量”，[20] 就是 SIMPLER。下表是我从两篇原文各自读出来的对比。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th><a href="simpler.html">SIMPLER</a>（arXiv 2405.05941）</th><th>本文</th></tr></thead><tbody>
+<tr><td>被评测的策略</td><td>公开的通用策略：RT-1 各阶段、RT-1-X、RT-2-X、Octo</td><td>作者自己只用真机数据训练的 ACT、DP、π0、SmolVLA，各取 3 到 6 个检查点</td></tr>
+<tr><td>每个任务的数据点</td><td>Google Robot 6 个策略，WidowX 3 个</td><td>15 到 20 个检查点（读者注 6）</td></tr>
+<tr><td>任务</td><td>刚体：拿可乐罐、移到旁边、开关抽屉、放胡萝卜等</td><td>软体为主：装毛绒玩具、绳子穿卡扣，外加刚体推 T</td></tr>
+<tr><td>视觉对齐</td><td>“绿幕”：把真实背景照片垫在仿真物体后面，再做纹理匹配；只适用于固定相机</td><td>3DGS 扫描重建整个场景，再做位置和颜色对齐；任意视角都能渲染，所以支持腕部相机</td></tr>
+<tr><td>动力学对齐</td><td>辨识机器人控制器的关节刚度和阻尼（SAPIEN）</td><td>机器人用和真机相同的关节速度控制；物体用 PhysTwin 从视频辨识的逐弹簧刚度</td></tr>
+<tr><td>相关性指标</td><td>定义 MMRV（按真机成绩差加权错排）和 Pearson r</td><td>说沿用 MMRV 和 r；r 相同，MMRV 的实现把仿真和真机互换了（读者注 7）</td></tr>
+<tr><td>评测次数</td><td>真机每个策略每个任务 24 到 75 次（见 SIMPLER 页的任务设置表）</td><td>每个检查点 16 到 27 次，报告 Clopper–Pearson 区间和 Beta 后验</td></tr>
+<tr><td>基线仿真器</td><td>比较视觉匹配和变体汇总、SAPIEN 和 Isaac Sim</td><td>IsaacLab（PhysX），绳子用关节链近似，玩具做不出来</td></tr>
+</tbody></table></div>
+<p>SIMPLER 在结论里自己列了两个局限：只做了刚体任务；绿幕只适用于固定相机，还原不了阴影这类细节（见 <a href="simpler.html#s7">SIMPLER 页 §VII</a>）。本文正好针对这两点：用 PhysTwin 处理软体，用 3DGS 支持移动的腕部相机。代价是每个场景要实地扫描、每个软体物体要拍一段交互视频训练孪生，而 SIMPLER 可以复用现成资产，只为背景拍照片。</p>
+<p><b>PhysTwin。</b>本文的软体动力学完全建在 <a class="ds" href="https://jianghanxiao.github.io/phystwin-web/">PhysTwin</a>（Jiang 等，ICCV 2025，<a href="https://arxiv.org/abs/2503.17973">2503.17973</a>）上，第三作者 Hanxiao Jiang 就是 PhysTwin 的一作，第一作者 Kaifeng Zhang 也是 PhysTwin 的作者。站内没有 PhysTwin 页，这里只讲本文用到的部分（我读的是用户本地的 PhysTwin PDF）：</p>
+<ul>
+<li><b>弹簧-质点模型。</b>物体是一组质点，距离在阈值内的点两两连弹簧。点 \(i\) 受的力是弹簧力、阻尼力和外力（重力、碰撞、控制）之和；PhysTwin 论文写的弹簧力是 \(k_{ij}(\lVert x_j-x_i\rVert-l_{ij})\,\hat d\)，阻尼力 \(-\gamma(v_i-v_j)\)，显式欧拉积分，速度再乘一个拖曳衰减 \(\delta\)。代码里的写法略有不同，见<a href="#n12">读者注 12</a>。</li>
+<li><b>参数怎么从视频里来。</b>输入是三台固定 RGB-D 相机拍的一段人手摆弄物体的视频。先用图生 3D 模型 TRELLIS 补全形状，再配准到第一帧。人手用 Grounded-SAM2 分割、CoTracker3 跟踪，抬到 3D 后做最远点采样，当作<b>控制点</b>，用弹簧连到物体上。损失是观测点云和模拟状态的单向 Chamfer 距离，加上 CoTracker3 跟踪点和模拟点之间的误差。优化分两段：先用零阶的 CMA-ES 搜不可微的拓扑参数（连接半径、最大近邻数）、全局统一刚度和碰撞参数；再用可微的 Warp 模拟器做梯度下降，优化<b>每根弹簧</b>的刚度和碰撞参数。本文的“w/o 物理优化”消融，就是停在第一段，用全局刚度。</li>
+<li><b>高斯怎么跟着动。</b>PhysTwin 在第一帧优化一组各向同性的高斯，之后用 LBS 移动：每个节点由邻居的位移拟合一个局部旋转，每个高斯取 K 个最近节点，按距离倒数加权，变换中心和朝向。本文的物体高斯不是 PhysTwin 自己优化的那组，而是 Scaniverse 扫描出来、再整体对齐到粒子上的（§III-C-2），LBS 的写法沿用 PhysTwin。代码里只移中心，不转朝向，见<a href="#n3">读者注 3</a>。</li>
+</ul>
+<p><b>站内另外两篇。</b><a href="3dws.html">3D World Simulator</a> 也是“从真实场景重建、能交互的 3D 世界”，但用粒子-体素混合动力学和学习的模型；本文的物理是显式的弹簧-质点。<a href="gauge.html">GAUGE</a> 拿真实测量当基准，直接比较仿真轨迹和视频世界模型的物理保真度；本文不直接量物理误差（附录 II-B 的回放实验除外），量的是“策略成绩排得对不对”。三篇可以对照着看：GAUGE 问“物理像不像”，本文和 SIMPLER 问“像到能拿来比较策略了没有”。</p>
+
+<h2 id="s1"><span class="no">I</span>引言</h2>
+<p>操作策略进步很快，但评测仍主要靠真机试验，慢、贵、难复现。社区转向训练机器人基础模型以后，需要快速迭代和大规模对比，这个瓶颈更明显了。仿真早已大量用于生成数据和训练，却很少用于评测，主要原因是仿真和真机的成绩相关性差：仿真里好的策略，到真机上不一定好。核心问题是：仿真器要做到多真，才能放心地拿来评测策略？</p>
+<p>作者认为有两个关键因素：<b>外观</b>和<b>动力学</b>。外观上，渲染要和真实观测接近；对用腕部相机的策略尤其难，SIMPLER 那种绿幕合成不够用。作者用 3DGS 从一次扫描重建照片级场景，任意视角都能渲染，并在已有的 3DGS 仿真工作之上加了自动的位置对齐、颜色对齐和物体形变处理。动力学上，传统仿真器靠调少数几个参数，对自由度很多的软体不够，作者采用 PhysTwin，从交互视频直接优化稠密的弹簧-质点系统。</p>
+<p>两部分合成一个仿真器，用 Gym 风格的接口暴露出来。在装毛绒玩具、绳子穿卡扣、推 T 形块上，用 ACT、DP、SmolVLA、π0 比较仿真和真机成功率，并做消融。贡献三点：</p>
+<ol>
+<li>一个完整的框架，在基于高斯泼溅、带软体数字孪生的仿真器里评测机器人策略。</li>
+<li>实证：只用真机数据训练（不和仿真数据混合训练）的策略，在三个任务上仿真成绩和真机成功率强相关。</li>
+<li>分析哪些设计让仿真更能预测真机成绩，给以后的评测流程作参考。</li>
+</ol>
+
+<h2 id="s2"><span class="no">II</span>相关工作</h2>
+<h3 id="s2-a"><span class="no">II-A</span>机器人策略评测</h3>
+<p>大多数系统直接在真机上评测，成本高，而且绑定特定任务、本体和传感器。为了系统地比较，有人做了真机基准（标准化硬件）或仿真基准（资产和任务集）。真机基准保真但不灵活、难扩展；仿真基准常常动力学和渲染不真实，这就是所谓的 sim-to-real gap。和本文最相关的几个：<a class="ds" href="https://simpler-env.github.io/">SIMPLER</a> 和 <a class="ds" href="https://arxiv.org/abs/2510.23571">RobotArena ∞</a> 靠绿幕合成，<a class="ds" href="https://arxiv.org/abs/2510.10125">Ctrl-World</a> 靠 2D 视频世界模型，<a class="ds" href="https://arxiv.org/abs/2504.03597">Real-is-sim</a> 只做刚体。本文用高斯泼溅渲染加从交互视频得到的软体孪生，不依赖固定相机。（RobotArena ∞ 和 Ctrl-World 是 v2 新加的。）</p>
+<h3 id="s2-b"><span class="no">II-B</span>物理数字孪生</h3>
+<p>很多数字孪生框架用预先指定的物理参数，难以抓住真实的复杂动力学，也用不上人和物体交互的数据。刚体孪生研究得比较充分；软体要做全阶参数辨识仍然困难。基于学习的动力学模型（图网络、粒子-网格神经动力学等）往往牺牲物理一致性，而在接触丰富的场景里评测策略恰恰需要这一点。从视频优化物理参数的方法更有希望，其中 PhysTwin 从人-物交互视频重建稠密弹簧-质点系统，真实感和效率都最好。本文在 PhysTwin 上接一个高斯泼溅仿真器。</p>
+<h3 id="s2-c"><span class="no">II-C</span>高斯泼溅仿真器</h3>
+<p>3DGS 能从任意视角实时渲染照片级画面。机器人领域已经用它改善视觉策略的 sim-to-real 迁移、扩充训练数据、做 real-to-sim 评测（如 Real-is-sim、GSWorld）。本文的扩展是：支持软体交互，接入 PhysTwin，加上自动的位置和颜色对齐，得到一个可以直接拿来评测的仿真器。</p>
+
+<h2 id="s3"><span class="no">III</span>方法</h2>
+<h3 id="s3-a"><span class="no">III-A</span>问题定义</h3>
+<p>研究的问题是：仿真器能否可靠地预测用真机数据训练的视觉运动策略在真机上的表现？常见流程是把多个策略在一组受控的初始状态上分别在仿真和真机里跑，用标量分数 \(u\in[0,1]\) 衡量（通常是成功率）。目标是让成对的分数 \(\{(u_{i,\mathrm{sim}},u_{i,\mathrm{real}})\}_{i=1}^{N}\) 强相关，\(N\) 是被评测的策略数。</p>
+<p>要做到这一点，一个办法是让仿真本身的结果和真实世界一致。记状态、观测、动作序列为 \(\{(s_t,o_t,a_t)\}_{t=1}^{T}\)。评测用的仿真器有两个核心部分：动力学模型 \(s_{t+1}=f(s_t,a_t)\) 和外观模型 \(o_t=g(s_t)\)（按策略需要的模态渲染，比如 RGB 图像）。保真度相应地分两轴：动力学准不准，渲染真不真。本文同时缩小这两种差距：用物理约束的重建得到软体孪生，用高分辨率高斯泼溅当渲染引擎。整体框架见图 2。</p>
+<figure class="pfig" id="fig2">
+<img src="real2sim-eval/fig2.webp" width="1600" height="609" alt="图 2：左半是真实世界，示范、场景扫描、四种策略训练和真机评测；右半是仿真，3DGS 渲染、PhysTwin 动力学和组装好的仿真环境" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#S3.F2">看原图 ↗</a></span>左边浅蓝框是真实世界：示范数据和手机扫描，示范拿去训练 ACT、Diffusion、SmolVLA、π0 等策略；策略在真机评测（贵、慢）和在仿真评测（便宜、可扩展）之间用“成绩相关性”连起来。右边是仿真：上方左块是 3DGS 渲染，含机器人和物体的位置对齐、和真实相机的颜色对齐；上方右块是 PhysTwin，从人-物交互视频得到优化好的软体孪生；下方是组装好的三个任务环境，通过 env.step() 和 env.render() 调用。</figcaption>
+</figure>
+
+<h3 id="s3-b"><span class="no">III-B</span>预备知识：PhysTwin</h3>
+<p>本文采用 PhysTwin 框架，用稠密弹簧-质点系统从视频重建并模拟软体和刚体。每个物体是一组质点，距离阈值 \(d\) 以内的每对点之间连一根弹簧，节点位置按牛顿动力学演化。</p>
+<p>为了覆盖刚度、摩擦等材料性质各不相同的真实物体，PhysTwin 用一个 real-to-sim 流程联合优化一组物理参数，包括弹簧阈值 \(d\) 和每根弹簧的刚度系数 \(Y\)。优化只用一段人手和物体交互的视频：跟踪人手关键点，作为运动学控制点接到弹簧-质点系统上，调参数使视频里跟踪到的物体运动和模拟的运动尽量一致。刚体则把 \(Y\) 固定成很大的值来抑制形变。本文对和机器人交互的三个物体（毛绒玩具、绳子、T 形块）都用这个流程做系统辨识。更细的说明见上面“<a href="#rel">和 PhysTwin 的关系</a>”。</p>
+
+<h3 id="s3-c"><span class="no">III-C</span>Real-to-Sim 高斯泼溅仿真</h3>
+<p>这一节讲仿真器怎么搭。两个互补的目标：用 GS 场景重建、位置对齐、颜色对齐缩小视觉差距；用物理建模和形变处理缩小动力学差距。</p>
+<p><b>1) GS 构建。</b>用 iPhone 应用 <a class="ds" href="https://scaniverse.com/">Scaniverse</a> 录视频，自动生成 GS 重建。桌面操作场景先扫一遍静态的机器人工作区（机器人、桌子、背景），再逐个扫实验物体。重建结果在交互式查看器 <a class="ds" href="https://github.com/playcanvas/supersplat">SuperSplat</a> 里手动切成机器人、物体、背景。每个任务只需要做一次。</p>
+<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
+<p>为了让静态扫描出的机器人 GS 能动起来，要把每个高斯核分到一个连杆上：ICP 对齐后，对每个核在采样的机器人点云里找最近邻，继承那个点的连杆编号。所有连杆包括夹爪手指都这样处理，所以手臂连续运动和夹爪开合都能渲染。有 URDF 的其他机器人也能照做。</p>
+<p><b>3) 颜色对齐。</b>GS 渲染的视觉差距有一大来源：重建场景和策略训练数据不在同一个色彩空间。GS 继承了 iPhone 视频的颜色特性，而策略是在机器人相机（比如 Intel RealSense，已知有色偏）的色彩空间里训练的。作者设计一个颜色变换，把 GS 颜色对到真实相机。</p>
+<p>直接在 RGB 空间做：先在固定真实相机的视角用原始高斯颜色和不透明度渲染，再在同样视角拍真实图像，组成配对数据，求一个变换 \(f\) 让逐像素颜色差最小：</p>
+<div class="eq"><div class="m">\[ f^{*}=\arg\min_{f\in\mathcal F}\frac{1}{N}\sum_{i=1}^{N}\lVert f(p_i)-q_i\rVert^{2},\qquad p_i\in I_{\mathrm{GS}},\ q_i\in I_{\mathrm{RS}} \]</div><span class="no">(1)</span></div>
+<p>\(I_{\mathrm{GS}}\)、\(I_{\mathrm{RS}}\) 是 GS 渲染和真实相机图像，\(N\) 是像素数，\(p_i\)、\(q_i\) 是对应像素的 RGB。函数空间取 \(d\) 次多项式：</p>
+<div class="eq"><div class="m">\[ f=\{f_i\}_{i=1}^{d},\quad f_i\in\mathbb R^{3} \]</div><span class="no">(2)</span></div>
+<div class="eq"><div class="m">\[ f(p_i)=[\,f_0\ \ f_1\ \cdots\ f_d\,]\cdot[\,1\ \ p_i\ \cdots\ p_i^{d}\,]^{\mathsf T} \]</div><span class="no">(3)</span></div>
+<p>这就成了标准的最小二乘回归，用迭代重加权最小二乘（IRLS）求解，对离群点更稳。经验上二次（\(d=2\)）在表达力和过拟合之间最平衡。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 式 (2)(3) 和代码不是同一个函数族</span>
+<p>按式 (2)(3) 的字面读，\(f_i\in\mathbb R^3\) 是向量，\(p_i^k\) 逐通道取幂，那么输出的 R 只依赖输入的 R，三个通道各自一条二次曲线，\(d=2\) 时一共 \(3\times3=9\) 个参数。另外式 (2) 的下标从 1 到 \(d\)，式 (3) 却用到了 \(f_0\)。</p>
+<p>代码 <code>assets/scans/color_alignment.py</code> 的 <code>_get_aug</code> 把每个像素扩成 \([r^2,g^2,b^2,r,g,b,1]\)，解出一个 \(3\times6\) 矩阵 \(A\) 和偏置 \(b\)：\(f(p)=A\,[p^{2};p]+b\)，每个输出通道都混合了三个输入通道，共 \(18+3=21\) 个参数。配置文件里的 <code>color_A</code> 也确实是 18 个数（比如 <code>cfg/gs/sloth.yaml</code>）。所以实际用的是<b>带通道交叉的二次变换</b>，比式子写的更强。附录说的其余细节代码都对得上：Tukey 双权重（c = 4.685，MAD 乘 1.4826）、像素按 RGB 范数加权、最多 50 次迭代、5 张 848×480 图。</p>
+</div>
+<p><b>4) 物理和形变。</b>渲染差距靠重建和对齐缓解以后，物理模型要准确反映真实动力学。作者用基于 <a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a> 的自研物理引擎，扩展 PhysTwin 的弹簧-质点模拟器，支持和机器人末端、环境物体的碰撞。抓软体孪生时，不采用常见但不真实的做法（把物体节点固定到夹爪上），而是只靠手指和物体之间的摩擦接触。夹爪合拢时，碰撞力总和到达指定阈值就自动停下，抓取更真实也更稳。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · “碰撞力总和到阈值”在代码里是两根手指各自到阈值</span>
+<p><code>sim/physics/phystwin.py</code> 的 <code>step</code>（约第 380 到 410 行）：取左右手指网格上三个固定面片（编号 1、18、19）的碰撞力相加，得到每根手指一个力向量，再取范数。只有<b>两根手指都</b>超过 <code>grasp_force_threshold</code>（<code>cfg/physics/default.yaml</code> 里是 3e4）时才锁住开度，标记为已抓住；两根手指都低于 100 时解除。已抓住时策略再要求合拢，开度每步最多再收 0.05。论文没提这些细节，也没给阈值的物理单位。</p>
+</div>
+<p>每个模拟步结束后，把机器人和环境的新状态传给高斯核。刚体（包括物体和机器人连杆）的核位置和朝向用对应的刚体变换更新；软体按 PhysTwin 的做法，用线性混合蒙皮（LBS）根据底层软体形变变换每个核。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · LBS 在代码里只移动高斯中心</span>
+<p>PhysTwin 补充材料的 LBS 有三步：每个节点 \(k\) 用邻居的位移解一个最小二乘旋转 \(R_k\)（式 5）；每个高斯中心 \(\mu_j\) 取 K 个最近节点，按距离倒数的权重 \(w_{jk}\) 混合 \(R_k(\mu_j-\hat\mu_k)+\hat\mu_k+T_k\)（式 6、8）；高斯的四元数也按权重混合旋转（式 7）。</p>
+<p>本文代码 <code>sim/renderer/gs_renderer.py</code> 的 <code>update_rendervar</code> 调 <code>interpolate_motions</code> 时传的是 <code>quat=None</code>，函数只返回新的中心，高斯的旋转原样保留后归一化。邻居数是 8（求节点旋转）和 16（混合高斯），权重是距离倒数归一化，<code>precompute_relations: True</code> 时只在第一步算一次。PhysTwin 用各向同性高斯，朝向无所谓；本文物体的高斯来自 Scaniverse 扫描，我推断大多是各向异性的，大形变时可能看出“椭球没跟着转”。这是我的推断，没有运行代码验证。</p>
+</div>
+<p>GS 渲染、物理求解和 LBS 是主要的计算开销。单 GPU 上 5 到 30 FPS，取决于机器人和物体的接触状态。加上不需要真实环境的复位，再用多 GPU 并行，经验上评测比真机执行快几倍。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、扫描与 3DGS 分割、ICP 对齐和连杆分配（当场算）、颜色对齐（用代码里的真实矩阵）、<b>可当场模拟的弹簧-质点绳子</b>（下面嵌的是这一幕）、从“视频”辨识刚度（当场优化）、夹爪力阈值、LBS 让高斯跟着动、闭环和双相机、按图 3 读数当场算 r 和两种 MMRV、和 SIMPLER 的绿幕对比。玩具都标明了。</p>
+<iframe src="../interactives/real2sim-eval/index.html?embed=1&amp;scene=5" title="Real-to-Sim 评测框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/real2sim-eval/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s3-d"><span class="no">III-D</span>策略评测</h3>
+<p>先设计任务、采真机数据、训练策略。示范用 <a class="ds" href="https://wuphilipp.github.io/gello_site/">GELLO</a> 遥操作采集，之后扫描场景搭仿真环境。所有策略<b>只用真机数据</b>训练，不混合仿真数据。为了提高一致性、降低方差，按 Kress-Gazit 等（<a href="https://arxiv.org/abs/2409.09491">2409.09491</a>）的建议，每个任务定一组固定的初始物体摆放，仿真和真机都在这组摆放上评测。真机上用一个实时可视化工具把仿真的初始状态叠在相机画面上，操作员照着摆，保证起点准确一致。</p>
+<p>策略表现 \(u\) 是二值成功率：真机由人判定，仿真由特权状态自动计算各任务的判据。评测了几种最新的模仿学习算法，以及每个网络不同训练阶段的检查点。整个系统包装成常用的 Gym 环境接口，可以扩展到其他策略。作者承诺开源（代码已在 2025-11-06 公开）。</p>
+
+<h2 id="s4"><span class="no">IV</span>实验</h2>
+<p>这一节在真机和仿真环境里测模仿学习策略，回答三个问题：(1) 仿真和真机成绩相关性多强？(2) 渲染和动力学保真度对相关性有多重要？(3) 这种相关性有什么实际用处？</p>
+<h3 id="s4-a"><span class="no">IV-A</span>实验设置</h3>
+<p><b>1) 任务。</b>三个代表性操作任务，含软体和刚体：</p>
+<ul>
+<li><b>装毛绒玩具（toy packing）：</b>拿起桌上的毛绒树懒，装进一个小塑料盒。只有四肢和身体都完全进盒、没有部分露在外面才算成功。</li>
+<li><b>绳子穿卡扣（rope routing）：</b>抓起一根棉绳，提起来穿进一个 3D 打印的卡扣。绳子完全卡进去算成功。</li>
+<li><b>推 T 形块（T-block pushing，push-T）：</b>桌上放一个 3D 打印的 T 形块，机器人用竖直的圆柱推杆接触它，平移加旋转到目标位姿。</li>
+</ul>
+<p>装玩具和穿绳都要求精度（盒子和卡扣的容差小），策略必须利用视觉反馈。推 T 则要从图像推断块的位姿。</p>
+<p><b>2) 评测。</b>为了减小方差、系统地评测，场景从仿真和真机共用的一组固定初始配置开始。这些配置在仿真里生成：对物体在桌上的平面位置 \((x,y)\) 和转角 \(\theta\) 取网格，网格范围覆盖到和训练分布相当。真机上按网格状态摆放物体。评测集大小：装玩具 20，穿绳 27，推 T 16。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 20、27、16 是三个网格的格点数</span>
+<p>代码 <code>cfg/gs/*.yaml</code> 的 <code>grid_randomization</code>：玩具 5 个 (x, y, θ) 组合（<code>one_to_one: True</code>，位置和角度一一配对）× 盒子 4 个 = 20；绳子 9 个位置（x, y ∈ {−5, 0, 5} cm）× 3 个角度（−10°, 0°, 10°）= 27；T 形块 4 个位置（x, y ∈ {±5} cm）× 4 个角度（45°, 135°, 225°, 315°）= 16。表 VII 写的 {±45, ±135} 就是这四个角。网格端点和表 VII 的范围一致，玩具的 y 上限 3 cm 也对得上（格点 [0, 0.03]）。</p>
+</div>
+<p>所有任务都用二值成功判据。按 SIMPLER [20]，用平均最大排名违规（MMRV）和 Pearson 相关系数 \(r\) 衡量仿真和真机成绩的一致性。评测次数对成功率的不确定度影响很大，所以结果里报告 Clopper–Pearson 置信区间，并用小提琴图画出均匀 Beta 先验下成功率的贝叶斯后验。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 16 到 27 次试验的置信区间有多宽</span>
+<p>Clopper–Pearson 95% 区间（我用二项分布的累积概率二分求解）：20 次成功 15 次，点估计 0.75，区间 [0.509, 0.913]；20 次成功 10 次，[0.272, 0.728]；16 次成功 8 次，[0.247, 0.753]；27 次成功 20 次，[0.537, 0.889]。也就是单个检查点的成功率上下各有约 0.2 的不确定度，和图 3 灰色误差棒的长度一致。所以单点“仿真比真机低 0.15”这样的差距大多落在噪声里；论文的结论靠的是 15 到 20 个点的整体相关性。</p>
+</div>
+<p>评测四种模仿学习策略：<a class="ds" href="https://tonyzhaozh.github.io/aloha/">ACT</a>、<a class="ds" href="https://diffusion-policy.cs.columbia.edu/">DP</a>（Diffusion Policy）、<a class="ds" href="https://www.physicalintelligence.company/blog/pi0">π0</a>、<a class="ds" href="https://huggingface.co/blog/smolvla">SmolVLA</a>。真机是一台 UFactory xArm 7，两台标定过的 Intel RealSense RGB-D 相机：腕部一台 D405，桌上固定一台 D455。所有策略都输入两路图像和当前末端状态；推 T 的末端状态只有平面位置 \((x,y)\)，其他任务还有姿态和夹爪开度。每个任务用 GELLO 采 39 到 60 条成功示范。训练用开源的 <a class="ds" href="https://github.com/huggingface/lerobot">LeRobot</a> 实现，π0 例外，用原版实现（<a href="https://github.com/Physical-Intelligence/openpi">openpi</a>），效果更好。</p>
+
+<figure class="pfig" id="fig3">
+<img src="real2sim-eval/fig3.webp" width="1600" height="442" alt="图 3：前三张是三个任务的仿真成功率对真机成功率散点，最后一张是本文和 IsaacLab 的对比" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#S4.F3">看原图 ↗</a></span>前三格每个点是一个检查点，横轴真机成功率，纵轴仿真成功率，颜色是策略（绿 ACT、橙 DP、蓝 π0、紫 SmolVLA），灰色误差棒是置信区间，虚线是对角线。r 依次是 0.944、0.901、0.915。最右一格把绳子和推 T 的点合在一起：蓝圆是本文 r₁ = 0.904，橙叉是 IsaacLab r₂ = 0.268，两条虚线是各自的拟合直线。IsaacLab 的叉大多贴在底部，仿真成功率接近 0。</figcaption>
+</figure>
+<div class="note" id="n6"><span class="lab">读者注 6 · 图 3 的每个点都能读出来，r 全部对得上</span>
+<p>论文没有逐策略的成功率表。图 3 在 PDF 里是矢量图，我用 <code>pdftocairo -svg</code> 导出第 5 页，取每个圆点的中心，用各子图的网格线（0、0.25、…、1）标定。读出的值全部落在 \(k/20\)、\(k/27\)、\(k/16\) 上，偏差小于 0.001，说明读数是精确的。下表是读数，写成“真机成功次数 / 仿真成功次数”。</p>
+<div class="tablewrap"><table class="t-pts"><thead><tr><th>任务（每点次数）</th><th>ACT</th><th>DP</th><th>π0</th><th>SmolVLA</th></tr></thead><tbody>
+<tr><td>装玩具（20）</td><td>10/11, 12/12, 13/14, 16/13, 17/14</td><td>0/2, 7/7, 8/7, 10/9, 14/15</td><td>10/10, 16/13, 16/15</td><td>1/1, 6/5, 7/3, 7/6</td></tr>
+<tr><td>穿绳（27）</td><td>10/5, 12/10, 15/15, 21/19, 26/20, 26/22</td><td>0/0, 0/0, 6/5, 12/18, 22/26, 23/20</td><td>15/15, 20/23, 23/26</td><td>0/0, 20/12, 22/19, 24/15, 24/20</td></tr>
+<tr><td>推 T（16）</td><td>4/6, 5/4, 7/4, 7/7</td><td>5/5, 12/12, 13/12, 15/14</td><td>7/9, 11/12, 13/15</td><td>1/1, 4/2, 7/5, 9/5</td></tr>
+<tr><td>IsaacLab 穿绳（27）</td><td colspan="4">0/0, 0/0, 0/0, 6/3, 10/0, 12/0, 12/8, 15/0, 15/2, 20/0, 20/3, 21/0, 22/1, 22/9, 23/4, 23/15, 24/0, 24/0, 26/1, 26/1</td></tr>
+<tr><td>IsaacLab 推 T（16）</td><td colspan="4">1/1, 4/2, 4/2, 5/1, 5/3, 7/2, 7/4, 7/4, 7/5, 9/3, 11/11, 12/6, 13/3, 13/8, 15/5</td></tr>
+</tbody></table></div>
+<p>用这些点算 Pearson r：装玩具 0.9444，穿绳 0.9007，推 T 0.9147；IsaacLab 穿绳 0.2368，推 T 0.6494；最右一格把本文穿绳和推 T 的 35 个点合起来是 0.9040，IsaacLab 的 35 个点是 0.2683。七个数和图 3、表 I 完全一致。IsaacLab 的横坐标集合和本文完全相同，说明是同一批检查点、同一组真机成绩。</p>
+<p>点数：装玩具 17，穿绳 20，推 T 15。数据点里重合的点（穿绳 DP 有两个 0/0）也都画了出来。</p>
+</div>
+
+<figure class="pfig narrow" id="fig4">
+<img src="real2sim-eval/fig4.webp" width="784" height="805" alt="图 4：六个小图，横轴训练迭代数，纵轴成功率，蓝色实线是仿真，橙色虚线是真机" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 5 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#S4.F4">看原图 ↗</a></span>六个任务-策略组合，横轴训练迭代数，纵轴成功率（%），蓝色是仿真，橙色是真机，小提琴是 Beta 后验。装玩具-DP 两条线都在 5000 次达峰、7000 次掉下来；穿绳-π0 都在 20000 次达峰；推 T 两种策略都随训练单调上升。装玩具-DP 的横轴从 7000 跳到 16000，中间画了断开符号。</figcaption>
+</figure>
+
+<h3 id="s4-b"><span class="no">IV-B</span>基线</h3>
+<p>基线是 NVIDIA <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">IsaacLab</a>。把机器人和环境资产导入，位置和颜色都对齐到真实设置。IsaacLab 是基于 PhysX 的通用机器人仿真框架，但对软体的支持有限。绳子用关节链近似；毛绒玩具没法稳定地模拟抓取和形变，任务根本完不成，所以定量比较里去掉了这个任务。</p>
+
+<figure class="pfig" id="fig5">
+<img src="real2sim-eval/fig5.webp" width="1600" height="564" alt="图 5：三行三个任务，五列分别是真实世界、本文、去掉物理优化、去掉颜色对齐、IsaacLab" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 6 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#S4.F5">看原图 ↗</a></span>同一个策略、同一初始状态下的一帧。每格左上角的小图是腕部相机。从右往左真实感逐步提高：IsaacLab 的桌面是灰色格子、物体是纯色模型；去掉颜色对齐时画面整体偏亮、偏灰；去掉物理优化时玩具四肢塞不进盒子、绳子在穿之前就滑掉；本文的画面和真机最接近。</figcaption>
+</figure>
+
+<h3 id="s4-c"><span class="no">IV-C</span>仿真与真机的相关性</h3>
+<p>图 3 左边画出所有检查点的仿真和真机成绩。相关性很强：真机成功率高的策略，在仿真里也高，跨结构、跨任务都如此。图 3 右边和表 I 显示本文仿真器的相关性比 IsaacLab 强得多：本文三个任务的 Pearson r 都超过 0.9；基线在推 T 上只有 0.649，在穿绳上更低，0.237，原因是动力学差距更大。论文还说，IsaacLab 穿绳的 MMRV 偏低，是因为它的成功率一直很低，错排就少。</p>
+<div class="tablewrap"><table class="t-t1"><thead><tr><th></th><th class="n">装玩具 MMRV↓</th><th class="n">r↑</th><th class="n">穿绳 MMRV↓</th><th class="n">r↑</th><th class="n">推 T MMRV↓</th><th class="n">r↑</th></tr></thead><tbody>
+<tr><td>IsaacLab</td><td class="n">–</td><td class="n">–</td><td class="n">0.270</td><td class="n">0.237</td><td class="n">0.196</td><td class="n">0.649</td></tr>
+<tr><td>本文 w/o 颜色对齐</td><td class="n">0.200</td><td class="n">0.805</td><td class="n">0.343</td><td class="n">0.714</td><td class="n">0.354</td><td class="n">0.529</td></tr>
+<tr><td>本文 w/o 物理优化</td><td class="n">0.241</td><td class="n">0.694</td><td class="n">0.248</td><td class="n">0.832</td><td class="n best">0.100</td><td class="n">0.905</td></tr>
+<tr><td>本文</td><td class="n best">0.076</td><td class="n best">0.944</td><td class="n best">0.174</td><td class="n best">0.901</td><td class="n">0.108</td><td class="n best">0.915</td></tr>
+</tbody></table></div>
+<p class="tcap">表 I · 原文第 6 页（v2）。MMRV 越低表示排序错得越少，r 越高表示线性相关越强。高亮格是原文加粗的最好结果。v1 的 MMRV 全部不同，见读者注 19。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 I 的 MMRV 是把 SIMPLER 的函数参数交换后算的</span>
+<p>SIMPLER 的定义（<a href="simpler.html#s3-2">SIMPLER 页式 (1)(2)</a>）：策略 \(i,j\) 在仿真里排反时，违规量是两者<b>真机</b>成绩之差 \(|R_i-R_j|\)；每个策略取最严重的一次，再平均。官方代码 <a href="https://github.com/simpler-env/SimplerEnv/blob/eddb5690749a1e34267807c0f7b5eede323918d7/simpler_env/utils/metrics.py#L148">SimplerEnv metrics.py</a> 的签名是 <code>mean_maximum_rank_violation(perf_sim, perf_real)</code>，判断用 <code>(perf_sim[i] &gt; perf_sim[j]) != (perf_real[i] &gt; perf_real[j])</code>，加权用 <code>perf_real</code> 之差。</p>
+<p>我用读者注 6 的点按这个函数算了两遍：</p>
+<div class="tablewrap"><table class="t-mmrv"><thead><tr><th></th><th class="n">装玩具</th><th class="n">穿绳</th><th class="n">推 T</th><th class="n">IsaacLab 穿绳</th><th class="n">IsaacLab 推 T</th></tr></thead><tbody>
+<tr><td>表 I（v2）</td><td class="n">0.076</td><td class="n">0.174</td><td class="n">0.108</td><td class="n">0.270</td><td class="n">0.196</td></tr>
+<tr><td>按官方顺序 (sim, real)，即 SIMPLER 定义</td><td class="n">0.0676</td><td class="n">0.1537</td><td class="n">0.1250</td><td class="n">0.4797</td><td class="n">0.2417</td></tr>
+<tr><td>参数交换 (real, sim)</td><td class="n">0.0765</td><td class="n">0.1741</td><td class="n">0.1083</td><td class="n">0.2704</td><td class="n">0.1958</td></tr>
+</tbody></table></div>
+<p>交换后的五个数四舍五入到三位，和表 I 一字不差；按 SIMPLER 原定义则五个都不对。交换参数等于：判断条件不变，但违规量改成两者<b>仿真</b>成绩之差。图 9、图 10 的六个 MMRV 也是同样情况（读者注 16）。代码仓库里没有算 MMRV 的脚本，所以这是我从数字反推的结论，没有在作者代码里直接看到。</p>
+<p>这改变了比较的含义。SIMPLER 用真机差加权，是为了让“真机本来就很接近的两个策略排反了”只受很小的惩罚。按仿真差加权，IsaacLab 这种仿真成功率几乎全是 0 的情况，排反的代价就被压得很小。</p>
+</div>
+<div class="note" id="n8"><span class="lab">读者注 8 · “IsaacLab 穿绳的 MMRV 偏低”这句话是 v1 留下的</span>
+<p>v1 的表 I 里 IsaacLab 穿绳的 MMRV 是 0.022，全表最低，所以正文要解释一句“因为成功率一直很低，错排少”。v2 改成 0.270，比本文的 0.174 和 w/o 物理优化的 0.248 都高，只比 w/o 颜色对齐的 0.343 低，这句解释却原样保留了。</p>
+<p>按 SIMPLER 原定义（读者注 7），IsaacLab 穿绳是 0.480，是我能复算的五格（本文三个任务、IsaacLab 两个任务）里最差的；两个消融没有散点，无法比较。原因很直观：它的仿真成功率几乎全是 0，真机成绩从 0 到 26/27 都有，大量真机差距很大的检查点在仿真里打平或排反。用仿真差加权才把这些违规压下去。</p>
+</div>
+
+<h3 id="s4-d"><span class="no">IV-D</span>策略表现分析</h3>
+<p>图 4 进一步给出逐策略、逐任务、随训练迭代的成绩曲线。仿真成功率大体和真机同步变化。例如装玩具-DP，仿真和真机都在 5,000 次迭代达峰，到 7,000 次明显下降；穿绳-π0 都在 20,000 次左右达峰。所以这个仿真器可以用来监视训练过程、挑选要上真机测的检查点、对真机成绩有个大致预期。</p>
+<p>有些组合仿真和真机的成功率不重叠，比如装玩具-SmolVLA 和穿绳-ACT，但趋势仍然对，只是绝对值不同。作者归因于残留的外观和动力学差距，以及评测次数有限（每个检查点 16 到 27 次）带来的方差。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 3 和图 4 有三组点对不上</span>
+<p>图 4 也是矢量图，我用同样方法读了每个蓝点和橙点（单位 %）。按“真机 / 仿真”写：</p>
+<ul>
+<li><b>推 T-DP、推 T-π0、穿绳-ACT：</b>和图 3 对应颜色的点完全相同。</li>
+<li><b>装玩具-DP：</b>图 4 是 15/10、35/35、70/75、40/35、50/45；图 3 的 DP 是 0/10、35/35、40/35、50/45、70/75。第一个检查点（1000 次）在图 4 是真机 15%，在图 3 是 0%。</li>
+<li><b>装玩具-SmolVLA：</b>图 4 有 5 个检查点，0/0、10/5、35/15、35/30、30/25；图 3 只有 4 个紫点，是 5/5、30/25、35/15、35/30。图 4 的 0/0 和 10/5 在图 3 里变成了一个 5/5。</li>
+<li><b>穿绳-π0：</b>图 4 是 55.6/63.0、85.2/96.3、74.1/88.9；图 3 是 55.6/55.6、85.2/96.3、74.1/85.2。两个仿真值差 2/27 和 1/27。</li>
+</ul>
+<p>图 3 的点能精确复现表 I 的 r，所以表 I 用的是图 3 的数。图 4 和图 3 是哪一次评测、为什么不同，论文没说，我无法判断哪个是对的。</p>
+</div>
+
+<h3 id="s4-e"><span class="no">IV-E</span>消融</h3>
+<p>为了衡量渲染和动力学真实度各自的重要性，对 MMRV 和 r 做两个消融：</p>
+<ul>
+<li><b>w/o 颜色对齐：</b>跳过颜色对齐，直接用 iPhone 色彩空间里的原始 GS 颜色，外观不匹配。</li>
+<li><b>w/o 物理优化：</b>不用逐弹簧优化的刚度 \(Y\)，而用所有弹簧共享的一个全局刚度，取 PhysTwin 无梯度优化阶段给出的值。推 T 是刚体，保持刚性不变，改的是它和地面、和机器人之间的摩擦系数。</li>
+</ul>
+<p>图 5 用同一个策略、同一初始状态比较本文、两个消融和基线。完整方法的渲染和动力学都最真，策略 rollout 和真机最接近；w/o 物理优化的物体动力学不准，w/o 颜色对齐的颜色明显偏。两种失配都会让仿真 rollout 偏离真机，但不同策略对两类差距的敏感度不同：穿绳任务里刚度设错时绳子进不了卡扣（w/o 物理优化）；推 T 任务里颜色差异改变了策略的感知，推法也跟着变（w/o 颜色对齐）。</p>
+<p>表 I 给出定量结果。总体上完整方法的相关性最高，胜过两个消融。MMRV 低说明排序准，Pearson r 高说明相关更强、更一致，不受个别离群点影响。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 I 有一格是消融更好，消融的数没法复算</span>
+<p>推 T 的 MMRV，w/o 物理优化 0.100 比完整方法 0.108 好，原文表里也把 0.100 加粗了，但正文写“完整方法相关性最高，胜过消融”。r 上完整方法 0.915 只比 0.905 高 0.010，两者相差远小于读者注 5 说的单点不确定度。还要注意推 T 的“w/o 物理优化”改的是摩擦，不是刚度，和另外两个任务的消融不是同一种操作。</p>
+<p>消融和 IsaacLab 只在表 I 里有汇总数，没有散点图（IsaacLab 有，在图 3 最右），所以两个消融的 MMRV 和 r 我没法复算。另外正文说 Pearson r“不受离群点影响”，这和 r 的性质相反：r 对离群点很敏感，SIMPLER 也正因此另设 MMRV。</p>
+</div>
+
+<h2 id="s5"><span class="no">V</span>结论</h2>
+<p>论文提出一个评测机器人操作策略的仿真器，把高斯泼溅渲染和软体动力学的 real-to-sim 数字孪生结合起来。物理约束的重建、位置和颜色对齐、考虑形变的渲染一起缩小了外观和动力学两方面的差距。在软体和刚体任务上评测几种模仿学习策略，仿真成功率和真机强相关（r &gt; 0.9）。分析表明仿真器能预测成绩趋势，可以用来挑检查点、估计成绩。物理优化和颜色对齐都很关键。以后可以扩大任务和策略集，推广到更多环境和更复杂的操作。</p>
+
+<h2 id="apI"><span class="no">附录 I</span>补充技术细节</h2>
+<h3 id="apI-a"><span class="no">I-A</span>平台和任务</h3>
+<p><b>1) 机器人。</b>xArm 7 装在桌面上，7 个自由度。末端可以换成标准的 xArm 夹爪或一个 3D 打印的推杆。两台 RealSense：D455 固定在桌上俯视工作区，D405 用 3D 打印的夹子装在腕部。为了让仿真和真机的外观一致，两台相机的白平衡和曝光都固定。</p>
+<p><b>2) 数据采集。</b>GELLO 高频发送关节角指令，机器人用关节速度控制跟随：每步算指令和实测关节角之差，目标角速度和这个差成正比；整个速度向量的 ℓ2 范数不超过上限，避免突然的大动作。评测时策略输出也用同样的控制方式，所以真机和仿真里策略输出的执行方式一致。</p>
+<p><b>3) 任务定义。</b>任务都要求策略利用物体动力学，同时依赖视觉反馈。</p>
+<ul>
+<li><b>装玩具：</b>抓住玩具的一条肢体，提到盒子上方，调整姿态让一侧的手脚先垂进盒子；稍微倾斜，让另一侧的手脚也进去；再往下放，把玩具塞紧。盒子故意做得小，策略要根据玩具姿态调整，不能让任何肢体搭在盒沿外。39 条示范。</li>
+<li><b>穿绳：</b>抓住绳子的一端（用红色皮筋做了标记），提起来移到线卡上方，再放下，把绳子轻轻卡进槽里。绳子和卡扣的接触点和抓取点不在一处，所以绳子的动力学决定了该怎样位移、走什么轨迹。56 条示范。</li>
+<li><b>推 T：</b>推杆从桌上一个橙色标记的上方出发，末端高度全程固定。机器人要走到 T 形块处，把它推到预定的目标区域。目标在桌上没有实物标记，而是在固定相机图像上叠一个黄色半透明遮罩显示。T 形块的初始位置和朝向随机，60 条示范。</li>
+</ul>
+<p>论文没说这个黄色遮罩是否也叠在策略的输入图像上。</p>
+<figure class="pfig narrow" id="fig6">
+<img src="real2sim-eval/fig6.webp" width="782" height="393" alt="图 6：上排是训练集初始状态的叠加，下排是评测集初始状态的叠加，三列是三个任务" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A1.F6">看原图 ↗</a></span>把所有示范（上）和所有评测（下）的初始帧叠在一起。玩具和盒子、绳子、T 形块的覆盖范围上下相近，评测的分布更规整，是网格。</figcaption>
+</figure>
+
+<h3 id="apI-b"><span class="no">I-B</span>仿真</h3>
+<p><b>1) 资产。</b>表 II 汇总。每个资产是一次 GS 重建加一次位姿对齐。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>名称</th><th>动力学类型</th><th>3D 表示</th></tr></thead><tbody>
+<tr><td>xArm-夹爪-桌面</td><td>关节 + 固定</td><td>GS + URDF + 网格</td></tr>
+<tr><td>xArm-推杆-桌面</td><td>关节 + 固定</td><td>GS + URDF + 网格</td></tr>
+<tr><td>毛绒树懒</td><td>可变形</td><td>GS + PhysTwin</td></tr>
+<tr><td>绳子</td><td>可变形</td><td>GS + PhysTwin</td></tr>
+<tr><td>T 形块</td><td>刚体</td><td>GS + PhysTwin</td></tr>
+<tr><td>盒子</td><td>固定</td><td>GS + 网格</td></tr>
+<tr><td>卡扣</td><td>固定</td><td>GS + 网格</td></tr>
+</tbody></table></div>
+<p class="tcap">表 II · 原文第 10 页。每行是一次单独的 GS 扫描，标出它在仿真里的动力学类型，以及物理模拟和渲染用的 3D 表示。三个任务都由这些资产组合而成。</p>
+<p><b>2) 位置对齐。</b>先在 SuperSplat 里手动粗对齐，让原点和 x、y、z 轴方向大致吻合。再手动框一个包围盒，把机器人的高斯和场景的高斯分开。然后对两组点云做 ICP：一组是机器人高斯的中心，一组是从 URDF 网格表面均匀采样的点。得到的刚体变换作用于整个 GS，机器人和场景就在同一坐标系里对齐了。（正文说“自动计算”，附录说明前面还有一步手动粗对齐和手动框选。）</p>
+<p><b>3) 颜色对齐。</b>机器人-场景这次扫描对渲染图像的整体色调影响最大。用带 Tukey 双权重的鲁棒 IRLS 估计颜色变换，5 张 848×480 的图。为了缓解暗桌面和亮机器人之间的不平衡，每个像素按其 RGB 范数加权，亮像素在最小二乘里权重更高。迭代 50 次。图 7 是输入图像和对齐效果。</p>
+<figure class="pfig" id="fig7">
+<img src="real2sim-eval/fig7.webp" width="1600" height="568" alt="图 7：五个机器人位姿，三行分别是真实 RealSense 图像、对齐前的 GS 渲染、对齐后的 GS 渲染" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 11 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A1.F7">看原图 ↗</a></span>五个机器人位姿各一列。上行是 RealSense 实拍，桌面暗、机器人偏暖白；中行是对齐前的 GS 渲染，整体偏亮，机器人更白，木桌颜色更艳；下行是对齐后，色调和上行接近。</figcaption>
+</figure>
+<p><b>4) PhysTwin 训练。</b>绳子和树懒的孪生用 PhysTwin 原版代码训练。PhysTwin 只需要一段多视角 RGB-D 视频就能重建几何、优化物理参数；数据用三台固定的 D455 录制，见图 8。T 形块是刚体，直接构造：在网格内部均匀采点，用连接半径 0.5、最多 50 个近邻连弹簧，所有弹簧刚度统一设为 \(3\times10^{4}\)，让它表现得像刚体。</p>
+<figure class="pfig narrow" id="fig8">
+<img src="real2sim-eval/fig8.webp" width="776" height="470" alt="图 8：上排是人手拨弄绳子的三帧，下排是人手拉毛绒玩具的三帧" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 11 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A1.F8">看原图 ↗</a></span>PhysTwin 的训练视频，各取三帧。绳子被一根手指从中间压住再挑起；毛绒树懒被人拉着一条胳膊提起来。PhysTwin 用这样的视频重建物体几何、估计物理参数。</figcaption>
+</figure>
+<div class="note" id="n11"><span class="lab">读者注 11 · T 形块的“半径 0.5”实际上就是 50 近邻</span>
+<p>代码 <code>experiments/utils/create_rigid_phystwin.py</code>：表面采 1024 个点，内部用 <code>trimesh.sample.volume_mesh</code> 采 10000 个点，再按 5 mm 体素去重；连接半径 <code>object_radius = 0.5</code>、<code>object_max_neighbours = 50</code>（注释写着“hardcoded”），刚度 <code>3e4</code>，和论文一致。坐标单位是米，0.5 m 远大于 T 形块本身，所以半径不起作用，每个点就是连到最近的 50 个点。论文正文说刚体“把 Y 固定成很大的值”；3e4 正是 <code>cfg/physics/default.yaml</code> 里软体的初始刚度 <code>init_spring_Y</code>，而上限 <code>spring_Y_max</code> 是 1e5。所以刚性主要来自稠密连接，而不是特别大的刚度。</p>
+</div>
+<p><b>5) 模拟循环。</b>算法 1 汇总了机器人动作处理、PhysTwin 模拟、碰撞处理和渲染更新。</p>
+<div class="algo" id="algo1">
+<p class="h">算法 1：模拟循环（编号同原文）</p>
+<p>输入：PhysTwin 粒子位置和速度 \(x,v\)，弹簧-质点参数 \(P\)，机器人网格 \(R\)，机器人运动 \(a\)，静态网格 \(M_{1:k}\)，地面 \(L\)，总步数 \(T\)，子步数 \(N\)，高斯 \(G\)。</p>
+<ol>
+<li>for \(t\leftarrow0\) to \(T-1\)：</li>
+<li class="in">\(x^{*},v^{*}=x_t,v_t\)</li>
+<li class="in">\(R^{*}_{1:N}=\) interpolate_robot_states(\(R_t,a_t\))</li>
+<li class="in">for \(\tau\leftarrow0\) to \(N-1\)：</li>
+<li class="in2">\(v^{*}=\) step_springs(\(x^{*},v^{*},P\))</li>
+<li class="in2">\(v^{*}=\) self_collision(\(x^{*},v^{*},P\))</li>
+<li class="in2">\(x^{*},v^{*}=\) robot_mesh_collision(\(x^{*},v^{*},R_\tau,a_\tau\))</li>
+<li class="in2">for \(i\leftarrow1\) to \(k\)：\(x^{*},v^{*}=\) fixed_mesh_collision(\(x^{*},v^{*},M_i\))</li>
+<li class="in2">\(x^{*},v^{*}=\) ground_collision(\(x^{*},v^{*},L\))</li>
+<li class="in">\(x_{t+1},v_{t+1}=x^{*},v^{*}\)；\(R_{t+1}=R^{*}_N\)</li>
+<li class="in">\(G_{t+1}=\) renderer_update(\(G_t,x_t,x_{t+1},R_t,R_{t+1}\))</li>
+</ol>
+</div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 弹簧力的写法和子步数</span>
+<p>PhysTwin 论文写的弹簧力是 \(k_{ij}(\lVert x_j-x_i\rVert-l_{ij})\hat d\)，和伸长量成正比。本文代码 <code>sim/physics/spring_mass_warp.py</code> 的 <code>eval_springs</code>（PhysTwin 官方代码同名函数也一样）是</p>
+<div class="eq"><div class="m">\[ F_{ij}=\mathrm{clip}\big(e^{y_{ij}},\,Y_{\min},\,Y_{\max}\big)\Big(\frac{\lVert x_j-x_i\rVert}{l_{ij}}-1\Big)\hat d+c\,\big((v_j-v_i)\cdot\hat d\big)\hat d \]</div></div>
+<p>即和<b>应变</b>成正比，刚度以对数形式存储并截断在 [0, 1e5]；相当于 \(k_{ij}=Y_{ij}/l_{ij}\)。所以文中的 \(Y\) 更像杨氏模量而不是弹簧常数，短弹簧更硬。阻尼 <code>dashpot_damping</code> = 100，速度每子步再乘 \(e^{-3\,\Delta t}\)，重力 −9.8，所有质点质量为 1。</p>
+<p>默认 <code>dt = 5e-5</code>、<code>fps = 30</code>，子步数按 <code>round(1/fps/dt)</code> 算是 667，也就是每个 30 Hz 控制步内跑 667 次算法 1 的内层循环（检查点可以覆盖 dt，我没下载检查点核对）。代码的子步顺序和算法 1 一致：弹簧力、速度更新、自碰撞（<code>object_collision</code>）、网格碰撞、地面碰撞。不同的是夹爪手指和静态网格（盒子、卡扣）合在同一个 Warp 网格里，由一个 <code>mesh_collision</code> 核一起处理，没有算法 1 那样分开的循环。</p>
+</div>
+
+<h3 id="apI-c"><span class="no">I-C</span>策略训练</h3>
+<p><b>1) 数据集。</b>图 6 可视化了训练和评测初始状态的覆盖范围。</p>
+<p><b>2) 归一化。</b>输入输出的归一化沿用各算法原始实现的约定（表 III）。mean–std 把特征标准化成零均值单位方差；min–max 把每一维独立缩放到 [−1, 1]。VLA 策略（SmolVLA 和 π0）用相对动作，让策略更有纠错性、更稳：每个动作是末端位姿在基座系下的一个 SE(3) 变换。参考 [12]，归一化统计量（mean–std 或 min–max）在整个数据集上按动作块长度的滑动窗口计算，块里每个位置的动作用自己那个位置的统计量归一化，以免块中靠后的动作幅度越来越大。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>模型</th><th>视觉</th><th>状态</th><th>动作</th><th>相对动作？</th></tr></thead><tbody>
+<tr><td>ACT</td><td>mean–std</td><td>mean–std</td><td>mean–std</td><td>否</td></tr>
+<tr><td>DP</td><td>mean–std</td><td>min–max</td><td>min–max</td><td>否</td></tr>
+<tr><td>SmolVLA</td><td>identity</td><td>mean–std</td><td>mean–std</td><td>是</td></tr>
+<tr><td>π0</td><td>mean–std</td><td>mean–std</td><td>mean–std</td><td>是</td></tr>
+</tbody></table></div>
+<p class="tcap">表 III · 原文第 12 页。各模型对视觉、状态、动作三种模态用的归一化，以及是否在相对动作空间里工作。</p>
+<p><b>3) 图像增强。</b>训练时对每张图随机抽三种增强组合使用，类型和范围见表 IV。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>颜色变换</th><th>范围</th><th>空间变换</th><th>范围</th></tr></thead><tbody>
+<tr><td>亮度</td><td>(0.8, 1.2)</td><td>透视</td><td>0.025</td></tr>
+<tr><td>对比度</td><td>(0.8, 1.2)</td><td>旋转</td><td>[−5°, 5°]</td></tr>
+<tr><td>饱和度</td><td>(0.5, 1.5)</td><td>裁剪</td><td>[10, 40] px</td></tr>
+<tr><td>色相</td><td>(−0.05, 0.05)</td><td></td><td></td></tr>
+<tr><td>锐度</td><td>(0.5, 1.5)</td><td></td><td></td></tr>
+</tbody></table></div>
+<p class="tcap">表 IV · 原文第 12 页。颜色变换的数字是乘性或加性抖动系数；空间变换的数字是透视畸变、旋转和裁剪的幅度。</p>
+<p><b>4) 超参数。</b>表 V、表 VI。VLA 策略只微调动作头，预训练的视觉-语言编码器冻结。</p>
+<div class="tablewrap"><table class="t-t5"><thead><tr><th>模型</th><th>视觉分辨率</th><th class="n">状态维度</th><th class="n">动作维度</th><th class="n">T<sub>p</sub></th><th class="n">T<sub>e</sub></th></tr></thead><tbody>
+<tr><td>ACT</td><td>L: 120×212；H: 240×240</td><td class="n">8</td><td class="n">8</td><td class="n">50</td><td class="n">50</td></tr>
+<tr><td>DP</td><td>L: 120×212；H: 240×240</td><td class="n">8</td><td class="n">8</td><td class="n">64</td><td class="n">50</td></tr>
+<tr><td>SmolVLA</td><td>L: 120×212；H: 240×240</td><td class="n">8</td><td class="n">8</td><td class="n">50</td><td class="n">50</td></tr>
+<tr><td>π0</td><td>L: 120×212；H: 240×240</td><td class="n">8</td><td class="n">8</td><td class="n">50</td><td class="n">50</td></tr>
+</tbody></table></div>
+<p class="tcap">表 V · 原文第 12 页。穿绳任务用低分辨率 L，其他任务用高分辨率 H。状态和动作向量包含末端位置、四元数和夹爪状态，绝对或相对坐标。T<sub>p</sub>、T<sub>e</sub> 是预测和执行的步数。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 推 T 的状态和动作是 2 维，不是表 V 的 8 维</span>
+<p>正文 §IV-A 说推 T 的末端状态只有 \((x,y)\)。策略训练子模块的配置 <code>configs/training/act_pusht.json</code>、<code>dp_pusht.json</code>、<code>svla_pusht.json</code> 里，<code>observation.state</code> 和 <code>action</code> 的 shape 都是 [2]；另外两个任务是 [8]（位置 3 + 四元数 4 + 夹爪 1 = 8）。表 V 对所有任务都写 8，没有单列推 T。</p>
+<p>分辨率：120×212 正好是 480×848 的四分之一，保持长宽比；240×240 是正方形，配置里是 <code>Resize([240, 240])</code>，会把 848×480 的画面横向压扁。训练时还有 <code>RandomCrop</code>（240 输入裁到 200×200，120×212 输入裁到 110×202），表 IV 的“裁剪 [10, 40] px”大约对应这个。</p>
+</div>
+<div class="tablewrap"><table class="t-t6"><thead><tr><th>视觉骨干</th><th class="n">#V-Params</th><th class="n">#P-Params</th><th class="n">LR</th><th class="n">Batch</th><th class="n">#Iters</th></tr></thead><tbody>
+<tr><td>ResNet-18（ACT）</td><td class="n">18M</td><td class="n">34M</td><td class="n">1×10⁻⁵</td><td class="n">512</td><td class="n">7k</td></tr>
+<tr><td>ResNet-18（DP）</td><td class="n">18M</td><td class="n">245M</td><td class="n">1×10⁻⁴</td><td class="n">512</td><td class="n">7k</td></tr>
+<tr><td>SmolVLM-2</td><td class="n">350M</td><td class="n">100M</td><td class="n">1×10⁻⁴</td><td class="n">128</td><td class="n">20k</td></tr>
+<tr><td>PaliGemma（π0）</td><td class="n">260B</td><td class="n">300M</td><td class="n">5×10⁻⁵</td><td class="n">8</td><td class="n">30k</td></tr>
+</tbody></table></div>
+<p class="tcap">表 VI · 原文第 12 页。#V-Params、#P-Params 是视觉编码器和策略头的参数量。“260B”照录原文，见读者注 14。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 VI 的三处数字</span>
+<ul>
+<li><b>PaliGemma 260B。</b>π0 用的 PaliGemma 是 3B 级别的视觉语言模型（<a href="https://arxiv.org/abs/2410.24164">π0 论文</a>：3B 的 VLM 加 300M 的动作专家，合计约 3.3B）。表里的 300M 动作头和这一致，260B 应该是 2.6B 的笔误，差了 100 倍。</li>
+<li><b>ResNet-18 18M。</b>torchvision 的 ResNet-18 是 11,689,512 个参数，约 11.7M；去掉分类层约 11.2M。两路相机各用一个也只有约 22M。表里的 18M 我对不上，口径未核实。</li>
+<li><b>#Iters 7k。</b>子模块里 ACT 和 DP 的配置：装玩具、推 T 是 <code>steps: 20000</code>，穿绳是 5000，都不是 7000。图 4 里装玩具-DP 的检查点一直到 16000，穿绳-ACT 到 7000，也超出了 5000 的配置。可能表 VI 写的是“选用的”迭代数，配置文件后来改过，论文没说明。</li>
+</ul>
+</div>
+
+<h3 id="apI-d"><span class="no">I-D</span>评测</h3>
+<p><b>1) 评测协议。</b>评测时采样一组固定初始状态，分别在仿真和真机上滚动策略。先在仿真里采样物体初始状态，从和真机相同的相机视角渲染，存下初始帧；真机上的实时可视化工具把这些仿真状态叠在相机画面上，人照着手动摆放物体。</p>
+<p><b>2) 回合设置。</b>正文所有评测实验的回合数和基于网格的物体初始配置范围（相对于预设位姿）见表 VII。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>任务（随机化对象）</th><th class="n">回合</th><th>x (cm)</th><th>y (cm)</th><th>θ (°)</th></tr></thead><tbody>
+<tr><td>装玩具（玩具）</td><td class="n">20</td><td>[−5, 5]</td><td>[−5, 3]</td><td>[−5, 5]</td></tr>
+<tr><td>装玩具（盒子）</td><td class="n">20</td><td>[−5, 5]</td><td>[0, 5]</td><td>[−5, 5]</td></tr>
+<tr><td>穿绳（绳子）</td><td class="n">27</td><td>[−5, 5]</td><td>[−5, 5]</td><td>[−10, 10]</td></tr>
+<tr><td>推 T（T 形块）</td><td class="n">16</td><td>[−5, 5]</td><td>[−5, 5]</td><td>{±45, ±135}</td></tr>
+</tbody></table></div>
+<p class="tcap">表 VII · 原文第 13 页。每个任务被随机化的物体：装玩具是玩具和盒子，穿绳是绳子，推 T 是 T 形块。格点数见读者注 4。</p>
+<p><b>3) 成功判据。</b>真机靠操作员记录成败，繁琐且有人为偏差。仿真要扩大规模就得自动判定。三个任务都用仿真状态设计指标：</p>
+<ul>
+<li><b>装玩具：</b>每帧数一下落在盒子网格的有向包围盒内的 PhysTwin 质点数。15 秒回合的最后 100 帧（3.3 秒）里，如果这个数超过阈值的帧多于 30 帧，算成功。质点总数 3095，阈值 3050。</li>
+<li><b>穿绳：</b>每帧数一下穿过卡扣两个开口的 PhysTwin 弹簧段数。30 秒回合的最后 100 帧里，两个开口的段数都超过 100 的帧多于 30 帧，算成功。</li>
+<li><b>推 T：</b>每帧算当前 PhysTwin 粒子和目标状态粒子之间的平均平方欧氏距离。60 秒回合的最后 100 帧里，平均平方距离小于 0.002，算成功。</li>
+</ul>
+<div class="note" id="n15"><span class="lab">读者注 15 · 成功判据和代码对照</span>
+<p>三个脚本在 <code>experiments/utils/calculate_success_*.py</code>，和论文一致，补充几个论文没写的细节：</p>
+<ul>
+<li>装玩具：包围盒用 Open3D 的最小有向包围盒，再<b>放大 1.05 倍</b>；判定是 <code>&gt;= 3050</code>，即 98.5% 的质点在盒内；帧号 ≥ 350（总 450 帧 = 15 s × 30 fps）；计数 <code>&gt;= 30</code> 帧，不是严格“多于 30”。</li>
+<li>穿绳：两个开口平面上的交点各自 <code>&gt;= 100</code>；帧号 ≥ 800（总 900）。</li>
+<li>推 T：<code>((x - x_target)**2).sum(1).mean() &lt; 0.002</code>，单位 m²，相当于均方根距离 \(\sqrt{0.002}\approx4.5\) cm；帧号 ≥ 1700（总 1800 = 60 s）。</li>
+</ul>
+</div>
+
+<h2 id="apII"><span class="no">附录 II</span>补充结果</h2>
+<h3 id="apII-a"><span class="no">II-A</span>扩大仿真评测规模</h3>
+<p>正文里每个策略在仿真中用和真机完全相同的初始状态评测，控制了随机性，但次数有限，Clopper–Pearson 区间很宽。均匀采样会改变分布，所以随机化范围相对网格实验略有调整：装玩具不变；穿绳的 x、y 放大到 [−7.5, 7.5] cm，θ 到 [−15°, 15°]；推 T 的 x、y 放大到 [−7.5, 7.5] cm。然后在任务分布里随机采 200 个初始状态，看仿真和真机相关性的渐近值。图 9 是结果。</p>
+<figure class="pfig" id="fig9">
+<img src="real2sim-eval/fig9.webp" width="1600" height="455" alt="图 9：三个任务各一张散点，仿真评测扩大到 200 个初始状态后的仿真成功率对真机成功率" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 13 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A1.F9">看原图 ↗</a></span>和图 3 同样的检查点，但仿真成功率来自 200 次随机初始状态，纵向误差棒明显变短。装玩具 r = 0.897、MMRV = 0.105；穿绳 0.918、0.154；推 T 0.950、0.070。横轴的真机成功率和图 3 相同。</figcaption>
+</figure>
+<p>置信区间显著收窄，相关性估计随着仿真次数增加而稳定，最低的相关系数是 0.897。作者认为对多样的任务实例取平均后，仿真保真度是真机成绩的可靠预测。和正文相比，检查点的相对排序保持一致。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 图 9、图 10 也能算回来，MMRV 同样是交换参数</span>
+<p>两张图也是矢量图，读法同读者注 6。图 9 的仿真值都是 0.005 的倍数（200 次），真机值和图 3 完全相同。图 10 每个点的两个坐标都是同一组回合数的整数倍。</p>
+<div class="tablewrap"><table class="t-mmrv"><thead><tr><th></th><th class="n">r（论文）</th><th class="n">r（重算）</th><th class="n">MMRV（论文）</th><th class="n">交换参数</th><th class="n">SIMPLER 定义</th></tr></thead><tbody>
+<tr><td>图 9 装玩具</td><td class="n">0.897</td><td class="n">0.8970</td><td class="n">0.105</td><td class="n">0.1050</td><td class="n">0.1353</td></tr>
+<tr><td>图 9 穿绳</td><td class="n">0.918</td><td class="n">0.9181</td><td class="n">0.154</td><td class="n">0.1535</td><td class="n">0.1241</td></tr>
+<tr><td>图 9 推 T</td><td class="n">0.950</td><td class="n">0.9501</td><td class="n">0.070</td><td class="n">0.0697</td><td class="n">0.0750</td></tr>
+<tr><td>图 10 装玩具</td><td class="n">0.880</td><td class="n">0.8804</td><td class="n">0.127</td><td class="n">0.1267</td><td class="n">0.1700</td></tr>
+<tr><td>图 10 穿绳</td><td class="n">0.887</td><td class="n">0.8867</td><td class="n">0.123</td><td class="n">0.1235</td><td class="n">0.1309</td></tr>
+<tr><td>图 10 推 T</td><td class="n">0.944</td><td class="n">0.9442</td><td class="n">0.047</td><td class="n">0.0469</td><td class="n">0.0521</td></tr>
+</tbody></table></div>
+<p>12 个数里，r 全部一致，MMRV 全部和交换参数的版本一致。和正文的 0.944、0.901、0.915 比，扩大到 200 次后装玩具的 r 反而降到 0.897，穿绳和推 T 升高。</p>
+</div>
+
+<h3 id="apII-b"><span class="no">II-B</span>回放真机 rollout</h3>
+<p>为了进一步检验仿真和真机的对应关系，做回放实验：把真机推理时的控制指令原样在仿真里重放。这样把动力学差距和外观差距分开，因为感知图像不同导致的策略行为差异被排除了。一共回放：装玩具 16 个检查点各 20 回合，穿绳 15 个各 27 回合，推 T 12 个各 16 回合。仿真里的物体初始状态和对应的真机回合相同。</p>
+<figure class="pfig" id="fig10">
+<img src="real2sim-eval/fig10.webp" width="1600" height="446" alt="图 10：三个任务各一张散点，回放真机控制指令时的仿真成功率对真机成功率" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 14 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A2.F10">看原图 ↗</a></span>每个点是一个真机检查点的回放：同样的控制指令和相机轨迹在仿真里重跑，成功率对所有回合取平均。装玩具 r = 0.880、MMRV = 0.127；穿绳 0.887、0.123；推 T 0.944、0.047。推 T 的点大多在对角线下方。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-t8"><thead><tr><th></th><th class="n">装玩具 GT+</th><th class="n">GT−</th><th class="n">穿绳 GT+</th><th class="n">GT−</th><th class="n">推 T GT+</th><th class="n">GT−</th></tr></thead><tbody>
+<tr><td>回放 +</td><td class="n">106</td><td class="n">37</td><td class="n">276</td><td class="n">28</td><td class="n">63</td><td class="n">1</td></tr>
+<tr><td>回放 −</td><td class="n">25</td><td class="n">132</td><td class="n">24</td><td class="n">77</td><td class="n">17</td><td class="n">111</td></tr>
+</tbody></table></div>
+<p class="tcap">表 VIII · 原文第 14 页。逐回合的回放结果和真机真值的 2×2 混淆矩阵（TP、FP、FN、TN），行是回放结果，列是真值，数字是所有检查点合计的回合数。</p>
+<p>图 10 是相关性，表 VIII 是逐回合统计。三个任务的混淆矩阵都是对角线占优，回放和真机结果高度一致。装玩具的假阳性（回放成功、真机失败）多于假阴性，说明仿真略微高估成功，可能是接触或摩擦模型简化了。推 T 则假阴性多于假阳性，有些真机成功的轨迹在仿真里复现不了，可能是摩擦系数和初始状态有轻微失配。总体上即使是纯开环的轨迹回放，仿真大多数时候也能复现真机结果。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 装玩具回放的是 15 个检查点，不是 16 个</span>
+<p>表 VIII 每个任务四格之和：装玩具 106 + 37 + 25 + 132 = 300，穿绳 405，推 T 192。按正文的检查点数应是 16 × 20 = 320、15 × 27 = 405、12 × 16 = 192。只有装玩具对不上，而 300 = 15 × 20。图 10 装玩具也正好有 15 个点。</p>
+<p>表和图互相印证：图 10 读出的真机成功回合合计，装玩具 131 = 106 + 25，穿绳 300 = 276 + 24，推 T 80 = 63 + 17；回放成功合计 143 = 106 + 37、304 = 276 + 28、64 = 63 + 1。六个和全部吻合。逐回合一致率是 (106 + 132)/300 = 79.3%，(276 + 77)/405 = 87.2%，(63 + 111)/192 = 90.6%。推 T 回放的总成功率 64/192 = 33% 比真机 80/192 = 42% 低 9 个点，和图 10 的点大多在对角线下方一致。</p>
+</div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 图 10 的真机成功率和图 3 不完全一样</span>
+<p>回放用的是真机 rollout，所以图 10 的横坐标应该是图 3 横坐标的子集。推 T 是（12 个点全在图 3 里）；穿绳 15 个点里有 14 个在，SmolVLA 有一个 21/27 在图 3 里是 20/27；装玩具差得多：图 10 的 DP 真机成绩是 0、8、8、9、13（/20），图 3 是 0、7、8、10、14；SmolVLA 图 10 是 0、2、6、8，图 3 是 1、6、7、7。结合读者注 9，装玩具在图 3、图 4、图 10 里有三套不完全相同的真机成绩。论文没解释，可能回放只用了有完整记录的回合，或者真机评测做过不止一轮。未核实。</p>
+</div>
+
+<h3 id="apII-c"><span class="no">II-C</span>补充定性结果</h3>
+<p>图 11 比较同步时刻的仿真和真机轨迹，每个任务都给出正面和腕部两个视角。物体位姿、接触的切换、末端运动在对应时刻都保持一致，仿真既抓住了任务动力学，也还原了外观。</p>
+<figure class="pfig" id="fig11">
+<img src="real2sim-eval/fig11.webp" width="1600" height="2069" alt="图 11：六组画面，三个任务的真机和仿真交替排列，每组上行是正面相机、下行是腕部相机，五列是同步的时刻" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 15 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A2.F11">看原图 ↗</a></span>从上到下：装玩具真机、仿真，穿绳真机、仿真，推 T 真机、仿真。每组上行是固定相机，下行是腕部相机；五列是相同时间戳。腕部视角下树懒的脸、绳头的红皮筋、T 形块的边缘在仿真里都清晰可辨，这是绿幕方法做不到的视角。</figcaption>
+</figure>
+
+<h2 id="code">代码对照</h2>
+<p>下表把论文里的设置和代码对应起来（kywind/real2sim-eval 提交 8bd7091，策略子模块 32abb1a）。只读，没有运行，也没有下载资产和检查点。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>论文</th><th>代码位置</th><th>说明</th></tr></thead><tbody>
+<tr><td>Gym 接口</td><td><code>sim/envs/env.py</code></td><td><code>BaseEnv(gymnasium.Env)</code>，reset / step / get_obs</td></tr>
+<tr><td>机器人 ICP + RANSAC</td><td><code>assets/scans/construct_scene_gripper.py</code>、<code>sim/utils/gs/icp_utils.py</code></td><td>8 个连杆（link1–7 + 夹爪基座）各采 2000 点；RANSAC 全局配准后两段 ICP（60 + 40 次迭代）</td></tr>
+<tr><td>颜色对齐</td><td><code>assets/scans/color_alignment.py</code></td><td>3×6 矩阵 + 偏置，Tukey IRLS，50 次（读者注 1）</td></tr>
+<tr><td>物理参数</td><td><code>cfg/physics/default.yaml</code></td><td>fps 30，dt 5e-5，init_spring_Y 3e4，spring_Y_max 1e5，collision_dist 0.005，grasp_force_threshold 3e4，末端摩擦 1.0、弹性 0</td></tr>
+<tr><td>弹簧-质点</td><td><code>sim/physics/spring_mass_warp.py</code></td><td>Warp 核函数 eval_springs、object_collision、mesh_collision、integrate_ground_collision（读者注 12）</td></tr>
+<tr><td>夹爪力阈值</td><td><code>sim/physics/phystwin.py</code> 的 step</td><td>两指各自超过阈值才锁住（读者注 2）</td></tr>
+<tr><td>LBS</td><td><code>sim/utils/gs/transform_utils.py</code> 的 interpolate_motions</td><td>8 邻居求节点旋转，16 近邻倒距离加权，不转高斯朝向（读者注 3）</td></tr>
+<tr><td>刚体 T 形块</td><td><code>experiments/utils/create_rigid_phystwin.py</code></td><td>半径 0.5、50 近邻、刚度 3e4（读者注 11）</td></tr>
+<tr><td>评测网格</td><td><code>cfg/gs/{sloth,rope,T}.yaml</code></td><td>20 / 27 / 16 个格点（读者注 4）</td></tr>
+<tr><td>成功判据</td><td><code>experiments/utils/calculate_success_*.py</code></td><td>读者注 15</td></tr>
+<tr><td>多 GPU 评测</td><td><code>experiments/eval_policy_parallel.py</code></td><td>论文说的多 GPU 并行</td></tr>
+<tr><td>策略训练</td><td>子模块 <code>configs/training/*.json</code></td><td>LeRobot 配置；推 T 的状态和动作是 2 维（读者注 13）；π0 用 openpi，推理在 <code>inference/policy_openpi.py</code></td></tr>
+<tr><td>MMRV / r</td><td>无</td><td>仓库里没有计算相关性指标的脚本（读者注 7）</td></tr>
+</tbody></table></div>
+
+<div class="note" id="n19"><span class="lab">读者注 19 · v1 和 v2 的差别</span>
+<p>我下载了 v1（2025-11-06）和 v2（2025-11-10）两个 PDF，去掉参考文献编号后逐句比较：</p>
+<ul>
+<li>相关工作 II-A 加了 RobotArena ∞ 和 Ctrl-World 两个对比对象，参考文献多了 6 条（OpenVLA、AutoEval、RoboArena、Badithela 等、RobotArena ∞、Ctrl-World），从 80 条变成 86 条，编号顺延。</li>
+<li>§IV-A 策略的列举顺序从“ACT、DP、SmolVLA、π0”改成“ACT、DP、π0、SmolVLA”。附录 I-D-2 加了“相对于预设位姿”几个字。</li>
+<li><b>MMRV 全部换了数，r 一个没变。</b>图 3、图 4、图 9、图 10 的数据点两版相同（我对两版 PDF 分别读点逐一比较，只有第四位小数的取整差），所以变的只是 MMRV 的算法。</li>
+</ul>
+<div class="tablewrap"><table class="t-v12"><thead><tr><th>MMRV</th><th class="n">装玩具 v1 → v2</th><th class="n">穿绳 v1 → v2</th><th class="n">推 T v1 → v2</th></tr></thead><tbody>
+<tr><td>IsaacLab</td><td class="n">– → –</td><td class="n">0.022 → 0.270</td><td class="n">0.031 → 0.196</td></tr>
+<tr><td>w/o 颜色对齐</td><td class="n">0.200 → 0.200</td><td class="n">0.156 → 0.343</td><td class="n">0.031 → 0.354</td></tr>
+<tr><td>w/o 物理优化</td><td class="n">0.200 → 0.241</td><td class="n">0.119 → 0.248</td><td class="n">0.031 → 0.100</td></tr>
+<tr><td>本文</td><td class="n">0.087 → 0.076</td><td class="n">0.096 → 0.174</td><td class="n">0.000 → 0.108</td></tr>
+<tr><td>图 9</td><td class="n">0.092 → 0.105</td><td class="n">0.077 → 0.154</td><td class="n">0.000 → 0.070</td></tr>
+<tr><td>图 10</td><td class="n">0.050 → 0.127</td><td class="n">0.093 → 0.123</td><td class="n">0.000 → 0.047</td></tr>
+</tbody></table></div>
+<p>v1 的数我用 SIMPLER 原定义、交换参数、只算严格排反、按策略均值算等几种写法都没能从图中的点复现；v1 推 T 的 0.000 尤其不可能，因为图 3 推 T 里 ACT 的 (4/16, 6/16) 和 (5/16, 4/16) 就是一对明显的排反。v2 的数则能用交换参数的版本精确复现（读者注 7）。所以 v2 应该是修了一个算法错误，但修成了和 SIMPLER 不同的定义。v2 的变动说明里没有提到这一点。</p>
+</div>
+<div class="note" id="n20"><span class="lab">读者注 20 · “r &gt; 0.9 for all policies”说的是每个任务，不是每个策略</span>
+<p>§IV-C 原文写“Pearson coefficient r &gt; 0.9 for all policies”。表 I 的 r 是每个任务把 4 种策略的全部检查点放在一起算的。如果按策略单独算（用读者注 6 的点），装玩具 ACT 0.772、DP 0.968、π0 0.918、SmolVLA 0.798；穿绳 0.948、0.955、0.994、0.945；推 T ACT 只有 0.037（4 个检查点，真机 4–7/16 挤在一起），DP 0.995、π0 0.982、SmolVLA 0.959。也就是说，同一种策略不同检查点之间的细分，仿真不总是排得对；大的相关性主要来自不同策略、不同训练阶段之间的大差距。</p>
+<p>平均偏差：仿真成功率比真机平均低 3.8（装玩具）、5.7（穿绳）、2.9（推 T）个百分点，平均绝对差 6.8、11.7、8.7 个百分点。仿真整体略偏悲观。</p>
+</div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">颜色变换的函数族</a>：式子是逐通道 9 参数，代码是交叉通道 21 参数。</li>
+<li><a href="#n2">夹爪力阈值</a>：代码要求两指各自超过 3e4，不是总和。</li>
+<li><a href="#n3">LBS 只移动高斯中心</a>：quat=None，扫描高斯的朝向不随形变转（我的推断）。</li>
+<li><a href="#n4">20、27、16 是格点数</a>：5×4、9×3、4×4，和表 VII 对得上。</li>
+<li><a href="#n5">置信区间有多宽</a>：15/20 的 95% 区间是 [0.509, 0.913]，单点约 ±0.2。</li>
+<li><a href="#n6">图 3 的每个点都能读出来</a>：矢量读数精确到 k/N，7 个 r 全部算回。</li>
+<li><a href="#n7">MMRV 是交换参数后算的</a>：按 SimplerEnv 官方函数交换 (sim, real) 才和表 I 一致，权重成了仿真差。</li>
+<li><a href="#n8">IsaacLab 穿绳 MMRV 的解释是 v1 留下的</a>：按 SIMPLER 原定义是 0.480，可复算的五格里最差。</li>
+<li><a href="#n9">图 3 和图 4 有三组点对不上</a>：装玩具-DP 第一个点、装玩具-SmolVLA 点数、穿绳-π0 两个仿真值。</li>
+<li><a href="#n10">表 I 有一格消融更好</a>：推 T MMRV 0.100 &lt; 0.108；推 T 消融改的是摩擦；r 对离群点并不鲁棒。</li>
+<li><a href="#n11">T 形块的半径 0.5</a>：单位米，等于只按 50 近邻连；刚度 3e4 并不特别大。</li>
+<li><a href="#n12">弹簧力的写法和子步数</a>：代码按应变算力，刚度对数存储；每个控制步 667 子步。</li>
+<li><a href="#n13">推 T 的状态是 2 维</a>：表 V 写 8；240×240 会压扁画面。</li>
+<li><a href="#n14">表 VI 的三处数字</a>：PaliGemma 260B 应是 2.6B；ResNet-18 不是 18M；迭代数和配置、图 4 不一致。</li>
+<li><a href="#n15">成功判据和代码</a>：包围盒放大 1.05；推 T 阈值相当于 4.5 cm 均方根距离。</li>
+<li><a href="#n16">图 9、图 10 也能算回来</a>：6 个 r 一致，6 个 MMRV 同样是交换参数。</li>
+<li><a href="#n17">装玩具回放是 15 个检查点</a>：表 VIII 合计 300 = 15 × 20；表和图 10 的合计完全吻合。</li>
+<li><a href="#n18">图 10 的真机成功率和图 3 不完全一样</a>：装玩具有三套真机成绩，原因未核实。</li>
+<li><a href="#n19">v1 和 v2 的差别</a>：加了两篇对比；MMRV 全部换数，r 不变；v1 的 MMRV 无法从图复现。</li>
+<li><a href="#n20">“r &gt; 0.9”是按任务算的</a>：按策略单独算，推 T-ACT 只有 0.037；仿真平均偏低 3 到 6 个点。</li>
+</ol>
+<p>论文没写、我也没找到的：评测速度的具体倍数和 GPU 型号；IsaacLab 基线里绳子关节链的参数；“w/o 颜色对齐”和“w/o 物理优化”的逐检查点数据；推 T 目标遮罩是否进入策略输入；Beta 后验小提琴图的具体用法。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的工具、基准和方法。链接在 2026 年 11 月 10 日用脚本核对，都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://real2sim-eval.github.io/">Real-to-Sim Eval</a></td><td>本文</td><td><a href="https://github.com/kywind/real2sim-eval">代码</a>、<a href="https://huggingface.co/collections/shashuo0104/real-to-sim-policy-eval">资产和检查点</a></td><td><a href="https://arxiv.org/abs/2511.04665">2511.04665</a></td></tr>
+<tr><td><a class="ds" href="https://jianghanxiao.github.io/phystwin-web/">PhysTwin</a></td><td>弹簧-质点数字孪生，本文的动力学</td><td><a href="https://github.com/Jianghanxiao/PhysTwin">代码</a>（MIT）</td><td><a href="https://arxiv.org/abs/2503.17973">2503.17973</a></td></tr>
+<tr><td><a class="ds" href="https://simpler-env.github.io/">SIMPLER</a></td><td>仿真评测真机策略，MMRV 的出处；<a href="simpler.html">站内精读</a></td><td><a href="https://github.com/simpler-env/SimplerEnv">SimplerEnv</a></td><td><a href="https://arxiv.org/abs/2405.05941">2405.05941</a></td></tr>
+<tr><td><a class="ds" href="https://isaac-sim.github.io/IsaacLab/">IsaacLab</a></td><td>基线仿真器（PhysX）</td><td>isaac-sim.github.io/IsaacLab</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/">3D Gaussian Splatting</a></td><td>渲染表示</td><td>repo-sam.inria.fr</td><td><a href="https://arxiv.org/abs/2308.04079">2308.04079</a></td></tr>
+<tr><td><a class="ds" href="https://scaniverse.com/">Scaniverse</a></td><td>iPhone 扫描生成 GS</td><td>scaniverse.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/playcanvas/supersplat">SuperSplat</a></td><td>GS 查看和分割工具</td><td>github.com/playcanvas/supersplat</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a></td><td>GPU 仿真框架，物理引擎底层</td><td>github.com/NVIDIA/warp</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://wuphilipp.github.io/gello_site/">GELLO</a></td><td>遥操作采示范</td><td>wuphilipp.github.io/gello_site</td><td><a href="https://arxiv.org/abs/2309.13037">2309.13037</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/huggingface/lerobot">LeRobot</a></td><td>ACT、DP、SmolVLA 的训练实现</td><td>github.com/huggingface/lerobot</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://tonyzhaozh.github.io/aloha/">ACT</a></td><td>被评测策略</td><td>tonyzhaozh.github.io/aloha</td><td><a href="https://arxiv.org/abs/2304.13705">2304.13705</a></td></tr>
+<tr><td><a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a></td><td>被评测策略</td><td>diffusion-policy.cs.columbia.edu</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td></tr>
+<tr><td><a class="ds" href="https://www.physicalintelligence.company/blog/pi0">π0</a></td><td>被评测策略（openpi 实现）</td><td><a href="https://github.com/Physical-Intelligence/openpi">openpi</a></td><td><a href="https://arxiv.org/abs/2410.24164">2410.24164</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/blog/smolvla">SmolVLA</a></td><td>被评测策略</td><td>huggingface.co/blog/smolvla</td><td><a href="https://arxiv.org/abs/2506.01844">2506.01844</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2510.23571">RobotArena ∞</a></td><td>相关工作，绿幕式 real-to-sim 基准</td><td>–</td><td><a href="https://arxiv.org/abs/2510.23571">2510.23571</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2510.10125">Ctrl-World</a></td><td>相关工作，视频世界模型评测</td><td>–</td><td><a href="https://arxiv.org/abs/2510.10125">2510.10125</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2504.03597">Real-is-sim</a></td><td>相关工作，刚体数字孪生</td><td>–</td><td><a href="https://arxiv.org/abs/2504.03597">2504.03597</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2510.20813">GSWorld</a></td><td>相关工作，GS 闭环仿真</td><td>–</td><td><a href="https://arxiv.org/abs/2510.20813">2510.20813</a></td></tr>
+<tr><td>Kress-Gazit 等</td><td>策略评测的实践建议，固定初始状态的出处</td><td>–</td><td><a href="https://arxiv.org/abs/2409.09491">2409.09491</a></td></tr>
+<tr><td>LBM 评测 [12]</td><td>评测次数与不确定度、按块位置归一化的出处</td><td>–</td><td><a href="https://arxiv.org/abs/2507.05331">2507.05331</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2511.04665 后的整理，不是作者的官方内容。原文：Kaifeng Zhang、Shuo Sha、Hanxiao Jiang、Matthew Loper、Hyunjong Song、Guangyan Cai、Zhuo Xu、Xiaochen Hu、Changxi Zheng、Yunzhu Li，《Real-to-Sim Robot Policy Evaluation with Gaussian Splatting Simulation of Soft-Body Interactions》，arXiv 2511.04665 v2，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 11 从原文 PDF 裁切，只做了裁切、缩放和格式转换。表格数字照录原文；读者注和代码对照是我的核算，代码来自 kywind/real2sim-eval（MIT）提交 8bd7091。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

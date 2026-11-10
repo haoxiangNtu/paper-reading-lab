@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Real-to-Sim 策略评测拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.04665 的框架做成 11 幕 3D 动画：手机扫描与 3DGS 分割、当场计算的 ICP 和连杆分配、代码里的颜色矩阵、可模拟的弹簧-质点绳子、从“视频”辨识刚度、夹爪力阈值、LBS、仿真闭环和双相机、按图中读数当场算 r 和两种 MMRV、和 SIMPLER 绿幕的对比。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.ae .renders{top:auto;bottom:52px;right:10px}
+.ae .renders[hidden]{display:none}
+body.embed.ae .renders canvas{width:150px;height:112px}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="real2sim-eval.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/real2sim-eval.html">返回精读</a><a href="../../papers/real2sim-eval.html#s3-c">原文 §III-C</a><a href="../../papers/real2sim-eval.html#s4-c">§IV-C 相关性</a><a href="../../papers/simpler.html">SIMPLER</a><a href="https://arxiv.org/abs/2511.04665">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2511.04665 · Real-to-Sim 策略评测</p>
+<h1>一个能拿来评测真机策略的仿真器，是怎样搭起来的</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 4 幕是外观：扫描、对齐、颜色；<b>第 5 幕是核心，弹簧-质点绳子当场模拟</b>；第 6 到 8 幕是动力学怎么辨识、夹爪怎么抓、高斯怎么跟着动；第 9 幕是策略闭环和两路相机；<b>第 10 幕按论文图中读数当场算 r 和两种 MMRV</b>；第 11 幕和 SIMPLER 的绿幕对比。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。第 10 幕的点是从原文矢量图读出的精确值；第 4 幕的颜色矩阵来自官方代码（提交 8bd7091）；第 5 到 8 幕的物理是玩具，单位是我设的。没有任何高斯泼溅渲染器或策略网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div id="renders" class="renders" hidden>
+      <figure><canvas id="ins0" width="360" height="270"></canvas><figcaption id="insc0"></figcaption></figure>
+      <figure><canvas id="ins1" width="360" height="270"></canvas><figcaption id="insc1"></figcaption></figure>
+    </div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每一步，论文和代码并列</h2>
+<p class="sub">代码是 kywind/real2sim-eval 提交 8bd7091（2025-11-10）和策略子模块 shuosha/policy_training 提交 32abb1a，只读未运行。两者都是 MIT 许可。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">外观</td></tr>
+<tr><td>A1</td><td>扫描</td><td>Scaniverse（iPhone），工作区一次 + 每个物体一次；SuperSplat 手动分割</td><td>资产在 HF shashuo0104/gs-scans；scene_gripper / scene_pusher 两个工作区</td></tr>
+<tr><td>A2</td><td>机器人对齐</td><td>ICP + RANSAC，每连杆 2000 点；附录：先手动粗对齐、手动框选</td><td>construct_scene_gripper.py：8 个连杆各 2000 点；RANSAC 后 ICP 60 + 40 次</td></tr>
+<tr><td>A3</td><td>连杆分配</td><td>每个高斯继承最近 URDF 点的连杆编号</td><td>同上脚本；夹爪手指单独成连杆，开合可渲染</td></tr>
+<tr><td>A4</td><td>颜色对齐</td><td>式 (3)：逐通道 d 次多项式，d = 2；IRLS</td><td>color_alignment.py：A·[p²; p] + b，A 为 3×6；Tukey c = 4.685；按 RGB 范数加权；50 次</td></tr>
+<tr class="grp"><td colspan="4">动力学</td></tr>
+<tr><td>D1</td><td>弹簧力</td><td>PhysTwin 论文：k(‖Δx‖ − l)</td><td>eval_springs：clip(e^y, 0, 1e5)·(‖Δx‖/l − 1) + 阻尼 100</td></tr>
+<tr><td>D2</td><td>积分</td><td>显式欧拉，拖曳衰减</td><td>dt = 5e-5，fps 30 → 667 子步；v *= e^(−3dt)；质量全为 1</td></tr>
+<tr><td>D3</td><td>辨识</td><td>PhysTwin 原版代码训练绳子和树懒；三台 D455</td><td>检查点在 HF phystwin-toy / rope / T-block</td></tr>
+<tr><td>D4</td><td>刚体 T 形块</td><td>半径 0.5、50 近邻、刚度 3×10⁴</td><td>create_rigid_phystwin.py：表面 1024 + 内部 10000 点，5 mm 体素去重</td></tr>
+<tr><td>D5</td><td>抓取</td><td>只有摩擦接触；碰撞力总和到阈值停止合拢</td><td>phystwin.py：两指各取 3 个面片，两指都 &gt; 3e4 才锁住；都 &lt; 100 时释放</td></tr>
+<tr><td>D6</td><td>LBS</td><td>按 PhysTwin：节点旋转 + 倒距离加权</td><td>邻居 8、K = 16；quat=None，只移中心</td></tr>
+<tr class="grp"><td colspan="4">评测</td></tr>
+<tr><td>E1</td><td>初始状态</td><td>网格，20 / 27 / 16</td><td>cfg/gs/*.yaml grid_randomization：5×4、9×3、4×4</td></tr>
+<tr><td>E2</td><td>成功判据</td><td>最后 100 帧中 30 帧以上满足：3050 / 3095 质点在盒内；两开口各 &gt; 100 段；均方距离 &lt; 0.002</td><td>calculate_success_*.py；包围盒放大 1.05；判定用 ≥</td></tr>
+<tr><td>E3</td><td>策略输入</td><td>两路图像 + 末端状态；表 V 全写 8 维</td><td>推 T 的状态和动作是 2 维；穿绳 120×212，其他 240×240</td></tr>
+<tr><td>E4</td><td>指标</td><td>按 SIMPLER 的 MMRV 和 r</td><td>仓库里没有计算脚本；从数字反推是 SIMPLER 函数参数交换</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的扫描。</b>约 1300 个椭球、颜色和手机路径都是我设的；真实扫描有几十万个高斯。</li>
+<li><b>第 3 幕的 ICP。</b>机械臂是手工的，每个连杆 70 个点；ICP、残差和连杆分配都当场算。</li>
+<li><b>第 4 幕的输入颜色。</b>我挑的一组典型颜色；矩阵来自代码配置。逐通道拟合的残差当场算。</li>
+<li><b>第 5、6 幕的绳子。</b>24 个节点，质量、阻尼、步长是我设的单位；力的公式照代码。第 6 幕的“观测”是用隐藏参数模拟的，不是视频；两段优化用网格搜索和逐段试探代替 CMA-ES 和梯度下降。</li>
+<li><b>第 7 幕的抓取。</b>二维截面，阈值和单位都是我设的，不能和代码的 3e4 比。</li>
+<li><b>第 8 幕的布条。</b>规定的弯曲加扭转，不是模拟；K = 4。节点旋转用 Horn 四元数法当场解。</li>
+<li><b>第 9、11 幕的渲染。</b>普通 WebGL 方块和球，不是高斯泼溅。第 11 幕的“背景照片”是页面从固定相机渲染的图。</li>
+<li><b>第 10 幕的数据</b>不是示意：从原文图 3、9、10 的矢量图读出，r 和 MMRV 与论文逐位一致（MMRV 要交换参数）。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2511.04665 后的理解，不是作者的官方图。原图见<a href="../../papers/real2sim-eval.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
