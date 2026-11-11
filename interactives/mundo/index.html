@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mundo 拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="Mundo（Customized World Model）的管线做成 11 幕 3D 动画：上下文图像和覆盖率、几何与 3D 检测初始框、VLM 分析-合成精修（IoU 和框拟合当场算）、场景程序、960 Hz 刚体模拟、类别纯色 proxy 帧和 Plücker 射线、视频扩散条件与长视频分块、改代码编辑世界、A* 机器人任务、和其他世界模型路线的对比。没有论文，依据是项目页和 Hugging Face 博客。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.codep{position:absolute;left:10px;bottom:52px;margin:0;max-width:min(60%,520px);font:12px/1.55 var(--font-mono);background:color-mix(in srgb,var(--bg2) 90%,transparent);border:1px solid var(--line);border-radius:8px;padding:6px 10px;pointer-events:none;white-space:pre;overflow:hidden}
+.codep[hidden]{display:none}
+.codep span{display:inline-block;padding:0 4px;border-radius:4px;min-width:100%}
+.codep span.on{background:color-mix(in srgb,var(--accent) 28%,transparent);color:var(--fg)}
+.codep span.ed{background:color-mix(in srgb,var(--note) 30%,transparent)}
+.codep i{font-style:normal;color:var(--muted)}
+.codep::before{content:"伪代码（示意，仿项目页改写）";display:block;font-family:var(--font-body);font-size:11px;color:var(--note);margin-bottom:2px}
+.below table{width:100%}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .codep{font-size:11px;max-width:58%}
+body.embed.ae .renders canvas{width:150px;height:112px}
+.ae .renders figure[hidden]{display:none}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal;font-family:inherit;font-size:13.5px}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+@media (max-width:640px){ .codep{max-width:92%;bottom:96px;font-size:10.5px} }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="mundo.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/mundo.html">返回精读</a><a href="../../papers/mundo.html#tech">技术细节</a><a href="../../papers/mundo.html#rel">和站内页面的关系</a><a href="https://mundo-world-model.github.io/">项目页</a><a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model">博客</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · 无论文 · 项目页 + Hugging Face 博客 · Mundo</p>
+<h1>几张照片怎样变成一个能编辑、能模拟、能渲染的世界</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 4 幕是建世界：上下文图像、几何和初始框、<b>VLM 分析-合成精修（IoU 和框拟合当场算）</b>；第 5、6 幕是世界怎么跑：场景程序和<b>当场积分的模拟器</b>；第 7、8 幕是怎么画出来：类别纯色的 proxy 帧和视频扩散渲染（含长视频分块的账）；第 9 幕改代码编辑世界；第 10 幕机器人在代理上用 A* 规划并搬包；第 11 幕和其他世界模型路线对比。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。<b>这篇没有论文，代码和权重也没放出</b>，所以房间、家具、相机、伪代码都是我做的玩具，没有用项目页的任何图像、视频或几何数据。VLM 智能体、MuJoCo 和视频扩散模型都没有在这里运行，它们的位置用橙色“示意”标出。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <pre id="code" class="codep" hidden></pre>
+    <div id="renders" class="renders" hidden>
+      <figure><canvas id="ins0" width="360" height="270"></canvas><figcaption id="insc0"></figcaption></figure>
+      <figure><canvas id="ins1" width="360" height="270"></canvas><figcaption id="insc1"></figcaption></figure>
+    </div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每一步，哪些公开了</h2>
+<p class="sub">材料是项目页 mundo-world-model.github.io 和 Hugging Face 博客（2026-10-23 发布），2026-11-11 读。GitHub 仓库 Luo-Yihang/Mundo 只有 README，写着代码和权重“十一月底”放出。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>项目页 / 博客说了什么</th><th>没说的（本页怎么画）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">建世界</td></tr>
+<tr><td>B1</td><td>输入</td><td>真实场景 1 到 12 张；生成图或画 1 张；大场景几十张；也可以是视频</td><td>分辨率、是否需要已知内参</td></tr>
+<tr><td>B2</td><td>几何</td><td>“3D 基础模型”恢复位姿和稠密几何，列了 4RC、π³、VGGT、Depth Anything 3、STream3R</td><td>实际用的是哪一个（第 3 幕的点云是玩具）</td></tr>
+<tr><td>B3</td><td>初始框</td><td>3D 检测器 Boxer</td><td>阈值、类别表</td></tr>
+<tr><td>B4</td><td>精修</td><td>编辑智能体 + 审阅智能体的分析-合成循环；VLM 定性判断，优化器拟合位置、尺寸、yaw；留一视图检查；三种停止条件</td><td>用哪个 VLM、轮数、编辑上限、损失形式（第 4 幕用坐标下降和 2D IoU 代替）</td></tr>
+<tr><td>B5</td><td>表示</td><td>3D 框为主；精细交互的物体可粗建模或用 TRELLIS；机器人从资产库取</td><td>框之外的几何怎么存</td></tr>
+<tr class="grp"><td colspan="4">运行</td></tr>
+<tr><td>R1</td><td>场景程序</td><td>代码世界模型：物体、位姿、物理属性和更新规则；伪代码示例两段</td><td>真实接口（第 5、9 幕的伪代码是改写）</td></tr>
+<tr><td>R2</td><td>物理参数</td><td>智能体读场景，推出质量、摩擦、外力</td><td>怎么推、误差多大</td></tr>
+<tr><td>R3</td><td>模拟器</td><td>多数用 MuJoCo；示例 hz = 960</td><td>布料、可变形物体用什么（第 6、9 幕是自写的一维/二维积分器）</td></tr>
+<tr class="grp"><td colspan="4">渲染</td></tr>
+<tr><td>V1</td><td>proxy 帧</td><td>按类别纯色渲染；坐标对齐到第一张上下文视图</td><td>配色、是否带深度或实例（第 7 幕配色是我选的）</td></tr>
+<tr><td>V2</td><td>条件</td><td>proxy 视频和上下文视图过视频 VAE，latent 接在目标序列后；Plücker 相机编码在第一个块前相加；无相机参考图用学到的编码</td><td>文本 y 写什么、注意力掩码（第 8 幕的方块是示意）</td></tr>
+<tr><td>V3</td><td>模型和训练</td><td>微调 MiniMax-H3 Ref2VA；约 4 万对视频；124 帧、640×480</td><td>步数、学习率、各数据集占比</td></tr>
+<tr><td>V4</td><td>长视频</td><td>每块 124 帧，后 34 帧作下一块前缀；每块单独选上下文视图</td><td>怎么选（第 8 幕按距离挑 3 张，示意）</td></tr>
+<tr><td>V5</td><td>速度</td><td>重建 10 到 20 分钟；渲染约 1.5 帧/秒（8 × A800，20 步）</td><td>—</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意或玩具</h2>
+<ul class="mine">
+<li><b>整个房间。</b>6 m × 4 m 的玩具酒店房间，10 件家具和 9 个相机位置都是我设的，和项目页首页的酒店房间无关。</li>
+<li><b>第 2 幕的覆盖率</b>是当场算的（视锥 + 遮挡），但它只说明“视图越多、推断越少”这个方向，不代表 Mundo 的任何数字。</li>
+<li><b>第 3 幕的初始框错误</b>是我手写的；错误类型参照了我对项目页公开数据的对照（精读页读者注 5）。</li>
+<li><b>第 4 幕的智能体</b>：VLM 的决定写死；边点从真值框的棱上采样加噪声；拟合用坐标下降；IoU 和阈值 0.8 是我的。</li>
+<li><b>第 5、9 幕的伪代码</b>仿照项目页两段示例改写，接口名沿用，数值是我的。</li>
+<li><b>第 6、9 幕的物理</b>是自写的显式积分（dt = 1/960 s），不是 MuJoCo；三个球的恢复系数和高度取自项目页 §2.2 的参数标注，月球重力 1.62 m/s² 同。</li>
+<li><b>第 7、8、10 幕的小窗</b>：proxy 帧是纯色材质渲染；“渲染”小窗是普通光照渲染，不是视频扩散模型的输出。</li>
+<li><b>第 8 幕的分块账</b>按博客的 124 / 34 帧当场算，不是示意；上下文视图的挑选规则是示意。</li>
+<li><b>第 11 幕</b>的四列划分是我的概括。</li>
+</ul>
+</section>
+<footer><p>图解是我读 Mundo 项目页和 Hugging Face 博客（Luo 等，2026；页面标注“Mundo © 2026”，未见开放许可）后的理解，不是作者的官方图，也没有使用它们的图像、视频或数据。逐节内容和核算在<a href="../../papers/mundo.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

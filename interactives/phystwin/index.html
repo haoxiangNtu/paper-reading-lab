@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PhysTwin 拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.17973 PhysTwin 的框架做成 11 幕 3D 动画：三台 RGB-D 相机和最远点采样的控制点、形状先验配准、按代码规则当场连弹簧、可拖动的弹簧-质点模拟、浏览器里真跑的 CMA-ES、手写反向传播的逐弹簧刚度、碰撞参数的损失曲线、高斯 LBS、预测和三张结果表、键盘交互和 MPC。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .hint{font-size:12px;color:var(--muted)}
+.below table{width:100%}
+body.embed.pt .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="phystwin.js" defer></script>
+</head>
+<body class="ae pt">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/phystwin.html">返回精读</a><a href="../../papers/phystwin.html#s4-2-1">原文 §4.2.1</a><a href="../../papers/phystwin.html#code">代码对照</a><a href="../../papers/real2sim-eval.html">Real-to-Sim 评测</a><a href="https://arxiv.org/abs/2503.17973">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2503.17973 · PhysTwin</p>
+<h1>从三段视频到一个能拖、能预测的物理孪生</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是输入和形状先验；第 4 幕按代码的规则当场连弹簧；<b>第 5 幕是核心，弹簧-质点模拟当场计算，可以用鼠标拖控制点</b>；第 6 到 8 幕是两段优化：真跑的 CMA-ES、手写反向传播求每根弹簧的刚度、碰撞参数；第 9 幕是高斯跟着质点动；第 10 幕是预测和三张结果表；第 11 幕是键盘交互和规划。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。第 5 幕可以直接拖粉色的控制点；第 11 幕选“键盘交互”后可以用 W/S/A/D/E/Q 和 I/K/J/L/O/U 控制两只手。力的公式、积分顺序、碰撞公式和连接规则照官方代码（提交 81c7187），物体、单位和参数都是玩具。第 10 幕的柱子是论文表 1 到表 3 的原数。没有任何高斯泼溅渲染器在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox" id="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每一步，论文和代码并列</h2>
+<p class="sub">代码是 Jianghanxiao/PhysTwin 提交 81c7187（2026-08-24），只读未运行。根目录 MIT；高斯泼溅部分源自 Inria 3DGS（非商业许可），这里只写文件名和参数。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和几何</td></tr>
+<tr><td>G1</td><td>采集</td><td>三台 RealSense D455，每段 1–10 秒，22 个场景，7 : 3 划分</td><td>camera_system.py：3 台，848×480，30 FPS；process_data.py：同一段视频按帧切</td></tr>
+<tr><td>G2</td><td>跟踪</td><td>CoTracker3 跟踪，深度反投影到 3D，作为伪真值</td><td>data_process_track.py：按邻居运动一致性过滤无效跟踪</td></tr>
+<tr><td>G3</td><td>控制点</td><td>Grounded-SAM2 分割手，CoTracker3 跟踪，最远点采样</td><td>farthest_point_down_sample(30)：30 个控制点</td></tr>
+<tr><td>G4</td><td>形状先验</td><td>超分 → TRELLIS → SuperGlue 选视角 → PnP → 尺度 → ARAP → 光线对齐</td><td>align.py：num_samples 8、num_ups 4 个虚拟视角；尺度只解一个标量</td></tr>
+<tr><td>G5</td><td>质点</td><td>没给数量</td><td>data_process_sample.py：表面 1024 + 内部 10000 候选，5 mm 体素去重</td></tr>
+<tr class="grp"><td colspan="4">物理</td></tr>
+<tr><td>P1</td><td>拓扑</td><td>最近邻连接，参数是半径和最大近邻数</td><td>open3d 混合搜索，idx[1:] 去掉自身，成对去重；默认 0.02 / 30，控制点 0.04 / 50</td></tr>
+<tr><td>P2</td><td>弹簧力</td><td>式 (1)：k(‖Δx‖ − l)，阻尼 −γ(vᵢ − vⱼ)</td><td>eval_springs：clip(e^θ, 0, 1e5)·(‖Δx‖/l − 1) + c·(Δv·d̂)d̂；控制点速度恒为 0</td></tr>
+<tr><td>P3</td><td>积分</td><td>“显式欧拉”，v ← δv + Δt F/m，x ← x + Δt v</td><td>v ← (v + Δt(F/m + g))·e^(−Δt·drag)；质量全为 1；dt 5e-5，667 子步</td></tr>
+<tr><td>P4</td><td>碰撞</td><td>基于冲量，点和碰撞体、点和点</td><td>地面：弹性 e、摩擦系数 a = max(0, 1 − μ(1+e)|vₙ|/|vₜ|)，带碰撞时刻；点对点：冲量取平均；布和包装开自碰撞</td></tr>
+<tr class="grp"><td colspan="4">两段优化</td></tr>
+<tr><td>O1</td><td>零阶</td><td>拓扑、统一刚度、碰撞参数</td><td>cma_optimize_warp.py：12 维（另含两个阻尼、碰撞距离），σ = 1/6，20 代，种群 11</td></tr>
+<tr><td>O2</td><td>一阶</td><td>逐弹簧刚度 + 碰撞参数，可微模拟器</td><td>trainer_warp.py：Adam 1e-3，每帧反传一次就更新；200 轮（布 100 轮）</td></tr>
+<tr><td>O3</td><td>损失</td><td>单向 Chamfer + 跟踪误差</td><td>平方距离 + smooth L1；第一段另有 0.01 的加速度平滑项</td></tr>
+<tr class="grp"><td colspan="4">外观和应用</td></tr>
+<tr><td>A1</td><td>高斯</td><td>第一帧，各向同性，L1 + D-SSIM</td><td>gs_run.sh：10000 次，--isotropic，另有深度 0.001 和分割 1.0 两项</td></tr>
+<tr><td>A2</td><td>LBS</td><td>式 (5)–(8)，K 个最近节点，距离倒数加权</td><td>gs_render_dynamics.py：节点邻居 16、K = 16，转朝向</td></tr>
+<tr><td>A3</td><td>交互</td><td>键盘或遥操作，实时</td><td>interactive_playground.py：两只手各 6 个键，每帧 0.005；README：4090 上树懒约 37 FPS</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的相机和跟踪。</b>相机位置、可见性（只按法向判断，不算遮挡）和“跟踪点”都是我设的；手部点云的最远点采样是当场算的。</li>
+<li><b>第 3 幕的配准。</b>生成网格的错位、32 个虚拟视角的“匹配数”和 ARAP 的形变量都是示意，只有步骤顺序照论文和 align.py。</li>
+<li><b>第 4、5 幕的物体。</b>绳子 72 点、布 121 点、毛绒玩具 239 点，单位是我设的（不是米）。连接规则、力的公式、积分和地面碰撞照代码；刚度、阻尼、Δt = 1/600、每帧 20 子步是我设的。</li>
+<li><b>第 6 幕的 CMA-ES。</b>只搜 3 个参数（刚度、连接半径、拖曳阻尼），“观测”是用隐藏参数模拟出来的，不是视频。CMA-ES 按 Hansen 教程的默认设置写，种群 7，20 代，σ = 1/6，都是当场跑的。</li>
+<li><b>第 7 幕的梯度。</b>反向传播是手写的，和有限差分核对到 5 位有效数字；和代码一样每帧截断、每帧做一次 Adam。学习率 0.02、刚度上限 6000 是我设的（代码 1e-3、1e5）。</li>
+<li><b>第 8 幕的碰撞。</b>4×4×4 的小方块被扔向地面，观测用隐藏的 e = 0.45、μ = 0.35 生成；损失曲线是当场扫出来的。</li>
+<li><b>第 9 幕的高斯。</b>布在当场模拟，高斯是普通 WebGL 椭球，K = 4（代码 16）；节点旋转用 Horn 四元数法当场解。</li>
+<li><b>第 10 幕的柱子</b>不是示意：是论文表 1、表 2、表 3 的原数。玩具预测部分用第 7 幕学到的参数当场模拟。</li>
+<li><b>第 11 幕的规划。</b>随机采样 24 条控制轨迹、用“孪生”参数挑最好的一条，再在“真实”参数下执行；这是随机打靶 MPC，不是论文或 PhysTwin-MPC 的 MPPI 实现。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2503.17973 和官方代码后的理解，不是作者的官方图。原文的图见<a href="../../papers/phystwin.html">精读页</a>的文字描述和“看原图”链接（论文是 arXiv 非独占分发许可，这里不放原图）。</p></footer>
+</div>
+</body>
+</html>

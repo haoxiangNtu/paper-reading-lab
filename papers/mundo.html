@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mundo 精读 · Paper Reading Lab</title>
+<meta name="description" content="Mundo: Customized World Model 的中文精读。没有论文，依据是项目页和 Hugging Face 博客（2026-10-23 发布，2026-11-11 读）：按项目页和博客的顺序逐节整理，含博客的渲染公式、博客引用的全部相关工作、从项目页公开数据做的核对、和站内 3D World Simulator、Real2Sim-Eval、GAUGE 以及 Wan2.1 / VPP2 的对照、11 幕 3D 框架动画和 14 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-src{min-width:660px}.t-cmp{min-width:760px}.t-phys{min-width:700px}.t-time{min-width:560px}.t-refs{min-width:680px}.t-links{min-width:640px}.t-4d{min-width:600px}.t-sm{min-width:480px}.t-box{min-width:620px}
+.t-time td:first-child,.t-4d td:nth-child(2),.t-4d td:nth-child(3){font-family:var(--font-mono);font-size:12.5px;white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.guess{border-left:3px solid var(--note);background:var(--panel);padding:6px 12px;border-radius:0 6px 6px 0;margin:12px 0;max-width:74ch;font-size:14.5px}
+.guess b:first-child{color:var(--note)}
+.notes li{max-width:74ch}
+.code-quote{font-family:var(--font-mono);font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;max-width:74ch;overflow-x:auto;white-space:pre}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/mundo/index.html">3D 框架动画</a><a href="3dws.html">3D World Simulator</a><a href="real2sim-eval.html">Real2Sim-Eval</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">无论文 · 项目页 + Hugging Face 博客 · 2026 年 10 月 23 日发布 · 2026 年 11 月 11 日读 · 中文精读</p>
+<h1>Mundo：从几张照片定制一个能编辑、能模拟的世界模型</h1>
+<p class="orig">Mundo: Customized World Model</p>
+<p>作者 Yihang Luo、Zunnan Xu、Shangchen Zhou、Yushi Lan、Kang Liao、Zerui Gong、Xiaoming Wu、Qingyi Tao、Zhonghua Wu、Bixuan Jin、Fei Wang、Zhi Hou、Xiaogang Wang、Xingang Pan、Chen Change Loy。项目页列出的机构是 MMLabnTU、南洋理工大学和 ACE Robotics，没有逐人标注单位。</p>
+<div class="meta"><a href="https://mundo-world-model.github.io/">项目页</a><a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model">Hugging Face 博客</a><a href="https://github.com/Luo-Yihang/Mundo">GitHub（只有 README）</a><a href="https://yihangluo.com/weekupdate/customized-world-model-v2/">作者主页上的镜像</a><span>没有 arXiv，没有技术报告；BibTeX 是 @misc，指向项目页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>Mundo <b>没有论文</b>。我能读到的只有三样东西：项目页、Hugging Face 博客，以及 GitHub 上只有 README 和 assets 的仓库。项目页和博客都在 2026-10-23 发布（博客署的日期；仓库同日创建；项目页样式文件的版本串是 20261023）。我在 2026-11-11 重新抓了一次两页，和之前存的版本逐字比对，正文没有变化，只有 Hugging Face 的请求编号不同。同一天按作者名和“Mundo”“Customized World Model”查了 arXiv 和网页搜索，没有找到论文或技术报告。</p>
+<p>代码和权重还没放出，README 的待办写着“十一月底”。所以下面这些<b>都没有公开</b>：渲染器之外的模型规模、VLM 是哪个、几何用的是哪个模型、训练的具体设置、任何定量指标和对比实验。博客倒是给了几项项目页没有的细节：渲染器是在 MiniMax-H3 的 Ref2VA 上微调的，约 4 万对训练视频，124 帧 640×480，以及速度。凡是我推断的地方都标“推断”，查不到依据的标“未核实”。</p>
+<p><b>许可和图。</b>项目页页脚只写“Mundo © 2026”，仓库没有 LICENSE，博客没有声明开放许可，所以按全权保留处理：<b>本页不放任何原图、视频截图或 GIF，本地也没有存</b>，没有下载项目页的视频。每个视频和交互都用自己的话描述，并链接回项目页对应的锚点或博客对应的小节。项目页没有使用条款，也没有禁止脚本访问的声明。为了核对页面上的数字，我读了项目页交互用的几个 JSON 数据文件（场景框、物理参数、时间线），只在本页引用由它们算出的少量数字，没有把文件复制进仓库。博客配图放在 Hugging Face 数据集 Luo-Yihang/mundo-blog-assets 里，数据集卡片也没有写许可。</p>
+<p>项目页有两段“简化的参考”伪代码。本页只引了其中一行，其余用表格和自己的话转述。标成“读者注”的框是我核算或对照的结果，不属于作者的内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">速览</a><a href="#src">材料与版本</a><a href="#rel">和站内页面的关系</a><a href="#ov">0 概述</a><a href="#s1">01 空间探索</a><a href="#s2">02 物理交互</a><a href="#s3">03 动态模拟</a><a href="#s4">04 机器人应用</a><a href="#tech">05 技术细节</a><a href="#b1">博客 §1 代理世界</a><a href="#b2">博客 §2 代码世界</a><a href="#b3">博客 §3 渲染器</a><a href="#i3d">3D 框架动画</a><a href="#b4">博客 §4 训练</a><a href="#lim">局限</a><a href="#refs">博客引用的工作</a><a href="#open">没有答案的问题</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">速览</h2>
+<p>世界模型要能描述一个环境的结构、外观和动力学。Mundo 的目标是“定制”：给一个具体地方的几张照片（或一段视频），得到这个地方的世界，可以换视角看、可以改里面的东西、可以模拟物体和机器人在里面怎么动，并渲染成那个地方的视频。</p>
+<ul>
+<li><b>怎么表示世界：</b>不是一个隐式网络，而是一个显式的 <b>3D 代理</b>（每个物体一个 3D 框，加墙、地面、天花板）和一段 <b>场景程序</b>（代码里记录物体、位姿、质量摩擦等属性和更新规则）。代理由 3D 检测器给初始框，再由 VLM 智能体用“分析-合成”循环修正。</li>
+<li><b>物理由谁算：</b>模拟器，多数情况下是 <a class="ds" href="https://mujoco.org/">MuJoCo</a>。脚本动作也可以直接写在程序里。</li>
+<li><b>外观由谁画：</b>模拟后的世界从目标相机渲染成按类别纯色的 <b>proxy 帧</b>，视频扩散模型以 proxy 视频和上下文照片为条件生成真实画面。渲染器是在 <a class="ds" href="https://github.com/MiniMax-AI/MiniMax-H3">MiniMax-H3</a> 的 Ref2VA 上微调的。</li>
+<li><b>能做什么（只有演示）：</b>1 到 12 张照片的新视角漫游、单张生成图或名画的漫游、几十张照片的长路径；改代码做物理交互（换材料、换重力）；机器人导航和操作；4D 的“子弹时间”；在一层酒店楼面上做导航。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，Mundo 的分工很清楚：<b>显式代理 + 代码 + 模拟器管“发生了什么”，视频扩散只管“看起来像什么”</b>。这让它能改一个数重算，也能输出视频里看不到的接触力和轨迹；代价是物理只有代理那么细，博客自己承认小物体会漂浮、处理小物体时会出现幻觉。第二，<b>所有能力都只有演示，没有任何定量评测</b>：没有新视角指标、没有和其他世界模型的对比、没有用 Mundo 训练或评测机器人策略的结果（<a href="#n4">读者注 4</a>）。第三，项目页公开的交互数据是能核对的，而且核对下来是自洽的：三个球的弹跳高度比等于恢复系数的平方（<a href="#n2">读者注 2</a>），苹果砸显示器那一段的时间线和伪代码对得上（<a href="#n1">读者注 1</a>），酒店房间的初始框到最终代理正好体现了博客说的几类错误（<a href="#n5">读者注 5</a>）。</p>
+
+<h2 id="src">材料与版本</h2>
+<div class="tablewrap"><table class="t-src"><thead><tr><th>材料</th><th>日期</th><th>内容</th><th>我怎么用</th></tr></thead><tbody>
+<tr><td><a href="https://mundo-world-model.github.io/">项目页</a></td><td>2026-10-23（样式版本串）；11-11 重抓无变化</td><td>概述、01 到 05 五章、贡献者、BibTeX；大量视频和 three.js 交互</td><td>按章节逐节整理；读了交互用的 JSON 来核对数字</td></tr>
+<tr><td><a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model">Hugging Face 博客</a></td><td>2026-10-23；11-11 重抓正文无变化</td><td>TL;DR、How Mundo works 四节（含公式）、What the world supports、Limitations、14 条参考文献</td><td>技术细节的主要来源</td></tr>
+<tr><td><a href="https://github.com/Luo-Yihang/Mundo">GitHub Luo-Yihang/Mundo</a></td><td>2026-10-23 创建，3 个提交，最后一个 dee7da5</td><td>README（TL;DR、待办、BibTeX）和 assets；没有 LICENSE</td><td>只确认“代码和权重十一月底放出”</td></tr>
+<tr><td><a href="https://yihangluo.com/weekupdate/customized-world-model-v2/">作者主页镜像</a></td><td>同一版本串</td><td>项目页的另一个副本；博客配图数据集的卡片指向它</td><td>逐字比对，见<a href="#n14">读者注 14</a></td></tr>
+<tr><td><a href="https://huggingface.co/datasets/Luo-Yihang/mundo-blog-assets">mundo-blog-assets</a></td><td>2026-10-28 更新</td><td>博客的 9 张 GIF 和 1 张 PNG；卡片没有许可</td><td>没有下载</td></tr>
+</tbody></table></div>
+
+<h2 id="rel">和站内已有页面的关系</h2>
+<p>站内已经读过三篇和“用模拟来代替真实世界”有关的论文，World Model Lab 还拆过视频扩散世界模型 Wan2.1 和在它上面做的 VPP2。Mundo 正好处在它们中间，所以先把位置摆清楚。下表是我按各自原文或页面概括的，Mundo 一列只依据项目页和博客。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>纯视频世界模型<br><a href="https://haoxiangntu.github.io/world-model-lab/docs/wan.html">Wan2.1</a> / <a href="https://haoxiangntu.github.io/world-model-lab/docs/vpp2.html">VPP2</a></th><th>Mundo</th><th><a href="real2sim-eval.html">Real2Sim-Eval</a><br>3DGS + PhysTwin</th><th><a href="3dws.html">3D World Simulator</a></th></tr></thead><tbody>
+<tr><td>输入</td><td>一张图 + 文本（VPP2 还有动作/指令）</td><td>1 到几十张照片，或一段视频</td><td>手机扫描整个工作台 + 每个软体物体一段交互视频</td><td>多视角 RGB-D 和机器人动作，大规模数据训练</td></tr>
+<tr><td>世界状态</td><td>扩散模型的隐变量，读不出来</td><td><b>显式</b>：3D 框 + 场景程序（代码）</td><td><b>显式</b>：3D 高斯 + 弹簧-质点粒子</td><td>粒子-体素潜变量（学到的）</td></tr>
+<tr><td>动力学</td><td>隐含在去噪网络里</td><td><b>MuJoCo 或脚本</b>，参数由智能体推出</td><td>PhysTwin，弹簧刚度从视频辨识</td><td>学到的 3D 动力学网络</td></tr>
+<tr><td>外观</td><td>扩散生成</td><td><b>扩散生成</b>，以 proxy 视频和照片为条件</td><td>扫描出的高斯直接光栅化</td><td>解码出可渲染的高斯</td></tr>
+<tr><td>能改什么</td><td>提示词、条件图</td><td>代码里的任意物体、属性、相机、重力</td><td>模拟参数、初始摆放</td><td>输入的动作</td></tr>
+<tr><td>速度</td><td>Wan2.1 I2V-14B 要多卡、多步</td><td>重建 10 到 20 分钟；渲染约 1.5 帧/秒（8 × A800）</td><td>单 GPU 5 到 30 FPS</td><td>见原文</td></tr>
+<tr><td>定量结果</td><td>VPP2 有真机任务成功率</td><td><b>没有</b></td><td>仿真与真机成功率 r 0.90 到 0.94</td><td>开环预测指标；仿真与真机 r 0.86 到 0.97</td></tr>
+</tbody></table></div>
+<p><b>和纯视频世界模型比。</b>Wan2.1 一类模型把“发生什么”和“看起来像什么”都交给同一个去噪网络。<a href="gauge.html">GAUGE</a> 的结论之一就是，这类模型生成的运动可以形式对、参数错：轨迹符合方程的形状，加速度、动量传递和周期却算错。Mundo 的做法等于承认这一点：动力学从视频模型里拿出来，交给显式模拟器，视频模型只看 proxy 帧“照着画”。条件注入的方式也不同：Wan2.1 I2V 把条件图按通道拼进输入（World Model Lab 的 Wan2.1 页第 4 节），Mundo 是把 proxy 视频和上下文视图的 latent <b>接在序列后面</b>，再加 Plücker 相机编码（博客 §3）。</p>
+<p><b>和纯 3DGS 物理仿真比。</b>Real2Sim-Eval 的外观和物理都是显式的，渲染就是光栅化，所以快，而且画出来的东西一定和模拟状态一致。代价是要实地扫描、要为每个软体物体拍交互视频辨识参数。Mundo 反过来：几张照片甚至一幅画就能起步，外观交给扩散模型“补”，没拍到的地方也能编出来；但画面和模拟状态之间没有硬约束，博客承认长时间动态变化后可能保不住细节。两者共同点是物理都是显式的，所以都能输出接触力、轨迹这类视频里看不到的量。</p>
+<p><b>和 3D World Simulator 比。</b>3DWS 的状态是 3D 的，但动力学是学出来的，需要大量带动作的数据；Mundo 的动力学是现成的刚体引擎，不需要为每个场景训练，但也只能模拟引擎和代理表达得了的东西（多数是刚体框，见<a href="#n3">读者注 3</a>）。</p>
+<p><b>和 GAUGE 的关系。</b>GAUGE 发现没有哪个物理引擎处处可信，差距最大的是冲击接触、快速运动的布料和三维软体。Mundo 的物理保真度上限就是它用的引擎加上智能体推出的参数。GAUGE 测的三个引擎是 Isaac Sim、Genesis 和 Newton，没有测 MuJoCo，所以不能直接拿它的数字套到 Mundo 上。Mundo 的渲染器也可以按 GAUGE 的世界模型流程去测：从生成视频里反推参数，看是否等于程序里写的参数。项目页的交互已经给了程序里的参数，这个检查是可以做的，作者没有做。</p>
+
+<h2 id="ov"><span class="no">0</span>概述</h2>
+<p>项目页开头是一个五步的交互：一个酒店房间，从“上下文”（照片）、“几何”（点云）、“代理”（框）、“渲染”到“交互”逐步切换（<a href="https://mundo-world-model.github.io/#story">看原页 ↗</a>）。画布的说明写着这个房间由 48 帧视频重建。</p>
+<p>概述一段的意思是：世界模型要捕捉环境的结构、外观和动力学，用于重建和模拟；Mundo 从上下文图像建一个可交互的 3D 世界，把这些能力落到图像描绘的那个具体环境上。场景的布局和物体放在 3D 代理里，物理属性写在场景程序里；模拟器算运动和交互，视频模型以提供的图像为视觉上下文渲染结果。项目页列了三个特点：</p>
+<ul>
+<li><b>由上下文图像定制环境：</b>重建一个可编辑的 3D 环境，沿指定相机路径渲染新视角，保持布局和外观。既支持稀疏视图，也支持几十张图的大场景长路径。</li>
+<li><b>有物理依据的交互：</b>给物体几何和物理属性，模拟脚本动作和外力的响应，在该环境里渲染运动和碰撞。</li>
+<li><b>动态模拟：</b>模拟智能体和物体随时间的运动与交互，从外部和第一人称视角渲染。连同模拟出的轨迹和交互状态，可以用于 Real-to-Sim 流程里的机器人测试和训练。</li>
+</ul>
+<div class="fig" id="film"><span class="lab">演示视频 · 项目页概述下方 · <a href="https://mundo-world-model.github.io/#film">看原页 ↗</a></span><p>一段带声音的演示短片，点击播放。本页没有下载，不描述具体镜头。</p></div>
+
+<h2 id="s1"><span class="no">01</span>空间探索</h2>
+<p>设定一条相机路径，Mundo 以输入图像为上下文生成新视角，并补出没拍到的区域。</p>
+
+<h3 id="s1-1"><span class="no">1.1</span>真实场景</h3>
+<p>给一个真实地方的 1 到 12 张上下文图像，沿指定路径生成新视角。做法是先重建 3D 代理，用它确定输入视图之间的空间关系，再把这些图像当上下文，让布局、外观和可见细节在相机移动时保持住。同一组图像可以走多条路径：拍到的部分由输入视图锚定，没拍到的部分由模型推断。</p>
+<div class="fig" id="fig-places"><span class="lab">交互 1.1 · 真实场景 · <a href="https://mundo-world-model.github.io/#real-places">看原页 ↗</a></span><p>左边是 three.js 画布：上下文照片挂在各自的相机上，画出相机路径；右下“Output”窗播放生成的视频，开关“Proxy”可以换成对应的 proxy 视频。上方一排是场景，按项目页数据共 11 个：柏林公寓、办公室、卧室、Alameda 住宅、圆厅博物馆、历史法庭、礼堂、教会教堂、艺术宫、圣米歇尔山、砖砌灯塔，每个有 1 到 3 条路径。从文件路径名看，其中几个来自公开数据集（<a href="#n10">读者注 10</a>）。</p></div>
+
+<h3 id="s1-2"><span class="no">1.2</span>单张图生成的世界</h3>
+<p>起点也可以是一张图，比如生成的图像或名画。只有一个视角时，Mundo 生成穿过画中空间的相机路径，把画的风格和可见结构带到新视角；离原视角越远，越多原图没画出的表面和区域被“露出来”。</p>
+<div class="fig" id="fig-gen"><span class="lab">交互 1.2 · 单张图 · <a href="https://mundo-world-model.github.io/#generated-worlds">看原页 ↗</a></span><p>和 1.1 同一套界面，画布上是被抬成点云的单张输入图。共 9 个例子：丛林神庙大厅、山间车库、飞船机库、火星车车库 4 张生成图，以及梵高《夜间露天咖啡馆》《夜间咖啡馆》《卧室》、拉斐尔《雅典学院》、霍珀《阳光下的女人》5 幅画。页面为每幅画标了出处，霍珀那幅注明版权属于其继承人。</p></div>
+
+<h3 id="s1-3"><span class="no">1.3</span>从一张视图到多张</h3>
+<p>上下文越多，模型对这个地方的证据越多；没拍到的区域仍然靠推断，但多给视图可以减少需要“发明”的部分。</p>
+<div class="fig" id="fig-views"><span class="lab">交互 1.3 · 1、3、9 张视图 · <a href="https://mundo-world-model.github.io/#context-views">看原页 ↗</a></span><p>左边 9 张上下文照片，下面一个滑块在 1、3、9 张之间切换；右边是同一条相机路径在三种设置下的生成视频。项目页没有给任何指标，只让读者对比画面。我在动画第 2 幕用玩具房间算了“被至少一张视图看到的表面比例”，只用来说明方向。</p></div>
+
+<h3 id="s1-4"><span class="no">1.4</span>大场景的长路径</h3>
+<p>大环境需要比一个房间多得多的上下文。给几十张图，Mundo 能渲染几十秒到几分钟的相机路径。生成按<b>分块</b>流式进行，相邻块的时间窗口重叠，所有块都沿同一个 3D 代理里的路径走。每一块根据相机路径和图像在 3D 中的位置，挑出最相关的上下文图像：这些图锚定局部外观，重叠帧把相邻块接起来。可视化里能看到选中的视图沿路线变化。</p>
+<div class="fig" id="fig-long"><span class="lab">交互 1.4 · 长路径 · <a href="https://mundo-world-model.github.io/#long-paths">看原页 ↗</a></span><p>画布是整个场景的点云、上下文相机和路径，沿路径高亮当前选中的上下文视图。共 4 个场景：Alameda 住宅（大场景）、巴厘岛别墅、格但斯克顶层公寓、迈阿密街口。分块的具体数字（每块 124 帧、34 帧重叠）在博客 §3，见<a href="#b3">下文</a>和<a href="#n7">读者注 7</a>。</p></div>
+
+<h2 id="s2"><span class="no">02</span>物理交互</h2>
+<p>Mundo 给重建出的场景加上物理属性，模拟物体怎么运动和相互作用，再用环境的上下文图像渲染这些运动。</p>
+
+<h3 id="s2-1"><span class="no">2.1</span>用代码编辑世界</h3>
+<p>场景程序定义每个物体的名字、位姿、尺寸，以及质量、摩擦等物理属性。脚本指定动作和外力，物理引擎在重力和接触约束下算出响应：物体轨迹、接触位置、碰撞力。Mundo 把结果渲染进重建的场景。项目页的例子在下落途中把世界冻住，让相机绕着那一刻转一圈，再继续下落（“子弹时间”）。</p>
+<p>例子是一个用 9 张照片重建的办公室。项目页的伪代码按时间线写了下面这些事件，我转成表格；最后两行是模拟和渲染的调用，其中模拟那一行原文是：</p>
+<p class="code-quote">sim   = office.simulate(engine="mujoco", hz=960)</p>
+<p>（引自项目页 §2.1 的伪代码，页面注明“为参考而简化，实际程序更复杂”，并注明物理模拟由 MuJoCo 提供。）</p>
+<div class="tablewrap"><table class="t-time"><thead><tr><th>时间 (s)</th><th>事件（我的转述）</th></tr></thead><tbody>
+<tr><td>—</td><td>办公室世界；取白色抽屉柜的第 3 个抽屉；往抽屉里加一个 0.20 kg 的苹果；显示器（注释 4.2 kg）</td></tr>
+<tr><td>0.60</td><td>抽屉拉开 0.28</td></tr>
+<tr><td>1.90</td><td>苹果飘到显示器前方（脚本动作）</td></tr>
+<tr><td>3.20</td><td>播放速度降到 0.2 倍（注释：只影响显示）</td></tr>
+<tr><td>3.45</td><td>苹果以 13.5 的速度掷向显示器顶部</td></tr>
+<tr><td>5.00</td><td>冻结 7.5 s（注释：子弹时间）</td></tr>
+<tr><td>15.40</td><td>播放速度回到 1.0</td></tr>
+<tr><td>—</td><td>用 MuJoCo 以 960 Hz 模拟；用一个“dolly”相机渲染，steps = 50</td></tr>
+</tbody></table></div>
+<div class="fig" id="fig-code"><span class="lab">交互 2.1 · 代码与时间线 · <a href="https://mundo-world-model.github.io/#code-world">看原页 ↗</a></span><p>左边是上面那段伪代码，当前执行的行会高亮；右边一个画面可在“Video”“Proxy”“Physics”三层之间切换，Physics 层在视频上叠加速度和接触；下面一条时间轴标出慢动作区间、显示器的倾角和接触事件。</p></div>
+<div class="note" id="n1"><span class="lab">读者注 1 · 苹果这一段的时间线和伪代码对得上</span>
+<p>项目页交互用的时间线数据（play/apple.json）共 484 帧、24 fps，即 20.17 s 视频；对应的模拟时间到 8.70 s 结束，差别来自慢动作和冻结。我逐项核对：</p>
+<ul>
+<li><b>冻结。</b>视频时间 5.0 s 和 12.5 s 两帧的模拟时间都是 3.625 s，中间不变，等于伪代码的 freeze(7.5)。慢动作区间记为 3.2 到 15.4 s、倍率 0.2，回到常速在 15.9 s，和伪代码的 3.20、3.45、15.40 一致。</li>
+<li><b>苹果速度。</b>数据里苹果速度的最大值是 13.518，伪代码写 13.5，单位应是 m/s。从掷出前一帧的位置到第一次接触点（苹果与显示器）距离 0.962 m，模拟时间差 0.0761 s，平均 12.6 m/s；比 13.5 小约 7%，可以由重力减速和取样帧的位置解释（推断）。</li>
+<li><b>“0.28”的单位。</b>数据里对应时间段的文字描述写抽屉“滑出约 28 厘米”，所以 open(0.28) 是米。</li>
+<li><b>撞击力。</b>第一次接触记录的数值是 1338.9，字段没写单位。如果是牛顿，按苹果动量 0.20 × 13.5 = 2.7 N·s 估算，接触时间约 2.7 / 1339 ≈ 2.0 ms，也就是 960 Hz 下大约两个步长（推断，单位未核实）。</li>
+<li>显示器最大倾角 107.3°，即翻倒，和描述“向后翻倒在远处桌上”一致。</li>
+</ul>
+<p>另外两件事：飘浮那一步（float_to）显然是脚本运动而不是物理，这正对应博客公式里“转移由脚本或由模拟执行”；数据里每一段还配了一句文字描述（例如“整个世界冻住，只有相机在动”），很像是喂给视频模型的文本条件 y，但页面没有说明（推断）。</p></div>
+
+<h3 id="s2-play">2.1（续）试一个交互</h3>
+<p>项目页接着放了一个可以拖动的办公室：拖动一个物体就选中一个动作，比较模拟的运动和 Mundo 在同一个重建办公室里的渲染。</p>
+<div class="fig" id="fig-play"><span class="lab">交互 2.1 · 游乐场 · <a href="https://mundo-world-model.github.io/#playground">看原页 ↗</a></span><p>左边是模拟回放（three.js），中间一条分割线，右边是生成的视频，上面可选前、角、侧三个相机。右栏是对应的示例程序和一句结果说明，下面列了五样可以试的东西：蓝色垃圾桶（拖过地面）、显示器（前推或后推）、椅子（从桌边拉开）、抽屉（拉出任意一个）、桌面（往下砸）。按数据，这五样一共对应 18 段预先录好的程序，每样有轻重两档，例如往前推垃圾桶 3.2 和 3.6、推显示器 16 到 36、砸桌面 3000 和 6000（程序里没写单位，按量级应是牛顿），四个抽屉都是拉出 0.30 m。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>不同环境里的物理交互</h3>
+<p>给一个环境的视觉上下文，Mundo 重建交互涉及的物体，给它们分配尺度、质量和材料属性，做有物理依据的模拟。释放、推、改重力，都会在这个环境里产生响应；渲染时用上下文图像保持场景和物体的外观。叠加层显示模拟出的速度、接触位置、冲击力和重力方向。</p>
+<p>按项目页数据，共 7 个例子，每个都是一张输入图：3 张真实照片（来自维基共享资源，CC BY / BY-SA，页面标了出处），4 张生成图。每段 304 帧、24 fps。参数是页面上标注的值：</p>
+<div class="tablewrap"><table class="t-phys"><thead><tr><th>例子</th><th>输入</th><th>页面描述（转述）</th><th>标注的参数</th></tr></thead><tbody>
+<tr><td>三种材料</td><td>生成图</td><td>弹簧架放下三个同样大小、不同材料的球</td><td>落差 0.98 m；质量 0.35 / 0.60 / 6.5 kg；恢复系数（数据里）0.9 / 0.76 / 0.24</td></tr>
+<tr><td>全中</td><td>真实照片</td><td>一个照片里没有的球滚进来，十个瓶慢动作散开</td><td>球 6.5 kg、7.5 m/s；瓶 1.53 kg；球道摩擦 0.03 → 0.35</td></tr>
+<tr><td>失重</td><td>生成图</td><td>货舱失去重力，三个物体飘起、翻滚、相撞</td><td>g 在 1.5 s 时 9.81 → 0；向上轻推 0.2 m/s；恢复系数 0.4</td></tr>
+<tr><td>多米诺</td><td>生成图</td><td>一块巨型骨牌倒下引起连锁</td><td>板 25 kg、1.2 m；板间摩擦 0.45</td></tr>
+<tr><td>木桶</td><td>真实照片</td><td>顶上的桶滚下撞开挂牌，竖着的桶倒下晃停</td><td>桶 55 kg；牌 4 kg、两个铰链；恢复系数 0.25</td></tr>
+<tr><td>六分之一 g</td><td>生成图</td><td>月球上轻推，板条箱和罐子走长而慢的抛物线</td><td>g 1.62 m/s²；上抛 2.15 和 2.0 m/s；恢复系数 0.3</td></tr>
+<tr><td>轮胎</td><td>真实照片</td><td>两个轮子从一摞冬季轮胎上滑下，轮缘着地后摇晃放平</td><td>轮 20 kg、直径 0.65 m；推力 320 N；恢复系数 0.45</td></tr>
+</tbody></table></div>
+<div class="fig" id="fig-phys"><span class="lab">交互 2.2 · 七个例子 · <a href="https://mundo-world-model.github.io/#interaction-demo">看原页 ↗</a></span><p>左栏是输入照片、一个模拟回放小窗、参数列表和“模拟算出了什么”的曲线（标出每次撞击）；右栏是生成的视频，可叠加速度箭头、接触点、冲击力和一个重力指示盘。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 三个球的弹跳数据满足 h 比 = e²</span>
+<p>恢复系数 e 是反弹速度和撞地速度之比；忽略空气阻力时，弹起高度和速度平方成正比，所以相邻两次的最高点之比应等于 e²。我用项目页这一例的轨迹数据（physics/three_balls.json）算了每个球的质心高度减去静止高度：</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>球</th><th>e（数据）</th><th>e²</th><th>h₁/h₀</th><th>h₂/h₁</th><th>h₃/h₂</th></tr></thead><tbody>
+<tr><td>橡胶球</td><td>0.90</td><td>0.810</td><td>0.808</td><td>0.818</td><td>0.823</td></tr>
+<tr><td>篮球</td><td>0.76</td><td>0.578</td><td>0.583</td><td>0.584</td><td>0.598</td></tr>
+<tr><td>保龄球</td><td>0.24</td><td>0.058</td><td>0.056</td><td>—</td><td>—</td></tr>
+</tbody></table></div>
+<p>第一跳的比值和 e² 相差不到 1%，后几跳略高，可能是取样帧（24 fps）抓不准最高点（推断）。这说明页面叠加的曲线来自一个真实的恢复系数模拟，而不是手画的。它<b>只</b>证明模拟内部自洽，不能说明渲染出来的视频是否忠实于这条轨迹。动画第 6 幕用同样的 e 当场积分，结果相同。</p>
+<p>参数本身也和常识对得上：保龄球瓶 1.53 kg 正好是常见规格 3 磅 6 盎司的下限，6.5 kg 的保龄球约 14.3 磅，篮球 0.60 kg 在标准 7 号球的范围里。博客说质量、摩擦这些参数是智能体读场景后推出的，但页面没说这几个例子的参数是智能体给的还是人写的（未核实）。</p></div>
+
+<h2 id="s3"><span class="no">03</span>动态模拟</h2>
+<p>Mundo 在上下文图像所定义的那个环境里模拟动态行为。带物理的 3D 代理把机器人导航和物体交互落到这个场景里，把拍到的环境接到模拟上，用于 Real-to-Sim 测试和训练。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>给定场景里的导航</h3>
+<p>3D 代理提供在环境里规划导航所需的空间布局和语义：认出物体、障碍和可通行区域后，像 A* 这样的规划器就能找到路线。Mundo 渲染不同机器人在同一环境里导航，第一人称和第三人称都有，沿路保持场景上下文。项目页说这能以高空间保真度支持 Real-to-Sim 的机器人测试和训练。</p>
+<div class="fig" id="fig-nav"><span class="lab">交互 3.1 · 导航 · <a href="https://mundo-world-model.github.io/#navigation">看原页 ↗</a></span><p>可选 <a class="ds" href="https://www.unitree.com/g1/">Unitree G1</a> 人形机器人或一只机器狗。画布是 3D 办公室、机器人、路线和它的两个相机；右边大窗是跟随的第三人称视频，小窗是头部相机的第一人称视频，点小窗可以互换。按数据，两段各 304 帧（12.7 s），人形走 3.20 m、机器狗走 2.94 m，平均约 0.25 m/s；头部相机高度分别约 1.33 m 和 0.56 m。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>操作模拟</h3>
+<p>给上下文图像，Mundo 重建一个 3D 环境，对交互涉及的物体给出细致的几何和物理属性；然后不同机器人可以尝试同一个操作任务。每次执行都从外部视角和机器人的头部、腕部相机渲染。任务轨迹和物理交互状态随渲染的观测一起输出，用来给机器人训练提供数据，或在真机之前在模拟里比较行为。</p>
+<div class="fig" id="fig-manip"><span class="lab">交互 3.2 · 五种机器人 × 三个任务 · <a href="https://mundo-world-model.github.io/#manipulation">看原页 ↗</a></span><p>机器人：<a class="ds" href="https://franka.de/">Franka Panda</a>（腕部相机）、Google Robot（即 <a class="ds" href="https://robotics-transformer1.github.io/">RT-1</a> 用的移动操作机器人，头部相机）、<a class="ds" href="https://hello-robot.com/">Stretch 3</a>、<a class="ds" href="https://galaxea-ai.com/products/R1-Pro">Galaxea R1 Pro</a>、Unitree G1（都是头部相机）。任务：把苹果放进碗、把罐子放到托盘上、把积木叠到积木上。左栏是输入照片、机器人参考图和关节位置、物体高度速度的曲线；右栏是场景相机和机器人相机两路视频，中间有一条滑块在“模拟”和“渲染”之间拉开对比。页面没有给任何成功率。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>4D 模拟</h3>
+<p>把场景探索扩展到 4D：用多机位录像或一张图做上下文，从新视角渲染动态事件，可以在某一刻冻住时间、移动相机看各个角度。上下文可以是多机位录像，也可以是一张生成图；项目页说图里<b>最后两个</b>例子的运动是在重力和接触动力学下模拟出来的。</p>
+<div class="tablewrap"><table class="t-4d"><thead><tr><th>例子</th><th>帧数</th><th>时长 (24 fps)</th><th>时间轴</th></tr></thead><tbody>
+<tr><td>人形机器人和布</td><td>836</td><td>34.8 s</td><td>相机移动与冻结交替：106 / 231 / 169 / 231 / 99 帧</td></tr>
+<tr><td>两只机械臂和篮子</td><td>836</td><td>34.8 s</td><td>同上；页面说用四个相机围着桌子拍</td></tr>
+<tr><td>手和夹子</td><td>124</td><td>5.2 s</td><td>运动 32 帧、冻结 55 帧、运动 37 帧</td></tr>
+<tr><td>迎面的卡车</td><td>304</td><td>12.7 s</td><td>运动 82、冻结 63、运动 159 帧</td></tr>
+<tr><td>倒下的国际象棋王</td><td>484</td><td>20.2 s</td><td>先冻结 259 帧，再运动 225 帧（模拟）</td></tr>
+<tr><td>倒下的太鼓</td><td>484</td><td>20.2 s</td><td>同上（模拟）</td></tr>
+</tbody></table></div>
+<div class="fig" id="fig-4d"><span class="lab">交互 3.3 · 六段 4D 视频 · <a href="https://mundo-world-model.github.io/#space-time">看原页 ↗</a></span><p>六个视频格，每格下面一条可拖动的时间条，标出哪些区间相机在动、哪些区间时间冻结。下面“幕后”一栏放了三张照片，说明两臂那段是用手机支架上的四个相机围着桌子拍的。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 页面上真正“模拟”的几乎都是刚体框</span>
+<p>博客说多数模拟用 MuJoCo，也可以用别的引擎或自定义脚本，没有说布料、可变形物体怎么处理。对照 3.3 节：人形机器人和布、两臂和篮子是<b>多机位录像</b>，项目页明确说只有最后两例（象棋王、太鼓，来自生成图）是模拟的，所以那段布料不是 Mundo 模拟出来的，而是从录像渲染新视角。2.2 节七个例子都是刚体（球、瓶、箱、桶、骨牌、轮胎）。2.1 节苹果“飘”到显示器前是脚本运动。</p>
+<p>作者主页镜像版（<a href="#n14">读者注 14</a>）这一句写的是“单张生成图的情况下运动是模拟的”，项目页改成了“最后两个例子”，意思一致，措辞更精确。结论：目前展示的物理交互局限在刚体加脚本；软体和布料是否能模拟，材料里没有证据（未核实）。</p></div>
+
+<h2 id="s4"><span class="no">04</span>机器人应用</h2>
+<p>Mundo 重建的 3D 代理记录了每个物体在哪里、是什么。这给机器人导航提供了高层场景信息：给定用语义描述的起点和终点，就能规划路线。项目页的说法是，有了这个全局 3D 视图，一个智能体可以充当 “System 2” 来规划任务。作者用 Mundo 重建了一个酒店的一整层楼，智能体在这层楼上规划路线，并在移动时用 3D 代理给自己定位。</p>
+<div class="fig" id="fig-floor"><span class="lab">交互 4 · 酒店楼层 · <a href="https://mundo-world-model.github.io/#robotics">看原页 ↗</a></span><p>画布是整层楼的点云，叠着场景程序里的物体框，一个机器人沿路线从大堂走到客房。</p></div>
+<p>下面三段视频：(a) 机器人在模拟环境里完成这个从大堂到客房的导航；(b) 和 (c) 是 Mundo 在一间洗衣房里生成的，这间洗衣房被高保真地重建成模拟环境，(b) 是探索，(c) 是打开洗衣机门的交互。项目页说这能帮助 System 2 在机器人动手之前理解目标任务，比如“把衣服放进洗衣机”。</p>
+<div class="fig" id="fig-trio"><span class="lab">视频 (a)(b)(c) · <a href="https://mundo-world-model.github.io/#robotics">看原页 ↗</a></span><p>三个并排视频：大堂到客房的导航、洗衣房探索、开洗衣机门。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 宣称和展示之间的距离</span>
+<p>项目页和博客反复说 Mundo“支持 Real-to-Sim 流程里的机器人测试和训练”。我核对了两页的全部内容，<b>没有</b>任何一处展示：用 Mundo 生成的数据训练出的策略、在 Mundo 里评测的策略成功率、和真机结果的相关性，或者 System 2 规划带来的任务成功率。机器人部分全是演示视频，导航里的 A* 也只是“像 A* 这样的规划器”。</p>
+<p>其他几处同样只有定性展示：“高空间保真度”没有指标；和 Boxer、SpatialLM 的比较只有一个酒店房间、一张图（博客 §1）；“用 proxy 视频做条件比只用相机编码更准、更忠实”只有一句“在我们的实验里”，没有数字（博客 §3）；约 4 万对训练数据没有按来源拆开（博客 §4）。这和站内 <a href="real2sim-eval.html">Real2Sim-Eval</a>、<a href="3dws.html">3D World Simulator</a> 都报告了仿真与真机成功率的相关性形成对比。这些不代表结论错，只是目前无法核实。</p></div>
+
+<h2 id="tech"><span class="no">05</span>技术细节</h2>
+<p>项目页的说法是：Mundo 不只是 3D 重建。对一个多视图或视频给出的场景，它把 3D 表示转成一个由“代码世界”维护的显式代理状态，再让视频模型利用这个状态。</p>
+<div class="fig" id="fig-pipe"><span class="lab">流程图 · 项目页 05 · <a href="https://mundo-world-model.github.io/#pipeline">看原页 ↗</a></span><p>一行五格，用同一个例子贯穿：酒店房间里一台 Unitree G1。第一格是 9 张输入照片叠在一起（Input Views）；第二格是 three.js 画的代理世界，有机器人、包和相机（Proxy World）；第三格是一段 7 行的伪代码（Scene Program）：建世界、加 G1、取柜子上的包、0.35 s 抓包、3.10 s 搬向床、9.40 s 放到床上、模拟并渲染，当前执行的行高亮；第四格是纯色的 proxy 视频（Proxy Video）；第五格是最终视频（Rendered Video）。</p></div>
+<p>图下三步：</p>
+<ol>
+<li><b>建代理世界。</b>用 3D 检测器给每个主要物体一个初始包围框，再由 VLM 智能体在分析-合成循环里修正，得到 3D 代理环境。</li>
+<li><b>以代码运行。</b>代码里的物体、位姿、物理属性和支配它们的规则模拟这个世界，并记录它的交互和变化。</li>
+<li><b>渲染视频。</b>从模拟后的世界按类别纯色渲染 proxy 帧，视频扩散模型以上下文视图为视觉条件把它们渲染成视频。</li>
+</ol>
+<p>项目页到此为止，细节都在博客。博客标题是 “Mundo: From seeing a place to simulating what happens there”，开头一句的大意是：拍几张房间的照片，Mundo 就把它变成一个能探索、能模拟的世界，可以让抽屉滑开、苹果飞出来，或者让机器人走进来把包放到床上。下面按博客 “How Mundo works” 的四节逐节整理。</p>
+<p>博客的总述：给多视图或视频，Mundo 重建场景，把布局和物体表示成显式 3D 代理；一个“代码世界”（引 [1] Code World Model 和 [2] AgentGarten）在模拟运行时维护和更新这个代理状态；模拟状态被渲染成 proxy 帧，引导视频模型生成场景的外观和运动。</p>
+
+<h3 id="b1">博客 §1 建代理世界</h3>
+<p>Mundo 用 3D 包围框表示场景：框近似物体的形状，但位置和尺寸要和输入视图里的物体紧密吻合。分两个阶段：</p>
+<ol>
+<li><b>几何和初始框。</b>一个 3D 基础模型可以从输入视图恢复相机位姿和稠密几何，博客在这里引了五篇：<a class="ds" href="https://yihangluo.com/projects/4RC/">4RC</a>、<a class="ds" href="https://github.com/yyfz/Pi3">π³</a>、<a class="ds" href="https://github.com/facebookresearch/vggt">VGGT</a>、<a class="ds" href="https://depth-anything-3.github.io/">Depth Anything 3</a>、<a class="ds" href="https://nirvanalan.github.io/projects/stream3r/">STream3R</a>（其中 4RC 和 STream3R 是本文作者组的工作）。然后用 3D 检测器 <a class="ds" href="https://github.com/facebookresearch/boxer">Boxer</a> 给每个主要物体一个初始框。博客<b>没有说</b>实际用的是哪个几何模型。</li>
+<li><b>智能体精修。</b>一个 VLM 智能体用分析-合成循环（引 [9] <a class="ds" href="https://arxiv.org/abs/2609.24487">AgentSTAR</a>）修正代理世界：智能体在渲染引擎里编辑场景程序，从输入相机的视角渲染代理，和原图比较，决定下一步改什么。</li>
+</ol>
+<div class="fig" id="fig-build"><span class="lab">博客动图 · 建代理世界 · <a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model#1-building-the-proxy-world">看原图 ↗</a></span><p>按博客图注：先显示输入视图、恢复的几何和 Boxer 的初始框；然后在一张输入视图上显示编辑智能体的逐次修改和数值拟合；最后审阅智能体检查所有输入视图，再显示最终的代理世界。</p></div>
+<p><b>为什么用智能体。</b>3D 检测器常漏检物体、给错标签，框的空间精度也不够。有些场景，比如户外或物体密集的场景，还需要先定义“一个框该包什么”。视觉推理可以帮上忙。博客在同一个酒店房间、同样的输入几何上比较了 Boxer、<a class="ds" href="https://manycore-research.github.io/SpatialLM/">SpatialLM</a> 和 Mundo。</p>
+<div class="fig" id="fig-cmp"><span class="lab">博客图 · Boxer / SpatialLM / Mundo · <a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model#why-an-agent">看原图 ↗</a></span><p>三列，每列上面是 3D 重建，下面是叠在一张输入视图上的框。按博客的说法，这个例子里 Boxer 和 SpatialLM 漏了一些物体，有些框偏离它代表的物体；Mundo 的框和图中物体对得更紧。只有这一个场景，没有数字。</p></div>
+<p>智能体把视觉推理和数值优化结合起来。分工是：VLM 能可靠地发现漏掉的物体、一个框盖住了两个物体、门的开向反了，但它没法把框的边放到几厘米以内；数值优化能把框拟合得很准，但也可能拟合到杂物或错误的边上。所以由智能体决定修什么、信哪些证据：它在几张视图里标出物体的边，优化器把框的位置、尺寸和 yaw 拟合到这些边上；只有当拟合结果在一张<b>没参与拟合</b>的视图里也和物体对得上，才保留。</p>
+<p>每轮编辑之后，另一个<b>审阅智能体</b>对照每一张输入视图检查代理世界，但不修改它。循环在三种情况下停止：审阅者接受、几何不再改善、或者达到编辑次数或时间上限；否则编辑智能体根据审阅意见做下一轮。博客顺带说，近几个月智能体能力提升很快，视觉推理因此强了很多。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 项目页数据里的“初始框 → 最终代理”正好是博客说的几类错误</span>
+<p>项目页首屏的酒店房间交互同时载入了两份框：story/boxer.json（16 个框，标签带 boxer_ 前缀，应是 Boxer 的初始输出）和 story/geometry.json（最终代理）。我逐个对照（只读，未复制）：</p>
+<ul>
+<li><b>数量。</b>16 个初始框 → 28 个物体框，另加 22 个建筑面（14 面墙、4 块地面、4 块天花板）。</li>
+<li><b>漏检。</b>新增 14 个：书桌椅、饮料柜、窗、洗手台、洗手台镜子、行李柜、两幅画、卫生间置物架、卫生间门、入户门、入口侧床头柜、卫生间垃圾桶、淋浴玻璃门。</li>
+<li><b>误检。</b>删掉 2 个：一个“衣架”，以及 4 个“窗帘”框里和别的窗帘重叠的那个。</li>
+<li><b>标签错。</b>扶手椅上方墙上那个被 Boxer 标成“镜子”的框，最终标成“休息区风景画”，位置几乎不变。</li>
+<li><b>“框该包什么”。</b>书桌和边桌的初始框从地面一直包到桌面（高 0.89 m），最终只包桌面板（厚 0.10 m 和 0.07 m）；马桶从 1.06 m 高缩到 0.54 m，背后另加一个 1.47 m 高的置物架框；床从 1.02 m 降到 0.64 m。</li>
+<li><b>基本没动的。</b>电视、淋浴、书桌垃圾桶的中心和尺寸和初始框相同到厘米；水壶、床头柜只移动了 2 到 9 cm。</li>
+</ul>
+<p>所以对这个房间，智能体的主要工作是补漏和重新定义框的含义，而不是微调已有的框。前提是这两份 JSON 就是 Mundo 实际的初始和最终输出，而不是为网页单独整理的（未核实）。动画第 3、4 幕按这几类错误做了玩具版本。</p></div>
+<p><b>为什么用包围框。</b>框是描述物理 3D 位置的好表示，而稠密、细粒度的物体重建通常带来冗余。对空间探索来说，框通常就够了，可以不要细几何。框也是刚体模拟的简单表示，只要交互不需要细致的接触几何就行。多数情况下，只有参与精细交互的物体才需要更细的几何：智能体可以粗建一个模型，或用 3D 生成模型 <a class="ds" href="https://github.com/microsoft/TRELLIS">TRELLIS</a>。往模拟里加新物体时，Mundo 也可以从现有资产库检索，比如直接加载一个带物理属性、可用于模拟的 R1 机器人模型。</p>
+
+<h3 id="b2">博客 §2 以代码运行的世界</h3>
+<p>Mundo 把世界保存成代码。场景程序是一个代码世界模型（再引 [1][2]）：显式记录物体、位姿和物理属性，也定义这些状态随时间更新的规则；程序可以读写状态，在重建的场景里模拟运动和交互。</p>
+<p>多数模拟跑在 <a class="ds" href="https://mujoco.org/">MuJoCo</a> 里，但别的模拟引擎或自定义脚本也能起同样的作用。智能体读场景，推出模拟需要的物理参数（质量、摩擦、外力），再用这些参数写场景程序。模拟器在重力下计算运动和交互，包括碰撞、接触和机器人操作，结果引导视频模型的渲染。</p>
+<p>对世界的大多数编辑都通过同一段场景程序完成：加物体、改物理属性、移动相机，或者把相机装到机器人上。博客在这里放了和项目页 §2.1 相同的那段伪代码（见<a href="#s2-1">上文的表</a>），并同样说明实际程序复杂得多。</p>
+<div class="fig" id="fig-wic"><span class="lab">博客动图 · 代码里的世界 · <a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model#2-a-world-that-runs-on-code">看原图 ↗</a></span><p>项目页 §2.1 那个交互的录屏版本：伪代码逐行执行，旁边是模拟和渲染的画面。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 物理参数从哪来：只有一句话</span>
+<p>博客对这一步的全部描述是“智能体读场景，推出质量、摩擦和外力等参数”。没有说用哪个模型、看哪些证据（物体类别、尺寸、材质）、有没有查表、误差多大，也没有一个“推出的参数 vs 真实参数”的对比。读者注 2 里那些参数看起来都合理，但正因为合理，也可能是人写的。对物理交互来说，这是整个管线里<b>最不透明</b>的一环：模拟器只会忠实地执行给它的参数。GAUGE 那一类“测出参数再比较”的检验，正好可以用在这里（未核实）。</p></div>
+
+<h3 id="b3">博客 §3 proxy 帧和渲染器</h3>
+<p>Mundo 用选定的相机从模拟后的世界渲染 proxy 帧，帧里每个物体按类别涂纯色。上下文帧和目标相机轨迹下的 proxy 视频一起注入视频扩散模型做渲染。上下文视图和目标相机轨迹都对齐到第一张上下文视图的相机坐标系。</p>
+<p><b>条件怎么进去。</b>proxy 视频和上下文视图都用视频 VAE 编码，得到的 latent 接在目标视频 latent 序列的后面。相机信息另加一个相机编码器：把每个 proxy 帧和每张上下文视图的相机参数变成 Plücker 射线，得到的相机编码在第一个 Transformer 块之前<b>加到</b>对应的 latent 上。没有相机信息的参考图（比如只提供一个新加入主体外观的图，像导航例子里加进场景的机器人）用一个学到的编码代替。</p>
+<p>博客把渲染管线写成两行。编号是我加的，博客原文没有编号：</p>
+<div class="eq"><div class="m">\[S_{t+1}=f(S_t,a_t)\]</div><span class="no">(B1)</span></div>
+<div class="eq"><div class="m">\[x_{1:T}\sim p_\theta\Big(\cdot\ \Big|\ \pi(S_{1:T},c_{1:T}),\ \{(I_k,c_k)\}_{k=1}^{K},\ y\Big)\]</div><span class="no">(B2)</span></div>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>符号</th><th>含义（按博客）</th></tr></thead><tbody>
+<tr><td>\(S_t\)</td><td>第 \(t\) 步的世界状态，含物体、位姿和物理属性</td></tr>
+<tr><td>\(a_t,\ f\)</td><td>第 \(t\) 步的动作；代码世界执行的转移，由脚本或模拟完成</td></tr>
+<tr><td>\(\pi,\ c_t\)</td><td>proxy 渲染器；第 \(t\) 帧的相机</td></tr>
+<tr><td>\(I_k,\ c_k\)</td><td>第 \(k\) 张上下文视图和它的相机</td></tr>
+<tr><td>\(y,\ \theta\)</td><td>文本描述；视频模型的参数</td></tr>
+<tr><td>\(x_{1:T}\)</td><td>生成的帧</td></tr>
+</tbody></table></div>
+<p>式 (B1) 说明状态转移完全在代码世界里，视频模型不参与；式 (B2) 说明视频模型看到的只有 proxy 渲染、上下文视图和文本，<b>不直接看到</b>状态 \(S\) 本身。所以物体的质量、速度这些量只能通过 proxy 帧里形状的位置变化间接传给视频模型。</p>
+<p><b>为什么要 proxy 视频。</b>proxy 视频是 3D 模拟结果传给视频模型的通道。物体运动、碰撞的时刻和位置、相机视角都在 3D 里算好，proxy 视频把它们变成 2D 视频扩散模型能跟随的帧。博客说，在他们的实验里，以 proxy 视频为条件比只用相机编码的相机控制更准、对场景更忠实（没有给数字，见<a href="#n4">读者注 4</a>）。</p>
+<p><b>长视频分块。</b>长视频按块流式推理，每块 N 帧（他们的设置是 124），每块最后 M 帧（34）重新编码，作为下一块的固定前缀，让块与块之间的运动连续。对很大的场景或上下文视图很多的输入，每块单独挑上下文视图；相机移动时，按即将走过的路径更新所选视图。</p>
+<div class="fig" id="fig-chunks"><span class="lab">博客动图 · 分块生成 · <a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model#long-videos-in-chunks">看原图 ↗</a></span><p>按图注：以 124 帧为一块生成视频，后一块用前一块最后 34 帧作固定前缀，每块单独挑上下文视图。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 分块的账：多数视频长度正好是整块</span>
+<p>每块 124 帧、前缀 34 帧，所以第一块之后每块新增 90 帧，F 帧需要 \(1+\lceil (F-124)/90\rceil\) 块，整块时 \(F=124+90k\)。项目页数据里的视频长度：</p>
+<ul>
+<li>124 帧（手和夹子、游乐场的每段程序）：\(k=0\)，一块。</li>
+<li>304 帧（2.2 节七个例子、3.1 导航、迎面卡车）：\(124+2\times 90\)，三块。</li>
+<li>484 帧（苹果那一段、两个“倒下”的 4D 例子）：\(124+4\times 90\)，五块。</li>
+<li>836 帧（两段多机位 4D）：\((836-124)/90=7.91\)，<b>不是</b>整块。若前缀是 35 帧（每块新增 89），\(124+8\times 89=836\) 正好，但这和博客的 34 不符。也可能这两段是分几次生成再拼起来的（未核实）。</li>
+</ul>
+<p>124 帧在 24 fps 下是 5.17 s。动画第 8 幕可以切换长度当场算块数。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 时序一致性靠什么保证</span>
+<p>材料里能找到的机制只有四个：所有块沿同一个 3D 代理里的路径走；proxy 视频逐帧给出几何和运动；块之间 34 帧前缀；每块重新挑上下文视图锚定局部外观。没有一致性指标，也没有失败案例的展示。博客局限一节承认：没有长时记忆机制，动态变化持续较久之后，或者之前被遮住的区域重新进入视野时，可能保不住细节。另外，proxy 帧只给类别颜色，同类的两个物体（比如两把一样的椅子）在 proxy 帧里颜色相同，视频模型怎么区分它们、会不会把外观换错，材料里没有说（推断的风险，未核实）。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个管线拆成 11 幕：总览；上下文图像和覆盖率（当场算）；几何和 Boxer 式初始框；<b>VLM 分析-合成精修，IoU 和框拟合当场算</b>（下面嵌的是这一幕）；场景程序；960 Hz 刚体模拟（当场积分）；类别纯色 proxy 帧和 Plücker 射线；视频扩散的条件注入和长视频分块；改代码编辑世界；在代理上用 A* 规划并搬包；和其他世界模型路线的对比。房间、相机、伪代码都是玩具，示意的部分都标了。</p>
+<iframe src="../interactives/mundo/index.html?embed=1&amp;scene=4" title="Mundo 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/mundo/index.html">打开完整动画 →</a></p>
+</div>
+
+<h3 id="b4">博客 §4 训练</h3>
+<p>渲染器用成对的视频训练：一段真实或渲染的视频，加上同一场景的 proxy 视频。训练数据约 4 万对，来自多个数据集，覆盖真实室内扫描、合成室内场景、驾驶、手-物交互、单个物体和游戏画面，另有他们自己渲染的数据。在这份数据上，他们用 124 帧、640×480 的片段微调了 <a class="ds" href="https://github.com/MiniMax-AI/MiniMax-H3">MiniMax-H3</a> 的 Ref2VA。自己渲染的数据可以自选相机轨迹、交互和上下文视图，还能加额外的参考，比如一个进入场景的物体的图片。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 底座 MiniMax-H3 Ref2VA 是什么（来自 H3 的仓库，不是 Mundo 的材料）</span>
+<p>项目页没有说视频模型是哪个，博客 §4 说了。我读了 <a href="https://github.com/MiniMax-AI/MiniMax-H3">MiniMax-AI/MiniMax-H3</a> 的 README（2026-11-11）：H3 是一个生成带立体声音频视频的全模态模型，主干 H3-Omni-Transformer 是 330 亿参数的稠密单流 Transformer（其中约 130 亿在 AdaLN 分支），编码器用 Qwen3-VL-32B；默认短边 768 像素、24 fps、最长 15 s。Ref2VA 是“全参考”模式，最多 9 张参考图、3 段参考视频，总共不超过 12 个文件。权重按 MiniMax H3 社区许可发布。</p>
+<p>由此可以推断几件事（都是推断）：Mundo 的渲染器规模大约就是这个量级，这能解释为什么 8 张 A800 只有约 1.5 帧/秒；Mundo 的 640×480 低于 H3 默认分辨率，124 帧（5.17 s）也短于 15 s 上限；项目页说真实场景用“1 到 12 张”上下文图像，大场景要“每块挑选”上下文视图，可能和底座的参考数量上限有关。微调之后这些上限是否还在，材料没说（未核实）。博客没有提音频，演示视频里的声音是否来自模型也不清楚。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 演示场景和训练数据可能有重合（从文件名推断）</span>
+<p>博客没有列出训练用的数据集名。项目页交互的文件路径名里带着来源缩写，和公开数据集的场景名吻合：</p>
+<ul>
+<li>“tnt-”开头的六个场景：Courtroom、Auditorium、Church、Palace、Lighthouse、Museum，都是 <a class="ds" href="https://www.tanksandtemples.org/">Tanks and Temples</a> 的场景名。</li>
+<li>“zip-”开头的 Berlin、Alameda，是 <a class="ds" href="https://jonbarron.info/zipnerf/">Zip-NeRF</a> 数据集的场景。</li>
+<li>“av2-miami”和 4D 的“bt-argoverse”（迎面卡车）对应 <a class="ds" href="https://www.argoverse.org/av2.html">Argoverse 2</a>，迈阿密是它的城市之一。</li>
+<li>4D 的“bt-dexycb”（手和夹子）对应手-物交互数据集 <a class="ds" href="https://dex-ycb.github.io/">DexYCB</a>。</li>
+</ul>
+<p>博客说训练数据覆盖“真实室内扫描、驾驶、手-物交互”，和这几类对得上。如果演示场景就在训练集里，那些新视角效果就不能当作泛化能力看。材料没有说训练和演示是否分开（推断，未核实）。</p></div>
+
+<h2 id="sup">博客：这个世界能做什么</h2>
+<p>博客这一节是项目页的缩略版，每项配一张动图并链回项目页：</p>
+<ul>
+<li><b>空间探索：</b>1 到 12 张真实场景照片，沿指定路径生成新视角；同一路径用 1、3、9 张视图对比。博客多补了一句：更多上下文还能揭示之前没看到的区域，但没有任何视图覆盖的地方仍然要推断。（<a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model#what-the-world-supports">看原文 ↗</a>）</li>
+<li><b>物理交互：</b>链到项目页 2.2。</li>
+<li><b>动态模拟和机器人：</b>3D 代理记录每个物体是什么、在哪里，机器人可以在语义指定的起点和终点之间规划路线；动图是酒店楼层的导航，外加洗衣房的探索和开洗衣机门。</li>
+</ul>
+
+<h2 id="lim">博客：局限</h2>
+<ul>
+<li><b>速度。</b>当前版本不快。像 1.1 节那样的场景，重建通常要 10 到 20 分钟；从代理渲染视频在 8 张 A800 上、20 步推理，约 1.5 帧/秒。视频模型的推理还没做加速，博客提到 <a class="ds" href="https://nvlabs.github.io/Sana/Sol-Engine/StreamRender-H3/">StreamRender-H3</a> 之类的技术可能有帮助。</li>
+<li><b>细粒度交互。</b>小物体在重建场景里容易“漂浮”；渲染涉及操作小物体的交互时，视频模型容易出现幻觉。</li>
+<li><b>记忆。</b>还没有长时记忆机制。上下文视图能帮助保持静态场景，但动态变化持续较久之后，或之前被遮住的区域重新进入视野时，可能保不住场景细节。</li>
+</ul>
+<p>博客最后一段是作者的感想：Mundo 试图推进“定制世界模型”的边界，给出了一条有希望的路线，但换个角度看问题总是值得的；真正的智能从哪里来、最终形态是否是“omni”（全模态），值得静下心来慢慢想。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 速度换算</span>
+<p>按博客的 1.5 帧/秒（8 × A800，20 步）：124 帧一块约 83 s；304 帧约 3.4 分钟；484 帧约 5.4 分钟；一分钟 24 fps 视频是 1440 帧，按分块要 16 块（生成长度 \(124+15\times 90=1474\) 帧），约 16 分钟。再加 10 到 20 分钟的重建。作为对照，站内 Real2Sim-Eval 的 3DGS 仿真单 GPU 5 到 30 FPS，快两到三个数量级。这对“Real-to-Sim 训练”很关键：机器人训练要大量闭环交互，每走一步都等扩散渲染是走不通的；但如果只用 proxy 帧或模拟状态训练、渲染只用于少量评测或数据增强，就是另一回事。材料没说是哪种用法（推断）。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 推理步数：伪代码写 50，局限写 20</span>
+<p>项目页和博客的伪代码最后一行是 render(…, steps=50)，博客局限一节说渲染速度是在“20 inference steps”下测的。两处可能是不同设置（演示用 50 步、测速用 20 步），也可能伪代码只是示意；伪代码本身注明“简化”。如果演示视频是 50 步出的，那它的实际速度比 1.5 帧/秒还慢约 2.5 倍（50 / 20）。未核实。</p></div>
+
+<h2 id="refs">博客引用的相关工作</h2>
+<p>博客的 14 条参考文献，我都打开核对过链接（2026-11-11 全部返回 200）。站内暂时没有这些论文的精读。</p>
+<div class="tablewrap"><table class="t-refs"><thead><tr><th>#</th><th>工作</th><th>在 Mundo 里的位置</th><th>链接</th></tr></thead><tbody>
+<tr><td>1</td><td><a class="ds" href="https://arxiv.org/abs/2608.25927">Code World Model</a>：Coding Agent as World Brain（Chen、Lin、Zhang，2026）</td><td>“代码世界”的思想来源</td><td><a href="https://arxiv.org/abs/2608.25927">2608.25927</a></td></tr>
+<tr><td>2</td><td><a class="ds" href="https://mirros.ai/blog/worlds-for-evolving-agents">AgentGarten</a>：Code Worlds for Evolving Agents（MirroS，博客）</td><td>同上</td><td>mirros.ai</td></tr>
+<tr><td>3</td><td><a class="ds" href="https://yihangluo.com/projects/4RC/">4RC</a>：4D Reconstruction via Conditional Querying（ICML 2026，本文作者组）</td><td>3D 基础模型之一</td><td><a href="https://arxiv.org/abs/2602.10094">2602.10094</a></td></tr>
+<tr><td>4</td><td><a class="ds" href="https://github.com/yyfz/Pi3">π³</a>：Permutation-Equivariant Visual Geometry Learning（ICLR 2026）</td><td>同上</td><td><a href="https://arxiv.org/abs/2507.13347">2507.13347</a></td></tr>
+<tr><td>5</td><td><a class="ds" href="https://github.com/facebookresearch/vggt">VGGT</a>：Visual Geometry Grounded Transformer（CVPR 2025）</td><td>同上</td><td><a href="https://arxiv.org/abs/2503.11651">2503.11651</a></td></tr>
+<tr><td>6</td><td><a class="ds" href="https://depth-anything-3.github.io/">Depth Anything 3</a>（ICLR 2026）</td><td>同上</td><td><a href="https://arxiv.org/abs/2511.10647">2511.10647</a></td></tr>
+<tr><td>7</td><td><a class="ds" href="https://nirvanalan.github.io/projects/stream3r/">STream3R</a>：Scalable Sequential 3D Reconstruction（ICLR 2026，本文作者组）</td><td>同上</td><td><a href="https://arxiv.org/abs/2508.10893">2508.10893</a></td></tr>
+<tr><td>8</td><td><a class="ds" href="https://github.com/facebookresearch/boxer">Boxer</a>：Robust Lifting of Open-World 2D Boxes to 3D（ECCV 2026）</td><td>初始 3D 框；对比基线</td><td><a href="https://arxiv.org/abs/2604.05212">2604.05212</a></td></tr>
+<tr><td>9</td><td><a class="ds" href="https://arxiv.org/abs/2609.24487">AgentSTAR</a>：Agentic Shape Tracking and Reconstruction（2026）</td><td>分析-合成循环</td><td><a href="https://arxiv.org/abs/2609.24487">2609.24487</a></td></tr>
+<tr><td>10</td><td><a class="ds" href="https://mujoco.org/">MuJoCo</a>（IROS 2012）</td><td>模拟器</td><td><a href="https://doi.org/10.1109/IROS.2012.6386109">DOI</a></td></tr>
+<tr><td>11</td><td><a class="ds" href="https://manycore-research.github.io/SpatialLM/">SpatialLM</a>（NeurIPS 2025）</td><td>对比基线</td><td><a href="https://arxiv.org/abs/2506.07491">2506.07491</a></td></tr>
+<tr><td>12</td><td><a class="ds" href="https://github.com/microsoft/TRELLIS">TRELLIS</a>：Structured 3D Latents（CVPR 2025）</td><td>精细物体的 3D 生成</td><td><a href="https://arxiv.org/abs/2412.01506">2412.01506</a></td></tr>
+<tr><td>13</td><td><a class="ds" href="https://github.com/MiniMax-AI/MiniMax-H3">MiniMax-H3</a>（软件，2026）</td><td>渲染器底座（Ref2VA）</td><td><a href="https://huggingface.co/MiniMaxAI/MiniMax-H3">HF 权重</a></td></tr>
+<tr><td>14</td><td><a class="ds" href="https://nvlabs.github.io/Sana/Sol-Engine/StreamRender-H3/">StreamRender-H3</a>（博客，2026）</td><td>可能的加速方案</td><td>nvlabs.github.io</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 输入张数的几种说法其实不矛盾</span>
+<p>项目页不同位置的输入数量：概述说“稀疏视图”和“几十张”；1.1 节“1 到 12 张”；首屏酒店房间“由 48 帧视频重建”（数据里正好 48 个相机，缩略图集只放了其中隔一个取的 24 张）；05 节流程图 9 张输入；伪代码注释“9 photos”；1.4 节“几十张”。区别在于场景类型：一个房间 1 到 12 张，视频按帧算，大场景几十张。没有发现自相矛盾的地方。</p></div>
+
+<h2 id="open">没有答案的问题</h2>
+<p>把上面散落的问题收在一起。打“已答”的是博客给了答案、项目页没有的。</p>
+<ul>
+<li><b>视频模型是哪个？</b>已答：博客 §4，微调 MiniMax-H3 Ref2VA（<a href="#n9">读者注 9</a>）。项目页只说“a video model”。</li>
+<li><b>模拟器是哪个？</b>部分已答：多数用 MuJoCo，示例 960 Hz；其他引擎和“自定义脚本”是哪些，没说（<a href="#n3">读者注 3</a>）。</li>
+<li><b>几何用哪个模型？</b>没答：博客列了五个候选。</li>
+<li><b>VLM 智能体用哪个模型、多少轮、多长时间？</b>没答。只知道重建整体 10 到 20 分钟。</li>
+<li><b>物理参数怎么推、准不准？</b>没答（<a href="#n6">读者注 6</a>）。</li>
+<li><b>渲染和模拟是否一致、时序一致性怎么保证？</b>只有机制描述，没有指标（<a href="#n8">读者注 8</a>）。</li>
+<li><b>proxy 帧的配色和内容？</b>只说按类别纯色；同类多个物体怎么区分没说。</li>
+<li><b>失败案例？</b>只有局限一节的文字（小物体漂浮、幻觉、记忆），没有展示。</li>
+<li><b>训练数据的组成和演示场景是否在训练集里？</b>没答（<a href="#n10">读者注 10</a>）。</li>
+<li><b>机器人训练或评测的结果？</b>没有（<a href="#n4">读者注 4</a>）。</li>
+<li><b>代码和权重的许可？</b>未放出；底座 H3 是社区许可，微调后的权重会用什么许可，未知。</li>
+</ul>
+
+<div class="note" id="n14"><span class="lab">读者注 14 · 项目页、博客、README 和镜像页之间的一致性</span>
+<ul>
+<li>README 的 TL;DR 和博客 TL;DR 逐字相同；项目页概述是同一段话的另一种写法。</li>
+<li>项目页 05 节的三步（建代理、以代码运行、渲染）和博客 §1 到 §3 一一对应，措辞也接近；博客 §4（训练）和局限一节只在博客里。</li>
+<li>两处伪代码（项目页 §2.1 和博客 §2）逐字相同。</li>
+<li>作者主页上的镜像（customized-world-model-v2）和项目页逐字比对，只有三处不同：一个小标题的大小写，BibTeX 的 url，以及 3.3 节一句话（镜像写“单张生成图的情况下运动是模拟的”，项目页写“最后两个例子”）。两者样式版本串相同（20261023）。镜像更像是改定前的版本（推断）。</li>
+<li>博客顶部列出 11 位有 Hugging Face 账号的作者，比项目页的 15 位少 Bixuan Jin、Fei Wang、Zhi Hou、Xiaogang Wang，应只是账号关联的差别，BibTeX 两边相同。</li>
+</ul></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">苹果那一段的时间线</a>：冻结、慢动作、速度都和伪代码对得上；单位推断为米和牛顿。</li>
+<li><a href="#n2">三个球的弹跳</a>：h 比和 e² 相差不到 1%，模拟自洽，但不证明渲染忠实。</li>
+<li><a href="#n3">真正模拟的几乎都是刚体</a>：布料那段是多机位录像，不是模拟。</li>
+<li><a href="#n4">宣称和展示的距离</a>：没有任何定量结果，Real-to-Sim 训练和评测没有展示。</li>
+<li><a href="#n5">初始框 → 最终代理</a>：16 → 28 个物体框 + 22 个建筑面，补漏 14、删 2、改标签 1、重定义 4 个框。</li>
+<li><a href="#n6">物理参数从哪来</a>：只有一句话，是管线里最不透明的一环。</li>
+<li><a href="#n7">分块的账</a>：124、304、484 帧是整块；836 帧不是。</li>
+<li><a href="#n8">时序一致性</a>：只有机制描述；同类物体同色的风险未核实。</li>
+<li><a href="#n9">底座 MiniMax-H3 Ref2VA</a>：33B 主干、最多 9 张参考图；规模和上限是推断。</li>
+<li><a href="#n10">演示场景可能在训练集里</a>：路径名对应 Tanks and Temples、Zip-NeRF、Argoverse 2、DexYCB。</li>
+<li><a href="#n11">速度换算</a>：一分钟视频约 16 分钟渲染，比 3DGS 慢两到三个数量级。</li>
+<li><a href="#n12">推理步数 50 对 20</a>：伪代码和测速口径不同，未核实。</li>
+<li><a href="#n13">输入张数的几种说法</a>：按场景类型不同，不矛盾；首屏 48 帧。</li>
+<li><a href="#n14">四份材料之间的一致性</a>：TL;DR 和伪代码逐字相同；镜像页只差三处措辞。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 11 日用脚本核对过可以打开（DOI 链接返回 202 后跳转）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://mundo-world-model.github.io/">Mundo</a></td><td>本文</td><td><a href="https://github.com/Luo-Yihang/Mundo">GitHub（README）</a> · <a href="https://huggingface.co/blog/Luo-Yihang/mundo-world-model">博客</a></td><td>无</td></tr>
+<tr><td><a class="ds" href="https://github.com/MiniMax-AI/MiniMax-H3">MiniMax-H3</a></td><td>渲染器底座</td><td><a href="https://huggingface.co/MiniMaxAI/MiniMax-H3">HF</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td><td>模拟器</td><td>mujoco.org</td><td><a href="https://doi.org/10.1109/IROS.2012.6386109">IROS 2012</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/boxer">Boxer</a></td><td>3D 检测器</td><td>github.com/facebookresearch/boxer</td><td><a href="https://arxiv.org/abs/2604.05212">2604.05212</a></td></tr>
+<tr><td><a class="ds" href="https://manycore-research.github.io/SpatialLM/">SpatialLM</a></td><td>对比基线</td><td>项目页</td><td><a href="https://arxiv.org/abs/2506.07491">2506.07491</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2609.24487">AgentSTAR</a></td><td>分析-合成循环</td><td>–</td><td><a href="https://arxiv.org/abs/2609.24487">2609.24487</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/microsoft/TRELLIS">TRELLIS</a></td><td>3D 生成</td><td>github.com/microsoft/TRELLIS</td><td><a href="https://arxiv.org/abs/2412.01506">2412.01506</a></td></tr>
+<tr><td><a class="ds" href="https://www.tanksandtemples.org/">Tanks and Temples</a></td><td>推断的演示场景来源</td><td>tanksandtemples.org</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://jonbarron.info/zipnerf/">Zip-NeRF</a></td><td>同上</td><td>jonbarron.info/zipnerf</td><td><a href="https://arxiv.org/abs/2304.06706">2304.06706</a></td></tr>
+<tr><td><a class="ds" href="https://www.argoverse.org/av2.html">Argoverse 2</a></td><td>同上</td><td>argoverse.org</td><td><a href="https://arxiv.org/abs/2301.00493">2301.00493</a></td></tr>
+<tr><td><a class="ds" href="https://dex-ycb.github.io/">DexYCB</a></td><td>同上</td><td>dex-ycb.github.io</td><td><a href="https://arxiv.org/abs/2104.04631">2104.04631</a></td></tr>
+<tr><td><a class="ds" href="https://haoxiangntu.github.io/world-model-lab/docs/wan.html">Wan2.1（World Model Lab）</a></td><td>纯视频世界模型对照</td><td><a href="https://github.com/Wan-Video/Wan2.1">Wan-Video/Wan2.1</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://haoxiangntu.github.io/world-model-lab/docs/vpp2.html">VPP2（World Model Lab）</a></td><td>同上</td><td>–</td><td><a href="https://arxiv.org/abs/2610.10270">2610.10270</a></td></tr>
+<tr><td><a class="ds" href="real2sim-eval.html">Real2Sim-Eval</a></td><td>3DGS + PhysTwin 对照</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2511.04665">2511.04665</a></td></tr>
+<tr><td><a class="ds" href="3dws.html">3D World Simulator</a></td><td>学到的 3D 动力学对照</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2611.04492">2611.04492</a></td></tr>
+<tr><td><a class="ds" href="gauge.html">GAUGE</a></td><td>物理保真度评测</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2608.05948">2608.05948</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 Mundo 项目页（mundo-world-model.github.io）和 Hugging Face 博客（Luo 等，2026-10-23）后的整理，不是作者的官方内容；没有论文。原页面标注“Mundo © 2026”，未见开放许可，本页没有复制任何原图、视频或数据文件，引用的一行伪代码已注明出处。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

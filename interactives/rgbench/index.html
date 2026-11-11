@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RGBench 拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.06434 RGBench 的框架做成 11 幕 3D 动画：表 3 的面料参数、版片缝线、当场模拟的布料玩具（隐式欧拉 + 牛顿 + PCG）、BVH 和接触势能、三种预条件器的残差、真实采集和时延、CD/HD 两个方向当场算、三个动作和两种模式、图 4 和表 1、表 4 和表 5。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:132px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:128px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="rgbench.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/rgbench.html">返回精读</a><a href="../../papers/rgbench.html#s4">原文 GarmentDynamics</a><a href="../../papers/rgbench.html#s3-eval">评测与指标</a><a href="../../papers/gauge.html">GAUGE</a><a href="https://arxiv.org/abs/2511.06434">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2511.06434 · RGBench</p>
+<h1>给布料模拟器打分：网格库、模拟器、真实点云</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是衣物网格库；<b>第 4 幕是核心，一块当场模拟的布</b>（隐式欧拉，每步解一次能量最小化）；第 5、6 幕是碰撞和预条件器；第 7、8 幕是真实采集和指标，<b>第 8 幕的 CD、HD 当场算</b>；第 9 幕是三个动作和两种模式；第 10、11 幕按论文的数字画结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。第 2、10、11 幕的数字是论文原数（图 4 从矢量图读出）；第 4 到 9 幕的布料是我写的玩具模拟器，不是 GarmentDynamics（它没有公开）。切换开关时会重新模拟，可能停顿半秒。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每一步，论文、公开代码、本页玩具并列</h2>
+<p class="sub">代码是 hwk0809/RGBench 提交 5cc3d07（2026-07-30，MIT），只读未运行；它只包含评测这一半，GarmentDynamics 没有公开。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>公开代码 / 本页</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>网格库</td><td>4k+ 工业资产（Style3D）+ 2k+ ClothesNet；10 种面料，111 个子类型（表 3）</td><td>HF garment_assets：研究子集约 509 件 OBJ + Style3D 文件，非商业许可</td></tr>
+<tr><td>D2</td><td>面料参数</td><td>拉伸仪 SST1000、弯曲仪 SBE1000；拉伸、弯曲、面密度、厚度</td><td>cloth_params/*.yaml：stretch、bending、density；mass 全为 0.255（TODO）</td></tr>
+<tr><td>D3</td><td>真实衣物</td><td>9 件，grasp / fling / fold</td><td>98 次采集；表中 7 件，另两件网格非流形</td></tr>
+<tr class="grp"><td colspan="4">模拟器（论文）与玩具（本页）</td></tr>
+<tr><td>S1</td><td>单元</td><td>线性三角形，Baraff–Witkin 的各向异性扩展；弯曲对曲率二次</td><td>玩具：BW 式拉伸 + 剪切（各向同性），等距二次弯曲；11×11 顶点</td></tr>
+<tr><td>S2</td><td>积分</td><td>隐式欧拉，式 (5)(6) 能量最小化（写法缺速度项）</td><td>玩具：带速度项 x̃ = x + hv + h²g；h = 1/120 s</td></tr>
+<tr><td>S3</td><td>求解</td><td>不精确牛顿（通常 1 次）+ 固定步数 PCG（约 50），MAS 预条件</td><td>玩具：牛顿 2 次 × 块 Jacobi PCG 30 步；第 6 幕另做两层加性 Schwarz</td></tr>
+<tr><td>S4</td><td>碰撞</td><td>RTX BVH 宽相；势能接触 + 解缠兜底；点-面、边-边、边-面</td><td>玩具：地面罚势能 + 顶点-顶点势能；无 CCD、无解缠</td></tr>
+<tr class="grp"><td colspan="4">评测</td></tr>
+<tr><td>E1</td><td>对齐</td><td>模板摆放；手眼标定 + ICP；固定时延</td><td>init_pose；每个样本一个 camera_delay（多为 0.060 s）</td></tr>
+<tr><td>E2</td><td>指标</td><td>CD、HD 两个方向，L1</td><td>metrics.py：CD 用 cityblock；HD 用 point_cloud_utils（欧氏）</td></tr>
+<tr><td>E3</td><td>模式</td><td>伪交互：最近顶点；机器人：URDF + 关节角</td><td>伪交互用写死的 shoulder_index；机器人模式没有 fling</td></tr>
+<tr><td>E4</td><td>汇总</td><td>表 4、表 5</td><td>paper_baselines.csv：评测窗均值 → 3 次平均，和论文逐格一致</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意或玩具</h2>
+<ul class="mine">
+<li><b>第 3 幕的版片。</b>形状、配色和“立起来”的动作是我画的，不是图 8 的版片，也没有缝制模拟。</li>
+<li><b>第 4 到 9 幕的布。</b>我写的玩具模拟器：拉伸取表 3 换算成 N/m，剪切取 10%，弯曲取表 3 数值 × 6×10⁻⁷ N·m（绝对值我设的），面密度取表 3；自碰撞只有顶点对顶点。不代表 GarmentDynamics 的精度或速度。</li>
+<li><b>第 5 幕。</b>BVH 用中位数切分，探针和势能曲线都是示意；论文没给势能形式。</li>
+<li><b>第 6 幕。</b>两层加性 Schwarz 是 MAS 的最简版本；残差是当场算的。</li>
+<li><b>第 7、8 幕的“真实”点云。</b>由玩具模拟加噪声生成，单视角用 48×48 深度格近似；数值只说明指标的性质，和表 4 不可比。</li>
+<li><b>第 9 幕的机器人模式。</b>用软弹簧代替夹爪接触；机械臂是示意臂。</li>
+<li><b>第 2、10、11 幕的数据</b>不是示意：表 3、表 1、表 4、表 5 原数，图 4 从矢量图读出。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2511.06434 后的理解，不是作者的官方图。原文图片不在本站（arXiv 非独占分发许可），逐节内容和核算见<a href="../../papers/rgbench.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>
