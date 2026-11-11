@@ -460,7 +460,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 
 <h3 id="qa-metric">问 1：MMRV 和 Pearson r 怎么算，怎么用它们判断“仿真能不能代替真机”？</h3>
 <p>做法是同一批策略（或同一策略的多个检查点）在仿真和真机上各跑若干次，每个策略得到一对成功率：仿真 \(s_i\)、真机 \(r_i\)。两个指标用不同方式比较这 \(N\) 对数。</p>
-<p><b>Pearson r：两组数是不是一起涨一起落。</b></p>
+<p><b>Pearson r：两组数是不是一起涨一起落。</b>（逐步算一遍的版本见<a href="#qa-pp">问 5</a>。）</p>
 <div class="eq"><div class="m">\[ r=\frac{\sum_i (s_i-\bar s)(r_i-\bar r)}{\sqrt{\sum_i (s_i-\bar s)^2}\,\sqrt{\sum_i (r_i-\bar r)^2}} \]</div></div>
 <p>分子看每个策略在仿真和真机里是不是同时高于平均或同时低于平均，同向加分、反向减分；分母做归一化，所以 \(r\in[-1,1]\)。\(r=1\) 表示所有点落在一条斜向上的直线上。它衡量的是线性关系，只关心点排得直不直（为什么 \(r=1\) 不等于最好，见<a href="#qa-r">问 2</a>）。</p>
 <p><b>MMRV（平均最大排名违规，SIMPLER 提出）：排序错了多少、错得多严重。</b></p>
@@ -520,7 +520,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <tr><td>仿真 = 0.5 × 真机</td><td><b>1.000</b></td><td>全对</td><td>r 满分，但仿真说 45% 时真机其实是 90%</td></tr>
 <tr><td>仿真 = 真机³（单调但弯曲）</td><td>0.933</td><td><b>全对</b></td><td>排序一点没错，r 却不到 1；这时等级相关（Spearman）是 1</td></tr>
 </tbody></table></div>
-<p>所以 \(r\) 高是“仿真能当真机的线性代理”的必要条件，不是充分条件。要确认“数值也对”，还要看拟合直线的斜率是否接近 1、截距是否接近 0，或者直接看平均绝对误差；只关心排序时，Spearman / Kendall 等级相关或 MMRV 更对口。</p>
+<p>所以 \(r\) 高是“仿真能当真机的线性代理”的必要条件，不是充分条件。要确认“数值也对”，还要看拟合直线的斜率是否接近 1、截距是否接近 0，或者直接看平均绝对误差（本文数据上的逐策略对比见<a href="#qa-pp">问 5</a>）；只关心排序时，Spearman / Kendall 等级相关或 MMRV 更对口。</p>
 <p><b>即使模拟器完美，r 也到不了 1。</b>每个点都是有限次试验估出来的成功率，本身带二项分布噪声。下面这个工具假设一个“完美模拟器”：每个检查点在仿真和真机里的<i>真实</i>成功率完全相同（用本文玩具任务 17 个检查点的真机成功率当真值），两边各独立测 n 次，看测出来的 \(r\) 会是多少。</p>
 
 <div class="qa-tool" id="qa-r-tool">
@@ -820,6 +820,92 @@ media (max-width:760px){ .i3d iframe{height:900px} }
   document.getElementById('rr-reset').onclick = resetR;
   rt.querySelector('[data-w="0.25"]').setAttribute('aria-pressed', 'true'); resetR();
   new MutationObserver(() => { drawL(); drawR(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+
+<h3 id="qa-pp">问 5：再讲一遍 Pearson r；有没有逐个策略直接比仿真和真机的评测？</h3>
+<p><b>先说最容易误会的一点：\(r\) 不是拿“策略 \(i\) 的仿真成绩”和“策略 \(i\) 的真机成绩”比是否相等。</b>它比的是两列数的<b>起伏形状</b>：真机里比平均好的策略，仿真里是不是也比平均好；好得多的，是不是也好得多。</p>
+<p>打个比方：两位老师给同样 4 个学生打分。A 老师打 60、75、80、95，B 老师打得严，统一少 10 分：50、65、70、85。两人没有一个分数相同，但谁高谁低、高多少完全一致，\(r=1\)。\(r\) 只回答“两位老师的看法是不是同一个形状”，不回答“分数是不是一样”。</p>
+
+<p><b>一步一步算。</b>用问 1 的例子 A：4 个策略，真机 0.2、0.5、0.6、0.9，仿真 0.3、0.6、0.5、0.8。</p>
+<ol>
+<li><b>各自减去平均。</b>两列平均都是 0.55。偏差：真机 −0.35、−0.05、+0.05、+0.35；仿真 −0.25、+0.05、−0.05、+0.25。</li>
+<li><b>逐个策略把两个偏差相乘。</b>同号（两边都高于平均，或都低于平均）得正数，异号得负数：+0.0875、−0.0025、−0.0025、+0.0875。加起来 0.17。策略 1 和 4 两边方向一致而且偏得远，贡献最大；策略 2 和 3 在仿真里顺序颠倒了，各扣一点。</li>
+<li><b>除以“各自的起伏大小”做归一化。</b>真机偏差平方和 0.25，仿真 0.13，\(\sqrt{0.25\times0.13}=0.180\)。\(r=0.17/0.180=0.943\)。</li>
+</ol>
+<p>第 3 步的意义：把两列数都换算成“离平均几个标准差”（z 分数），\(r\) 就是逐个策略 z 分数乘积的平均。换算以后，单位、整体高低、整体放大缩小都被消掉了，只剩形状。所以下面这些改动都<b>不改变 \(r\)</b>：仿真整体比真机低 15 个点；仿真成绩整体打五折。</p>
+
+<div class="qa-tool" id="qa-pp-tool">
+<p class="lab">动手看 · 同样 4 个策略（真机 0.2, 0.5, 0.6, 0.9），换几种仿真成绩，对比 r 和“逐策略差距”</p>
+<div class="qa-ctl"><span>仿真成绩</span><button type="button" data-p="eq">仿真 = 真机</button><button type="button" data-p="A">例子 A</button><button type="button" data-p="shift">整体低 0.15</button><button type="button" data-p="half">整体打五折</button><button type="button" data-p="B">例子 B</button></div>
+<div class="qa-grid"><div id="pp-tab" class="tablewrap"></div><canvas id="pp-cv" width="320" height="320" aria-label="仿真对真机散点，带平均线和对角线"></canvas></div>
+<p class="qa-out" id="pp-out"></p>
+</div>
+<p>右图的十字虚线是两边的平均，把平面分成四块：右上和左下（两边同向）的点给 \(r\) 加分，标绿；左上和右下（反向）扣分，标红。斜虚线是对角线 \(y=x\)，点落在它上面才表示“仿真成绩 = 真机成绩”。点“整体低 0.15”和“整体打五折”：所有点离开了对角线，\(r\) 仍是 1，平均绝对误差却变大了。</p>
+
+<p><b>所以要看“同一个策略的仿真和真机是否一致”，得用别的指标。</b>常用的有三个：</p>
+<ul>
+<li><b>平均绝对误差（MAE）</b>：\(\frac1N\sum_i|s_i-r_i|\)，平均每个策略差多少个百分点。再看带符号的平均偏差 \(\frac1N\sum_i(s_i-r_i)\)，就知道仿真是整体偏高还是偏低。</li>
+<li><b>Lin 一致性相关系数（CCC）</b>：\(\rho_c=\dfrac{2\,\mathrm{cov}(s,r)}{\sigma_s^2+\sigma_r^2+(\bar s-\bar r)^2}\)。形状像 \(r\)，但分母多了“平均值差”和“起伏大小差”，只有所有点都落在对角线上才等于 1。整体平移或缩放都会被扣分。</li>
+<li><b>逐个策略做检验</b>：每个策略的仿真、真机各是“\(n\) 次里成功几次”，可以用 Fisher 精确检验看两者差别是否超出试验噪声。</li>
+</ul>
+
+<p><b>论文里有没有这类评测？</b>有一部分：</p>
+<ol>
+<li><b>图 3 的对角线</b>：论文说点“紧贴对角线”，这是逐策略的比较，但只是看图，没给数字。</li>
+<li><b>图 4 的训练曲线</b>：同一个策略在不同训练阶段，仿真和真机成功率画在一起，看两条线是否同起同落，同样没给数字。</li>
+<li><b>附录 II-B 的回放实验（最直接的一项）</b>：把真机每个回合的控制指令原样在仿真里重放，物体初始状态也和那个真机回合相同，然后<b>逐回合</b>比较仿真和真机的成败（<a href="#apII-b">表 VIII</a>）。逐回合一致率是 79.3%、87.2%、90.6%（<a href="#n17">读者注 17</a>）。一致率会被“本来就大多成功或大多失败”抬高，我算了扣除偶然一致的 Cohen κ：装玩具 0.58，穿绳 0.66，推 T 0.80（常用的 Landis–Koch 分档：0.4–0.6 中等，0.6–0.8 较好，0.8 以上很好）。要注意它是<b>开环回放</b>：策略看不到仿真画面，只检验了动力学；策略在仿真里闭环运行时，两边轨迹会逐渐分叉，但仿真用的是固定网格的初始摆放（<a href="#n4">读者注 4</a>），如果真机也按同一网格摆，按“同一初始摆放、两边成败是否相同”逐回合对比原则上可以做；论文没有报告这一项。</li>
+</ol>
+
+<p><b>论文没报的数字，我用图 3 的读数算了。</b>图 3 的每个点都能精确读出（<a href="#n6">读者注 6</a>），每个点就是一个检查点的“真机成功次数 / 仿真成功次数”：</p>
+<div class="tablewrap"><table class="qa-mt"><thead><tr><th>任务</th><th>点数</th><th>Pearson r</th><th>MAE</th><th>平均偏差（仿真 − 真机）</th><th>最大 |差|</th><th>CCC</th><th>拟合斜率</th><th>Fisher p &lt; 0.05 的点</th></tr></thead><tbody>
+<tr><td>装玩具（每点 20 次）</td><td>17</td><td>0.944</td><td>0.068</td><td>−0.038</td><td>0.200</td><td>0.929</td><td>0.87</td><td>0</td></tr>
+<tr><td>穿绳（27 次）</td><td>20</td><td>0.901</td><td>0.117</td><td>−0.057</td><td>0.333</td><td>0.885</td><td>0.86</td><td>1</td></tr>
+<tr><td>推 T（16 次）</td><td>15</td><td>0.915</td><td>0.087</td><td>−0.029</td><td>0.250</td><td>0.904</td><td>1.01</td><td>0</td></tr>
+<tr><td>IsaacLab 穿绳</td><td>20</td><td>0.237</td><td>0.507</td><td>−0.507</td><td>0.926</td><td>0.057</td><td>0.11</td><td>15</td></tr>
+<tr><td>IsaacLab 推 T</td><td>15</td><td>0.649</td><td>0.250</td><td>−0.250</td><td>0.625</td><td>0.350</td><td>0.44</td><td>2</td></tr>
+</tbody></table></div>
+<p>拟合斜率是“仿真对真机”的最小二乘直线斜率，1 最好。几点观察：</p>
+<ul>
+<li><b>本文三个任务，逐策略也对得上。</b>平均每个检查点差 7–12 个百分点，仿真整体略低 3–6 个点；CCC 只比 \(r\) 低 0.01–0.02，说明点基本贴着对角线，不只是“排成一条直线”。52 个检查点里只有 1 个差别显著：穿绳 SmolVLA 一个检查点，真机 24/27，仿真 15/27（\(p<0.05\)）。</li>
+<li><b>IsaacLab 推 T 是 \(r\) 和逐策略指标分歧的例子。</b>\(r=0.65\) 看着还行，但仿真平均比真机低 25 个点，CCC 只有 0.35。只看 \(r\) 会高估它。IsaacLab 穿绳 20 个点里 15 个和真机差别显著，仿真几乎总是失败。</li>
+<li><b>“不显著”不等于“相等”。</b>每点只有 16–27 次试验，检验力很弱：一边 50% 时，另一边要差约 35 个点（20 次）、44 个点（16 次）、30 个点（27 次）才能显著。所以“只有 1 个显著”说明没有大的偏差，不能证明逐个策略都一样。</li>
+</ul>
+<p><b>怎么用。</b>只想用仿真挑出更好的策略，看 MMRV 和 \(r\)（或等级相关）就够了；想用仿真成功率直接预估真机能有多少，就要看 MAE、平均偏差和 CCC；想知道差在动力学还是画面，看回放实验这类逐回合对比。</p>
+
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const tool = document.getElementById('qa-pp-tool'); if (!tool) return;
+  const R = [0.2, 0.5, 0.6, 0.9], COL = ['#38a3ff', '#ff9f43', '#3fc98a', '#c779ff'];
+  const PRE = { eq: R.slice(), A: [0.3, 0.6, 0.5, 0.8], shift: R.map(x => +(x - 0.15).toFixed(2)), half: R.map(x => x / 2), B: [0.3, 0.5, 0.6, 0.45] };
+  let key = 'A';
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  function draw() {
+    const S = PRE[key], mr = mean(R), ms = mean(S), dr = R.map(x => x - mr), ds = S.map(x => x - ms);
+    const prod = dr.map((d, i) => d * ds[i]), sp = prod.reduce((a, b) => a + b, 0), vr = dr.reduce((a, d) => a + d * d, 0), vs = ds.reduce((a, d) => a + d * d, 0);
+    const r = vs > 0 ? sp / Math.sqrt(vr * vs) : NaN, n = R.length, mae = mean(R.map((x, i) => Math.abs(S[i] - x))), bias = ms - mr;
+    const ccc = 2 * (sp / n) / (vr / n + vs / n + (ms - mr) ** 2);
+    const f = (x, d) => (x < -1e-12 ? '−' : '+') + Math.abs(x).toFixed(d);
+    document.getElementById('pp-tab').innerHTML = `<table class="qa-mt"><thead><tr><th>策略</th><th>真机</th><th>仿真</th><th>真机偏差</th><th>仿真偏差</th><th>乘积</th><th>|仿真 − 真机|</th></tr></thead><tbody>` +
+      R.map((x, i) => `<tr><td style="color:${COL[i]}">策略 ${i + 1}</td><td>${x.toFixed(2)}</td><td>${S[i].toFixed(2)}</td><td>${f(dr[i], 2)}</td><td>${f(ds[i], 2)}</td><td style="color:${prod[i] >= 0 ? '#3fc98a' : '#ff5d6c'}">${f(prod[i], 4)}</td><td>${Math.abs(S[i] - x).toFixed(2)}</td></tr>`).join('') +
+      `<tr><td>合计 / 平均</td><td>${mr.toFixed(3)}</td><td>${ms.toFixed(3)}</td><td></td><td></td><td>${f(sp, 4)}</td><td>${mae.toFixed(3)}</td></tr></tbody></table>`;
+    document.getElementById('pp-out').innerHTML = `Pearson r = ${sp.toFixed(4)} / √(${vr.toFixed(4)} × ${vs.toFixed(4)}) = <b>${r.toFixed(3)}</b> · 平均绝对误差 <b>${mae.toFixed(3)}</b> · 平均偏差 ${bias >= 0 ? '+' : '−'}${Math.abs(bias).toFixed(3)} · CCC <b>${ccc.toFixed(3)}</b>`;
+    const cv = document.getElementById('pp-cv'), g = cv.getContext('2d'), W = cv.width, H = cv.height, P = 34, X = v => P + v * (W - P - 12), Y = v => H - P - v * (H - P - 12);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = 'rgba(63,201,138,.08)'; g.fillRect(X(mr), Y(1), X(1) - X(mr), Y(ms) - Y(1)); g.fillRect(X(0), Y(ms), X(mr) - X(0), Y(0) - Y(ms));
+    g.fillStyle = 'rgba(255,93,108,.08)'; g.fillRect(X(0), Y(1), X(mr) - X(0), Y(ms) - Y(1)); g.fillRect(X(mr), Y(ms), X(1) - X(mr), Y(0) - Y(ms));
+    g.strokeStyle = css('--line'); g.strokeRect(X(0), Y(1), X(1) - X(0), Y(0) - Y(1));
+    g.setLineDash([4, 4]); g.strokeStyle = css('--muted'); g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(1)); g.stroke();
+    g.strokeStyle = css('--accent'); g.beginPath(); g.moveTo(X(mr), Y(0)); g.lineTo(X(mr), Y(1)); g.moveTo(X(0), Y(ms)); g.lineTo(X(1), Y(ms)); g.stroke(); g.setLineDash([]);
+    R.forEach((x, i) => { g.fillStyle = COL[i]; g.beginPath(); g.arc(X(x), Y(S[i]), 6, 0, 7); g.fill(); });
+    g.fillStyle = css('--muted'); g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillText('真机成功率', X(0.5), H - 8); g.fillText('0', X(0), H - P + 14); g.fillText('1', X(1), H - P + 14);
+    g.save(); g.translate(12, Y(0.5)); g.rotate(-Math.PI / 2); g.fillText('仿真成功率', 0, 0); g.restore();
+    g.textAlign = 'right'; g.fillText('y = x', X(0.97), Y(0.97) + 16);
+  }
+  tool.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { key = b.dataset.p; tool.querySelectorAll('[data-p]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); });
+  tool.querySelector('[data-p="A"]').setAttribute('aria-pressed', 'true'); draw();
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 </script>
 
