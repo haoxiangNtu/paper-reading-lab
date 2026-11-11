@@ -32,6 +32,8 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 .qa-sl input{flex:1;min-width:120px}
 .qa-tool canvas{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 .qa-out{font-size:13.5px;margin:8px 0 0;max-width:none}
+.qa-mt td,.qa-mt th{text-align:center}.qa-mt td:first-child{text-align:left}
+.qa-mt td.qa-bad{color:#ff5d6c}.qa-mt td.qa-top{color:#ff5d6c;font-weight:700;background:rgba(255,93,108,.1)}
 @media (max-width:640px){.qa-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -466,14 +468,30 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <ol>
 <li>任取两个策略 \(i\)、\(j\)：如果仿真里 \(i\) 比 \(j\) 好，真机里却是 \(j\) 比 \(i\) 好，这一对就算“排名违规”。</li>
 <li>违规的代价是两者<b>真机</b>成功率的差 \(|r_i-r_j|\)：真机只差 2% 的两个策略排反了无所谓，差 40% 还排反就是严重错误。</li>
-<li>每个策略只取它最严重的那次违规，得到 \(\mathrm{RV}_i\)；再对所有策略取平均。0 最好，表示仿真的排序和真机完全一致。</li>
+<li>每个策略只取它最严重的那次违规，得到 \(\mathrm{RV}_i\)；再对所有策略取平均。0 最好，表示仿真的排序和真机完全一致。（\(\mathrm{RV}_i\) 的逐对拆解见下面的<a href="#qa-rv">表</a>。）</li>
 </ol>
 
+<p id="qa-rv"><b>RV<sub>i</sub> 拆开看。</b>\(\mathrm{RV}_i\) 是“第 \(i\) 个策略的最严重排名违规”。可以这样理解：<b>如果你相信仿真对策略 \(i\) 的判断，最坏会犯多大的错。</b>具体做法是拿策略 \(i\) 和其他每个策略 \(j\) 逐一比较：</p>
+<ol>
+<li>看仿真说谁好：\(s_i>s_j\) 吗？再看真机说谁好：\(r_i>r_j\) 吗？</li>
+<li>两个回答一样，这一对没问题，记 0。两个回答不一样，仿真把这两个策略的先后排反了，记下它们<b>真机</b>成功率的差 \(|r_i-r_j|\)，也就是“排反这一对，实际损失有多大”。</li>
+<li>在所有 \(j\) 里取最大的那个数，就是 \(\mathrm{RV}_i\)。一个都没排反，\(\mathrm{RV}_i=0\)。</li>
+</ol>
+<p>以问 1 的例子 B 为例（真机 0.2, 0.5, 0.6, 0.9；仿真 0.3, 0.5, 0.6, 0.45）。真机最好的策略 4，在仿真里只有 0.45，被排到了策略 2（0.5）和策略 3（0.6）后面：</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>策略 i ＼ 对手 j</th><th>1</th><th>2</th><th>3</th><th>4</th><th>RV<sub>i</sub>（行最大）</th></tr></thead><tbody>
+<tr><td>1（真 0.2，仿 0.3）</td><td>—</td><td>✓</td><td>✓</td><td>✓</td><td>0</td></tr>
+<tr><td>2（真 0.5，仿 0.5）</td><td>✓</td><td>—</td><td>✓</td><td><b>0.40 ✗</b></td><td>0.40</td></tr>
+<tr><td>3（真 0.6，仿 0.6）</td><td>✓</td><td>✓</td><td>—</td><td><b>0.30 ✗</b></td><td>0.30</td></tr>
+<tr><td>4（真 0.9，仿 0.45）</td><td>✓</td><td><b>0.40 ✗</b></td><td><b>0.30 ✗</b></td><td>—</td><td>0.40</td></tr>
+</tbody></table></div>
+<p>以第 4 行为例：仿真说 4 不如 2（0.45 &lt; 0.5），真机说 4 比 2 好（0.9 &gt; 0.5），排反了，真机差 0.4；和 3 也排反了，真机差 0.3；和 1 的先后两边一致。取最大，\(\mathrm{RV}_4=0.4\)。四行平均 \((0+0.4+0.3+0.4)/4=0.275\)，就是 MMRV。</p>
+<p>几个细节：一对排反会在两行里各出现一次（2 行和 4 行都有 0.40），这是定义如此，不是重复计算错误。每行只取最大值而不是求和，所以一个策略和很多对手排反，只按最严重的那次算。比较用的是严格大于：仿真里两个策略成功率相等、真机里不相等时，按 SIMPLER 代码会算作违规。</p>
 <div class="qa-tool" id="qa-mm">
 <p class="lab">动手算 · 真机成功率固定，拖滑块改仿真成功率</p>
 <div class="qa-ctl"><span>例子</span><button type="button" data-ex="D">D 完全一致</button><button type="button" data-ex="A">A 小换位</button><button type="button" data-ex="B">B 大换位</button><button type="button" data-ex="C">C 整体偏低一半</button>
 <span style="margin-left:10px">加权</span><button type="button" data-w="real" aria-pressed="true">按真机差（SIMPLER 原定义）</button><button type="button" data-w="sim">按仿真差（本文实际算法）</button></div>
 <div class="qa-grid"><div class="qa-sl" id="qa-sl"></div><canvas id="qa-sc" width="320" height="320" aria-label="仿真对真机成功率散点图"></canvas></div>
+<div id="qa-mat" class="tablewrap"></div>
 <p class="qa-out" id="qa-out"></p>
 </div>
 
@@ -591,6 +609,9 @@ media (max-width:760px){ .i3d iframe{height:900px} }
     /* draw violating pairs */
     g.strokeStyle = '#ff5d6c'; g.lineWidth = 1.5; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) if ((sim[i] > sim[j]) !== (REAL[i] > REAL[j])) { g.beginPath(); g.moveTo(X(REAL[i]), Y(sim[i])); g.lineTo(X(REAL[j]), Y(sim[j])); g.stroke(); }
     REAL.forEach((rv, i) => { g.fillStyle = COL[i]; g.beginPath(); g.arc(X(rv), Y(sim[i]), 7, 0, 7); g.fill(); });
+    { const wv = W === 'sim' ? sim : REAL; let h2 = '<table class="t-sm qa-mt"><thead><tr><th>策略 i ＼ 对手 j</th>' + REAL.map((_, j) => `<th>${j + 1}</th>`).join('') + '<th>RV<sub>i</sub></th></tr></thead><tbody>';
+      REAL.forEach((rv, i) => { h2 += `<tr><td><span style="color:${COL[i]}">●</span> ${i + 1}（真 ${rv.toFixed(2)}，仿 ${sim[i].toFixed(2)}）</td>`; REAL.forEach((_, j) => { if (i === j) { h2 += '<td>—</td>'; return; } const v = (sim[i] > sim[j]) !== (REAL[i] > REAL[j]), c = Math.abs(wv[i] - wv[j]), top = v && Math.abs(c - m.per[i]) < 1e-9; h2 += v ? `<td class="${top ? 'qa-top' : 'qa-bad'}">${c.toFixed(2)} ✗</td>` : '<td>✓</td>'; }); h2 += `<td><b>${m.per[i].toFixed(2)}</b></td></tr>`; });
+      document.getElementById('qa-mat').innerHTML = h2 + `</tbody></table><p class="qa-out" style="margin:4px 0 0">逐对比较：✓ 表示仿真和真机的先后一致；✗ 表示排反了，数字是${W === 'real' ? '真机' : '仿真'}成功率的差；每行加粗的最大值就是 RV<sub>i</sub>，四行平均就是 MMRV。</p>`; }
     out.innerHTML = `每个策略的最严重违规 RV = [${m.per.map(v => v.toFixed(2)).join(', ')}] → <b>MMRV = ${m.v.toFixed(3)}</b>（${W === 'real' ? '按真机差' : '按仿真差'}）· <b>r = ${isNaN(r) ? '—' : r.toFixed(3)}</b> · 两种加权：按真机 ${mr.v.toFixed(3)}，按仿真 ${ms.v.toFixed(3)}。红线连的是排序违规的策略对。`;
   }
   sl.addEventListener('input', e => { if (e.target.dataset.i) { sim[+e.target.dataset.i] = +e.target.value; draw(); } });
