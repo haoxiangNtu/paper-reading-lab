@@ -22,6 +22,17 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 .algo .h{font-weight:600}
 .algo .in{padding-left:1.4em}.algo .in2{padding-left:2.8em}.algo .in3{padding-left:4.2em}
 .notes li{max-width:74ch}
+.qa-tool{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:16px 0;background:var(--bg2)}
+.qa-tool .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px}
+.qa-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}
+.qa-ctl button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.qa-ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600;border-color:var(--accent)}
+.qa-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:center}
+.qa-sl label{display:flex;gap:8px;align-items:center;font-size:13.5px;margin:6px 0;flex-wrap:wrap}
+.qa-sl input{flex:1;min-width:120px}
+.qa-tool canvas{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.qa-out{font-size:13.5px;margin:8px 0 0;max-width:none}
+@media (max-width:640px){.qa-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
@@ -43,7 +54,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#rel">和 SIMPLER、PhysTwin 的关系</a><a href="#s1">I 引言</a><a href="#s2">II 相关工作</a><a href="#s3">III 方法</a><a href="#s3-b">III-B PhysTwin</a><a href="#s3-c">III-C 高斯泼溅仿真</a><a href="#i3d">3D 框架动画</a><a href="#s3-d">III-D 策略评测</a><a href="#s4">IV 实验</a><a href="#s4-c">IV-C 相关性</a><a href="#s4-e">IV-E 消融</a><a href="#s5">V 结论</a><a href="#apI">附录 I</a><a href="#apII">附录 II</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#rel">和 SIMPLER、PhysTwin 的关系</a><a href="#s1">I 引言</a><a href="#s2">II 相关工作</a><a href="#s3">III 方法</a><a href="#s3-b">III-B PhysTwin</a><a href="#s3-c">III-C 高斯泼溅仿真</a><a href="#i3d">3D 框架动画</a><a href="#s3-d">III-D 策略评测</a><a href="#s4">IV 实验</a><a href="#s4-c">IV-C 相关性</a><a href="#s4-e">IV-E 消融</a><a href="#s5">V 结论</a><a href="#apI">附录 I</a><a href="#apII">附录 II</a><a href="#qa">读者问答</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -116,7 +127,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <h3 id="s3-c"><span class="no">III-C</span>Real-to-Sim 高斯泼溅仿真</h3>
 <p>这一节讲仿真器怎么搭。两个互补的目标：用 GS 场景重建、位置对齐、颜色对齐缩小视觉差距；用物理建模和形变处理缩小动力学差距。</p>
 <p><b>1) GS 构建。</b>用 iPhone 应用 <a class="ds" href="https://scaniverse.com/">Scaniverse</a> 录视频，自动生成 GS 重建。桌面操作场景先扫一遍静态的机器人工作区（机器人、桌子、背景），再逐个扫实验物体。重建结果在交互式查看器 <a class="ds" href="https://github.com/playcanvas/supersplat">SuperSplat</a> 里手动切成机器人、物体、背景。每个任务只需要做一次。</p>
-<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
+<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。（ICP 是什么、为什么要先用 RANSAC，见<a href="#qa-icp">读者问答 2</a>。）背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
 <p>为了让静态扫描出的机器人 GS 能动起来，要把每个高斯核分到一个连杆上：ICP 对齐后，对每个核在采样的机器人点云里找最近邻，继承那个点的连杆编号。所有连杆包括夹爪手指都这样处理，所以手臂连续运动和夹爪开合都能渲染。有 URDF 的其他机器人也能照做。</p>
 <p><b>3) 颜色对齐。</b>GS 渲染的视觉差距有一大来源：重建场景和策略训练数据不在同一个色彩空间。GS 继承了 iPhone 视频的颜色特性，而策略是在机器人相机（比如 Intel RealSense，已知有色偏）的色彩空间里训练的。作者设计一个颜色变换，把 GS 颜色对到真实相机。</p>
 <p>直接在 RGB 空间做：先在固定真实相机的视角用原始高斯颜色和不透明度渲染，再在同样视角拍真实图像，组成配对数据，求一个变换 \(f\) 让逐像素颜色差最小：</p>
@@ -165,7 +176,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <div class="note" id="n4"><span class="lab">读者注 4 · 20、27、16 是三个网格的格点数</span>
 <p>代码 <code>cfg/gs/*.yaml</code> 的 <code>grid_randomization</code>：玩具 5 个 (x, y, θ) 组合（<code>one_to_one: True</code>，位置和角度一一配对）× 盒子 4 个 = 20；绳子 9 个位置（x, y ∈ {−5, 0, 5} cm）× 3 个角度（−10°, 0°, 10°）= 27；T 形块 4 个位置（x, y ∈ {±5} cm）× 4 个角度（45°, 135°, 225°, 315°）= 16。表 VII 写的 {±45, ±135} 就是这四个角。网格端点和表 VII 的范围一致，玩具的 y 上限 3 cm 也对得上（格点 [0, 0.03]）。</p>
 </div>
-<p>所有任务都用二值成功判据。按 SIMPLER [20]，用平均最大排名违规（MMRV）和 Pearson 相关系数 \(r\) 衡量仿真和真机成绩的一致性。评测次数对成功率的不确定度影响很大，所以结果里报告 Clopper–Pearson 置信区间，并用小提琴图画出均匀 Beta 先验下成功率的贝叶斯后验。</p>
+<p>所有任务都用二值成功判据。按 SIMPLER [20]，用平均最大排名违规（MMRV）和 Pearson 相关系数 \(r\) 衡量仿真和真机成绩的一致性。（两个指标怎么算、各管什么，见页末<a href="#qa-metric">读者问答 1</a>。）评测次数对成功率的不确定度影响很大，所以结果里报告 Clopper–Pearson 置信区间，并用小提琴图画出均匀 Beta 先验下成功率的贝叶斯后验。</p>
 <div class="note" id="n5"><span class="lab">读者注 5 · 16 到 27 次试验的置信区间有多宽</span>
 <p>Clopper–Pearson 95% 区间（我用二项分布的累积概率二分求解）：20 次成功 15 次，点估计 0.75，区间 [0.509, 0.913]；20 次成功 10 次，[0.272, 0.728]；16 次成功 8 次，[0.247, 0.753]；27 次成功 20 次，[0.537, 0.889]。也就是单个检查点的成功率上下各有约 0.2 的不确定度，和图 3 灰色误差棒的长度一致。所以单点“仿真比真机低 0.15”这样的差距大多落在噪声里；论文的结论靠的是 15 到 20 个点的整体相关性。</p>
 </div>
@@ -441,6 +452,145 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <img src="real2sim-eval/fig11.webp" width="1600" height="2069" alt="图 11：六组画面，三个任务的真机和仿真交替排列，每组上行是正面相机、下行是腕部相机，五列是同步的时刻" loading="lazy">
 <figcaption><span class="lab">图 11 · 原文第 15 页 · 从 PDF 裁切，Zhang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/html/2511.04665v2#A2.F11">看原图 ↗</a></span>从上到下：装玩具真机、仿真，穿绳真机、仿真，推 T 真机、仿真。每组上行是固定相机，下行是腕部相机；五列是相同时间戳。腕部视角下树懒的脸、绳头的红皮筋、T 形块的边缘在仿真里都清晰可辨，这是绿幕方法做不到的视角。</figcaption>
 </figure>
+
+<h2 id="qa">读者问答</h2>
+<p>读这篇时问过的两个基础问题，答案整理在这里。数字都是页面当场算的。</p>
+
+<h3 id="qa-metric">问 1：MMRV 和 Pearson r 怎么算，怎么用它们判断“仿真能不能代替真机”？</h3>
+<p>做法是同一批策略（或同一策略的多个检查点）在仿真和真机上各跑若干次，每个策略得到一对成功率：仿真 \(s_i\)、真机 \(r_i\)。两个指标用不同方式比较这 \(N\) 对数。</p>
+<p><b>Pearson r：两组数是不是一起涨一起落。</b></p>
+<div class="eq"><div class="m">\[ r=\frac{\sum_i (s_i-\bar s)(r_i-\bar r)}{\sqrt{\sum_i (s_i-\bar s)^2}\,\sqrt{\sum_i (r_i-\bar r)^2}} \]</div></div>
+<p>分子看每个策略在仿真和真机里是不是同时高于平均或同时低于平均，同向加分、反向减分；分母做归一化，所以 \(r\in[-1,1]\)。\(r=1\) 表示所有点落在一条斜向上的直线上。它衡量的是线性关系，只关心点排得直不直。</p>
+<p><b>MMRV（平均最大排名违规，SIMPLER 提出）：排序错了多少、错得多严重。</b></p>
+<div class="eq"><div class="m">\[ \mathrm{RV}_i=\max_j\ |r_i-r_j|\cdot\mathbb 1\big[(s_i>s_j)\neq(r_i>r_j)\big],\qquad \mathrm{MMRV}=\frac1N\sum_i\mathrm{RV}_i \]</div></div>
+<ol>
+<li>任取两个策略 \(i\)、\(j\)：如果仿真里 \(i\) 比 \(j\) 好，真机里却是 \(j\) 比 \(i\) 好，这一对就算“排名违规”。</li>
+<li>违规的代价是两者<b>真机</b>成功率的差 \(|r_i-r_j|\)：真机只差 2% 的两个策略排反了无所谓，差 40% 还排反就是严重错误。</li>
+<li>每个策略只取它最严重的那次违规，得到 \(\mathrm{RV}_i\)；再对所有策略取平均。0 最好，表示仿真的排序和真机完全一致。</li>
+</ol>
+
+<div class="qa-tool" id="qa-mm">
+<p class="lab">动手算 · 真机成功率固定，拖滑块改仿真成功率</p>
+<div class="qa-ctl"><span>例子</span><button type="button" data-ex="D">D 完全一致</button><button type="button" data-ex="A">A 小换位</button><button type="button" data-ex="B">B 大换位</button><button type="button" data-ex="C">C 整体偏低一半</button>
+<span style="margin-left:10px">加权</span><button type="button" data-w="real" aria-pressed="true">按真机差（SIMPLER 原定义）</button><button type="button" data-w="sim">按仿真差（本文实际算法）</button></div>
+<div class="qa-grid"><div class="qa-sl" id="qa-sl"></div><canvas id="qa-sc" width="320" height="320" aria-label="仿真对真机成功率散点图"></canvas></div>
+<p class="qa-out" id="qa-out"></p>
+</div>
+
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>情况</th><th>仿真成功率（真机固定为 0.2, 0.5, 0.6, 0.9）</th><th>MMRV</th><th>r</th><th>说明</th></tr></thead><tbody>
+<tr><td>D 完全一致</td><td>0.2, 0.5, 0.6, 0.9</td><td>0</td><td>1.000</td><td>理想情况</td></tr>
+<tr><td>A 小换位</td><td>0.3, <b>0.6, 0.5</b>, 0.8</td><td>0.050</td><td>0.943</td><td>第 2、3 个排反，真机只差 0.1，罚得轻：(0 + 0.1 + 0.1 + 0) / 4</td></tr>
+<tr><td>B 大换位</td><td>0.3, 0.5, 0.6, <b>0.45</b></td><td>0.275</td><td>0.531</td><td>真机最好的策略在仿真里排到倒数第二，重罚：(0 + 0.4 + 0.3 + 0.4) / 4</td></tr>
+<tr><td>C 整体偏低一半</td><td>0.1, 0.25, 0.3, 0.45</td><td><b>0</b></td><td><b>1.000</b></td><td>两个指标都满分，但仿真的绝对值全错了</td></tr>
+</tbody></table></div>
+<p><b>两个指标各管什么。</b>MMRV 管“挑策略挑得对不对”：不在乎数值，只在乎排序，排错时按真机差距加权。\(r\) 管“趋势对不对”：对单个离群点很敏感（B 里一个点就把 \(r\) 从 0.94 拉到 0.53），对整体平移、缩放完全不敏感（C）。两者都看不出绝对值偏差：情况 C 仿真说 45%，真机其实 90%。要预测真机的绝对成功率，还得看平均绝对误差，或者直接看散点图离对角线多远。</p>
+<p><b>本文的问题出在加权这一步。</b>SIMPLER 官方函数是 <code>mean_maximum_rank_violation(perf_sim, perf_real)</code>，按真机差距加权。本文报告的 MMRV 要把两个参数对调（按仿真差距加权）才算得出来（<a href="#n7">读者注 7</a>）。上面例子 A 里两种加权恰好相等，看不出区别；换到例子 B 或者拖几下滑块就能看到差别。在本文真实数据上，IsaacLab 绳子那格按原定义是 0.480，论文写 0.270 并据此说它“低”（<a href="#n8">读者注 8</a>）。</p>
+<p><b>判断实验效果时还要看：</b></p>
+<ol>
+<li><b>每个点本身误差很大。</b>每个检查点只测 16 到 27 次。20 次成功 15 次，95% 置信区间是 [0.51, 0.91]（Clopper–Pearson，<a href="#n5">读者注 5</a>），单点偏离对角线 0.1–0.2 很正常。</li>
+<li><b>r 也有置信区间。</b>玩具任务 17 个点、\(r=0.944\)，按 Fisher z 变换约为 [0.85, 0.98]；这假设各点独立，同一策略的检查点是相关的，真实区间更宽。点越少越不可靠，4 个点的 \(r=0.9\) 几乎说明不了什么。</li>
+<li><b>点要铺开。</b>成功率都挤在 0.6–0.7 时 \(r\) 被噪声主导；从 0 铺到 1 才有意义。本文同时用了好的和差的检查点，就是为了拉开范围。</li>
+<li><b>按用途选指标：</b>挑策略、挑检查点看 MMRV；看训练曲线走势、比较方法看 \(r\)；预测真机绝对成功率两者都不够。</li>
+<li><b>最好直接看散点图</b>（图 3）：偏差方向、离群点是谁、点的覆盖范围，两个数字都说不出来。</li>
+</ol>
+
+<h3 id="qa-icp">问 2：ICP 是什么？</h3>
+<p>ICP 是 Iterative Closest Point（迭代最近点，Besl &amp; McKay 1992），把两份点云对齐到同一坐标系的经典算法。本文用它把 iPhone 扫描出的机器人高斯（源点云，坐标系是随手定的）对齐到 URDF 表面采样的点（目标点云，每个连杆 2000 点，在机器人基座系里）。要找一个刚体变换，即旋转 \(R\) 加平移 \(t\)：</p>
+<div class="eq"><div class="m">\[ \min_{R,\,t}\ \sum_i \big\|R\,p_i+t-q_{\pi(i)}\big\|^2 \]</div></div>
+<p>难点是不知道哪个点对哪个点。如果配对已知，这个问题一步就有解析解；ICP 的办法是“先猜配对，解出变换，挪过去再重新配对”，反复进行。每一轮两步：</p>
+<ol>
+<li><b>配对：</b>每个源点在目标点云里找最近的点当对应点（通常用 k-d 树加速）。一开始很多配对是错的，但大方向是对的。</li>
+<li><b>解变换：</b>固定配对，求最优 \(R,t\)，有解析解。两组点各减去自己的质心，平移就和旋转分开了；用去质心后的点算 3×3 协方差矩阵，旋转可以直接求出：
+<ul><li><b>Horn 四元数法</b>（1987）：用协方差矩阵拼一个 4×4 对称矩阵，最大特征值对应的特征向量就是最优旋转的四元数。本站动画第 3 幕用的是它。</li>
+<li><b>SVD 法</b>（Kabsch / Arun）：对协方差矩阵做 SVD，\(R=VU^\top\)，再处理行列式为 −1 的反射情况。两种方法得到同一个旋转。</li></ul>
+平移 \(t=\bar q-R\,\bar p\)。把变换作用到源点云上，回到第 1 步。</li>
+</ol>
+<p>每轮误差都不会变大（配对只会让距离变小，解变换又是当前配对下的最优），所以 ICP 一定收敛，但只保证收敛到<b>某个</b>局部最优。</p>
+
+<div class="qa-tool" id="qa-icp-tool">
+<p class="lab">动手跑 · 二维 ICP（灰色是目标“机械臂”，蓝色是源点云，细线是本轮配对）</p>
+<div class="qa-ctl"><span>初始错位</span><button type="button" data-a="25">转 25°</button><button type="button" data-a="70">转 70°</button><button type="button" data-a="150" aria-pressed="false">转 150°</button>
+<button type="button" id="icp-step">单步</button><button type="button" id="icp-run">一直跑到收敛</button><button type="button" id="icp-reset">重置</button></div>
+<canvas id="icp-cv" width="640" height="300" aria-label="二维 ICP 演示"></canvas>
+<p class="qa-out" id="icp-out"></p>
+</div>
+<p><b>软肋：初始位置偏太多就会卡住。</b>配对靠“离得最近”，错位太大时最近点几乎全配错，算法会稳稳收敛到错误姿态（比如把机械臂头尾对反）。上面的演示里，转 25° 和 70° 都能对上（剩下的 0.026 是点本身的噪声），转 150° 就卡在平均距离 0.51 的错误姿态；我扫过，在这个形状上从 110° 左右开始卡住。所以实际都先粗配准，再交给 ICP 精修：本文代码先用 <b>RANSAC</b> 做全局粗配准（随机抽几组点，靠局部几何特征匹配，挑最好的大致位置），再跑 ICP（代码 60 + 40 轮）；附录还说先在 SuperSplat 里手动粗对齐。</p>
+<p><b>对齐之后：</b>每个机器人高斯在 URDF 点云里找最近点，继承那个点的连杆编号。仿真里每个连杆怎么动，属于它的高斯就跟着做同样的刚体变换，扫描出的“静态机器人”就能动起来（<a href="#s3-c">III-C</a>，动画第 3 幕）。</p>
+<p><b>常见变体：</b>点到面 ICP（用点到对应点切平面的距离，平整表面上收敛快得多）；剔除离群配对（太远的配对丢掉，防止扫描噪声带偏）；带尺度的版本（单位不一致时多求一个缩放因子，Horn 的方法也能解）。</p>
+
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  /* ---------- MMRV / r calculator ---------- */
+  const REAL = [0.2, 0.5, 0.6, 0.9], EX = { D: [0.2, 0.5, 0.6, 0.9], A: [0.3, 0.6, 0.5, 0.8], B: [0.3, 0.5, 0.6, 0.45], C: [0.1, 0.25, 0.3, 0.45] };
+  let sim = EX.A.slice(), W = 'real';
+  const box = document.getElementById('qa-mm'); if (!box) return;
+  const sl = document.getElementById('qa-sl'), cv = document.getElementById('qa-sc'), out = document.getElementById('qa-out');
+  const COL = ['#38a3ff', '#ff9f43', '#3fc98a', '#c779ff'];
+  sl.innerHTML = REAL.map((r, i) => `<label><span style="color:${COL[i]}">策略 ${i + 1}</span> 真机 ${r.toFixed(2)} · 仿真 <input type="range" min="0" max="1" step="0.05" data-i="${i}"><b data-v="${i}"></b></label>`).join('');
+  function mmrv(s, r, wsim) { const per = s.map((_, i) => { let m = 0; s.forEach((__, j) => { if ((s[i] > s[j]) !== (r[i] > r[j])) m = Math.max(m, Math.abs((wsim ? s : r)[i] - (wsim ? s : r)[j])); }); return m; }); return { v: per.reduce((a, b) => a + b, 0) / per.length, per }; }
+  function pear(a, b) { const n = a.length, ma = a.reduce((x, y) => x + y) / n, mb = b.reduce((x, y) => x + y) / n; let c = 0, va = 0, vb = 0; for (let i = 0; i < n; i++) { c += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; } return va && vb ? c / Math.sqrt(va * vb) : NaN; }
+  function draw() {
+    sl.querySelectorAll('input').forEach(e => { e.value = sim[+e.dataset.i]; }); sl.querySelectorAll('[data-v]').forEach(e => { e.textContent = sim[+e.dataset.v].toFixed(2); });
+    const g = cv.getContext('2d'), w = cv.width, h = cv.height, p = 34, X = v => p + v * (w - 2 * p), Y = v => h - p - v * (h - 2 * p);
+    g.clearRect(0, 0, w, h); g.strokeStyle = css('--line'); g.lineWidth = 1; g.strokeRect(p, p, w - 2 * p, h - 2 * p);
+    g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(1)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = css('--muted'); g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillText('真机成功率 →', w / 2, h - 8); g.save(); g.translate(12, h / 2); g.rotate(-Math.PI / 2); g.fillText('仿真成功率 →', 0, 0); g.restore();
+    [0, 0.5, 1].forEach(v => { g.fillText(v.toFixed(1), X(v), h - p + 14); g.textAlign = 'right'; g.fillText(v.toFixed(1), p - 4, Y(v) + 4); g.textAlign = 'center'; });
+    const m = mmrv(sim, REAL, W === 'sim'), mr = mmrv(sim, REAL, false), ms = mmrv(sim, REAL, true), r = pear(sim, REAL);
+    /* draw violating pairs */
+    g.strokeStyle = '#ff5d6c'; g.lineWidth = 1.5; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) if ((sim[i] > sim[j]) !== (REAL[i] > REAL[j])) { g.beginPath(); g.moveTo(X(REAL[i]), Y(sim[i])); g.lineTo(X(REAL[j]), Y(sim[j])); g.stroke(); }
+    REAL.forEach((rv, i) => { g.fillStyle = COL[i]; g.beginPath(); g.arc(X(rv), Y(sim[i]), 7, 0, 7); g.fill(); });
+    out.innerHTML = `每个策略的最严重违规 RV = [${m.per.map(v => v.toFixed(2)).join(', ')}] → <b>MMRV = ${m.v.toFixed(3)}</b>（${W === 'real' ? '按真机差' : '按仿真差'}）· <b>r = ${isNaN(r) ? '—' : r.toFixed(3)}</b> · 两种加权：按真机 ${mr.v.toFixed(3)}，按仿真 ${ms.v.toFixed(3)}。红线连的是排序违规的策略对。`;
+  }
+  sl.addEventListener('input', e => { if (e.target.dataset.i) { sim[+e.target.dataset.i] = +e.target.value; draw(); } });
+  box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { sim = EX[b.dataset.ex].slice(); draw(); });
+  box.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { W = b.dataset.w; box.querySelectorAll('[data-w]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); });
+  draw();
+
+  /* ---------- 2D ICP ---------- */
+  const ic = document.getElementById('icp-cv'), io = document.getElementById('icp-out'), tb = document.getElementById('qa-icp-tool');
+  /* target: a planar "robot arm" polyline (base, two links, gripper), sampled densely; asymmetric so a wrong flip is a real local minimum */
+  const poly = [[-2.2, -0.6], [-1.6, -0.6], [-1.6, 0.2], [0.4, 0.9], [1.6, 0.1], [2.0, 0.4], [1.6, 0.1], [2.0, -0.2]];
+  const T = []; for (let k = 0; k + 1 < poly.length; k++) { const [a, b] = [poly[k], poly[k + 1]], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(2, Math.round(L * 9)); for (let s = 0; s < n; s++) T.push([a[0] + (b[0] - a[0]) * s / n, a[1] + (b[1] - a[1]) * s / n]); }
+  let seed = 3; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const SRC0 = T.filter((_, i) => i % 2 === 0).map(p => [p[0] + (rnd() - 0.5) * 0.06, p[1] + (rnd() - 0.5) * 0.06]);
+  let ang = 25, S = [], it = 0, hist = [], pairs = [];
+  const rot = (p, a, t) => [Math.cos(a) * p[0] - Math.sin(a) * p[1] + t[0], Math.sin(a) * p[0] + Math.cos(a) * p[1] + t[1]];
+  function reset() { const a = ang * Math.PI / 180; S = SRC0.map(p => rot(p, a, [0.5, 0.35])); it = 0; hist = [err()]; pairs = []; drawI(); }
+  function nn(p) { let bi = 0, bd = 1e9; T.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; bi = i; } }); return bi; }
+  function err() { return Math.sqrt(S.reduce((a, p) => { const q = T[nn(p)]; return a + (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; }, 0) / S.length); }
+  function step() {
+    pairs = S.map(p => T[nn(p)]);
+    const n = S.length, ps = [0, 1].map(k => S.reduce((a, p) => a + p[k], 0) / n), qs = [0, 1].map(k => pairs.reduce((a, q) => a + q[k], 0) / n);
+    /* 2D closed form (the planar case of Horn / Kabsch): angle from cross and dot sums of centred pairs */
+    let sc = 0, sd = 0; S.forEach((p, i) => { const a = [p[0] - ps[0], p[1] - ps[1]], b = [pairs[i][0] - qs[0], pairs[i][1] - qs[1]]; sd += a[0] * b[0] + a[1] * b[1]; sc += a[0] * b[1] - a[1] * b[0]; });
+    const th = Math.atan2(sc, sd), rp = rot(ps, th, [0, 0]), t = [qs[0] - rp[0], qs[1] - rp[1]];
+    S = S.map(p => rot(p, th, t)); it++; hist.push(err()); drawI();
+  }
+  function drawI() {
+    const g = ic.getContext('2d'), w = ic.width, h = ic.height, sc = 52, X = x => w * 0.36 + x * sc, Y = y => h / 2 - y * sc;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = css('--muted'); T.forEach(q => { g.beginPath(); g.arc(X(q[0]), Y(q[1]), 2.4, 0, 7); g.fill(); });
+    if (pairs.length) { g.strokeStyle = 'rgba(255,93,108,.45)'; g.lineWidth = 1; g.beginPath(); S.forEach((p, i) => { /* pairs were made before this step's move; show where each point now looks */ const q = T[nn(p)]; g.moveTo(X(p[0]), Y(p[1])); g.lineTo(X(q[0]), Y(q[1])); }); g.stroke(); }
+    g.fillStyle = '#38a3ff'; S.forEach(p => { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 3, 0, 7); g.fill(); });
+    /* error curve */
+    const x0 = w * 0.72, y0 = 30, cw = w * 0.25, ch = h - 70, mx = Math.max(...hist, 0.01);
+    g.strokeStyle = css('--line'); g.strokeRect(x0, y0, cw, ch); g.strokeStyle = '#38a3ff'; g.lineWidth = 2; g.beginPath();
+    hist.forEach((e, i) => { const x = x0 + (i / Math.max(1, hist.length - 1)) * cw, y = y0 + ch - e / mx * ch; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+    g.fillStyle = css('--muted'); g.font = '12px sans-serif'; g.textAlign = 'left'; g.fillText('平均配对距离（RMS）', x0, y0 - 8); g.fillText('轮数 →', x0 + cw - 40, y0 + ch + 16);
+    const e = hist[hist.length - 1], done = hist.length > 2 && Math.abs(hist[hist.length - 2] - e) < 1e-4;
+    io.innerHTML = `初始转 ${ang}° · 第 ${it} 轮 · 平均配对距离 <b>${e.toFixed(3)}</b>${done ? (e < 0.06 ? ' · <b style="color:#3fc98a">已收敛到正确位置</b>' : ' · <b style="color:#ff5d6c">收敛了，但卡在错误姿态（局部最优）</b>') : ''}`;
+    return done;
+  }
+  tb.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { ang = +b.dataset.a; tb.querySelectorAll('[data-a]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); reset(); });
+  document.getElementById('icp-step').onclick = step;
+  document.getElementById('icp-reset').onclick = reset;
+  document.getElementById('icp-run').onclick = () => { let k = 0; const go = () => { step(); const e = hist, d = e.length > 2 && Math.abs(e[e.length - 2] - e[e.length - 1]) < 1e-4; if (!d && ++k < 60) setTimeout(go, 120); }; go(); };
+  tb.querySelector('[data-a="25"]').setAttribute('aria-pressed', 'true'); reset();
+  new MutationObserver(() => { draw(); drawI(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
 
 <h2 id="code">代码对照</h2>
 <p>下表把论文里的设置和代码对应起来（kywind/real2sim-eval 提交 8bd7091，策略子模块 32abb1a）。只读，没有运行，也没有下载资产和检查点。</p>
