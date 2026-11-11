@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PhysTwin 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.17973 PhysTwin（ICCV 2025）的中文精读：逐节整理正文和附录，含全部编号公式、3 张结果表、9 张图的文字描述、官方代码对照、和 Real-to-Sim 评测等站内页面的对照、11 幕 3D 框架动画和 17 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cmp{min-width:760px}.t-res{min-width:720px}.t-t2{min-width:560px}.t-code{min-width:680px}.t-links{min-width:600px}.t-cma{min-width:560px}.t-sm{min-width:420px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/phystwin/index.html">3D 框架动画</a><a href="real2sim-eval.html">Real-to-Sim 评测</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2503.17973 · cs.CV · v1 2025 年 3 月 23 日 · ICCV 2025 · 中文精读</p>
+<h1>PhysTwin：从几段视频重建能实时模拟的可变形物体数字孪生</h1>
+<p class="orig">PhysTwin: Physics-Informed Reconstruction and Simulation of Deformable Objects from Videos</p>
+<p>作者 Hanxiao Jiang（哥伦比亚大学、伊利诺伊大学厄巴纳-香槟分校）、Hao-Yu Hsu（UIUC）、Kaifeng Zhang（哥伦比亚大学）、Hsin-Ni Yu（UIUC）、Shenlong Wang（UIUC）、Yunzhu Li（哥伦比亚大学）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2503.17973">arXiv 原文</a><a href="https://arxiv.org/html/2503.17973">网页版</a><a href="https://arxiv.org/pdf/2503.17973v1">PDF</a><a href="https://jianghanxiao.github.io/phystwin-web/">项目主页</a><a href="https://github.com/Jianghanxiao/PhysTwin">官方代码</a><a href="https://huggingface.co/datasets/Jianghanxiao/PhysTwin">数据与结果</a><span>正文 8 页，参考文献与补充材料到第 16 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的<a href="https://arxiv.org/licenses/nonexclusive-distrib/1.0/">非独占分发许可</a>，没有授权翻译或转载；PDF 页面上没有别的版权声明。所以本页不放任何原图，也不逐字翻译。内容用自己的话按原文顺序覆盖正文六节和补充材料 A 到 D，小节编号和原文一致。</p>
+<p>公式按原文编号给出，三张表的数字照录原文。每张图用文字说明它画了什么，“看原图”打开 arXiv 网页版的对应位置（图 1 在网页版没有锚点，链到 PDF 第 1 页）。标着“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>版本。</b>arXiv 只有 v1（2025-03-23）。用户本地的 PDF 和项目主页上的 phystwin.pdf 逐字节相同，比 arXiv v1 多一页，正文只多了致谢里的一句话，见<a href="#n1">读者注 1</a>。页码按 arXiv v1。</p>
+<p><b>代码。</b>官方代码 <a href="https://github.com/Jianghanxiao/PhysTwin/tree/81c718790a37e5e0102eb77af2c6edd34a9db25f">Jianghanxiao/PhysTwin</a>，根目录 MIT 许可。我读的是提交 81c7187（2026-08-24，截至今天仍是最新），只读，没有运行，也没有下载数据和检查点。仓库里的 <code>gaussian_splatting/</code> 目录和它的子模块来自 Inria 的 3DGS，许可是非商业的；<code>data_process/models/</code> 下的 SuperGlue 文件头写着 Magic Leap 保留所有权利。这两部分本页只引文件名和配置键，不引代码。其余部分（弹簧-质点模拟器、两阶段优化、数据处理脚本）论文和代码不同的地方都列出来了。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和站内页面的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 弹簧-质点模型</a><a href="#s4">4 方法</a><a href="#s4-2-1">4.2.1 物理与几何</a><a href="#s4-2-2">4.2.2 外观</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 实验</a><a href="#s5-2">5.2 结果</a><a href="#s6">6 结论</a><a href="#apA">附录 A 形状先验</a><a href="#apB">附录 B 高斯更新</a><a href="#apC">附录 C 实验细节</a><a href="#apD">附录 D 后续工作</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>给真实物体做一个“物理数字孪生”，在机器人、内容制作和 XR 里都有用。PhysTwin 的输入是三台 RGB-D 相机拍的一段人手摆弄可变形物体的视频，输出是一个能实时交互的虚拟副本：几何完整，外观接近照片，物理参数和真实物体对得上。</p>
+<ul>
+<li><b>表示：</b>物理用弹簧-质点模型，几何靠图生 3D 的生成模型补全，外观用高斯泼溅。三者绑在一起，高斯跟着质点动。</li>
+<li><b>怎么从视频里求参数：</b>分两段。先用零阶的 CMA-ES 搜不可微的拓扑参数（连接半径、最大近邻数）和一组全局参数（统一刚度、碰撞参数）；再用自己写的可微弹簧-质点模拟器做梯度下降，求<b>每根弹簧</b>的刚度并细调碰撞参数。监督信号是深度点云的单向 Chamfer 距离和 CoTracker3 抬到 3D 的跟踪点。</li>
+<li><b>外观：</b>只在第一帧优化一组各向同性的高斯，之后用线性混合蒙皮（LBS）跟着质点移动和旋转。</li>
+<li><b>数据：</b>自己采的 22 段视频，绳子、毛绒玩具、布、快递包装，每段 1 到 10 秒；前 70% 的帧用来建孪生，后 30% 用来测预测。</li>
+<li><b>结果：</b>在重建与重新模拟、未来预测、换一种交互三个任务上，所有指标都好过两个加强过的基线 Spring-Gaus（物理）和 GS-Dynamics（图神经网络动力学），见表 1、表 2。消融表 3 说明两段缺一不可。</li>
+<li><b>应用：</b>用 Warp 写的模拟器能实时跑，支持键盘或遥操作设备交互，也能接进基于模型的机器人规划。</li>
+</ul>
+<div class="note" id="n1"><span class="lab">读者注 1 · 用户本地 PDF 和 arXiv v1 的差别</span>
+<p>arXiv 摘要页只有 v1（2025-03-23，11,733 KB）。用户本地的 phystwin.pdf 和项目主页上的 <a href="https://jianghanxiao.github.io/phystwin-web/phystwin.pdf">phystwin.pdf</a> 的 MD5 相同（a1c75d58…），17 页；arXiv v1 是 16 页。用 <code>pdftotext</code> 抽出全文逐词比较，除 arXiv 的版本戳、断字和页码以外，只差致谢末尾的一句：感谢 Mandi Zhao 的讨论和 Bingjie Tang 帮忙润色图片。正文、公式、三张表的数字完全相同；图 6 在两版里的位置不同，所以补充材料的页码差一页。本页页码按 arXiv v1。</p>
+</div>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 1 页 · <a href="https://arxiv.org/pdf/2503.17973v1#page=1">看原图 ↗</a></span><p>一张横贯页面的流程图。最左是输入视频的几帧：一只蓝白相间的毛绒树懒被人双手拉开四肢，三台相机拍摄（图注说是三个视角）。往右是重建出的 PhysTwin，同一只树懒，上面画着红色的箭头表示交互。中间一大块是“实时物理模拟与渲染”：树懒被拉成不同的姿态，下方左右两组方向键分别标着“左手”“右手”，表示用键盘分别控制两只手。最右是机器人应用：上面一张是遥操作，真机画面上叠了一层半透明的数字孪生；下面一张是基于模型的机器人规划，两只机械臂在摆弄一根绳子。</p></div>
+
+<h2 id="rel">和站内页面的关系</h2>
+<p><b>Real-to-Sim 评测。</b>站内 <a href="real2sim-eval.html">Real-to-Sim 评测</a>（arXiv 2511.04665）的软体动力学完全建在 PhysTwin 上，作者有重叠：PhysTwin 一作 Hanxiao Jiang 是那篇的第三作者，那篇一作 Kaifeng Zhang 是这篇的第三作者。那一页已经讲了它用到的部分（<a href="real2sim-eval.html#rel">“和 SIMPLER、PhysTwin 的关系”</a>，读者注 <a href="real2sim-eval.html#n2">2</a>、<a href="real2sim-eval.html#n3">3</a>、<a href="real2sim-eval.html#n11">11</a>、<a href="real2sim-eval.html#n12">12</a>）。我把两份代码放在一起，按那一页关心的几项列成下表。PhysTwin 代码是提交 81c7187，Real-to-Sim 代码是 kywind/real2sim-eval 提交 8bd7091。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>PhysTwin 论文</th><th>PhysTwin 代码</th><th>Real-to-Sim 代码</th></tr></thead><tbody>
+<tr><td>弹簧力</td><td>\(k_{ij}(\lVert x_j-x_i\rVert-l_{ij})\hat d\)，和伸长量成正比（§3）</td><td><code>eval_springs</code>：\(\mathrm{clip}(e^{\theta},0,10^5)\,(\lVert x_j-x_i\rVert/l_{ij}-1)\,\hat d\)，和应变成正比，相当于 \(k=Y/l\)（读者注 3）</td><td>同名核函数，写法相同</td></tr>
+<tr><td>阻尼</td><td>\(-\gamma(v_i-v_j)\)，全相对速度；另有拖曳衰减 \(\delta\)</td><td>只取沿弹簧方向的相对速度；系数和拖曳系数由第一段 CMA-ES 给出，初值 100 和 3，范围 [0, 200] 和 [0, 20]（读者注 7）</td><td>yaml 里写 100 和 3；但加载孪生时读入 PhysTwin 第一段的 <code>optimal_params.pkl</code> 覆盖这些值（<code>sim/physics/phystwin.py</code> 约第 245 到 261 行）</td></tr>
+<tr><td>子步</td><td>没有给数</td><td><code>dt = 5e-5</code>，<code>num_substeps = 667</code>，30 Hz 一帧（读者注 4）</td><td><code>round(1/30/5e-5) = 667</code>，在加载参数之前算好</td></tr>
+<tr><td>刚度</td><td>第一段统一刚度，第二段逐弹簧</td><td>存 \(\theta=\log Y\)，Adam 优化；控制点弹簧也有各自的刚度</td><td>读一阶检查点的 <code>spring_Y</code>，只保留物体内部的弹簧，丢掉控制点弹簧（约第 298 行）；“w/o 物理优化”用全局刚度</td></tr>
+<tr><td>手 / 抓取</td><td>手部点云最远点采样成控制点，按半径和最大近邻数用弹簧连到物体</td><td>30 个控制点；控制点弹簧阻尼里控制点速度恒为 0（读者注 5）</td><td>不用控制点弹簧，夹爪网格和质点碰撞，靠摩擦抓取，两指力都过阈值才锁住</td></tr>
+<tr><td>LBS</td><td>式 (5)–(8)，没给邻居数</td><td>节点旋转和高斯混合都取 16 个邻居；传入四元数，高斯朝向跟着转；高斯是各向同性的（读者注 15）</td><td>求节点旋转用 8 个邻居，混合用 16 个；<code>quat=None</code>，只移中心</td></tr>
+</tbody></table></div>
+<p>PhysTwin 本身没有机器人：控制点就是人手，交互靠控制点弹簧把手“粘”在物体上。Real-to-Sim 把这一块换成了夹爪网格碰撞和摩擦接触，其余（弹簧核函数、子步、刚度、LBS 公式）基本照搬。</p>
+<p><b>SuperTrack、SuperDyno、SuperMimic。</b><a href="supertrack.html">SuperTrack</a>、<a href="superdyno.html">SuperDyno</a>、<a href="supermimic.html">SuperMimic</a> 也是“让误差穿过一个可微的动力学，直接用梯度调东西”，但那三篇的可微动力学是<b>学出来的神经网络</b>，近似刚体仿真器，梯度用来训练控制策略。PhysTwin 的可微动力学是<b>写死的物理公式</b>（弹簧、阻尼、碰撞），梯度只用来辨识物理参数（每根弹簧的刚度、碰撞系数），不训练策略，也不训练网络。换句话说，那三篇是“学一个世界模型再用它学策略”，这一篇是“系统辨识”。两边都遇到长时程反传的问题：SuperTrack 系列靠短窗口（8 帧和 32 帧），PhysTwin 的代码则每帧截断一次梯度（读者注 8）。</p>
+<p><b>3D World Simulator 和 GAUGE。</b><a href="3dws.html">3D World Simulator</a> 用粒子-体素混合表示和学到的潜空间动力学，在大量数据（含 Deform360，PhysTwin 仓库把它称作“更多 PhysTwin 式的数据”）上训练，追求跨物体泛化；PhysTwin 只用一段视频建一个物体，靠显式物理泛化到新动作。附录 C 的数据效率实验正是拿“学到的动力学”（GS-Dynamics）比“一段视频的物理孪生”。<a href="gauge.html">GAUGE</a> 拿真实测量当基准评测仿真引擎的物理保真度，包括绳子、布、三维软体；PhysTwin 的评测则是拿同一物体的观测视频做真值，量的是 3D 点和渲染图对不对得上，不涉及参数本身是否“物理正确”（比如它的刚度在质量全为 1 的设定下没有物理单位，读者注 6）。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>可交互的数字孪生对建模世界、模拟未来很重要，可用于 VR、AR 和机器人操作。一个物理上真实的孪生应当同时抓住几何、外观和物理性质，使模拟和真实观测一致。难点在于观测稀疏。</p>
+<p>可变形物体的数字孪生在视觉领域研究了很久。动态 NeRF、动态 3D 高斯能从视频里重建观测到的运动、外观和几何，但没有底层物理，不能模拟没见过的交互。神经网络学“直觉物理”需要大量数据，只适用于特定物体或动作。物理驱动的方法往往依赖预扫描的形状或稠密观测来缓解不适定性，要求视角覆盖密，支持的运动类型也少。</p>
+<p>本文要从稀疏视角的 RGB-D 视频建一个可交互的 PhysTwin。动力学用弹簧-质点表示，模拟高效，能覆盖绳子、毛绒玩具、布、快递包装等常见物体。为应对稀疏观测，借助 3D 生成模型（<a class="ds" href="https://trellis3d.github.io/">TRELLIS</a>）的形状先验和视觉基础模型（Grounded-SAM、超分辨率、CoTracker3）的运动估计，来估计拓扑、几何和物理参数。拓扑相关的参数不可微，所以设计了层级的稀疏到稠密优化：零阶优化（CMA-ES）处理不可微的拓扑和稀疏物理参数（碰撞参数、统一刚度），一阶梯度优化细调稠密的弹簧刚度并再调碰撞参数。外观用高斯混合：从第一帧的稀疏观测加形状先验初始化静态高斯，再用线性混合算法变形。</p>
+<p>作者采集了一个真实的可变形物体交互数据集，在重建与重新模拟、未来预测、对未见交互的泛化三个任务上评测，定量和定性结果都显示重建的孪生和真实观测吻合。模拟器计算效率高，可以实时跑动力学和渲染，支持实时交互模拟和基于模型的机器人运动规划。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>动态场景重建。</b>目标是从深度扫描、RGB-D 视频或单目/多视角视频恢复动态场景的表示。近年的进展是把新的场景表示（NeRF、3D 高斯）搬到动态场景：D-NeRF 在规范 NeRF 上加变形场；Deformable 3D-GS 为每个高斯核优化变形场；Dynamic 3D-GS 逐帧优化高斯核的运动；4D-GS 用 4D 神经体素调制高斯。这些方法多视角合成质量高，但只重建外观和几何，没有真实世界的动力学，做不了以动作为条件的未来预测和交互模拟。</p>
+<p><b>基于物理的可变形物体模拟。</b>另一条线在重建时引入物理模拟器做参数辨识。早期方法依赖预扫描的静态物体和干净的点云；近期工作建在 SDF、NeRF 或高斯泼溅上。有的手动指定物理参数，导致模拟和视频对不上；有的从视频估计参数，但常常局限于合成数据、有限运动，或需要稠密视角来重建静态几何。最接近的是 <a class="ds" href="https://zlicheng.com/spring_gaus/">Spring-Gaus</a>，也用 3D 弹簧-质点模型从视频学习。作者认为它的物理模型正则化过度，违反真实物理（缺少动量守恒和真实重力），要求稠密视角来重建初始几何，运动只限于桌面碰撞，没有动作输入，不适合当通用动力学模型。</p>
+<p><b>基于学习的可变形物体模拟。</b>可变形物体的状态空间复杂、物理性质多变，解析建模难，近年很多工作用神经网络模拟器，其中图网络能学橡皮泥、布、流体、毛绒玩具等的动力学。<a class="ds" href="https://gs-dynamics.github.io/">GS-Dynamics</a> 借助动态高斯的跟踪和外观先验，直接从真实视频学物体动力学，对没见过的动作泛化不错。但这类模型需要大量训练样本，通常只适用于特定环境和有限的运动范围。本文只需要一次交互，运动范围更广。</p>
+
+<h2 id="s3"><span class="no">3</span>预备知识：弹簧-质点模型</h2>
+<p>弹簧-质点模型简单、计算快，常用来模拟可变形物体。物体表示为一个图 \(G=(V,E)\)：\(V\) 是质点集合，\(E\) 是弹簧集合。每个质点 \(i\) 有位置 \(x_i\in\mathbb R^3\) 和速度 \(v_i\in\mathbb R^3\)，按牛顿动力学演化。弹簧按预先定的拓扑连在相邻质点之间，决定物体的弹性结构。质点受的力是相连弹簧的合力加外力：</p>
+<div class="eq"><div class="m">\[ F_i=\sum_{(i,j)\in E}\Big(F^{\text{spring}}_{i,j}+F^{\text{dashpot}}_{i,j}\Big)+F^{\text{ext}}_i, \]</div><span class="no">(1)</span></div>
+<div class="eq"><div class="m">\[ F^{\text{spring}}_{i,j}=k_{ij}\big(\lVert x_j-x_i\rVert-l_{ij}\big)\frac{x_j-x_i}{\lVert x_j-x_i\rVert},\qquad F^{\text{dashpot}}_{i,j}=-\gamma\,(v_i-v_j). \]</div></div>
+<p>\(k_{ij}\) 是弹簧刚度，\(l_{ij}\) 是静止长度，\(\gamma\) 是阻尼器系数。外力 \(F^{\text{ext}}_i\) 包括重力、碰撞和用户交互。弹簧力把系统拉回静止形状，阻尼耗散能量、抑制振荡。碰撞用基于冲量的处理：两个质点很近时触发，包括物体和碰撞体之间、物体自身两点之间。</p>
+<p>动力学模型写成 \(X_{t+1}=f_{\alpha,G_0}(X_t,a_t)\)，原文说对速度和位置都用显式欧拉积分：</p>
+<div class="eq"><div class="m">\[ v_i^{t+1}=\delta\,v_i^{t}+\Delta t\,\frac{F_i}{m_i},\qquad x_i^{t+1}=x_i^{t}+\Delta t\,v_i^{t+1}\quad(\text{对所有 } i). \]</div></div>
+<p>\(X_t\) 是 \(t\) 时刻的系统状态，\(\delta\) 是拖曳阻尼。\(\alpha\) 包括弹簧-质点模型的全部物理参数：弹簧刚度、碰撞参数、阻尼，也包括和控制交互有关的参数。\(G_0\) 是弹簧-质点系统的“规范”几何和拓扑（脚注：实际取第一帧的状态），\(a_t\) 是 \(t\) 时刻的动作。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 这个积分其实是半隐式欧拉，代码里拖曳衰减乘在加力之后</span>
+<p>位置更新用的是<b>新</b>速度 \(v^{t+1}\)，这在文献里叫半隐式（辛）欧拉，不是显式欧拉；显式欧拉会用 \(v^t\)。代码 <code>qqtt/model/diff_simulator/spring_mass_warp.py</code> 的 <code>update_vel_from_force</code> 和 <code>integrate_ground_collision</code> 也是这个顺序：先 \(v\leftarrow (v+\Delta t\,(F/m+g))\,e^{-\Delta t\cdot\text{drag}}\)，再 \(x\leftarrow x+\Delta t\,v\)。和论文式子相比，代码的衰减乘在“加完力以后”，即 \(\delta(v+\Delta t F/m)\)，论文写的是 \(\delta v+\Delta tF/m\)；\(\delta=e^{-\Delta t\cdot\text{drag}}\)。按代码默认 drag = 3、\(\Delta t\) = 5e-5，每子步 \(\delta=e^{-1.5\times10^{-4}}\approx0.99985\)，一帧 667 子步累计 \(e^{-3\times0.03335}=0.905\)，也就是没有弹簧时速度每帧衰减约 9.5%。</p>
+</div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码的弹簧力和应变成正比，阻尼只沿弹簧方向</span>
+<p>代码 <code>eval_springs</code>（同文件第 81 到 137 行）算的是</p>
+<div class="eq"><div class="m">\[ F_{ij}=\mathrm{clip}\big(e^{\theta_{ij}},Y_{\min},Y_{\max}\big)\Big(\frac{\lVert x_j-x_i\rVert}{l_{ij}}-1\Big)\hat d+c\,\big((v_j-v_i)\cdot\hat d\big)\hat d,\qquad \hat d=\frac{x_j-x_i}{\lVert x_j-x_i\rVert}. \]</div></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 子步数 667 和控制点插值</span>
+<p><code>configs/real.yaml</code> 和 <code>configs/cloth.yaml</code> 都写 <code>FPS: 30</code>、<code>dt: 5e-5</code>、<code>num_substeps: 667</code>；<code>qqtt/utils/config.py</code> 的默认值是 <code>round(1/30/5e-5) = round(666.67) = 667</code>，两者一致。667 × 5e-5 = 0.03335 秒，比 1/30 = 0.03333 秒长 0.05%，可以忽略。每一帧里控制点从上一帧的位置线性插值到这一帧的目标（<code>set_control_points</code>，第 64 到 78 行），第 \(s\) 个子步取 \((s+1)/667\) 的插值比例。论文没给子步数和步长。</p>
+</div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 控制点弹簧的阻尼按“控制点不动”算</span>
+<p><code>State</code> 里的 <code>wp_control_v</code> 初始化为零（第 24 行），之后整个仓库没有任何地方写它（我搜了全部 <code>control_v</code>）。<code>eval_springs</code> 里控制点的速度就取这个零数组，所以控制点弹簧的阻尼项是 \(c\,(v_{\text{obj}}\cdot\hat d)\hat d\)：它阻的是物体点相对<b>世界</b>的运动，而不是相对手的运动。手快速移动时，这一项会拖住被抓的点。控制点的位置每个子步都在更新，只是速度没算。这是读代码得到的，没有运行验证影响有多大；参数辨识时这个效应会被阻尼和刚度一起吸收。</p>
+</div>
+<p>和式 (1) 有三处不同。一是弹簧力乘的是应变 \(\lVert\cdot\rVert/l-1\)，不是伸长量，所以 \(Y\) 相当于 \(k_{ij}l_{ij}\)：同一个 \(Y\) 下短弹簧更硬。二是刚度以 \(\theta=\log Y\) 存储（构造函数里对初值取对数），截断到 [<code>spring_Y_min</code>, <code>spring_Y_max</code>] = [0, 1e5]（<code>configs/real.yaml</code>）；核函数开头还有一个 \(e^\theta&gt;Y_{\min}\) 的判断，可以用来“删掉”弹簧，但 \(Y_{\min}=0\) 时不会触发。三是阻尼只取相对速度在弹簧方向上的分量，垂直于弹簧的相对运动不受阻尼。</p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>方法</h2>
+<p>这一节先把构建 PhysTwin 写成一个优化问题，再讲两阶段策略（第一阶段物理，第二阶段外观），最后说明构建好的孪生怎样实时模拟。</p>
+<h3 id="s4-1"><span class="no">4.1</span>问题表述</h3>
+<p>输入是一个可变形物体在交互下的三段 RGB-D 视频。目标是构建一个 PhysTwin，抓住物体随时间的几何、外观和物理参数。第 \(t\) 帧第 \(i\) 台相机的观测记为 \(O_{t,i}=(I,D)\)，即 RGB 图和深度图。优化要缩小预测观测 \(\hat O_{t,i}\) 和真实观测之间的差距；预测观测由预测状态 \(\hat X_t\) 经函数 \(g_\theta\) 投影、渲染得到，\(\theta\) 是高斯泼溅表示的外观参数。状态按弹簧-质点模型、用显式欧拉积分演化。</p>
+<div class="eq"><div class="m">\[ \min_{\alpha,G_0,\theta}\ \sum_{t,i}C\big(\hat O_{t,i},O_{t,i}\big)\quad\text{s.t.}\quad \hat O_{t,i}=g_\theta(\hat X_t,i),\quad \hat X_{t+1}=f_{\alpha,G}(\hat X_t,a_t), \]</div><span class="no">(2)</span></div>
+<p>\(\alpha,G_0,\theta\) 分别是物理、几何与拓扑、外观参数。代价分三项 \(C=C_{\text{geometry}}+C_{\text{motion}}+C_{\text{render}}\)，分别量 3D 几何、3D 运动跟踪和 2D 颜色上的差距（细节在 4.2.1 和 4.2.2）。\(g_\theta\) 是观测模型，把预测状态投影到第 \(i\) 台相机的像平面并渲染；\(f_{\alpha,G}\) 是弹簧-质点模型下的状态演化。（式 (2) 约束里写的是 \(f_{\alpha,G}\)，正文和式 (3) 写 \(f_{\alpha,G_0}\)，指的是同一个东西。）</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 3 页 · <a href="https://arxiv.org/html/2503.17973#S1.F2">看原图 ↗</a></span><p>框架总览。左上是“观测”：桌面场景被三台相机（画成三个视锥）围着，人双手拉着毛绒树懒。一个箭头标着“重建、跟踪”指向右边的浅蓝大框，框顶是时间轴 \(\cdots\to t-1\to t\to t+1\to\cdots\)。框里上排是“伪跟踪”（树懒形状的点云，按彩虹色编号，两侧红点是手）和“真实观测”照片；中间写着 \(C=C_{\text{geometry}}+C_{\text{motion}}+C_{\text{render}}\)；下排是“模拟的几何和运动”（树懒实物渲染加彩色点云）和“高斯渲染”照片。蓝色实线箭头从模拟指向代价，红色虚线箭头从代价反传回去。左下的方框是“PhysTwin”本体：放大的圆圈里是质点和绿色弹簧组成的拓扑，一个红点标着“* 控制点”；旁边是几何（树懒）、刚度（一段弹簧）、接触（弹簧压在斜线地面上）和高斯（几个彩色椭球）。左下框和右框之间的箭头上写着“模拟、渲染”和“优化”。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>PhysTwin 框架</h3>
+<p>式 (2) 整体太复杂，所以拆成两段：第一段优化几何和物理参数，第二段优化外观。</p>
+<h4 id="s4-2-1">4.2.1 物理与几何优化</h4>
+<p>先把每帧的深度 \(D_t\) 转成观测到的局部点云 \(X_t\)。第一段的优化是</p>
+<div class="eq"><div class="m">\[ \min_{\alpha,G_0}\ \sum_t C_{\text{geometry}}(\hat X_t,X_t)+C_{\text{motion}}(\hat X_t,X_t)\quad\text{s.t.}\quad \hat X_{t+1}=f_{\alpha,G_0}(\hat X_t,a_t), \]</div><span class="no">(3)</span></div>
+<p>\(C_{\text{geometry}}\) 是局部观测点云 \(X_t\) 到推断状态 \(\hat X_t\) 的单向 Chamfer 距离；\(C_{\text{motion}}\) 是预测点 \(\hat x_i^t\) 和对应跟踪点 \(x_i^t\) 之间的误差。跟踪来自视觉基础模型 <a class="ds" href="https://cotracker3.github.io/">CoTracker3</a>，再用深度反投影抬到 3D。</p>
+<p>第一段有三个难点：(1) 稀疏视角带来的局部观测；(2) 离散拓扑和物理参数要联合优化；(3) 动力学模型里的不连续，加上长时间跨度和稠密的参数空间，让连续优化很难。对策是把几何和其他参数分开处理：先用生成式形状初始化得到完整几何，再用两段稀疏到稠密的优化调其余参数。</p>
+<p><b>生成式形状先验。</b>只有局部观测，完整几何很难恢复。作者用图生 3D 模型 TRELLIS，以一张遮罩后物体的 RGB 图为条件生成完整网格。为提高网格质量，输入 TRELLIS 前先用超分辨率模型（潜扩散模型）放大分割出来的前景（分割用 <a class="ds" href="https://github.com/IDEA-Research/Grounded-SAM-2">Grounded-SAM2</a>）。生成的网格和相机观测大体对得上，但尺度、位姿和形变仍有出入。</p>
+<p>为此设计了一个配准模块，用 2D 匹配做尺度估计、刚性配准和非刚性形变。由粗到细：先用 <a class="ds" href="https://github.com/magicleap/SuperGluePretrainedNetwork">SuperGlue</a> 匹配的 2D 对应点估计初始旋转，再用 PnP 精修；尺度和平移的歧义通过优化相机坐标系里匹配点之间的距离来解决。变换以后两者位姿对齐，剩下的形变用尽可能刚性（ARAP）配准处理。最后用光线投射对齐，保证观测点和变形后的网格之间没有遮挡关系上的矛盾。这样得到和第一帧观测对齐的形状先验，作为后面逆物理和外观优化的初始化。</p>
+<p><b>稀疏到稠密优化。</b>弹簧-质点模型包括拓扑结构（弹簧怎么连）和定义在弹簧上的物理参数。如第 3 节所说，还包括控制参数：在控制点和物体点之间连弹簧，由一个半径和一个最大近邻数决定。拓扑也用同样的启发式：连最近邻的点，参数是连接半径和最大近邻数，以此控制弹簧的密度。控制点从视频里取：用 Grounded-SAM2 分割手的遮罩，CoTracker3 跟踪手的运动，抬到 3D 后做最远点采样，得到最终的控制点集合。</p>
+<p>这些组成了要优化的参数空间。两个主要难点：(1) 有些参数不可微（半径、最大近邻数）；(2) 为了表示各种物体，刚度按每根弹簧单独建模，参数有几万个。</p>
+<p>对策是层级的稀疏到稠密策略。第一阶段用零阶、基于采样的优化估计参数，天然绕开可微性问题；但参数空间太大时零阶优化效率低，所以这一阶段假设刚度处处相同，让拓扑和其他物理参数先得到一个好的初值。第二阶段用自己写的可微弹簧-质点模拟器做一阶梯度下降，同时优化稠密的弹簧刚度和碰撞参数。</p>
+<p>此外，代价函数用了视觉基础模型的跟踪先验：把 2D 跟踪预测抬到 3D，作为 3D 点的伪真值，这是式 (3) 的重要组成部分。优化策略加上带跟踪先验的代价函数，让框架能有效地从视频建模各种可交互物体的动力学。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · “最大近邻数 30”实际最多连 29 个；质量全为 1，刚度没有物理单位</span>
+<p><code>_init_start</code> 对每个点调 open3d 的 <code>search_hybrid_vector_3d(p, radius, max_nn)</code>，取结果的 <code>idx[1:]</code>。按 open3d 的语义，混合搜索返回半径内最近的至多 <code>max_nn</code> 个点，查询点本身（距离 0）排在第一个，<code>[1:]</code> 把它去掉，所以每个点<b>主动</b>连出去的弹簧最多 <code>max_nn − 1</code> 条；加上别的点连过来的，度数可以更高。控制点不在点云里，不用去掉自身，最多连 <code>max_nn</code> 条。这一条是按 open3d 的文档推断，没有运行核实。</p>
+<p>同一函数里质量是 <code>np.ones</code>，每个质点质量 1。于是重力加速度和点数无关，而刚度 \(Y\) 的含义取决于采样密度：同一块布采样更密，每个点的“质量”不变，总质量变大，需要的 \(Y\) 也不同。所以 PhysTwin 估出来的 \(Y\) 只在同一套采样下有意义，不能直接当成材料的杨氏模量去比较不同物体。这是我的推断。</p>
+</div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 第一段 CMA-ES 实际搜了 12 个参数，包括两个阻尼</span>
+<p>代码 <code>qqtt/engine/cma_optimize_warp.py</code> 的 <code>optimize</code>（第 203 到 288 行）把 12 个参数各自线性归一化到 [0, 1] 再交给 <a class="ds" href="https://github.com/CMA-ES/pycma">pycma</a>：</p>
+<div class="tablewrap"><table class="t-cma"><thead><tr><th>参数</th><th>搜索范围</th><th>初值（<code>configs/real.yaml</code>）</th></tr></thead><tbody>
+<tr><td>全局刚度 <code>global_spring_Y</code></td><td>[0, 1e5]（线性，不是对数）</td><td>3e4</td></tr>
+<tr><td>物体连接半径 / 最大近邻数</td><td>[0.01, 0.05] / [10, 50]</td><td>0.02 / 30</td></tr>
+<tr><td>控制点连接半径 / 最大近邻数</td><td>[0.01, 0.08] / [10, 80]</td><td>0.04 / 50</td></tr>
+<tr><td>地面弹性 / 摩擦</td><td>[0, 1] / [0, 2]</td><td>0.5 / 0.3</td></tr>
+<tr><td>物体间弹性 / 摩擦</td><td>[0, 1] / [0, 2]</td><td>0.7 / 0.3</td></tr>
+<tr><td>碰撞距离 <code>collision_dist</code></td><td>[0.01, 0.05]</td><td>0.02</td></tr>
+<tr><td>拖曳阻尼 / 阻尼器系数</td><td>[0, 20] / [0, 200]</td><td>3 / 100</td></tr>
+</tbody></table></div>
+<p>初始步长 \(\sigma=1/6\)，边界 [0, 1]，种子 42，默认 <code>max_iter = 20</code> 代。pycma 的默认种群是 \(4+\lfloor3\ln 12\rfloor=4+\lfloor7.45\rfloor=11\)，所以一共约 220 次完整模拟（只模拟训练帧），外加首尾两次可视化。README 说这一段在毛绒玩具上约 12 分钟。论文正文对第一段只提了拓扑、统一刚度和碰撞参数（引言还说“碰撞参数和统一刚度”）；两个阻尼和碰撞距离也在里面，而且第二段不再调它们，所以最终的阻尼完全由第一段决定。最大近邻数用 <code>int()</code> 截断，是离散的；半径虽然连续，但弹簧数随它跳变，这正是需要零阶优化的原因。</p>
+</div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 第二段的梯度每帧截断一次，阻尼和拓扑不再变</span>
+<p><code>qqtt/engine/trainer_warp.py</code> 的 <code>train</code>（第 305 到 457 行）：每轮从第一帧状态出发，对训练段的每一帧，先跑这一帧的 667 个子步、算损失、沿 Warp 的 tape 反传，<b>立刻</b>做一次 Adam 更新，然后把这一帧末的状态当作下一帧的初值（<code>set_init_state</code> 会复制成不带梯度的新数组）。所以梯度只穿过一帧（1/30 秒），不跨帧累积。论文 4.2.1 把“长时间跨度”列为难点；代码用逐帧截断绕开了它。</p>
+<p>Adam 优化五组量：每根弹簧的 \(\theta=\log Y\)（含控制点弹簧）、地面弹性、地面摩擦、物体间弹性、物体间摩擦；学习率 1e-3，\(\beta=(0.9,0.99)\)。阻尼、碰撞距离和拓扑停在第一段的结果。<code>configs/real.yaml</code> 是 200 轮，布和快递包装用的 <code>configs/cloth.yaml</code> 是 100 轮；每 20 轮存一次，按训练损失留下最好的检查点。README 说毛绒玩具上这一段约 5 分钟。刚度被截断到 [0, 1e5] 以后，越界的弹簧梯度为零。</p>
+</div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 训练损失和评测指标不是同一个距离</span>
+<p>训练时（<code>spring_mass_warp.py</code> 第 353 到 445 行）：Chamfer 项对每个可见的观测点找最近的模拟点，取<b>平方</b>欧氏距离再平均；跟踪项对每个有效跟踪点逐坐标算 smooth L1（阈值 1），再除以 3 倍点数。坐标单位是米，误差远小于 1，所以 smooth L1 实际是 \(\tfrac12 d^2\)。第一段还多一项加速度平滑正则（<code>acc_weight = 0.01</code>，比较相邻两帧的速度变化），第二段的训练循环没有打开它（<code>acc_count</code> 始终为 0）。论文没提这一项。</p>
+<p>评测时（<code>evaluate_chamfer.py</code>、<code>evaluate_track.py</code>）：CD 用 pytorch3d 的单向 Chamfer，<code>norm=1</code>，即 L1 范数距离的平均，只拿模拟状态的表面点去比；跟踪误差是 9 个人工标注点的平均欧氏距离。表 1 里 CD 0.005、跟踪误差 0.009 应该都是米，即 5 mm 和 9 mm（论文没写单位，这是按代码的推断）。</p>
+</div>
+
+<h4 id="s4-2-2">4.2.2 外观优化</h4>
+<p>第二段建一组静态 3D 高斯核，参数记为 \(\theta\)：每个高斯有中心 \(\mu\)、用四元数 \(q\) 表示的旋转、用三维向量 \(s\) 表示的缩放、不透明度 \(\alpha\) 和颜色系数 \(c\)。优化</p>
+<div class="eq"><div class="m">\[ \min_\theta\ \sum_{t,i}C_{\text{render}}\big(\hat I_{i,t},I_{i,t}\big)\quad\text{s.t.}\quad \hat I_{i,t}=g_\theta(\hat X_t,i), \]</div><span class="no">(4)</span></div>
+<p>\(\hat X_t\) 是优化好的系统状态，\(i\) 是相机编号，\(I_{i,t}\) 和 \(\hat I_{i,t}\) 是真实图像和渲染图像。\(C_{\text{render}}\) 是 L1 损失加 D-SSIM 项。为简单起见只在第一帧（\(t=0\)）优化外观。高斯被限制为各向同性，避免变形时出现尖刺状伪影。</p>
+<p>为了在变形下渲染真实，每一步要按 \(\hat X_t\) 到 \(\hat X_{t+1}\) 的变化调整每个高斯。作者用线性混合蒙皮（LBS）：用邻近质点的运动插值 3D 高斯的运动，细节在补充材料（附录 B）。</p>
+
+<h3 id="s4-3"><span class="no">4.3</span>PhysTwin 的能力</h3>
+<p>构建好的 PhysTwin 能在各种运动下实时模拟可变形物体，同时保持真实外观，可以交互地探索物体动力学。引入控制点并动态地用弹簧把它们连到物体点上，系统就能模拟各种运动模式和交互。这让 PhysTwin 可以用于实时交互模拟和基于模型的机器人运动规划（5.3 节）。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 11 幕 · 可拖动、可切换参数</p>
+<p>第 4 幕按代码的连接规则当场数弹簧；第 5 幕当场模拟绳子、布和毛绒玩具，可以用鼠标拖控制点；第 6 幕在浏览器里真跑一个小 CMA-ES；第 7 幕用手写的反向传播逐帧求每根弹簧的梯度；第 8 幕扫碰撞参数看损失为什么不光滑。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/phystwin/index.html?embed=1" title="PhysTwin 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/phystwin/index.html">新窗口打开，看结构表和“哪些是示意”↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>三个问题：(1) 框架重建、重新模拟和预测未来状态有多准？(2) 构建好的孪生对没见过的交互泛化得怎样？(3) 它在下游任务里有什么用？</p>
+<h3 id="s5-1"><span class="no">5.1</span>实验设置</h3>
+<p><b>数据集。</b>作者采集了人和各种可变形物体交互的 RGB-D 视频（<a class="ds" href="https://huggingface.co/datasets/Jianghanxiao/PhysTwin">PhysTwin 数据集</a>，随代码在 Hugging Face 公开，论文本身即 <a href="https://arxiv.org/abs/2503.17973">2503.17973</a>），物体包括绳子、毛绒玩具、布和快递包装，物理性质各不相同。用三台 RealSense D455 录制，每段 1 到 10 秒，交互有快速提起、拉伸、推、挤压，单手或双手。一共 22 个场景，覆盖不同的物体类型、交互类型和手的配置。每个场景的视频按 7 : 3 分成训练和测试，只用训练部分构建孪生。每段视频用 <a class="ds" href="https://deepmind-tapir.github.io/">TAPIR</a> 附带的半自动工具人工标注 9 个跟踪真值点，用来评测跟踪。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 7 : 3 是同一段视频按帧切，“未来预测”就是后 30% 的帧</span>
+<p><code>process_data.py</code> 第 165 到 172 行写 <code>split.json</code>：<code>train = [0, int(frame_len × 0.7)]</code>，<code>test = [int(frame_len × 0.7), frame_len]</code>。也就是说，训练和测试不是两段视频，而是同一段交互的前 70% 和后 30%。表 1 的“重建与重新模拟”在前 70% 上量，“未来预测”在后 30% 上量，控制点（手）的轨迹两段都用真实的。</p>
+<p>22 个场景可以从 <code>gs_run.sh</code> 注释里的场景名数出来：布 8 个（名字里含 cloth），绳子 5 个，树懒 4 个，斑马 3 个，恐龙 1 个，快递包装 1 个，8 + 5 + 4 + 3 + 1 + 1 = 22，和论文一致。名字里含 cloth 或 package 的用 <code>configs/cloth.yaml</code>，打开了自碰撞。</p>
+</div>
+<p><b>任务。</b>三个任务：(1) 重建与重新模拟；(2) 未来预测；(3) 对未见交互的泛化。第一个任务要求构建的孪生在给定动作（控制点位置）下，准确重建并重新模拟物体的运动。第二个任务看孪生在构建时没见过的未来帧上表现如何。第三个任务看孪生能否适应不同的交互：为此建了一个泛化数据集，由同一物体上的交互对组成，交互对之间手的配置和交互类型不同。</p>
+<p><b>基线。</b>作者认为目前没有在三个任务上都表现好的现成工作，于是从两个研究方向各选一个基线，并加强以适配本文的设置（细节在附录 C）。第一个是基于物理模拟辨识材料性质的 Spring-Gaus：原设定下重建、重新模拟和未来预测都不错，但不支持外部控制输入，作者为它加了控制能力。第二个是基于学习的 GS-Dynamics：用图神经网络动力学模型从局部观测学系统动力学。原设定需要用 Dyn3DGS 预处理视频得到跟踪；为公平起见，作者换成本文基于 CoTracker3 的 3D 抬升跟踪，监督更准更高效。</p>
+<p><b>评测。</b>3D 上用单向 Chamfer 距离（局部真值到完整预测状态）和跟踪误差（基于人工标注的真值点）。2D 上用 PSNR、SSIM、LPIPS 评图像质量，用 IoU 评轮廓对齐。2D 评测只在中间那个视角做，因为它看物体最清楚，指标对所有帧和场景取平均。Spring-Gaus 的优化因为物理建模不准而不稳定，所以它的指标只在成功的案例上报告。</p>
+
+<h3 id="s5-2"><span class="no">5.2</span>结果</h3>
+<p>和两个加强过的基线在三个任务上比较，PhysTwin 在各任务上都更好。</p>
+<p><b>重建与重新模拟。</b>表 1 左半显示所有指标都有明显提升，包括 Chamfer 距离、跟踪误差和 2D IoU，说明重建和重新模拟和原始观测更贴近，也说明模型在稀疏观测下学到了更准的动力学。渲染指标也更好，得益于高斯混合策略和更好的动力学。图 3 给出不同物体的定性对比。作者还指出：基于物理的表示本身改善了点跟踪，经过物理约束的优化，跟踪结果比训练用的 CoTracker3 预测还好（见附录 C）。</p>
+<p><b>未来预测。</b>表 1 右半显示在没见过的帧上，动力学和渲染质量都更好；图 3 给出定性结果。</p>
+<p><b>对未见交互的泛化。</b>数据集里包括从一种交互（如单手提起）迁移到很不一样的交互（如双手拉伸）。直接用构建好的孪生，用配准流程把它对齐到目标案例的第一帧。图 4 显示动力学和真实观测很接近；表 2 也说明在不同动作下都稳健。神经动力学模型对环境变化和多样交互的适应不如本文。在未见交互上，本文的表现和未来预测任务相当。</p>
+<div class="tablewrap"><table class="t-res"><thead><tr><th rowspan="2">方法</th><th colspan="6">重建与重新模拟</th><th colspan="6">未来预测</th></tr>
+<tr><th class="n">CD↓</th><th class="n">跟踪↓</th><th class="n">IoU%↑</th><th class="n">PSNR↑</th><th class="n">SSIM↑</th><th class="n">LPIPS↓</th><th class="n">CD↓</th><th class="n">跟踪↓</th><th class="n">IoU%↑</th><th class="n">PSNR↑</th><th class="n">SSIM↑</th><th class="n">LPIPS↓</th></tr></thead><tbody>
+<tr><td>Spring-Gaus</td><td class="n">0.041</td><td class="n">0.050</td><td class="n">57.6</td><td class="n">23.445</td><td class="n">0.928</td><td class="n">0.102</td><td class="n">0.062</td><td class="n">0.094</td><td class="n">46.4</td><td class="n">22.488</td><td class="n">0.924</td><td class="n">0.113</td></tr>
+<tr><td>GS-Dynamics</td><td class="n">0.014</td><td class="n">0.022</td><td class="n">72.1</td><td class="n">26.260</td><td class="n">0.940</td><td class="n">0.052</td><td class="n">0.041</td><td class="n">0.070</td><td class="n">49.8</td><td class="n">22.540</td><td class="n">0.924</td><td class="n">0.097</td></tr>
+<tr><td>PhysTwin</td><td class="n best">0.005</td><td class="n best">0.009</td><td class="n best">84.4</td><td class="n best">28.214</td><td class="n best">0.945</td><td class="n best">0.034</td><td class="n best">0.012</td><td class="n best">0.022</td><td class="n best">72.5</td><td class="n best">25.617</td><td class="n best">0.941</td><td class="n best">0.055</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 · 第 7 页 · <a href="https://arxiv.org/html/2503.17973#S5.T1">看原表 ↗</a>。重建与重新模拟、未来预测两个任务上和 Spring-Gaus、GS-Dynamics 的比较。高亮格是原文加粗的最好值，PhysTwin 一行全部最好。Spring-Gaus 只在它优化成功的案例上平均。</p>
+<div class="tablewrap"><table class="t-t2"><thead><tr><th>方法</th><th class="n">CD↓</th><th class="n">跟踪↓</th><th class="n">IoU%↑</th><th class="n">PSNR↑</th><th class="n">SSIM↑</th><th class="n">LPIPS↓</th></tr></thead><tbody>
+<tr><td>GS-Dynamics</td><td class="n">0.029</td><td class="n">0.038</td><td class="n">63.4</td><td class="n">25.053</td><td class="n">0.934</td><td class="n">0.067</td></tr>
+<tr><td>PhysTwin</td><td class="n best">0.013</td><td class="n best">0.018</td><td class="n best">72.18</td><td class="n best">26.199</td><td class="n best">0.938</td><td class="n best">0.047</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · 第 7 页 · <a href="https://arxiv.org/html/2503.17973#S5.T2">看原表 ↗</a>。对未见交互的泛化：两个方法都在同一段视频的某种交互上训练，在没见过的交互上测试。IoU 一列原文 PhysTwin 写两位小数（72.18），其余都是一位。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 1 的差距有多大</span>
+<p>和较强的基线 GS-Dynamics 比，按 \((b-a)/b\) 算：重建段 CD 从 0.014 到 0.005，降 64%；跟踪误差 0.022 到 0.009，降 59%；IoU 高 12.3 个百分点；PSNR 高 1.954 dB；LPIPS 0.052 到 0.034，降 35%。未来预测段差距更大：CD 0.041 到 0.012，降 71%；跟踪 0.070 到 0.022，降 69%；IoU 高 22.7 个百分点；PSNR 高 3.077 dB；LPIPS 降 43%。SSIM 差得最少（0.945 对 0.940，0.941 对 0.924）。</p>
+<p>两点要注意。Spring-Gaus 一行只平均了它成功的案例，案例集合和另两行不同，三行不是严格同口径。GS-Dynamics 被加上了 PhysTwin 的跟踪器和高斯混合渲染（附录 C），渲染指标的差距里有一部分来自动力学，不是渲染方法本身。图 3 图注里把 Spring-Gaus 写成了 “Spring-Gauss”，是笔误。</p>
+</div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 2 和表 1 对照：泛化和未来预测确实相当</span>
+<p>正文说“在未见交互上表现和未来预测相当”。PhysTwin 表 2 对表 1 未来预测：CD 0.013 对 0.012，跟踪 0.018 对 0.022（泛化反而更小），IoU 72.18 对 72.5，PSNR 26.199 对 25.617，LPIPS 0.047 对 0.055。说法成立。和 GS-Dynamics 比，表 2 的 CD 降 55%（0.029 到 0.013），跟踪降 53%（0.038 到 0.018），IoU 高 8.78 个百分点。有意思的是 GS-Dynamics 在表 2 的 CD 0.029 也比它自己在表 1 未来预测的 0.041 好。两张表的测试帧不同（泛化用目标交互的整段，预测只用后 30%），直接比数值只能看个大概。</p>
+</div>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 6 页 · <a href="https://arxiv.org/html/2503.17973#S4.F3">看原图 ↗</a></span><p>整页的定性对比，分三组物体：红色花纹的布被单手提起、一根白绳被双手拉伸和推挤、一只蓝白的毛绒玩具被双手拉开四肢。每组四行：观测、PhysTwin、GS-Dynamics、Spring-Gaus。左边三列（蓝框）是重建与重新模拟，右边三列（红框）是未来预测，观测行用红箭头标出手的动作方向。PhysTwin 一行和观测最像；GS-Dynamics 在未来预测里几乎不动（布基本保持平铺）；Spring-Gaus 的渲染有明显的破碎纹理，绳子和玩具多处崩坏。图注总结：GS-Dynamics 倾向于保持静止，Spring-Gaus 常常让物理模型崩溃。</p></div>
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 7 页 · <a href="https://arxiv.org/html/2503.17973#S4.F4">看原图 ↗</a></span><p>对未见交互的泛化，两组：一块棕色毛毯和一只灰色毛绒树懒。最左一列是训练时用的那种交互（观测），右边五列是在新交互下的未来预测，每组上行 PhysTwin、下行 GS-Dynamics，红箭头标出新交互的手部动作。毛毯那组里 PhysTwin 跟着手被拎起、折出褶皱，GS-Dynamics 基本还是平铺；树懒那组 PhysTwin 的胳膊被举起、拉开，GS-Dynamics 的形变很小。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>应用</h3>
+<p>弹簧-质点模拟器用 <a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a> 实现，前向模拟高效，支持多种下游应用（图 5）。(1) 交互模拟：用户用键盘实时和物体交互，单手或双手；也支持在机械臂遥操作时实时模拟物体的未来状态，可以在操作中预测物体动力学。(2) 基于模型的机器人规划：孪生保真度高，可以作为规划流程里的动力学模型，结合基于模型的规划方法为机器人生成有效的运动方案。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 8 页 · <a href="https://arxiv.org/html/2503.17973#S5.F5">看原图 ↗</a></span><p>三格。(a) 用键盘做实时交互模拟：一块深色布被两只虚拟手拎起，下方左右两组方向键标着左手、右手，布上画着彩色的手部轨迹。(b) 用遥操作做实时交互模拟：真实机械臂在摆弄一块绿布，右侧显示器上是叠加了数字孪生的画面。(c) 基于模型的机器人规划：两只机械臂拿起一根绳子，右边三张小图是初始状态、最终状态和目标状态，最终状态和目标的绳形基本一致。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · “实时”有多快，论文没给数</span>
+<p>正文和摘要多次说“实时”，但没有帧率或硬件。README 说交互演示在 RTX 4090 上树懒案例约 37 FPS（<code>interactive_playground.py</code>，含高斯渲染），第一段 CMA-ES 约 12 分钟、第二段约 5 分钟。按代码每帧 667 个子步算，37 FPS 意味着每秒约 2.5 万个弹簧-质点子步。键盘交互每按一帧，控制点移动 0.005（米），见 <code>trainer_warp.py</code> 第 1038 到 1049 行的键位表。</p>
+</div>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>PhysTwin 从稀疏视频构建物理数字孪生，能有效地重建和重新模拟可变形物体，预测未来状态，模拟对未见动作也能泛化的交互。在各种物体类型、控制配置和任务设置下都明显好过已有工作，支持需要高速模拟和准确预测的下游任务。作者认为它在感知和基于物理的模拟之间架了桥，可以指导机器人交互，让真实部署更高效可靠。</p>
+
+<h2 id="apA"><span class="no">A</span>形状先验的更多细节</h2>
+<p>用 TRELLIS 从一张 RGB 图生成完整网格以后，非刚性配准并不简单。配准模块用 2D 匹配处理尺度估计、刚性配准和非刚性形变。先估初始旋转，由粗到细：在包围物体的球面上均匀放一圈虚拟相机渲染图像，用 SuperGlue 和观测匹配 2D 对应点，选匹配数最多的视角，得到粗略旋转；再用 PnP 根据生成网格上匹配的 3D 点和观测里对应的 2D 像素精修，得到精确的旋转矩阵。</p>
+<p>旋转定了以后，平移和尺度仍有歧义，通过优化匹配点对之间的距离来解。在相机坐标系里这件事更简单：PnP 之后，生成网格上的匹配点和真实观测点云里的对应点在同一条过原点的射线上，所以尺度和平移的优化可以化成只优化尺度。变换以后两者位姿相近，部分区域还有非刚性形变，用 ARAP 配准把网格变形到和观测一致的非刚性姿态。最后做光线投射对齐：从相机发射光线，保证观测点和变形后的网格对齐，既不被网格遮住也不遮住网格。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 形状先验的几个代码细节</span>
+<p><code>data_process/align.py</code>：虚拟相机渲染用 <code>num_samples = 8</code>、<code>num_ups = 4</code>（第 46 到 75 行），我的理解是 8 个方位角乘 4 个仰角，共 32 个视角，未运行核实；尺度用 <code>scipy.optimize.minimize</code> 只解一个标量（<code>registration_scale</code>）；之后是 ARAP（<code>deform_ARAP</code>）和逐顶点光线求交（<code>get_matching_ray_registration</code>）。超分辨率用的是 Hugging Face 上的 stabilityai/stable-diffusion-x4-upscaler（<code>image_upscale.py</code>），对应论文引用的潜扩散模型；TRELLIS 用 JeffreyXiang/TRELLIS-image-large（<code>shape_prior.py</code>）。</p>
+<p>体积采样在 <code>data_process/data_process_sample.py</code>：在补全的网格表面采 1024 个点、内部采 10000 个点，和原始观测点一起按 5 mm 体素去重，优先保留观测点，其次表面点，最后内部点。弹簧-质点模型的质点就是这批点，论文正文没写这个数量级。</p>
+</div>
+
+<h2 id="apB"><span class="no">B</span>3D 高斯更新的更多细节</h2>
+<p>给定前一状态 \(\hat X_t\) 和预测状态 \(\hat X_{t+1}\)，先为每个质点 \(\hat\mu_i^t\in\hat X_t\) 解一个 6 自由度变换。平移直接取预测的节点平移 \(T_i^t\)。旋转按邻居 \(N(i)\) 从 \(t\) 到 \(t+1\) 的运动估一个局部刚性旋转：</p>
+<div class="eq"><div class="m">\[ R_i^t=\arg\min_{R\in SO(3)}\sum_{j\in N(i)}\big\lVert R(\hat\mu_j^t-\hat\mu_i^t)-(\hat\mu_j^{t+1}-\hat\mu_i^{t+1})\big\rVert^2. \]</div><span class="no">(5)</span></div>
+<p>然后用 LBS 局部插值邻近节点的变换来变换高斯。对每个高斯的中心和旋转：</p>
+<div class="eq"><div class="m">\[ \mu_j^{t+1}=\sum_{k\in N(j)}w_{jk}^t\Big(R_k^t(\mu_j^t-\hat\mu_k^t)+\hat\mu_k^t+T_k^t\Big), \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ q_j^{t+1}=\Big(\sum_{k\in N(j)}w_{jk}^t\,r_k^t\Big)\otimes q_j^t, \]</div><span class="no">(7)</span></div>
+<p>\(R_k^t\in\mathbb R^{3\times3}\) 和 \(r_k^t\in\mathbb R^4\) 是节点 \(k\) 旋转的矩阵和四元数形式，\(\otimes\) 是四元数乘法，\(N(j)\) 是高斯中心 \(\mu_j^t\) 的 K 个最近节点。插值权重和三维距离成反比：</p>
+<div class="eq"><div class="m">\[ w_{jk}^t=\frac{\lVert\mu_j^t-\hat\mu_k^t\rVert^{-1}}{\sum_{k\in N(j)}\lVert\mu_j^t-\hat\mu_k^t\rVert^{-1}}, \]</div><span class="no">(8)</span></div>
+<p>空间上越近的节点权重越大。用更新后的高斯参数就能渲染 \(t+1\) 时刻的画面。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · LBS 和高斯训练在代码里的取值</span>
+<p>高斯部分的代码在 <code>gaussian_splatting/</code> 目录，源自 Inria 3DGS，许可非商业，这里只说文件名和参数。离线渲染脚本 <code>gs_render_dynamics.py</code> 的 <code>rollout</code>：节点邻居 \(N(i)\) 取 16 个，只在第一帧算一次；高斯的 K 个最近节点也是 16 个，每一步按上一帧节点位置重算；四元数照式 (7) 一起更新。交互演示 <code>trainer_warp.py</code>（约第 1270 到 1290 行）同样是 16 和 16，但最近节点的编号只在第一帧算一次，之后只重算权重。式 (5) 用 SVD 解（带行列式符号修正），式 (8) 的分母加了 1e-6。</p>
+<p>训练脚本 <code>gs_run.sh</code> 的参数：10000 次迭代，<code>--isotropic</code>（和正文“各向同性”一致），深度损失权重 0.001，分割损失权重 1.0，使用遮罩，D-SSIM 权重用默认的 0.2。正文只提了 L1 加 D-SSIM，没提深度和分割两项。</p>
+</div>
+
+<h2 id="apC"><span class="no">C</span>更多实验细节</h2>
+<p><b>基线。</b>Spring-Gaus 在“物体撞击”类视频上表现合理，但只适用于物体主要在重力下变形的简单情况，支持的物体类型有限。为了在本文数据集上直接优化，作者给它加了控制点：额外的弹簧把控制点连到预定距离内的邻近物体点。为了适应稀疏视角，用本文的形状先验初始化它的静态高斯。它构建的高斯不能推广到不同的初始条件，所以只评测前两个任务。GS-Dynamics 三个任务都比；为了让图网络动力学能渲染出真实画面，给它加上了本文的高斯混合策略。</p>
+<p><b>任务。</b>PhysTwin 只用每个数据点的训练集构建，在测试集上看和原视频的吻合程度。泛化任务的数据集由同一物体上的交互对组成。例如先用“单手提起”的场景为树懒玩具构建孪生，再在“双手拉开腿”的场景里评测。一共 11 对，每对可以双向迁移，共 22 个泛化实验。这个任务里孪生仍只用源交互的训练集构建，但评测覆盖目标交互的整段序列。</p>
+<p><b>定性结果。</b>图 7、图 8 给出更多物体和交互上三个任务的定性结果，都显示本文优于已有工作。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 13 页 · <a href="https://arxiv.org/html/2503.17973#A1.F7">看原图 ↗</a></span><p>和图 3 同样的排版，换了三组物体：一个棕色快递纸袋被双手压扁、一根棕色绳子被一根手指按住往下推、一只蓝色毛绒玩具（恐龙）被单手拎起一条腿。每组四行（观测、PhysTwin、GS-Dynamics、Spring-Gaus），左三列重建、右三列未来预测。玩具那组的未来预测里，PhysTwin 跟着手把玩具整个拎离桌面，GS-Dynamics 和 Spring-Gaus 都没有。</p></div>
+<div class="fig" id="fig8"><span class="lab">图 8 · 第 14 页 · <a href="https://arxiv.org/html/2503.17973#A1.F8">看原图 ↗</a></span><p>和图 4 同样的排版，三组：灰色毛绒树懒、绿色毛巾、一根白绳。最左一列是训练交互，右边五列是新交互下的预测，每组上行 PhysTwin、下行 GS-Dynamics。毛巾那组 PhysTwin 的毛巾被双手提起、悬垂，GS-Dynamics 只抬起很少；绳子那组 PhysTwin 的绳子被双手拎成弧形，GS-Dynamics 只有一端翘起。</p></div>
+<p><b>不同视角。</b>图 9 展示从不同视角渲染的结果，说明孪生能应对各种视角。</p>
+<div class="fig" id="fig9"><span class="lab">图 9 · 第 15 页 · <a href="https://arxiv.org/html/2503.17973#A1.F9">看原图 ↗</a></span><p>三组物体（红布、白绳、蓝白玩具），每组三行分别是视角 1、2、3，左三列重建、右三列未来预测，都是 PhysTwin 的渲染。视角 2、3 是侧面和斜后方，画面里能看到渲染出的手臂和桌面背景；物体在三个视角下形状一致。</p></div>
+<p><b>层级优化的消融。</b>两个变体：只用零阶优化、只用一阶优化，在重建与重新模拟和未来预测两个任务上比（表 3）。完整流程两个任务都最好。只用零阶的变体抓不住细粒度的材料性质，表示不了不同物体；只用一阶的变体没有优化不可微参数，比如弹簧连接，默认连接无法准确刻画真实物体结构，控制点和物体点之间的连接距离用固定初值也处理不好。</p>
+<div class="tablewrap"><table class="t-res"><thead><tr><th rowspan="2">方法</th><th colspan="6">重建与重新模拟</th><th colspan="6">未来预测</th></tr>
+<tr><th class="n">CD↓</th><th class="n">跟踪↓</th><th class="n">IoU%↑</th><th class="n">PSNR↑</th><th class="n">SSIM↑</th><th class="n">LPIPS↓</th><th class="n">CD↓</th><th class="n">跟踪↓</th><th class="n">IoU%↑</th><th class="n">PSNR↑</th><th class="n">SSIM↑</th><th class="n">LPIPS↓</th></tr></thead><tbody>
+<tr><td>只用零阶</td><td class="n">0.007</td><td class="n">0.012</td><td class="n">80.2</td><td class="n">27.409</td><td class="n">0.943</td><td class="n">0.039</td><td class="n">0.014</td><td class="n">0.025</td><td class="n">69.2</td><td class="n">25.008</td><td class="n">0.938</td><td class="n">0.061</td></tr>
+<tr><td>只用一阶</td><td class="n">0.008</td><td class="n">0.012</td><td class="n">82.7</td><td class="n">27.913</td><td class="n">0.944</td><td class="n">0.037</td><td class="n">0.019</td><td class="n">0.034</td><td class="n">65.7</td><td class="n">24.572</td><td class="n">0.936</td><td class="n">0.067</td></tr>
+<tr><td>PhysTwin</td><td class="n best">0.005</td><td class="n best">0.009</td><td class="n best">84.4</td><td class="n best">28.214</td><td class="n best">0.945</td><td class="n best">0.034</td><td class="n best">0.012</td><td class="n best">0.022</td><td class="n best">72.5</td><td class="n best">25.617</td><td class="n best">0.941</td><td class="n best">0.055</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 第 14 页 · <a href="https://arxiv.org/html/2503.17973#A1.T3">看原表 ↗</a>。稀疏到稠密优化的消融。PhysTwin 一行和表 1 的 PhysTwin 一行 12 个数逐个相同。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表 3 里两个单段变体谁更好，要分任务看</span>
+<p>PhysTwin 一行和表 1 完全一致，可以互相印证。两个单段变体之间：重建段“只用一阶”的 IoU、PSNR、SSIM、LPIPS 更好（82.7 对 80.2 等），CD 略差（0.008 对 0.007），跟踪打平（0.012）；未来预测段六项全是“只用零阶”更好（CD 0.014 对 0.019，跟踪 0.025 对 0.034，IoU 69.2 对 65.7）。也就是说，逐弹簧刚度在拟合训练帧时有用，但如果拓扑和控制点连接没搜好，单靠一阶反而外推更差。正文说“只用零阶抓不住细粒度材料性质”，在重建段的渲染指标上看得出来，在预测段则相反。两个变体具体怎么实现（“只用一阶”时拓扑用什么默认值、全局参数从哪来），论文和代码里都没找到对应的脚本，未核实。</p>
+</div>
+<p><b>跟踪结果。</b>图 6 对比 PhysTwin 的跟踪结果和 CoTracker3 的伪真值跟踪。尽管训练用的是有噪声的跟踪，模型在重建与重新模拟、未来预测两个任务上的跟踪都更好、更平滑。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 12 页 · <a href="https://arxiv.org/html/2503.17973#A1.F6">看原图 ↗</a></span><p>两张并排的俯视图，同一块布，点云按彩虹色编号。左边是 CoTracker3 的原始伪跟踪，右边是 PhysTwin 的跟踪。左图左上角用绿圈圈出一片颜色错乱、点跑到别处的区域；右图同一位置的颜色过渡是连续的。</p></div>
+<p><b>数据效率实验。</b>为了进一步分析和图网络方法的差距，作者在同一种动作（双手拉伸并折叠绳子）上又采了 29 个数据点，加上原来的共 30 个，用来训练神经动力学模型；本文只用 1 个数据点。结果显示，GS-Dynamics 即使用了 30 倍的数据，性能也没有提升，说明它很依赖数据，而本文的数据效率高得多。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 数据效率实验没有给数字</span>
+<p>这一段只有结论，没有表、图或任何数值：不知道用的是哪个指标、30 个数据点上 GS-Dynamics 的误差是多少、和 PhysTwin 差多少。“没有提升”无法核算，这里只能照录作者的说法。代码仓库里也没有找到这组实验的脚本或结果。</p>
+</div>
+
+<h2 id="apD"><span class="no">D</span>后续工作</h2>
+<p>作者认为这项工作在从稀疏视频观测构建可变形物体的物理孪生上迈了一步，和主要关注几何重建的方法不同，它整合了物理性质，能准确地重新模拟、预测未来和泛化到未见交互。虽然目前用三个 RGB-D 视角，框架本身可以扩展到更稀疏的观测；有合适的先验时，单段 RGB 视频可能就够，更适合野外场景。物理参数目前只从一种交互里优化，扩展到多种动作模态，或从更多样的交互里学，可能揭示更丰富的物理特性、提高稳健性。应用上，结构化又高效的孪生可以简化 real-to-sim 迁移，减少强化学习对域随机化的依赖；高速模拟和实时渲染也为基于模型的机器人规划铺了路。</p>
+<p>后续确实有工作沿这条路走：站内的 <a href="real2sim-eval.html">Real-to-Sim 评测</a>把 PhysTwin 接上机器人和高斯泼溅场景做策略评测；代码 README 还列了 MPPI 规划示例 <a href="https://github.com/Jianghanxiao/PhysTwin-MPC">PhysTwin-MPC</a>、批量模拟器 Boba 和数据集 <a class="ds" href="https://deform360.lhy.xyz/">Deform360</a>（站内 <a href="3dws.html">3D World Simulator</a> 用过）。这些不属于本文，只作指引。</p>
+
+<h2 id="code">代码对照</h2>
+<p>Jianghanxiao/PhysTwin 提交 81c7187（2026-08-24），只读，没有运行，也没有下载数据和检查点。根目录 MIT；<code>gaussian_splatting/</code> 和 SuperGlue 文件许可不同，只给文件名。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>论文</th><th>代码位置</th><th>说明</th></tr></thead><tbody>
+<tr><td>三台 RGB-D 相机</td><td><code>qqtt/env/camera/camera_system.py</code></td><td>默认 3 台，848×480，30 FPS</td></tr>
+<tr><td>形状先验</td><td><code>data_process/shape_prior.py</code>、<code>image_upscale.py</code>、<code>align.py</code></td><td>TRELLIS-image-large；SD x4 超分；SuperGlue 选视角、PnP、尺度、ARAP、光线对齐（读者注 14）</td></tr>
+<tr><td>体积采样</td><td><code>data_process/data_process_sample.py</code></td><td>表面 1024 + 内部 10000，5 mm 体素去重</td></tr>
+<tr><td>控制点</td><td><code>data_process/data_process_track.py</code></td><td>手部点云最远点采样 30 个（约第 345 行）</td></tr>
+<tr><td>7 : 3 划分</td><td><code>process_data.py</code></td><td>同一段视频按帧切（读者注 10）</td></tr>
+<tr><td>拓扑</td><td><code>qqtt/engine/cma_optimize_warp.py</code> 的 <code>_init_start</code></td><td>open3d 混合半径-近邻搜索；去掉自身、去重（读者注 6）</td></tr>
+<tr><td>式 (1) 和积分</td><td><code>qqtt/model/diff_simulator/spring_mass_warp.py</code></td><td><code>eval_springs</code>、<code>update_vel_from_force</code>、<code>object_collision</code>、<code>integrate_ground_collision</code>（读者注 2、3、4、5）</td></tr>
+<tr><td>第一段</td><td><code>optimize_cma.py</code> → <code>OptimizerCMA</code></td><td>12 维 CMA-ES，20 代（读者注 7）</td></tr>
+<tr><td>第二段</td><td><code>train_warp.py</code> → <code>InvPhyTrainerWarp.train</code></td><td>逐帧反传 + Adam（读者注 8）</td></tr>
+<tr><td>损失和评测</td><td><code>spring_mass_warp.py</code>、<code>evaluate_chamfer.py</code>、<code>evaluate_track.py</code></td><td>训练用平方距离和 smooth L1，评测用 L1 Chamfer 和欧氏跟踪误差（读者注 9）</td></tr>
+<tr><td>外观</td><td><code>gs_train.py</code>、<code>gs_run.sh</code></td><td>10000 次，各向同性，额外的深度和分割损失（读者注 15）</td></tr>
+<tr><td>LBS</td><td><code>gs_render_dynamics.py</code>、<code>gaussian_splatting/dynamic_utils.py</code></td><td>K = 16，转朝向（读者注 15）</td></tr>
+<tr><td>键盘交互</td><td><code>interactive_playground.py</code> → <code>trainer_warp.py</code></td><td>两只手各 6 个键，每帧 0.005（读者注 13）</td></tr>
+</tbody></table></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">版本</a>：本地 PDF = 项目主页 PDF，比 arXiv v1 多一句致谢。</li>
+<li><a href="#n2">积分器</a>：其实是半隐式欧拉；代码衰减乘在加力之后，每帧约 0.905。</li>
+<li><a href="#n3">弹簧力</a>：代码和应变成正比，\(Y=k\,l\)；阻尼只沿弹簧方向。</li>
+<li><a href="#n4">子步</a>：5e-5 × 667 = 0.03335 秒；控制点每子步线性插值。</li>
+<li><a href="#n5">控制点阻尼</a>：控制点速度恒为 0，阻尼相对世界。</li>
+<li><a href="#n6">近邻数和质量</a>：主动连接最多 max_nn − 1；质量全为 1，刚度无物理单位。</li>
+<li><a href="#n7">第一段 12 个参数</a>：含两个阻尼和碰撞距离；种群 11，20 代，约 220 次模拟。</li>
+<li><a href="#n8">第二段逐帧截断</a>：每帧反传一次、更新一次；阻尼和拓扑固定。</li>
+<li><a href="#n9">损失和指标</a>：训练用平方距离，评测用 L1 Chamfer；单位按代码应是米。</li>
+<li><a href="#n10">7 : 3 划分</a>：同一段视频按帧切；22 个场景数得出来。</li>
+<li><a href="#n11">表 1 差距</a>：预测段 CD 降 71%、跟踪降 69%；Spring-Gaus 不同口径。</li>
+<li><a href="#n12">表 2 对表 1</a>：泛化和未来预测相当，说法成立。</li>
+<li><a href="#n13">实时</a>：论文没给帧率；README 说 4090 上约 37 FPS。</li>
+<li><a href="#n14">形状先验代码</a>：32 个虚拟视角（推断）；1024 + 10000 点，5 mm 体素。</li>
+<li><a href="#n15">LBS 和高斯训练</a>：K = 16，转朝向；额外的深度和分割损失。</li>
+<li><a href="#n16">表 3</a>：预测段只用零阶全面好于只用一阶。</li>
+<li><a href="#n17">数据效率</a>：只有结论，没有数字。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 11 日用脚本核对过可以打开（RealSense 官网对脚本无响应，未列入）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://jianghanxiao.github.io/phystwin-web/">PhysTwin</a></td><td>本文</td><td><a href="https://github.com/Jianghanxiao/PhysTwin">代码</a>（MIT，提交 81c7187）</td><td><a href="https://arxiv.org/abs/2503.17973">2503.17973</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/Jianghanxiao/PhysTwin">PhysTwin 数据集</a></td><td>22 段 RGB-D 交互视频和两段优化的结果</td><td>Hugging Face</td><td><a href="https://arxiv.org/abs/2503.17973">2503.17973</a></td></tr>
+<tr><td><a class="ds" href="https://zlicheng.com/spring_gaus/">Spring-Gaus</a></td><td>物理基线，弹簧-质点 3D 高斯</td><td>项目主页</td><td><a href="https://arxiv.org/abs/2403.09434">2403.09434</a></td></tr>
+<tr><td><a class="ds" href="https://gs-dynamics.github.io/">GS-Dynamics</a></td><td>学习基线，图网络动力学</td><td>项目主页</td><td><a href="https://arxiv.org/abs/2410.18912">2410.18912</a></td></tr>
+<tr><td><a class="ds" href="https://trellis3d.github.io/">TRELLIS</a></td><td>图生 3D，形状先验</td><td><a href="https://github.com/microsoft/TRELLIS">代码</a></td><td><a href="https://arxiv.org/abs/2412.01506">2412.01506</a></td></tr>
+<tr><td><a class="ds" href="https://cotracker3.github.io/">CoTracker3</a></td><td>2D 点跟踪，伪真值</td><td>项目主页</td><td><a href="https://arxiv.org/abs/2410.11831">2410.11831</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/IDEA-Research/Grounded-SAM-2">Grounded-SAM2</a></td><td>物体和手的分割</td><td>代码</td><td><a href="https://arxiv.org/abs/2401.14159">2401.14159</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/magicleap/SuperGluePretrainedNetwork">SuperGlue</a></td><td>2D 特征匹配，选视角</td><td>代码（非商业许可）</td><td><a href="https://arxiv.org/abs/1911.11763">1911.11763</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/stabilityai/stable-diffusion-x4-upscaler">SD x4 超分</a></td><td>潜扩散超分辨率</td><td>Hugging Face</td><td><a href="https://arxiv.org/abs/2112.10752">2112.10752</a></td></tr>
+<tr><td><a class="ds" href="https://deepmind-tapir.github.io/">TAPIR</a></td><td>标注 9 个真值点用的半自动工具</td><td>项目主页</td><td><a href="https://arxiv.org/abs/2306.08637">2306.08637</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/CMA-ES/pycma">pycma</a></td><td>第一段的 CMA-ES 实现</td><td>代码</td><td><a href="https://arxiv.org/abs/1604.00772">1604.00772</a>（Hansen 教程）</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a></td><td>可微模拟器的底层</td><td>代码</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/">3D Gaussian Splatting</a></td><td>外观表示（代码非商业许可）</td><td>项目主页</td><td><a href="https://arxiv.org/abs/2308.04079">2308.04079</a></td></tr>
+<tr><td><a class="ds" href="https://igl.ethz.ch/projects/ARAP/">ARAP</a></td><td>尽可能刚性的网格变形</td><td>项目主页</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://real2sim-eval.github.io/">Real-to-Sim 评测</a></td><td>建在 PhysTwin 上的策略评测</td><td><a href="real2sim-eval.html">本站精读</a></td><td><a href="https://arxiv.org/abs/2511.04665">2511.04665</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Jianghanxiao/PhysTwin-MPC">PhysTwin-MPC</a></td><td>官方的 MPPI 规划示例</td><td>代码</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://deform360.lhy.xyz/">Deform360</a></td><td>后续的大规模可变形物体数据集</td><td><a href="3dws.html">3D World Simulator 页</a></td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2503.17973 和官方代码后的整理，不是作者的官方内容。原文作者 Hanxiao Jiang、Hao-Yu Hsu、Kaifeng Zhang、Hsin-Ni Yu、Shenlong Wang、Yunzhu Li；arXiv 非独占分发许可，原文和原图版权归作者所有，这里没有复制原图。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

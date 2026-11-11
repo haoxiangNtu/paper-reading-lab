@@ -8,6 +8,9 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Mundo: Customized World Model（无论文；[项目页](https://mundo-world-model.github.io/) + [HF 博客](https://huggingface.co/blog/Luo-Yihang/mundo-world-model)，2026-10-23，© 保留） | [mundo 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/mundo.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/mundo/index.html) | 显式 3D 代理 + 场景程序 + MuJoCo 算物理，视频扩散按 proxy 帧和照片渲染外观；无定量评测，用页面数据核对了弹跳、时间线和框修正。 | 14 条 |
+| Real Garment Benchmark (RGBench)（[arXiv 2511.06434](https://arxiv.org/abs/2511.06434)，v2，AAAI 2026） | [rgbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rgbench.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rgbench/index.html) | 衣物网格库 + 闭源 GarmentDynamics 模拟器 + 真实点云 CD/HD 评测；表 4、5 和公开 CSV 逐格一致，附录 C 多处文字和表不符。 | 22 条 |
+| PhysTwin: Physics-Informed Reconstruction and Simulation of Deformable Objects from Videos（[arXiv 2503.17973](https://arxiv.org/abs/2503.17973)，ICCV 2025） | [phystwin 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/phystwin.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/phystwin/index.html) | 弹簧-质点 + CMA-ES 与可微模拟两段辨识 + 高斯 LBS；对照官方代码核了积分、弹簧力、子步和优化细节。 | 17 条 |
 | Real-to-Sim Robot Policy Evaluation with Gaussian Splatting Simulation of Soft-Body Interactions（[arXiv 2511.04665](https://arxiv.org/abs/2511.04665)，v2 2025-11，CC BY 4.0） | [real2sim-eval 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2sim-eval.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/real2sim-eval/index.html) | 3DGS 外观 + PhysTwin 软体孪生做仿真评测，仿真与真机成功率 r 0.90–0.94；复算全部 r，MMRV 只有对调 SIMPLER 函数参数才算得出。 | 20 条 |
 | Scalable Humanoid Whole-Body Control via Differentiable Neural Network Dynamics（SuperDyno，[OpenReview](https://openreview.net/pdf/b3031990328dd52267a571b265c15328bf6d6120.pdf)，ICLR 2025 Workshop，无开放许可，SuperMimic 引用） | [superdyno 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/superdyno.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/superdyno/index.html) | SuperTrack 式可微神经动力学搬到 Isaac Gym：预测速度再积分，策略穿过模型反传 32 步，无评论家，跟踪 AMASS 11313 段。 | 25 条 |
 | MaskedMimic: Unified Physics-Based Character Control Through Masked Motion Inpainting（[arXiv 2409.14393](https://arxiv.org/abs/2409.14393)，SIGGRAPH Asia 2024，CC BY-NC-SA 4.0，SuperMimic 引用） | [maskedmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/maskedmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/maskedmimic/index.html) | 全身跟踪器蒸馏进只看遮挡目标的条件 VAE，任务靠推理时的“目标工程”完成；含 V1 代码核对。 | 21 条 |
@@ -47,6 +50,30 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## Mundo 读后要点
+
+- 分工清楚：代理和代码管“发生了什么”，视频扩散管“看起来像什么”，所以能改一个数重算，也能输出接触力和轨迹。
+- 所有能力都只有演示，没有新视角指标、对比实验或机器人策略结果。
+- 页面公开的数据自洽：弹跳高度比等于 e²，苹果时间线和伪代码一致，初始框到最终代理体现了博客说的漏检和标签修正。
+- 物理目前局限在刚体框加脚本；布料那段是录像；物理参数的来源只有一句话。
+- 渲染慢：8 张 A800 约 1.5 帧/秒；底座是 33B 的 MiniMax-H3 Ref2VA。
+
+## RGBench 读后要点
+
+- 这是评测布料模拟器的基准，不是评测策略的基准：grasp、fling、fold 都是回放录下的轨迹。
+- 表 4、表 5 和公开 CSV 逐格一致，可以放心引用；附录 C 的文字不可信（fold 一段把 CDs2r 均值当成了 CDr2s 基线）。
+- “快 3 倍”是对 Isaac Sim 在最有利于它的 40k 顶点处的倍数，论文没给硬件。
+- 表 1 只有“本文”一列是新跑的，两个基线照抄 BCM；动态任务的优势在一个标准差内。
+- GarmentDynamics 闭源，“本文”一列无法复现；公开基线代码把测得的刚度原样填进参数。
+
+## PhysTwin 读后要点
+
+- 物体是弹簧-质点系统，按半径和最大近邻数连弹簧；外观是 3D 高斯，跟着质点做 LBS。
+- 参数分两段辨识：先用 CMA-ES 调十几个全局参数（含阻尼），再穿过可微模拟器逐根调弹簧刚度。
+- 代码的积分是半隐式欧拉，弹簧力和应变成正比，子步 667；这些细节 Real-to-Sim 评测原样继承。
+- “未来预测”是同一段视频的后 30% 帧，不是新的交互。
+- “实时”和数据效率都没有给出具体数字。
 
 ## Real-to-Sim 评测 读后要点
 
@@ -305,6 +332,9 @@ assets/lab3d.js    3D 交互图共用的 three.js 工具
 papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/real2sim-eval/，11 幕动画在 interactives/real2sim-eval/）
+papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
+papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
+papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gauge.html   GAUGE 精读
 papers/foundationpose.html  FoundationPose 架构专题
 papers/wapr.html            WAPR 架构专题
