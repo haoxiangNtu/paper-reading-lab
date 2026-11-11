@@ -129,7 +129,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <h3 id="s3-c"><span class="no">III-C</span>Real-to-Sim 高斯泼溅仿真</h3>
 <p>这一节讲仿真器怎么搭。两个互补的目标：用 GS 场景重建、位置对齐、颜色对齐缩小视觉差距；用物理建模和形变处理缩小动力学差距。</p>
 <p><b>1) GS 构建。</b>用 iPhone 应用 <a class="ds" href="https://scaniverse.com/">Scaniverse</a> 录视频，自动生成 GS 重建。桌面操作场景先扫一遍静态的机器人工作区（机器人、桌子、背景），再逐个扫实验物体。重建结果在交互式查看器 <a class="ds" href="https://github.com/playcanvas/supersplat">SuperSplat</a> 里手动切成机器人、物体、背景。每个任务只需要做一次。</p>
-<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。（ICP 是什么、为什么要先用 RANSAC，见<a href="#qa-icp">读者问答 3</a>。）背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
+<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。（ICP 是什么见<a href="#qa-icp">读者问答 3</a>；RANSAC 是什么、为什么要先用它，见<a href="#qa-ransac">读者问答 4</a>。）背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
 <p>为了让静态扫描出的机器人 GS 能动起来，要把每个高斯核分到一个连杆上：ICP 对齐后，对每个核在采样的机器人点云里找最近邻，继承那个点的连杆编号。所有连杆包括夹爪手指都这样处理，所以手臂连续运动和夹爪开合都能渲染。有 URDF 的其他机器人也能照做。</p>
 <p><b>3) 颜色对齐。</b>GS 渲染的视觉差距有一大来源：重建场景和策略训练数据不在同一个色彩空间。GS 继承了 iPhone 视频的颜色特性，而策略是在机器人相机（比如 Intel RealSense，已知有色偏）的色彩空间里训练的。作者设计一个颜色变换，把 GS 颜色对到真实相机。</p>
 <p>直接在 RGB 空间做：先在固定真实相机的视角用原始高斯颜色和不透明度渲染，再在同样视角拍真实图像，组成配对数据，求一个变换 \(f\) 让逐像素颜色差最小：</p>
@@ -582,7 +582,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <canvas id="icp-cv" width="640" height="300" aria-label="二维 ICP 演示"></canvas>
 <p class="qa-out" id="icp-out"></p>
 </div>
-<p><b>软肋：初始位置偏太多就会卡住。</b>配对靠“离得最近”，错位太大时最近点几乎全配错，算法会稳稳收敛到错误姿态（比如把机械臂头尾对反）。上面的演示里，转 25° 和 70° 都能对上（剩下的 0.026 是点本身的噪声），转 150° 就卡在平均距离 0.51 的错误姿态；我扫过，在这个形状上从 110° 左右开始卡住。所以实际都先粗配准，再交给 ICP 精修：本文代码先用 <b>RANSAC</b> 做全局粗配准（随机抽几组点，靠局部几何特征匹配，挑最好的大致位置），再跑 ICP（代码 60 + 40 轮）；附录还说先在 SuperSplat 里手动粗对齐。</p>
+<p><b>软肋：初始位置偏太多就会卡住。</b>配对靠“离得最近”，错位太大时最近点几乎全配错，算法会稳稳收敛到错误姿态（比如把机械臂头尾对反）。上面的演示里，转 25° 和 70° 都能对上（剩下的 0.026 是点本身的噪声），转 150° 就卡在平均距离 0.51 的错误姿态；我扫过，在这个形状上从 110° 左右开始卡住。所以实际都先粗配准，再交给 ICP 精修：本文代码先用 <b>RANSAC</b> 做全局粗配准（随机抽几组点，靠局部几何特征匹配，挑最好的大致位置，详见<a href="#qa-ransac">问 4</a>），再跑 ICP（代码 60 + 40 轮）；附录还说先在 SuperSplat 里手动粗对齐。</p>
 <p><b>对齐之后：</b>每个机器人高斯在 URDF 点云里找最近点，继承那个点的连杆编号。仿真里每个连杆怎么动，属于它的高斯就跟着做同样的刚体变换，扫描出的“静态机器人”就能动起来（<a href="#s3-c">III-C</a>，动画第 3 幕）。</p>
 <p><b>常见变体：</b>点到面 ICP（用点到对应点切平面的距离，平整表面上收敛快得多）；剔除离群配对（太远的配对丢掉，防止扫描噪声带偏）；带尺度的版本（单位不一致时多求一个缩放因子，Horn 的方法也能解）。</p>
 
@@ -660,6 +660,166 @@ media (max-width:760px){ .i3d iframe{height:900px} }
   document.getElementById('icp-run').onclick = () => { let k = 0; const go = () => { step(); const e = hist, d = e.length > 2 && Math.abs(e[e.length - 2] - e[e.length - 1]) < 1e-4; if (!d && ++k < 60) setTimeout(go, 120); }; go(); };
   tb.querySelector('[data-a="25"]').setAttribute('aria-pressed', 'true'); reset();
   new MutationObserver(() => { draw(); drawI(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+
+<h3 id="qa-ransac">问 4：RANSAC 是什么？和 ICP 是什么关系？</h3>
+<p>RANSAC 是 RANdom SAmple Consensus（随机抽样一致，Fischler &amp; Bolles 1981），一种<b>在数据里混着大量错误点时，仍能拟合出正确模型</b>的通用方法。它不专属于点云：拟合直线、估计两张照片之间的单应矩阵、对齐点云都能用。</p>
+<p><b>先看最简单的例子：拟合直线。</b>如果数据里有一半是乱撒的错误点（离群点），最小二乘会把所有点一视同仁，直线被错误点拉歪。RANSAC 换个思路：</p>
+<ol>
+<li><b>随机抽最少的点。</b>确定一条直线只要 2 个点，就随机抽 2 个。</li>
+<li><b>用它们算出一个候选模型</b>（过这 2 点的直线）。</li>
+<li><b>数票。</b>看其余所有点里有多少离这条线不超过阈值 \(\tau\)，这些点叫“内点”，内点数就是这条候选线的得票。</li>
+<li><b>重复很多次，留得票最多的</b>，最后只用它的内点再做一次最小二乘，得到精确结果。</li>
+</ol>
+<p>道理是：只要某一次抽到的 2 个点恰好都是正确点，得到的线就接近真线，正确点都会投它的票；而用错误点算出的线，得票只能靠碰运气，通常很少。错误点再多，也影响不到“得票最多”的那一次。</p>
+
+<div class="qa-tool" id="qa-rl-tool">
+<p class="lab">动手跑 · RANSAC 拟合直线（灰色虚线是真线，红线是最小二乘，绿线是 RANSAC 目前最好的结果，橙色是本次抽到的 2 点和候选线）</p>
+<div class="qa-ctl"><span>离群点比例</span><button type="button" data-o="0.2">20%</button><button type="button" data-o="0.5">50%</button><button type="button" data-o="0.7">70%</button>
+<button type="button" id="rl-one">抽一次</button><button type="button" id="rl-many">连抽 50 次</button><button type="button" id="rl-new">换一组数据</button></div>
+<canvas id="rl-cv" width="640" height="260" aria-label="RANSAC 拟合直线演示"></canvas>
+<p class="qa-out" id="rl-out"></p>
+</div>
+
+<p><b>要抽多少次？</b>设正确点占比为 \(w\)，每次抽 \(s\) 个点，一次全抽中正确点的概率是 \(w^s\)。想以概率 \(p\) 至少成功一次，需要的次数是：</p>
+<div class="eq"><div class="m">\[ N=\frac{\log(1-p)}{\log\!\big(1-w^{s}\big)} \]</div></div>
+<p>取 \(p=0.999\)（本文代码的设置），算出来是：</p>
+<div class="tablewrap"><table class="qa-mt"><thead><tr><th>正确点占比 \(w\)</th><th>0.9</th><th>0.5</th><th>0.3</th><th>0.2</th><th>0.1</th></tr></thead><tbody>
+<tr><td>\(s=2\)（直线、二维刚体）</td><td>5</td><td>25</td><td>74</td><td>170</td><td>688</td></tr>
+<tr><td>\(s=4\)（本文代码，三维刚体）</td><td>7</td><td>108</td><td>850</td><td>4,314</td><td>69,075</td></tr>
+</tbody></table></div>
+<p>（向上取整。）次数只取决于正确点的<b>比例</b>和每次抽几个，和数据总量无关；但 \(s\) 每多 1，次数会成倍增加，所以 RANSAC 总是抽“刚好够算模型”的最少个数。本文代码上限设为 100,000 次，正确匹配占比低到 10% 时也够用；Open3D 会按这个公式提前停止。</p>
+
+<p><b>用在点云对齐上。</b>对齐时的“模型”是刚体变换 \(R,t\)，“数据点”是<b>源点和目标点的配对</b>。问题是配对从哪来。ICP 用“离得最近”来配对，所以依赖初始位置；RANSAC 这一步改用<b>局部几何特征</b>配对：本文代码给每个点算 FPFH 特征（Fast Point Feature Histogram，描述这个点周围一小块表面的弯曲形状，和点云摆在什么位置、朝什么方向无关），源点去目标里找特征最像的点当配对。这样配对不依赖初始位置，但特征只看局部，像机械臂这种很多地方都是光滑圆柱面的物体，大部分配对会是错的。这正是 RANSAC 擅长的情况：</p>
+<ol>
+<li>随机抽 4 组配对（代码 <code>ransac_n=4</code>），用问 3 里同样的 Horn / SVD 解法算出 \(R,t\)；</li>
+<li>先做快速筛查：4 个源点之间的距离和 4 个目标点之间的距离要基本一致（比例不低于 0.9），否则不可能是同一个刚体，直接扔掉；</li>
+<li>用这个变换移动源点云，数有多少配对落在 \(1.5\times\) 体素（0.075 m）以内，作为得票；</li>
+<li>重复，留得票最多的变换。</li>
+</ol>
+
+<div class="qa-tool" id="qa-rr-tool">
+<p class="lab">动手跑 · 先 RANSAC 粗配准，再 ICP 精修（问 3 里转 150° 会卡住的那个情况）</p>
+<div class="qa-ctl"><span>特征配对正确率</span><button type="button" data-w="0.5">50%</button><button type="button" data-w="0.25">25%</button><button type="button" data-w="0.1">10%</button>
+<button type="button" id="rr-one">RANSAC 抽一次</button><button type="button" id="rr-many">RANSAC 连抽 200 次</button><button type="button" id="rr-icp">交给 ICP 精修</button><button type="button" id="rr-reset">重置</button></div>
+<canvas id="rr-cv" width="640" height="300" aria-label="RANSAC 加 ICP 配准演示"></canvas>
+<p class="qa-out" id="rr-out"></p>
+</div>
+<p class="note-inline" style="font-size:13px;color:var(--muted)">示意：二维里算真正的 FPFH 意义不大，这里按设定的正确率直接生成配对：正确的配对连到源点真正对应的目标点，错误的随机连到目标上任意一点。二维刚体只要 2 组配对就能算出变换，所以每次抽 2 组。距离筛查和计票规则同上。</p>
+
+<p><b>两者的关系：分工互补，先粗后精。</b></p>
+<div class="tablewrap"><table class="qa-mt"><thead><tr><th></th><th>RANSAC（+ FPFH 特征）</th><th>ICP</th></tr></thead><tbody>
+<tr><td>配对怎么来</td><td>特征最像的点，一次性定好</td><td>离得最近的点，每轮重新配</td></tr>
+<tr><td>要不要初始位置</td><td>不要，摆成什么样都行</td><td>要，偏太多会卡在局部最优</td></tr>
+<tr><td>怎么对付错误配对</td><td>随机抽样后投票，错的配对得不到票</td><td>靠反复迭代逐渐纠正；距离阈值以外的配对直接丢掉</td></tr>
+<tr><td>精度</td><td>粗：在 5 cm 体素的降采样点云上做，结果只是“大致对上”</td><td>细：在原始点云上做，可以对齐到噪声水平</td></tr>
+<tr><td>解变换的那一步</td><td colspan="2" style="text-align:center">相同：给定配对，用 Horn 四元数法或 SVD 一步解出 \(R,t\)</td></tr>
+</tbody></table></div>
+<p>所以 RANSAC 解决的是 ICP 的软肋（怕初始位置偏太多），ICP 补上 RANSAC 的不足（不够精确）。两者之间不是二选一，而是流水线上的前后两站。本文代码 <code>sim/utils/gs/icp_utils.py</code> 里的完整流程是：</p>
+<ol>
+<li>两份点云都按 5 cm 体素降采样，估法向（半径 10 cm），算 FPFH（半径 25 cm）；</li>
+<li>RANSAC 全局配准：每次 4 组配对，最多 100,000 次，置信度 0.999，计票阈值 7.5 cm，配对要求双向互为最像（mutual filter）；</li>
+<li>用 RANSAC 的结果做初值，在原始点云上跑点到面 ICP 两段：先用 7.5 cm 配对距离跑 60 轮，再用 2.5 cm 跑 40 轮。</li>
+</ol>
+<p>RANSAC 带随机性，同一份数据每次跑的结果会略有不同；后面的 ICP 会把这点差别抹平。只要 RANSAC 给的初值落在 ICP 的“收敛范围”内就行（问 3 的演示里，这个形状上大约是 110° 以内）。附录说作者还先在 SuperSplat 里手动粗对齐，相当于再加一道保险。</p>
+
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const gauss = () => { let u = 0; for (let k = 0; k < 6; k++) u += rnd(); return (u - 3) / Math.sqrt(0.5); };
+  const ORANGE = '#ff9f43', GREEN = '#3fc98a', RED = '#ff5d6c', BLUE = '#38a3ff';
+
+  /* ---------- RANSAC line ---------- */
+  const lc = document.getElementById('rl-cv'), lo = document.getElementById('rl-out'), lt = document.getElementById('qa-rl-tool');
+  if (!lc) return;
+  const A0 = 0.45, B0 = 0.1, TAU = 0.12, NPT = 40;
+  let outl = 0.5, P = [], best = null, cand = null, tries = 0, dataSeed = 11;
+  function gen() { seed = dataSeed; P = []; const no = Math.round(NPT * outl); for (let i = 0; i < NPT; i++) { const x = -2.6 + rnd() * 5.2; P.push(i < no ? { x, y: -1.6 + rnd() * 3.2, o: 1 } : { x, y: A0 * x + B0 + gauss() * 0.04, o: 0 }); } best = null; cand = null; tries = 0; seed = 101; drawL(); }
+  function fitLS(pts) { const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n; let sxy = 0, sxx = 0; pts.forEach(p => { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; }); const a = sxy / sxx; return { a, b: my - a * mx }; }
+  const dist = (l, p) => Math.abs(l.a * p.x - p.y + l.b) / Math.hypot(l.a, 1);
+  function one() {
+    let i = Math.floor(rnd() * NPT), j = Math.floor(rnd() * NPT); while (j === i) j = Math.floor(rnd() * NPT);
+    const [p, q] = [P[i], P[j]]; if (Math.abs(q.x - p.x) < 1e-6) return;
+    const l = { a: (q.y - p.y) / (q.x - p.x) }; l.b = p.y - l.a * p.x; l.votes = P.filter(r => dist(l, r) <= TAU).length; l.i = i; l.j = j;
+    cand = l; tries++; if (!best || l.votes > best.votes) best = l;
+  }
+  function drawL() {
+    const g = lc.getContext('2d'), w = lc.width, h = lc.height, sc = 70, X = x => w * 0.42 + x * sc, Y = y => h / 2 - y * sc;
+    g.clearRect(0, 0, w, h); g.lineWidth = 1.5;
+    const line = (l, col, dash) => { g.setLineDash(dash || []); g.strokeStyle = col; g.beginPath(); g.moveTo(X(-3), Y(l.a * -3 + l.b)); g.lineTo(X(3), Y(l.a * 3 + l.b)); g.stroke(); g.setLineDash([]); };
+    line({ a: A0, b: B0 }, css('--muted'), [5, 5]);
+    const ls = fitLS(P); line(ls, RED);
+    let fin = null; if (best) { const inl = P.filter(r => dist(best, r) <= TAU); fin = fitLS(inl); line(fin, GREEN); g.lineWidth = 2.5; line(fin, GREEN); g.lineWidth = 1.5; }
+    if (cand) line(cand, ORANGE, [3, 3]);
+    P.forEach((p, k) => { const isIn = best && dist(best, p) <= TAU; g.fillStyle = isIn ? GREEN : (p.o ? css('--muted') : BLUE); g.beginPath(); g.arc(X(p.x), Y(p.y), 3.4, 0, 7); g.fill(); });
+    if (cand) [cand.i, cand.j].forEach(k => { g.strokeStyle = ORANGE; g.lineWidth = 2.5; g.beginPath(); g.arc(X(P[k].x), Y(P[k].y), 7, 0, 7); g.stroke(); });
+    g.lineWidth = 1.5;
+    const ang = l => (Math.atan(l.a) * 180 / Math.PI).toFixed(1);
+    const nin = NPT - Math.round(NPT * outl);
+    lo.innerHTML = `${NPT} 个点，其中正确点 ${nin} 个、离群点 ${NPT - nin} 个 · 真线倾角 ${ang({ a: A0 })}° · 最小二乘 <b style="color:${RED}">${ang(ls)}°</b>` +
+      (best ? ` · 已抽 ${tries} 次，本次得票 ${cand.votes}，最好得票 <b>${best.votes}</b>，用其内点重拟合 <b style="color:${GREEN}">${ang(fin)}°</b>` : ' · 点“抽一次”开始') +
+      `<br>正确点画蓝色，离群点灰色；落进 RANSAC 最好结果阈值内的点变绿。按公式，\\(p=0.999,\\,s=2\\) 时这个离群比例需要约 ${Math.ceil(Math.log(0.001) / Math.log(1 - (1 - outl) ** 2))} 次。`;
+    if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([lo]).catch(() => {});
+  }
+  lt.querySelectorAll('[data-o]').forEach(b => b.onclick = () => { outl = +b.dataset.o; lt.querySelectorAll('[data-o]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); gen(); });
+  document.getElementById('rl-one').onclick = () => { one(); drawL(); };
+  document.getElementById('rl-many').onclick = () => { for (let k = 0; k < 50; k++) one(); drawL(); };
+  document.getElementById('rl-new').onclick = () => { dataSeed = (dataSeed * 48271) % 2147483647; gen(); };
+  lt.querySelector('[data-o="0.5"]').setAttribute('aria-pressed', 'true'); gen();
+
+  /* ---------- RANSAC + ICP registration (same arm shape as 问 3) ---------- */
+  const rc = document.getElementById('rr-cv'), ro = document.getElementById('rr-out'), rt = document.getElementById('qa-rr-tool');
+  const poly = [[-2.2, -0.6], [-1.6, -0.6], [-1.6, 0.2], [0.4, 0.9], [1.6, 0.1], [2.0, 0.4], [1.6, 0.1], [2.0, -0.2]];
+  const T = []; for (let k = 0; k + 1 < poly.length; k++) { const [a, b] = [poly[k], poly[k + 1]], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(2, Math.round(L * 9)); for (let s = 0; s < n; s++) T.push([a[0] + (b[0] - a[0]) * s / n, a[1] + (b[1] - a[1]) * s / n]); }
+  seed = 3; const SRC0 = [], TRUE = []; T.forEach((p, i) => { if (i % 2 === 0) { SRC0.push([p[0] + (rnd() - 0.5) * 0.06, p[1] + (rnd() - 0.5) * 0.06]); TRUE.push(i); } });
+  const rot = (p, a, t) => [Math.cos(a) * p[0] - Math.sin(a) * p[1] + t[0], Math.sin(a) * p[0] + Math.cos(a) * p[1] + t[1]];
+  const ANG0 = 150 * Math.PI / 180, SRCI = SRC0.map(p => rot(p, ANG0, [0.5, 0.35]));
+  const RTH = 0.12, NM = 30;
+  let wOK = 0.25, M = [], Rbest = null, Rcand = null, rtries = 0, rejected = 0, S = SRCI.slice(), stage = 'init', ihist = [];
+  function nn(p) { let bi = 0, bd = 1e9; T.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; bi = i; } }); return bi; }
+  const rms = () => Math.sqrt(S.reduce((a, p) => { const q = T[nn(p)]; return a + (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; }, 0) / S.length);
+  function solve(ps, qs) { const n = ps.length, pc = [0, 1].map(k => ps.reduce((a, p) => a + p[k], 0) / n), qc = [0, 1].map(k => qs.reduce((a, q) => a + q[k], 0) / n); let sc = 0, sd = 0; ps.forEach((p, i) => { const a = [p[0] - pc[0], p[1] - pc[1]], b = [qs[i][0] - qc[0], qs[i][1] - qc[1]]; sd += a[0] * b[0] + a[1] * b[1]; sc += a[0] * b[1] - a[1] * b[0]; }); const th = Math.atan2(sc, sd), rp = rot(pc, th, [0, 0]); return { th, t: [qc[0] - rp[0], qc[1] - rp[1]] }; }
+  function resetR() {
+    seed = 29; M = []; const idx = SRCI.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, NM), nok = Math.round(NM * wOK);
+    idx.forEach((si, k) => M.push({ s: si, t: k < nok ? TRUE[si] : Math.floor(rnd() * T.length), ok: k < nok }));
+    Rbest = null; Rcand = null; rtries = 0; rejected = 0; S = SRCI.slice(); stage = 'init'; ihist = [rms()]; seed = 57; drawR();
+  }
+  function oneR() {
+    let a = Math.floor(rnd() * M.length), b = Math.floor(rnd() * M.length); while (b === a) b = Math.floor(rnd() * M.length);
+    const ps = [SRCI[M[a].s], SRCI[M[b].s]], qs = [T[M[a].t], T[M[b].t]]; rtries++;
+    const dp = Math.hypot(ps[0][0] - ps[1][0], ps[0][1] - ps[1][1]), dq = Math.hypot(qs[0][0] - qs[1][0], qs[0][1] - qs[1][1]);
+    if (Math.min(dp, dq) < 0.9 * Math.max(dp, dq) || dp < 1e-6) { rejected++; Rcand = { pair: [a, b], rej: true }; return; }
+    const tf = solve(ps, qs); tf.votes = M.filter(m => { const p = rot(SRCI[m.s], tf.th, tf.t), q = T[m.t]; return Math.hypot(p[0] - q[0], p[1] - q[1]) <= RTH; }).length; tf.pair = [a, b];
+    Rcand = tf; if (!Rbest || tf.votes > Rbest.votes) Rbest = tf;
+  }
+  function afterR() { stage = 'ransac'; S = Rbest ? SRCI.map(p => rot(p, Rbest.th, Rbest.t)) : SRCI.slice(); ihist = [rms()]; drawR(); }
+  function icpStep() { const Q = S.map(p => T[nn(p)]), tf = solve(S, Q); S = S.map(p => rot(p, tf.th, tf.t)); ihist.push(rms()); }
+  function drawR() {
+    const g = rc.getContext('2d'), w = rc.width, h = rc.height, sc = 52, X = x => w * 0.36 + x * sc, Y = y => h / 2 - y * sc;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = css('--muted'); T.forEach(q => { g.beginPath(); g.arc(X(q[0]), Y(q[1]), 2.4, 0, 7); g.fill(); });
+    if (stage === 'init') { g.lineWidth = 1; M.forEach(m => { const p = SRCI[m.s], q = T[m.t]; g.strokeStyle = m.ok ? 'rgba(63,201,138,.55)' : 'rgba(255,93,108,.35)'; g.beginPath(); g.moveTo(X(p[0]), Y(p[1])); g.lineTo(X(q[0]), Y(q[1])); g.stroke(); }); }
+    if (Rcand && stage === 'ransac') { g.lineWidth = 2; Rcand.pair.forEach(k => { const m = M[k], p = SRCI[m.s], q = T[m.t]; g.strokeStyle = ORANGE; g.beginPath(); g.moveTo(X(p[0]), Y(p[1])); g.lineTo(X(q[0]), Y(q[1])); g.stroke(); }); g.lineWidth = 1; }
+    if (stage !== 'init') { g.fillStyle = 'rgba(56,163,255,.25)'; SRCI.forEach(p => { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 2.5, 0, 7); g.fill(); }); }
+    g.fillStyle = BLUE; S.forEach(p => { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 3, 0, 7); g.fill(); });
+    const x0 = w * 0.72, y0 = 30, cw = w * 0.25, ch = h - 70;
+    if (stage === 'icp') { const mx = Math.max(...ihist, 0.01); g.strokeStyle = css('--line'); g.strokeRect(x0, y0, cw, ch); g.strokeStyle = BLUE; g.lineWidth = 2; g.beginPath(); ihist.forEach((e, i) => { const x = x0 + (i / Math.max(1, ihist.length - 1)) * cw, y = y0 + ch - e / mx * ch; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.lineWidth = 1; g.fillStyle = css('--muted'); g.font = '12px sans-serif'; g.textAlign = 'left'; g.fillText('ICP 平均配对距离', x0, y0 - 8); }
+    const nok = M.filter(m => m.ok).length, e = ihist[ihist.length - 1];
+    let msg = `${M.length} 组特征配对，其中正确 ${nok} 组（绿线）、错误 ${M.length - nok} 组（红线）。蓝点是转了 150° 的源点云，平均配对距离 ${e.toFixed(3)}。`;
+    if (stage === 'ransac' && !Rbest) msg = `RANSAC 已抽 ${rtries} 次，都被距离筛查扔掉了，继续抽。`;
+    else if (stage === 'ransac') msg = `RANSAC 已抽 ${rtries} 次（${rejected} 次被距离筛查直接扔掉）· 本次${Rcand.rej ? '<b>被筛掉</b>' : `得票 ${Rcand.votes}`} · 最好得票 <b>${Rbest.votes}</b> / ${M.length}（正确配对共 ${nok} 组）· 按最好变换摆放后平均配对距离 <b>${e.toFixed(3)}</b>，转角误差 ${Math.abs(((Rbest.th + ANG0) * 180 / Math.PI + 540) % 360 - 180).toFixed(1)}°。淡蓝是原始位置。`;
+    if (stage === 'icp') { const ok = e < 0.06; msg = `ICP 从 RANSAC 的结果出发跑了 ${ihist.length - 1} 轮 · 平均配对距离 <b>${e.toFixed(3)}</b> · ${ok ? `<b style="color:${GREEN}">对齐到正确位置</b>（问 3 里直接从 150° 跑 ICP 会卡在 0.51）` : `<b style="color:${RED}">没对上</b>：RANSAC 的初值还不够好，多抽几次再试`}`; }
+    ro.innerHTML = msg;
+  }
+  rt.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { wOK = +b.dataset.w; rt.querySelectorAll('[data-w]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); resetR(); });
+  document.getElementById('rr-one').onclick = () => { oneR(); afterR(); };
+  document.getElementById('rr-many').onclick = () => { for (let k = 0; k < 200; k++) oneR(); afterR(); };
+  document.getElementById('rr-icp').onclick = () => { if (!Rbest) { ro.innerHTML = '先跑 RANSAC，再交给 ICP。'; return; } stage = 'icp'; let k = 0; const go = () => { icpStep(); drawR(); const n = ihist.length; if (!(n > 2 && Math.abs(ihist[n - 2] - ihist[n - 1]) < 1e-4) && ++k < 60) setTimeout(go, 100); }; go(); };
+  document.getElementById('rr-reset').onclick = resetR;
+  rt.querySelector('[data-w="0.25"]').setAttribute('aria-pressed', 'true'); resetR();
+  new MutationObserver(() => { drawL(); drawR(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 </script>
 
