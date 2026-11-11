@@ -127,7 +127,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <h3 id="s3-c"><span class="no">III-C</span>Real-to-Sim 高斯泼溅仿真</h3>
 <p>这一节讲仿真器怎么搭。两个互补的目标：用 GS 场景重建、位置对齐、颜色对齐缩小视觉差距；用物理建模和形变处理缩小动力学差距。</p>
 <p><b>1) GS 构建。</b>用 iPhone 应用 <a class="ds" href="https://scaniverse.com/">Scaniverse</a> 录视频，自动生成 GS 重建。桌面操作场景先扫一遍静态的机器人工作区（机器人、桌子、背景），再逐个扫实验物体。重建结果在交互式查看器 <a class="ds" href="https://github.com/playcanvas/supersplat">SuperSplat</a> 里手动切成机器人、物体、背景。每个任务只需要做一次。</p>
-<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。（ICP 是什么、为什么要先用 RANSAC，见<a href="#qa-icp">读者问答 2</a>。）背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
+<p><b>2) 位置对齐。</b>拿到静态背景、机器人、PhysTwin 物体和其他静态物体的 GS 以后，把它们对齐到参考系：机器人基座系和各物体的规范系。PhysTwin 物体和静态网格各自用一个相对 6 自由度变换对齐到对应的 PhysTwin 粒子集和物体 3D 模型。机器人则自动计算 GS 和真值机器人点云（由 URDF 生成）之间的变换，用 ICP 加 RANSAC，每个连杆取 2,000 个点保证覆盖。（ICP 是什么、为什么要先用 RANSAC，见<a href="#qa-icp">读者问答 3</a>。）背景 GS 和机器人 GS 在同一坐标系里，所以直接套用同一个变换。</p>
 <p>为了让静态扫描出的机器人 GS 能动起来，要把每个高斯核分到一个连杆上：ICP 对齐后，对每个核在采样的机器人点云里找最近邻，继承那个点的连杆编号。所有连杆包括夹爪手指都这样处理，所以手臂连续运动和夹爪开合都能渲染。有 URDF 的其他机器人也能照做。</p>
 <p><b>3) 颜色对齐。</b>GS 渲染的视觉差距有一大来源：重建场景和策略训练数据不在同一个色彩空间。GS 继承了 iPhone 视频的颜色特性，而策略是在机器人相机（比如 Intel RealSense，已知有色偏）的色彩空间里训练的。作者设计一个颜色变换，把 GS 颜色对到真实相机。</p>
 <p>直接在 RGB 空间做：先在固定真实相机的视角用原始高斯颜色和不透明度渲染，再在同样视角拍真实图像，组成配对数据，求一个变换 \(f\) 让逐像素颜色差最小：</p>
@@ -454,13 +454,13 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 </figure>
 
 <h2 id="qa">读者问答</h2>
-<p>读这篇时问过的两个基础问题，答案整理在这里。数字都是页面当场算的。</p>
+<p>读这篇时问过的几个基础问题，答案整理在这里。数字都是页面当场算的。</p>
 
 <h3 id="qa-metric">问 1：MMRV 和 Pearson r 怎么算，怎么用它们判断“仿真能不能代替真机”？</h3>
 <p>做法是同一批策略（或同一策略的多个检查点）在仿真和真机上各跑若干次，每个策略得到一对成功率：仿真 \(s_i\)、真机 \(r_i\)。两个指标用不同方式比较这 \(N\) 对数。</p>
 <p><b>Pearson r：两组数是不是一起涨一起落。</b></p>
 <div class="eq"><div class="m">\[ r=\frac{\sum_i (s_i-\bar s)(r_i-\bar r)}{\sqrt{\sum_i (s_i-\bar s)^2}\,\sqrt{\sum_i (r_i-\bar r)^2}} \]</div></div>
-<p>分子看每个策略在仿真和真机里是不是同时高于平均或同时低于平均，同向加分、反向减分；分母做归一化，所以 \(r\in[-1,1]\)。\(r=1\) 表示所有点落在一条斜向上的直线上。它衡量的是线性关系，只关心点排得直不直。</p>
+<p>分子看每个策略在仿真和真机里是不是同时高于平均或同时低于平均，同向加分、反向减分；分母做归一化，所以 \(r\in[-1,1]\)。\(r=1\) 表示所有点落在一条斜向上的直线上。它衡量的是线性关系，只关心点排得直不直（为什么 \(r=1\) 不等于最好，见<a href="#qa-r">问 2</a>）。</p>
 <p><b>MMRV（平均最大排名违规，SIMPLER 提出）：排序错了多少、错得多严重。</b></p>
 <div class="eq"><div class="m">\[ \mathrm{RV}_i=\max_j\ |r_i-r_j|\cdot\mathbb 1\big[(s_i>s_j)\neq(r_i>r_j)\big],\qquad \mathrm{MMRV}=\frac1N\sum_i\mathrm{RV}_i \]</div></div>
 <ol>
@@ -494,7 +494,57 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <li><b>最好直接看散点图</b>（图 3）：偏差方向、离群点是谁、点的覆盖范围，两个数字都说不出来。</li>
 </ol>
 
-<h3 id="qa-icp">问 2：ICP 是什么？</h3>
+<h3 id="qa-r">问 2：Pearson r 到底衡量什么关系？r = 1 就是最好吗？</h3>
+<p><b>它衡量的是“线性关系”有多强。</b>把每个策略画成散点图上的一个点（横轴真机、纵轴仿真），\(r\) 回答的是：这些点离“某一条斜向上的直线”有多近。\(r=1\)：所有点正好在一条斜率为正的直线上；\(r=0\)：看不出线性趋势；\(r=-1\)：正好在一条斜率为负的直线上。\(r^2\) 可以读成“真机成功率的差异里，有多大比例能用仿真成功率线性解释”：\(r=0.9\) 对应约 81%。</p>
+<p><b>r = 1 不等于“仿真等于真机”。</b>关键在“某一条直线”：它不一定是对角线 \(y=x\)。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>仿真和真机的关系（真机 0.2, 0.5, 0.6, 0.9）</th><th>r</th><th>排序对不对</th><th>说明</th></tr></thead><tbody>
+<tr><td>仿真 = 真机</td><td>1.000</td><td>全对</td><td>真正想要的情况</td></tr>
+<tr><td>仿真 = 0.5 × 真机</td><td><b>1.000</b></td><td>全对</td><td>r 满分，但仿真说 45% 时真机其实是 90%</td></tr>
+<tr><td>仿真 = 真机³（单调但弯曲）</td><td>0.933</td><td><b>全对</b></td><td>排序一点没错，r 却不到 1；这时等级相关（Spearman）是 1</td></tr>
+</tbody></table></div>
+<p>所以 \(r\) 高是“仿真能当真机的线性代理”的必要条件，不是充分条件。要确认“数值也对”，还要看拟合直线的斜率是否接近 1、截距是否接近 0，或者直接看平均绝对误差；只关心排序时，Spearman / Kendall 等级相关或 MMRV 更对口。</p>
+<p><b>即使模拟器完美，r 也到不了 1。</b>每个点都是有限次试验估出来的成功率，本身带二项分布噪声。下面这个工具假设一个“完美模拟器”：每个检查点在仿真和真机里的<i>真实</i>成功率完全相同（用本文玩具任务 17 个检查点的真机成功率当真值），两边各独立测 n 次，看测出来的 \(r\) 会是多少。</p>
+
+<div class="qa-tool" id="qa-r-tool">
+<p class="lab">动手算 · 完美模拟器也有 r 的上限（每次点击重抽 2000 遍）</p>
+<div class="qa-ctl"><span>每个检查点试验次数</span><button type="button" data-n="10">10 次</button><button type="button" data-n="20" aria-pressed="true">20 次（本文）</button><button type="button" data-n="50">50 次</button><button type="button" data-n="200">200 次</button>
+<span style="margin-left:10px">真实成功率分布</span><button type="button" data-g="wide" aria-pressed="true">铺开 0–0.85（本文玩具任务）</button><button type="button" data-g="narrow">挤在 0.6–0.7</button></div>
+<canvas id="qa-r-cv" width="640" height="220" aria-label="完美模拟器下 r 的分布直方图"></canvas>
+<p class="qa-out" id="qa-r-out"></p>
+</div>
+<p>我离线跑过同样的模拟（各 4000 遍）：每点 20 次时，完美模拟器的 \(r\) 中位数约 0.88，95% 分位约 0.94；每点 50 次时中位数约 0.95；200 次时约 0.99。真实成功率都挤在 0.6–0.7 时，即使模拟器完美，\(r\) 中位数只有约 0.08。</p>
+<p><b>放回本文看。</b>玩具任务报告 \(r=0.944\)，已经在“完美模拟器、两边独立测 20 次”的上限附近。一个可能的原因是两边的误差并不独立：评测用的是固定网格的初始摆放（<a href="#n4">读者注 4</a>），仿真和真机用同一组摆放，同一个难摆放往往两边都失败，噪声相关，\(r\) 就能高过独立噪声下的上限（这是我的推断）。这也提醒两点：一是不同论文的 \(r\) 不能脱离试验次数和点的分布范围直接比；二是 \(r\) 从 0.90 涨到 0.94，可能只是噪声，不一定代表模拟器变好了。</p>
+<p><b>还有两个常见陷阱。</b>一个离群点能把 \(r\) 拉低很多（问 1 的例子 B，从 0.94 掉到 0.53），也能凭空造出高 \(r\)：一团没有关系的点加上一个远处的点，\(r\) 可以很高。形状完全不同的散点图可以有相同的 \(r\)（统计学里著名的 Anscombe 四重奏）。所以报告 \(r\) 时一定要配散点图，本文图 3 就是这样做的。</p>
+<script>
+(() => {
+  const tool = document.getElementById('qa-r-tool'); if (!tool) return;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const WIDE = [0.5, 0.6, 0.65, 0.8, 0.85, 0.0, 0.35, 0.4, 0.5, 0.7, 0.5, 0.8, 0.8, 0.05, 0.3, 0.35, 0.35];
+  const NARROW = WIDE.map((_, i) => 0.6 + 0.1 * i / (WIDE.length - 1));
+  let n = 20, G = 'wide';
+  const cv = document.getElementById('qa-r-cv'), out = document.getElementById('qa-r-out');
+  function pear(a, b) { const k = a.length, ma = a.reduce((x, y) => x + y) / k, mb = b.reduce((x, y) => x + y) / k; let c = 0, va = 0, vb = 0; for (let i = 0; i < k; i++) { c += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; } return va && vb ? c / Math.sqrt(va * vb) : NaN; }
+  const binom = (p, m) => { let s = 0; for (let i = 0; i < m; i++) if (Math.random() < p) s++; return s / m; };
+  function run() {
+    const T = G === 'wide' ? WIDE : NARROW, rs = [];
+    for (let k = 0; k < 2000; k++) { const r = pear(T.map(p => binom(p, n)), T.map(p => binom(p, n))); if (r === r) rs.push(r); }
+    rs.sort((a, b) => a - b); const q = f => rs[Math.min(rs.length - 1, Math.floor(f * rs.length))];
+    const g = cv.getContext('2d'), w = cv.width, h = cv.height, p = 30, lo = -0.4, X = v => p + (v - lo) / (1 - lo) * (w - 2 * p);
+    g.clearRect(0, 0, w, h); const bins = new Array(56).fill(0); rs.forEach(r => { const b = Math.max(0, Math.min(55, Math.floor((r - lo) / (1 - lo) * 56))); bins[b]++; }); const mx = Math.max(...bins);
+    g.fillStyle = '#38a3ff'; bins.forEach((c, i) => { const x0 = X(lo + i * (1 - lo) / 56), x1 = X(lo + (i + 1) * (1 - lo) / 56), bh = c / mx * (h - 2 * p); g.fillRect(x0, h - p - bh, x1 - x0 - 1, bh); });
+    g.strokeStyle = css('--line'); g.beginPath(); g.moveTo(p, h - p); g.lineTo(w - p, h - p); g.stroke();
+    g.fillStyle = css('--muted'); g.font = '12px sans-serif'; g.textAlign = 'center'; [-0.4, 0, 0.5, 0.9, 1].forEach(v => g.fillText(v.toFixed(1), X(v), h - p + 14));
+    g.strokeStyle = '#ff9f43'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(0.944), p - 6); g.lineTo(X(0.944), h - p); g.stroke(); g.setLineDash([]); g.fillStyle = '#ff9f43'; g.textAlign = 'right'; g.fillText('本文玩具任务 0.944', X(0.944) - 4, p);
+    const above = rs.filter(r => r >= 0.944).length / rs.length;
+    out.innerHTML = `完美模拟器、${T.length} 个检查点、每点两边各测 ${n} 次：r 中位数 <b>${q(0.5).toFixed(3)}</b>，90% 的结果落在 [${q(0.05).toFixed(3)}, ${q(0.95).toFixed(3)}]；只有 ${(above * 100).toFixed(1)}% 的模拟结果达到 0.944。直方图是 2000 次重抽的 r 分布。`;
+  }
+  tool.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { n = +b.dataset.n; tool.querySelectorAll('[data-n]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); run(); });
+  tool.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { G = b.dataset.g; tool.querySelectorAll('[data-g]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); run(); });
+  run();
+})();
+</script>
+
+<h3 id="qa-icp">问 3：ICP 是什么？</h3>
 <p>ICP 是 Iterative Closest Point（迭代最近点，Besl &amp; McKay 1992），把两份点云对齐到同一坐标系的经典算法。本文用它把 iPhone 扫描出的机器人高斯（源点云，坐标系是随手定的）对齐到 URDF 表面采样的点（目标点云，每个连杆 2000 点，在机器人基座系里）。要找一个刚体变换，即旋转 \(R\) 加平移 \(t\)：</p>
 <div class="eq"><div class="m">\[ \min_{R,\,t}\ \sum_i \big\|R\,p_i+t-q_{\pi(i)}\big\|^2 \]</div></div>
 <p>难点是不知道哪个点对哪个点。如果配对已知，这个问题一步就有解析解；ICP 的办法是“先猜配对，解出变换，挪过去再重新配对”，反复进行。每一轮两步：</p>
