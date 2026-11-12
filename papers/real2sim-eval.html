@@ -34,6 +34,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 .qa-out{font-size:13.5px;margin:8px 0 0;max-width:none}
 .qa-mt td,.qa-mt th{text-align:center}.qa-mt td:first-child{text-align:left}
 .qa-mt td.qa-bad{color:#ff5d6c}.qa-mt td.qa-top{color:#ff5d6c;font-weight:700;background:rgba(255,93,108,.1)}
+.qa-lit td,.qa-lit th{text-align:left!important;vertical-align:top}
 @media (max-width:640px){.qa-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -871,7 +872,7 @@ media (max-width:760px){ .i3d iframe{height:900px} }
 <li><b>IsaacLab 推 T 是 \(r\) 和逐策略指标分歧的例子。</b>\(r=0.65\) 看着还行，但仿真平均比真机低 25 个点，CCC 只有 0.35。只看 \(r\) 会高估它。IsaacLab 穿绳 20 个点里 15 个和真机差别显著，仿真几乎总是失败。</li>
 <li><b>“不显著”不等于“相等”。</b>每点只有 16–27 次试验，检验力很弱：一边 50% 时，另一边要差约 35 个点（20 次）、44 个点（16 次）、30 个点（27 次）才能显著。所以“只有 1 个显著”说明没有大的偏差，不能证明逐个策略都一样。</li>
 </ul>
-<p><b>怎么用。</b>只想用仿真挑出更好的策略，看 MMRV 和 \(r\)（或等级相关）就够了；想用仿真成功率直接预估真机能有多少，就要看 MAE、平均偏差和 CCC；想知道差在动力学还是画面，看回放实验这类逐回合对比。</p>
+<p><b>怎么用。</b>只想用仿真挑出更好的策略，看 MMRV 和 \(r\)（或等级相关）就够了；想用仿真成功率直接预估真机能有多少，就要看 MAE、平均偏差和 CCC；想知道差在动力学还是画面，看回放实验这类逐回合对比。别的论文怎么衡量，见<a href="#qa-abs">问 6</a>。</p>
 
 <script>
 (() => {
@@ -908,6 +909,43 @@ media (max-width:760px){ .i3d iframe{height:900px} }
   new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 </script>
+
+<h3 id="qa-abs">问 6：有没有专门“逐个策略比仿真和真机”的指标？别的论文怎么衡量？</h3>
+<p><b>短答：本文没有（只有附录里开环回放的逐回合对比）。这个方向的主流指标也几乎都是跨策略的</b>（Pearson r、MMRV、Spearman / Kendall 等级相关），回答的是“仿真能不能把策略排对”。直接报“同一个策略仿真和真机差多少”的论文很少，下面是我查到的几篇（2026-11 查）。</p>
+<div class="tablewrap"><table class="qa-mt qa-lit"><thead><tr><th>论文</th><th>比较什么</th><th>逐策略指标</th><th>要点</th></tr></thead><tbody>
+<tr><td>Sim2Real Predictivity（Kadian 等，RA-L 2020，<a href="https://arxiv.org/abs/1912.06321">1912.06321</a>）</td><td>Habitat 仿真对真机导航，9 个模型</td><td>无</td><td>提出 SRCC（Sim-vs-Real Correlation Coefficient），就是跨模型的 Pearson r。默认设置下成功率的 SRCC 只有 0.18，调整仿真参数后升到 0.844。SIMPLER 的相关工作引用了它。</td></tr>
+<tr><td><a href="simpler.html">SIMPLER</a>（2024）</td><td>绿幕仿真对真机操作</td><td><b>有，但只在一个消融里</b></td><td>主指标是它提出的 MMRV 和 Pearson r。视觉对齐消融（<a href="simpler.html#s4">表 III</a>）另报了“真机与仿真成功率差距”：3 个策略 × 2 个任务的 |真机 − 仿真| 取平均，也就是 MAE。三项视觉对齐全开时 0.136，什么都不做时 0.272；而且这一列和 MMRV 的结论并不总一致（只开绿幕时 MMRV 没变、差距从 0.272 降到 0.198）。</td></tr>
+<tr><td>本文（2025）</td><td>GS + PhysTwin 仿真对真机</td><td>只有回放实验的逐回合混淆矩阵</td><td>主指标 r、MMRV；附录 II-B 逐回合比较开环回放（见问 5）。</td></tr>
+<tr><td>Real-is-Sim（Abou-Chakra 等，<a href="https://arxiv.org/abs/2504.03597">2504.03597</a>）</td><td>持续同步的数字孪生，推 T</td><td>无</td><td>报告相关性；项目页说绝对成功率有差，但检查点排序一致。具体数字我没核对。</td></tr>
+<tr><td>WorldGym（<a href="https://arxiv.org/abs/2506.00613">2506.00613</a> v3）</td><td>视频世界模型对真机，3 个 VLA 策略、17 个任务</td><td><b>有，逐策略平均差</b></td><td>报告每个策略两边的平均成功率，平均相差 3.3 个点，作者说接近各策略的标准误。按它的表算：RT-1-X 18.5 对 15.5，Octo 20.0 对 23.8，OpenVLA 70.6 对 67.4。逐任务的 r = 0.78。</td></tr>
+<tr><td>Veo 世界模拟器评测 Gemini Robotics（<a href="https://arxiv.org/abs/2512.10675">2512.10675</a>）</td><td>视频世界模型对真机，8 个检查点</td><td>无</td><td>只用 Pearson r 和 MMRV（分布外实验里策略 A 是 r = 0.86、MMRV = 0.06）；正文两处明说“预测的绝对成功率低于真机”，但没有量化。</td></tr>
+<tr><td>Pelican-Sim 1.0（<a href="https://arxiv.org/abs/2609.12036">2609.12036</a>）</td><td>视频世界模型对 RoboTwin 仿真，5 个检查点、各 200 个初始状态</td><td><b>有，MAE（百分点）</b></td><td>同时报 r、Spearman、Kendall、MMRV、MAE。用 1000 条适配数据时 r = 0.994、MAE = 2.4 个点；不适配时 r = 0.902、MAE = 8.6。注意它是“同一动作序列”的开环比较，和本文的回放实验同类。</td></tr>
+</tbody></table></div>
+<p>可以看出一个规律：用“同一动作序列”开环比较时（本文回放、Pelican-Sim），逐回合、逐策略的对比很自然；闭环评测（策略在仿真里自己看、自己动）时，大家几乎只报排序和相关。原因有两个：一是这类工作的主要用途是挑策略，排序对了就够用；二是闭环下仿真和真机的轨迹会分叉，逐回合不好对齐，逐策略的绝对差又被每点 20 次左右的试验噪声淹没。</p>
+
+<p><b>统计学里现成的“一致性”指标。</b>“两种方法测同一批对象，结果是否一致”在医学测量里是老问题，有成套工具，可以直接搬过来：</p>
+<ul>
+<li><b>平均偏差和 Bland–Altman 一致性界限</b>：对每个策略算差值 \(d_i=s_i-r_i\)，报平均偏差 \(\bar d\) 和 \(\bar d\pm1.96\,\mathrm{sd}(d)\)。后者的意思是“大约 95% 的策略，仿真和真机的差落在这个区间里”，比 MAE 多给了“最坏会差多少”。</li>
+<li><b>Lin CCC</b>：见问 5，只有点都在对角线上才等于 1。</li>
+<li><b>逐策略检验</b>：Fisher 精确检验或两比例检验，看单个策略的差别是否超出试验噪声（见问 5）。</li>
+<li><b>配对回合（同一初始状态、两边各跑一次）</b>：一致率、Cohen κ（扣除偶然一致），以及 <b>McNemar 检验</b>：只看两边结果不一致的回合，问“仿真成功、真机失败”和“仿真失败、真机成功”是否一样多。它直接回答“仿真是否系统性偏乐观或偏悲观”。</li>
+</ul>
+
+<p><b>把这些用到本文数据上</b>（图 3 读数，见<a href="#n6">读者注 6</a>；表 VIII，见<a href="#n17">读者注 17</a>）：</p>
+<div class="tablewrap"><table class="qa-mt"><thead><tr><th>任务</th><th>平均偏差（仿真 − 真机）</th><th>Bland–Altman 95% 界限</th><th>差值的标准差</th><th>只有试验噪声时的标准差</th></tr></thead><tbody>
+<tr><td>装玩具</td><td>−0.038</td><td>−0.20 到 +0.13</td><td>0.084</td><td>0.140</td></tr>
+<tr><td>穿绳</td><td>−0.057</td><td>−0.34 到 +0.23</td><td>0.144</td><td>0.106</td></tr>
+<tr><td>推 T</td><td>−0.029</td><td>−0.25 到 +0.19</td><td>0.113</td><td>0.153</td></tr>
+<tr><td>IsaacLab 穿绳</td><td>−0.507</td><td>−1.15 到 +0.13</td><td>0.326</td><td>—</td></tr>
+<tr><td>IsaacLab 推 T</td><td>−0.250</td><td>−0.63 到 +0.13</td><td>0.192</td><td>—</td></tr>
+</tbody></table></div>
+<p>“只有试验噪声时的标准差”是假设仿真完美、两边各自独立做 \(n\) 次二项试验时差值应有的标准差（每个检查点按两边合并的成功率算 \(\sqrt{2p(1-p)/n}\)，再取均方根）。几点读法：</p>
+<ul>
+<li><b>实际用起来的含义</b>：在本文仿真里测出一个策略的成功率，真机大致在它的 −13 到 +20 个点（装玩具）或 −23 到 +34 个点（穿绳）范围内。排序很可靠，单个数字的误差范围不小。</li>
+<li><b>装玩具和推 T 的差值比“纯噪声”还小</b>（0.084 &lt; 0.140，0.113 &lt; 0.153）。如果两边是独立试验，这不太可能；和问 2 的推断一致：两边用同一组固定的初始摆放，噪声是相关的（推断，未核实真机是否严格按同一网格摆）。穿绳的差值比纯噪声大（0.144 &gt; 0.106），说明除了噪声还有真实的仿真误差。</li>
+<li><b>McNemar 检验</b>（表 VIII 的不一致回合，单位是回合数）：装玩具“仿真成功、真机失败”37 对“仿真失败、真机成功”25，\(p=0.16\)；穿绳 28 对 24，\(p=0.68\)；推 T 1 对 17，\(p=0.0001\)。所以论文说“装玩具仿真略高估成功”在统计上站不住，只是一个不显著的倾向；“推 T 有些真机成功在仿真里复现不了”则非常显著，是系统性偏差。</li>
+</ul>
+<p><b>小结：</b>如果你要评估一个模拟器，建议同时报三类：排序（MMRV、Spearman）、线性关系（r）、绝对一致（平均偏差、Bland–Altman 界限或 MAE、CCC）；有配对回合时再加一致率、κ 和 McNemar。只报前两类，就只证明了“能挑策略”，没证明“能预估真机成功率”。</p>
 
 <h2 id="code">代码对照</h2>
 <p>下表把论文里的设置和代码对应起来（kywind/real2sim-eval 提交 8bd7091，策略子模块 32abb1a）。只读，没有运行，也没有下载资产和检查点。</p>
