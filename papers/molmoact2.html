@@ -615,6 +615,7 @@ pre.cmd{font-family:var(--font-mono);font-size:12px;line-height:1.55;background:
 <h2 id="repro">复现要点：MolmoAct2-LIBERO 和 MolmoAct2-Think-LIBERO</h2>
 <p><b>结论先说：</b>你记的两个数都对得上论文：MolmoAct2-LIBERO 平均 97.2%，MolmoAct2-Think-LIBERO 平均 98.1%，都在 v2（和 v1）的表 8。出处编号也对：LIBERO 配方在 §4.3.1 “Embodiment-specific fine-tuning” 的 LIBERO 段，Think 版在 §5.2 “Training” 的 Fine-tuning 段（它又引回 §4.3.1）。要注意三点：表 8 的 Think 版 Goal 98.5% 应是 98.4%；README 没有给 LIBERO 的训练命令，只给了数据混合和一个 DROID 的例子；代码的几个默认值和论文不同，必须显式传参。</p>
 
+<p>LIBERO 本身是什么（仿真器、动作空间、四个套件、数据的几个版本），以及 OpenVLA、OpenWAM 和本文三家评测协议的对照，写在 <a href="openwam.html#qa-libero">OpenWAM 页读者问答 问 1</a>。</p>
 <h3 id="repro-1">1　分数核对</h3>
 <div class="tablewrap"><table class="t-rep"><thead><tr><th>项目</th><th>你手上的</th><th>论文 v2</th><th>v1</th><th>核对</th></tr></thead><tbody>
 <tr><td>表号</td><td>表 8</td><td>表 8（LIBERO）</td><td>表 8</td><td class="ok">一致。消融表 v1 是 9–13，v2 顺延为 10–14</td></tr>
