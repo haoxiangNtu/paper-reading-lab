@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LIBERO 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2306.03310 LIBERO（NeurIPS 2023 数据集与基准）的中文精读：按原文章节逐节整理，含全部编号公式、结果表和核算、裁切的原图、官方代码（8f1084e）对照、11 幕 3D 框架动画、读者注，以及 LIBERO 在 VLA 论文里怎么用。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r1{min-width:860px}.t-r1 td,.t-r1 th{white-space:nowrap}
+.t-r8{min-width:1180px}.t-r8 td,.t-r8 th{white-space:nowrap}
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-links{min-width:660px}.t-e3{min-width:640px}
+.t-e3 td:first-child{white-space:nowrap;font-size:12.5px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+.repro td:first-child{white-space:nowrap}
+pre.bddl{font-family:var(--font-mono);font-size:12.5px;line-height:1.5;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;max-width:100%}
+td.ok{color:#4fc98a}td.no{color:#ff7a59}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/libero/index.html">3D 框架动画</a><a href="openwam.html#qa-libero">OpenWAM 页 LIBERO 问答</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2306.03310 · cs.AI · v2 2023 年 10 月 14 日 · NeurIPS 2023 数据集与基准 · 中文精读</p>
+<h1>LIBERO：一个用来研究“机器人终身学习里知识怎么迁移”的仿真基准</h1>
+<p class="orig">LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning</p>
+<p>作者 Bo Liu、Yifeng Zhu、Chongkai Gao（三人同等贡献）、Yihao Feng、Qiang Liu、Yuke Zhu、Peter Stone，来自 UT Austin、Sony AI 和清华大学。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2306.03310">arXiv 原文</a><a href="https://arxiv.org/pdf/2306.03310">PDF</a><a href="https://arxiv.org/html/2306.03310">HTML 版</a><a href="https://libero-project.github.io/">项目主页</a><a href="https://github.com/Lifelong-Robot-Learning/LIBERO">官方代码</a><a href="https://lifelong-robot-learning.github.io/LIBERO/">文档</a><span>正文 10 页，清单和附录到第 44 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布（署名即可使用）。我对照了 PDF：页脚只有页码和 NeurIPS 2023 数据集与基准赛道的说明，没有与之矛盾的版权声明。这里读的是 v2（2023-10-14）。按原文顺序覆盖正文 7 节、清单之后的附录 A 到 E，小节编号和原文一致，用自己的话整理，不逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1 到 11、图 13、图 21 从 arXiv PDF 裁切，<b>只做了裁切、缩放和格式转换</b>，没有改内容，版权归作者，按 CC BY 4.0 使用；每张图注都有“看原图”链接。其余图（12、14 到 20、22 到 26）用文字描述。图下的文字是我写的。本页的“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码是 <a href="https://github.com/Lifelong-Robot-Learning/LIBERO">Lifelong-Robot-Learning/LIBERO</a>，代码 MIT 许可，数据集 CC BY 4.0。我读的是提交 <a href="https://github.com/Lifelong-Robot-Learning/LIBERO/tree/8f1084e3132a39270c3a13ebe37270a43ece2a01">8f1084e</a>（2025-03-15，也是 OpenWAM 固定的版本），只读，没有运行，没有加载里面的 <code>.init</code>/<code>.pruned_init</code> 文件（只用 <code>pickletools</code> 静态读了数组形状）。代码和论文不一致的地方两边都写；集中的对照在 <a href="#code">代码对照</a> 一节。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#why">为什么读它</a><a href="#s1">1 引言</a><a href="#s2">2 背景</a><a href="#s3">3 五个研究主题</a><a href="#s4">4 LIBERO</a><a href="#s4-1">4.1 程序化生成</a><a href="#s4-2">4.2 套件</a><a href="#s4-3">4.3 算法</a><a href="#s4-4">4.4 架构</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 实验</a><a href="#s5-1">5.1 指标</a><a href="#s5-2">5.2 结果</a><a href="#s6">6 相关工作</a><a href="#s7">7 结论</a><a href="#apA">附录 A 架构</a><a href="#apB">附录 B 算力与算法</a><a href="#apC">附录 C 套件</a><a href="#apD">附录 D 实验设置</a><a href="#apE">附录 E 补充结果</a><a href="#code">代码对照</a><a href="#vla">VLA 里怎么用</a><a href="#repro">复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>终身学习（lifelong learning）指一个智能体一个接一个地学新任务，学新的时候用上旧知识，还不要把旧的忘掉。图像和文本领域的终身学习主要迁移的是<b>陈述性知识</b>（这是什么东西、在哪里）；机器人决策还要迁移<b>程序性知识</b>（怎么做一个动作）。作者把这类问题叫 LLDM（lifelong learning in decision making），并为它做了一个机器人操作基准 <a class="ds" href="https://libero-project.github.io/">LIBERO</a>（<a href="https://arxiv.org/abs/2306.03310">论文</a>）。</p>
+<ul>
+<li><b>任务从哪来：</b>一条程序化生成流水线：从人类活动数据的语言标注里提炼行为模板，生成指令，再选场景、写出初始布局和目标谓词。原则上能无限生成任务。</li>
+<li><b>四个套件，共 130 个任务：</b>Spatial、Object、Goal 各 10 个，各自只改变一种因素（空间关系、物体、目标）；LIBERO-100 有 100 个任务，拆成 90 个短任务（LIBERO-90，用来预训练）和 10 个长任务（LIBERO-Long）。每个任务 50 条人工遥操作演示。</li>
+<li><b>基线：</b>三种策略网络（ResNet-RNN、ResNet-T、ViT-T）× 五种算法（顺序微调 SeqL、ER、EWC、PackNet、多任务 MTL），四个套件，各 3 个种子，共 180 组实验。</li>
+<li><b>三个指标：</b>FWT（前向迁移，学得多快）、NBT（负后向迁移，忘了多少）、AUC（两者综合），都按成功率算。</li>
+</ul>
+<p>论文报告的四个发现：架构和算法一样重要（时间维度上 transformer 好于 RNN，ViT 适合物体多样的任务）；被测的终身学习算法都能减少遗忘，但前向迁移都不如什么也不做的顺序微调；用任务描述的语言嵌入和只用“Task 5”这种编号的嵌入差不多；在 LIBERO-90 上做普通的监督预训练反而让后续终身学习变差。</p>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li><b>环境层面的约定</b>（OSC_POSE 7 维动作、20 Hz、两路 128 × 128 相机、每个任务固定的 50 个初始状态、所有目标谓词同时成立才算成功）后来被 VLA 论文原样沿用，这是这篇论文影响最大的部分。复现时要核对的东西见 <a href="#repro">复现要点</a>。</li>
+<li>表里的很多差距在 3 个种子的误差内。我按标准误做了 Welch t 检验，表 1 里显著的只有少数几格（<a href="#n7">读者注 7</a>）；表 3 说“没有显著差异”也取决于怎么比（<a href="#n10">读者注 10</a>）。</li>
+<li>代码和附录 B 的几处描述不一样：ER 的“1000 条轨迹”在代码里是每个任务的前 1000 个长度为 10 的片段；EWC 少了 \((1-\gamma)\) 和 \(\tfrac12\)；PackNet 每个任务留 25% 的<b>剩余</b>参数，第 10 个任务只分到 1.9%（<a href="#n15">读者注 15 到 17</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="libero/fig1.webp" width="1600" height="873" alt="图 1：上方是程序化生成连到四个套件的示意，下方是五个研究主题的图标" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#S1.F1">看原图 ↗</a></span>上半部分：中间的“程序化生成”圆盘连出四条线，分别到四个套件的示例截图；小图标标出这个套件需要陈述性知识（方块）还是程序性知识（三角）。下半部分是五个研究主题：分布偏移、算法设计、网络架构、任务顺序、预训练的影响。注意左边两个框的小标题，我认为和正文对调了（<a href="#n1">读者注 1</a>）。</figcaption>
+</figure>
+<div class="note" id="n1"><span class="lab">读者注 1 · 图 1 左边两个框的标题对调了</span><p>图里连到 LIBERO-Object 的框写着 “Different layouts, same objects”，连到 LIBERO-Spatial 的框写着 “Different objects, same layout”。但图注、§4.2 和代码都说 Spatial 是“同一组物体、不同位置”，Object 是“每个任务一个不同的物体”。框里的截图本身是对的：Object 框里是一排杂货和篮子，Spatial 框里是黑碗和盘子。所以只是两行小字放反了。</p></div>
+
+<h2 id="why">为什么读它</h2>
+<p>用户在复现 <a href="openwam.html#repro">OpenWAM</a> 和 <a href="molmoact2.html#repro">MolmoAct2</a> 在 LIBERO 上的分数。那两页用的是 LIBERO 的<b>环境和四个套件</b>，但训练数据、训练方式和评测协议都已经和这篇原论文不同。这一页把原论文的设定从头读一遍，再在 <a href="#vla">LIBERO 在 VLA 论文里怎么用</a> 一节说清差别。环境、套件和三家评测协议的对照已经写在 <a href="openwam.html#qa-libero">OpenWAM 页读者问答 问 1</a>，这里不重抄，只补充原论文和代码里新核到的细节。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>多任务学习能得到通用智能体，但计算量大，也不能随环境变化不断更新。终身学习把学习分摊到智能体的一生：用旧知识帮新任务（前向迁移），用新知识改善旧任务（后向迁移）。已有的终身学习研究大多在视觉或语言任务上，迁移的是关于实体和概念的陈述性知识。决策任务同时需要陈述性和程序性知识。作者举的例子：机器人先学会从冰箱取果汁，学了别的任务后再做就失败了，原因可能是忘了果汁或冰箱在哪（陈述性），也可能是忘了怎么开冰箱门（程序性）。现在缺少系统、定量地分析这种迁移的手段。</p>
+<p><b>做法。</b>LIBERO 是 LIfelong learning BEnchmark on RObot manipulation tasks 的缩写。理想的 LLDM 测试平台应该能在一个不断扩大、共享概念和动作的任务集上持续学习。LIBERO 用程序化生成流水线造任务，任务受人类活动启发；为了基准测试，生成了 130 个语言条件的操作任务，分成四个套件，并给所有任务提供高质量的人工遥操作演示。</p>
+<p><b>研究的五个主题</b>（图 1 下排）：不同分布偏移下的知识迁移；网络架构设计；终身学习算法设计；对任务顺序的鲁棒性；预训练模型在 LLDM 里的作用。</p>
+<p><b>四个发现</b>（原文列表，用我的话说）：</p>
+<ol>
+<li>策略架构和终身学习算法一样重要。时间维度上 transformer 比 RNN 更会抽象；视觉信息丰富（物体多样）时 ViT 好；主要需要程序性知识时卷积网络好。</li>
+<li>被测的终身学习算法能防遗忘，但前向迁移普遍不如顺序微调。</li>
+<li>用语义丰富的任务描述的预训练语言嵌入，效果不比用任务编号的嵌入好。</li>
+<li>在大规模离线数据上做基本的监督预训练，可能损害后续 LLDM 的表现。</li>
+</ol>
+
+<h2 id="s2"><span class="no">2</span>背景</h2>
+<h3 id="s2-1"><span class="no">2.1</span>机器人学习的马尔可夫决策过程</h3>
+<p>有限时域 MDP \(\mathcal M=(\mathcal S,\mathcal A,\mathcal T,H,\mu_0,R)\)：状态和动作空间、转移 \(\mathcal T:\mathcal S\times\mathcal A\to\mathcal S\)、时域 \(H\)、初始状态分布 \(\mu_0\)、奖励 \(R\)。论文假定稀疏奖励，用目标谓词 \(g:\mathcal S\to\{0,1\}\) 代替 \(R\)，目标是 \(\max_\pi J(\pi)=\mathbb E_{s_t,a_t\sim\pi,\mu_0}\big[\sum_{t=1}^H g(s_t)\big]\)。</p>
+<h3 id="s2-2"><span class="no">2.2</span>终身机器人学习问题</h3>
+<p>机器人用<b>同一个</b>策略 \(\pi\) 依次学 \(K\) 个任务 \(\{T^1,\dots,T^K\}\)，策略以任务为条件：\(\pi(\cdot\mid s;T)\)。每个任务 \(T^k\equiv(\mu_0^k,g^k)\) 由初始状态分布和目标谓词定义，\(\mathcal S,\mathcal A,\mathcal T,H\) 对所有任务相同（上标表示任务，下标表示时间步）。学到第 \(k\) 个任务时的目标：</p>
+<div class="eq"><div class="m">\[ \max_\pi\ J_{\rm LRL}(\pi)=\frac1k\sum_{p=1}^{k}\ \mathbb E_{s^p_t,a^p_t\sim\pi(\cdot;T^p),\ \mu_0^p}\Big[\sum_{t=1}^{L} g^p(s^p_t)\Big] \]</div><span class="no">(1)</span></div>
+<p>关键约束：学 \(T^k\) 时，前 \(k-1\) 个任务已经不能再访问。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 式 (1) 的求和上限</span><p>式 (1) 里内层求和的上限是 \(L\)，但 \(L\) 在前后文都没有定义；§2.1 的同一个和用的是 \(H\)。我认为应是 \(H\)。上式照录原文。另外，目标是“谓词为真的步数之和”，而代码里一旦所有谓词为真就判成功、结束这一回合（<code>bddl_base_domain.py:807</code>），实际报的是 0/1 成功率。两者只差在成功后还会不会继续计数，论文里所有数字都是成功率。</p></div>
+<p><b>终身模仿学习。</b>稀疏奖励的强化学习太难，所以论文改成每个任务给一个小演示集 \(D^k=\{\tau^k_i\}_{i=1}^N\)，\(\tau^k_i=(o_0,a_0,o_1,a_1,\dots,o_{l^k})\)，\(l^k\le H\)。\(o_t\) 包括图像和机器人关节、夹爪信息。观测通常不是马尔可夫的，所以按部分可观测 MDP 的做法，用历史 \(s_t\equiv o_{\le t}\triangleq(o_0,\dots,o_t)\) 当状态。训练用行为克隆，替代目标为：</p>
+<div class="eq"><div class="m">\[ \min_\pi\ J_{\rm BC}(\pi)=\frac1k\sum_{p=1}^{k}\ \mathbb E_{o_t,a_t\sim D^p}\Big[\sum_{t=0}^{l^p}\mathcal L\big(\pi(o_{\le t};T^p),a^p_t\big)\Big] \]</div><span class="no">(2)</span></div>
+<p>\(\mathcal L\) 是监督损失，例如负对数似然；\(\pi\) 是高斯混合模型。同样假定学 \(T^k\) 时 \(\{D^p:p&lt;k\}\) 不能完整访问（ER 可以留一部分）。</p>
+<p class="tcap">代码里“历史”只取最近 10 步：数据集按长度 10 的片段采样（<code>configs/data/default.yaml</code> 的 <code>seq_len: 10</code>），推理时 transformer 策略维护一个最多 10 步的队列；RNN 策略则在评测时把隐状态一直带到回合结束（<a href="#n21">读者注 21</a>）。</p>
+
+<h2 id="s3"><span class="no">3</span>LLDM 的五个研究主题</h2>
+<p>这一节说明 LIBERO 为什么这样设计，每个主题对应后面的一组实验。</p>
+<ul>
+<li><b>(T1) 不同类型知识的迁移。</b>“把番茄酱放进篮子里盘子旁边”这样的任务，要知道番茄酱是什么、盘子和篮子在哪、怎么放。失败时很难分清是哪种知识出了问题。所以 §4.2 做了三个分别只考空间关系、物体概念、任务目标的套件，再加一个混合的。</li>
+<li><b>(T2) 网络架构。</b>怎样处理图像、语言、机器人状态这些多模态输入，学新任务时只迁移相关的知识。</li>
+<li><b>(T3) 终身学习算法。</b>决策是串行的，每一步一点点遗忘累积起来可能导致整个任务失败，所以算法设计在 LLDM 里是开放问题。</li>
+<li><b>(T4) 对任务顺序的鲁棒性。</b>课程顺序会影响学习，但现实里的机器人不能挑先遇到哪个任务。</li>
+<li><b>(T5) 预训练模型的用法。</b>机器人很可能出厂前在大数据上预训练，但预训练是否、怎样帮助后续 LLDM 还不清楚。</li>
+</ul>
+
+<h2 id="s4"><span class="no">4</span>LIBERO</h2>
+<p>四个组成部分：程序化生成流水线（§4.1）、四个基准套件（§4.2）、五种算法（§4.3）、三种网络（§4.4）。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>任务的程序化生成</h3>
+<p><b>结论先说：</b>任务分三步造出来：①从人类活动的语言标注提炼行为模板，套上仿真器里有的物体生成指令；②按指令选场景，写出初始状态分布 \(\mu_0\)；③写出和指令一致的目标谓词合取式 \(g\)。底层是 <a class="ds" href="https://robosuite.ai/">robosuite</a>（<a href="https://arxiv.org/abs/2009.12293">论文</a>）。</p>
+<figure class="pfig" id="fig2">
+<img src="libero/fig2.webp" width="1600" height="619" alt="图 2：从人类活动数据集提取模板，生成指令，选场景，写出 PDDL 文件，再得到初始配置和目标状态" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#S4.F2">看原图 ↗</a></span>最左一列是几种场景的截图。中间从上到下：人类活动数据集 (1) 里抽出 “open … / put … in …” 这样的模板，生成一句指令 (2)（例子是“打开柜子顶层抽屉，把碗放进去”），落成一个 .pddl 文件 (3)。右边三个彩色框是这个文件的三部分：(A) 物体和布局（物体、固定件、区域范围），(B) 初始配置（哪个物体在哪个区域上），(C) 目标（Open 抽屉且 In 碗 抽屉）。最右是渲染出来的初始配置和目标状态。</figcaption>
+</figure>
+<p><b>行为模板和指令。</b>人类活动是任务的丰富来源。作者选了带语言标注的大规模第一视角活动数据集 <a class="ds" href="https://ego4d-data.org/">Ego4D</a>（<a href="https://arxiv.org/abs/2110.07058">论文</a>），抽出语言描述，归纳成一大组常用模板，再用仿真器里的物体填空。例如模板 “Open …” 生成 “Open the drawer of the cabinet”。</p>
+<p><b>初始状态分布 \(\mu_0\)。</b>先采样一个和指令里物体、行为匹配的场景布局，例如“打开柜子顶层抽屉并把碗放进去”选厨房场景。再用 PDDL 语言写出 \(\mu_0\)：物体类别和摆放区域（图 2-A），初始状态（图 2-B）。</p>
+<p><b>目标 \(g\)。</b>用谓词的合取式表示。一元谓词描述物体属性，如 Open(X)、TurnOff(X)；二元谓词描述物体间空间关系，如 On(A, B)、In(A, B)。所有谓词都为真时仿真结束。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码里的生成流水线和成功判定</span>
+<ul>
+<li><b>第①步不在仓库里。</b>我在 8f1084e 里搜了 “ego4d”，Python 文件、notebook 和 README 都没有命中。从 Ego4D 提炼模板这一步没有公开代码；仓库给的是第②③步：<code>benchmark/mu_creation.py</code> 里 20 个场景模板（<code>@register_mu</code>，厨房 10 个、客厅 6 个、书房 4 个，正好对应附录 E.3 里 KITCHEN_SCENE1–10、LIVING_ROOM_SCENE1–6、STUDY_SCENE1–4），以及 <code>utils/task_generation_utils.py</code>、<code>bddl_generation_utils.py</code> 把场景和目标写成文件。</li>
+<li><b>文件格式叫 BDDL。</b>论文说 PDDL，代码里是 130 个 <code>.bddl</code> 文件（<code>bddl_files/</code> 下 10 + 10 + 10 + 90 + 10），依赖 <a href="https://github.com/StanfordVL/bddl">bddl==1.0.1</a>。语法和附录 C.2 的示例相同。</li>
+<li><b>成功判定</b>（<code>problems/libero_tabletop_manipulation.py:135</code>）：对 <code>(:goal (And …))</code> 里每个谓词求值，全部为真才返回 True；<code>step()</code> 把这个值当 <code>done</code> 返回（<code>bddl_base_domain.py:807</code>）。没有部分得分。</li>
+<li><b>谓词的物理含义</b>（<code>predicates/base_predicates.py</code>、<code>object_states/base_object_states.py</code>）：物体对物体的 On(A, B) 要求 B 的位置不高于 A、两者接触、水平距离小于 3 cm（第 87–93 行）；物体对区域（如 <code>flat_stove_1_cook_region</code>）的 On 要求 A 落在区域的盒子里并和区域所属物体接触；In 要求接触且在容器盒内；Open/Close/TurnOn/TurnOff 看关节角是否越过物体属性里的开合范围。</li>
+</ul></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>任务套件</h3>
+<p><b>结论先说：</b>流水线能造无限多任务，但基准要固定。四个套件里前三个把陈述性和程序性知识拆开考，LIBERO-100 考混在一起的知识。</p>
+<ul>
+<li><b>LIBERO-X</b>（Spatial、Object、Goal，各 10 个任务；脚注说 10 个任务足以观察到灾难性遗忘，又不至于太费算力）：
+<ul>
+<li><b>Spatial</b>：每个任务都是把一个碗放到盘子上，物体都是同一组，但有两个一模一样的碗，只能靠位置或和其他物体的空间关系区分。要不断学新的空间关系（陈述性）。</li>
+<li><b>Object</b>：每个任务抓放一个不同的物体。要不断学新物体（陈述性）。</li>
+<li><b>Goal</b>：物体相同、空间关系固定，只有目标不同。要不断学新的动作和行为（程序性）。</li>
+</ul></li>
+<li><b>LIBERO-100</b>：100 个任务，物体交互和动作技能都多样。论文里拆成 90 个短任务（LIBERO-90）和 10 个长任务（LIBERO-Long）；LIBERO-90 用来预训练（T5），LIBERO-Long 用来做下游终身学习评测。</li>
+</ul>
+<p>130 = 10 + 10 + 10 + 100。每个任务 50 条演示，一共 6,500 条。各套件的任务名见附录 C 和 <a href="openwam.html#qa-libero">OpenWAM 页的套件表</a>；代码里 LIBERO-Long 叫 <code>libero_10</code>。</p>
+
+<h3 id="s4-3"><span class="no">4.3</span>终身学习算法</h3>
+<p>实现了三种代表性算法，分别属于三大类：基于记忆的经验回放 ER、基于正则化的 EWC、基于动态结构的 PackNet。作者引用 <a class="ds" href="https://sites.google.com/view/continualworld">Continual World</a> 的结论说这三种是当时最好的。另外实现两条基线：顺序微调 SeqL（下界）和多任务学习 MTL（上界）。细节在附录 B.1，代码差异见 <a href="#n15">读者注 15 到 17</a>。</p>
+
+<h3 id="s4-4"><span class="no">4.4</span>神经网络架构</h3>
+<p><b>结论先说：</b>三种视觉-语言策略网络的差别在于空间信息（每帧图像）和时间信息（帧序列）怎样聚合、语言从哪里进来。三者都用预训练 BERT 编码指令，输出头都是高斯混合（GMM），用行为克隆训练。</p>
+<ul>
+<li><b>ResNet-RNN</b>：每帧用 ResNet 编码，LSTM 处理序列。语言用 FiLM 调制 ResNet 特征，同时加到 LSTM 的输入里。</li>
+<li><b>ResNet-T</b>：同样的 ResNet 视觉骨干，时间维度换成 transformer 解码器，每帧视觉特征是一个 token；语言嵌入作为单独的 token 和视觉 token 一起输入。</li>
+<li><b>ViT-T</b>：视觉骨干换成 Vision Transformer，时间维度仍是 transformer 解码器。语言嵌入在 ViT 和时间 transformer 里各作为一个单独 token。</li>
+</ul>
+<p>所有时间骨干每个决策步输出一个隐向量，接 GMM 输出头得到动作的多峰分布；执行时从分布里采样连续的末端动作。三种架构的图在附录 A（图 6、7）。</p>
+<p><b>演示数据。</b>为了能用有限算力研究终身学习算法，全部用行为克隆，每个任务提供 50 条高质量演示，由人类专家用 3Dconnexion SpaceMouse 遥操作采集。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 代码里的三种网络（论文没写的部分）</span>
+<ul>
+<li><b>ResNet 编码器</b>（<code>modules/rgb_modules.py</code>）：torchvision ResNet-18 去掉最后 4 个子模块（<code>remove_layer_num: 4</code>，即去掉 layer3、layer4、池化和全连接），只留 stem + layer1 + layer2 共 4 个残差块，<b>不加载 ImageNet 权重</b>（<code>pretrained: false</code>）。每个残差块后面一个 FiLM 层 \((1+\gamma)\odot h+\beta\)，\(\gamma,\beta\) 由 768 维 BERT 嵌入线性投影得到（第 201 行起）。128 × 128 输入到 layer2 输出是 16 × 16 × 128，接 32 个关键点的空间 softmax 和线性层，得到每帧每路相机一个 64 维向量。</li>
+<li><b>ResNet-T 也用了 FiLM。</b>论文 §4.4 说 ResNet-T 的语言是单独的 token。代码里 <code>BCTransformerPolicy</code> 两样都做：图像编码器收到 <code>langs=data["task_emb"]</code>（<code>bc_transformer_policy.py:274</code>，配置 <code>language_fusion: 'film'</code>），同时语言 MLP 输出也作为 token。每一步 5 个 64 维 token：语言、关节、夹爪、第三人称图像、腕部图像；10 步一共 50 个 token；取每步的语言 token 位置作为输出。</li>
+<li><b>ViT-T</b>（<code>bc_vilt_policy.py</code>）：每路相机先过 7 × 7、步长 2 的卷积，再切 8 × 8 的 patch，128 × 128 图像得到 8 × 8 = 64 个 patch；两路相机 128 个 patch token，加一个语言 token 和一个汇总 token，共 130 个 128 维 token，过 7 层空间 transformer。汇总 token 降到 64 维，和语言、关节、夹爪组成每步 4 个 token，10 步 40 个，过 4 层时间 transformer。图 6 把这个模型叫 “BC-Transformer2”，代码类名是 <code>BCViLTPolicy</code>。</li>
+<li><b>ResNet-RNN</b>：LSTM 输入是两路图像各 64 维、关节 7 维、夹爪 2 维、语言 32 维，共 169 维；2 层，隐藏 1024。</li>
+<li><b>GMM 头</b>（<code>policy_head.py</code>）：5 个分量，隐藏层 1024，均值过 tanh 限制在 [−1, 1]，标准差用 softplus 加 1e-4。</li>
+<li><b>数据增强</b>（论文没提）：颜色抖动（亮度、对比度、饱和度、色调各 0.3）和 8 像素平移，训练时开启（<code>use_augmentation: true</code>）。</li>
+</ul></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、行为模板到指令、场景和 BDDL 到初始状态、四个套件、遥操作采演示、观测和动作接口、三种策略网络、终身学习流程和四种算法、FWT/NBT/AUC 当场计算、结果、VLA 时代的用法。可以暂停、拖进度、旋转画面、切换开关。下面嵌的是第 9 幕（指标计算）。</p>
+<iframe src="../interactives/libero/index.html?embed=1&amp;scene=9" title="LIBERO 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/libero/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>实验是针对 §3 五个主题的初步研究，设置细节在附录 D。六个研究问题：Q1 不同架构和算法在特定分布偏移下表现如何；Q2 架构对知识迁移影响多大，各架构有没有专长；Q3 终身监督学习的算法在 LLDM 上表现如何；Q4 语言嵌入影响多大；Q5 算法对任务顺序是否鲁棒；Q6 监督预训练能否改善下游终身学习。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>评价指标</h3>
+<p><b>结论先说：</b>三个指标都按成功率算，不按训练损失（附录 E.2 说明损失会误导）。FWT 越高学得越快，NBT 越低旧任务保持得越好，AUC 越高整体越好。</p>
+<p>记 \(c_{i,j,e}\) 为智能体已经学完前 \(i-1\) 个任务、在第 \(i\) 个任务上刚训练了 \(e\) 个 epoch（\(e\in\{0,5,\dots,50\}\)）时，在任务 \(j\) 上的成功率。令 \(c_{i,i}=\max_e c_{i,i,e}\) 为当前任务所有评估点里的最好成功率；\(e^*_i\) 为最早达到它的 epoch，并假定之后所有 \(e\ge e^*_i\) 都有 \(c_{i,i,e}=c_{i,i}\)（脚注：实际性能不一定单调，但保留评估过的最好检查点，当作智能体在 \(e^*_i\) 停止学习）。对 \(j\ne i\)，定义 \(c_{i,j}=c_{i,j,e^*_i}\)。三个指标：</p>
+<div class="eq"><div class="m">\[ \begin{aligned} \mathrm{FWT}&=\sum_{k\in[K]}\frac{\mathrm{FWT}_k}{K}, & \mathrm{FWT}_k&=\frac1{11}\sum_{e\in\{0\dots50\}}c_{k,k,e}\\ \mathrm{NBT}&=\sum_{k\in[K]}\frac{\mathrm{NBT}_k}{K}, & \mathrm{NBT}_k&=\frac1{K-k}\sum_{\tau=k+1}^{K}\big(c_{k,k}-c_{\tau,k}\big)\\ \mathrm{AUC}&=\sum_{k\in[K]}\frac{\mathrm{AUC}_k}{K}, & \mathrm{AUC}_k&=\frac1{K-k+1}\Big(\mathrm{FWT}_k+\sum_{\tau=k+1}^{K}c_{\tau,k}\Big) \end{aligned} \]</div><span class="no">(3)</span></div>
+<figure class="pfig narrow" id="fig3">
+<img src="libero/fig3.webp" width="1227" height="469" alt="图 3：任务 k 的成功率曲线，左边阴影是 FWT，右边两块阴影分别是 NBT 和 AUC 的分子" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 7 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#S5.F3">看原图 ↗</a></span>横轴是任务序号，纵轴是任务 \(k\) 的成功率。从 \(k-1\) 到 \(k\) 是学任务 \(k\) 的过程，曲线下的灰蓝面积就是 FWT\(_k\)；之后每学一个新任务再测一次任务 \(k\)，曲线下降。绿色是峰值虚线和曲线之间的面积，除以 \(K-k\) 得 NBT\(_k\)；灰蓝加橙色面积除以 \(K-k+1\) 得 AUC\(_k\)。</figcaption>
+</figure>
+<p>FWT\(_k\) 的 11 个点包括 \(e=0\)，即还没开始学任务 \(k\) 时、只靠前面任务学到的东西的零样本成功率。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 (3) 和代码：FWT、AUC 一致</span><p><b>FWT：</b><code>algos/base.py</code> 第 162 行循环 \(e=0,\dots,50\)，每 5 个 epoch 评估一次（\(e=0\) 时只算损失不更新），一共 11 个点；第 211 行用严格的 <code>&lt;</code> 更新最好成绩，所以 \(e^*\) 取最早的那个；第 253 行把 \(e^*\) 之后的值都替换成最好值；第 254 行除以 11。和式 (3) 完全一致。</p>
+<p><b>AUC：</b>主训练脚本不算 NBT 和 AUC，只存成功率矩阵 <code>S_conf_mat</code>（<code>main.py:239</code>）和每个任务的 11 点曲线。算这两个指标的代码在 <code>notebooks/quick_guide_algo.ipynb</code> 的 <code>compute_metric</code>：0 起编号时 <code>auc_k = (auc_k + fwts[k].mean()) / (num_tasks - k)</code>，换成 1 起编号正是 \(1/(K-k+1)\)，一致。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · NBT 有两处和公式不一样</span>
+<ol>
+<li><b>最后一个任务。</b>\(k=K\) 时 NBT\(_K\) 是 \(0/0\)，式 (3) 没定义。notebook 里 <code>if k + 1 &lt; num_tasks: bwt_k /= …</code>，即令 NBT\(_K=0\)，再把 \(K\) 项求和除以 \(K\)。所以代码的 NBT 等于“前 9 个任务的平均遗忘”乘 \(9/10\)。表里的 NBT 若用这份代码算，比按 \(K-1\) 平均小 10%。论文没说用的是哪种。</li>
+<li><b>\(c_{k,k}\) 用哪个数。</b>式 (3) 的 \(c_{k,k}=\max_e c_{k,k,e}\) 是 11 次评估里的最大值。notebook 用的是 <code>mat[k,k]</code>，即学完任务 \(k\) 后把最好检查点<b>重新评估</b>一次的结果（<code>main.py:228-239</code> 对所有已学任务重测 20 次）。每次评估只有 20 个回合，成功率的标准误在 \(p=0.5\) 时是 \(\sqrt{0.5\times0.5/20}=0.112\)，11 次里取最大会偏高，重新评估则没有这个偏差。按论文公式算的 NBT 会系统地偏大一些。偏多少要看每条学习曲线，我没法从论文数字算出来。</li>
+</ol>
+<p>另外，这个 notebook 的输出单元格把这个量叫 <code>bwt</code>，示例输出是 <code>{'fwt': 0.603, 'bwt': 0.541, 'auc': 0.266}</code>（一个种子的自定义算法示例），不是论文表里的数。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>实验结果</h3>
+<p>全部组合的完整结果在附录 E.1（表 8）。下面三张表都是表 8 的子集，我逐格对过，<b>表 1 的 72 格和表 2 的 52 格（每格含均值和标准误）全部和表 8 一致</b>，表 3 的 BERT 行也等于表 8 里 ER + ResNet-T 在 LIBERO-Long 上的那一行。</p>
+
+<h4 id="s5-2-arch">架构（Q1、Q2）</h4>
+<p>表 1 固定算法为 ER 和 PackNet（论文说这两种在所有套件上终身学习表现最好），比较三种架构。</p>
+<div class="tablewrap"><table class="t-r1"><thead><tr><th rowspan="2">架构</th><th colspan="3">ER</th><th colspan="3">PackNet</th></tr><tr><th>FWT ↑</th><th>NBT ↓</th><th>AUC ↑</th><th>FWT ↑</th><th>NBT ↓</th><th>AUC ↑</th></tr></thead><tbody>
+<tr class="grp"><th colspan="7">LIBERO-Long</th></tr>
+<tr><td>ResNet-RNN</td><td class="n">0.16 ± 0.02</td><td class="n">0.16 ± 0.02</td><td class="n">0.08 ± 0.01</td><td class="n">0.13 ± 0.00</td><td class="n">0.21 ± 0.01</td><td class="n">0.03 ± 0.00</td></tr>
+<tr><td>ResNet-T</td><td class="n">0.48 ± 0.02</td><td class="n">0.32 ± 0.04</td><td class="n">0.32 ± 0.01</td><td class="n">0.22 ± 0.01</td><td class="n">0.08 ± 0.01</td><td class="n">0.25 ± 0.00</td></tr>
+<tr><td>ViT-T</td><td class="n">0.38 ± 0.05</td><td class="n">0.29 ± 0.06</td><td class="n">0.25 ± 0.02</td><td class="n">0.36 ± 0.01</td><td class="n">0.14 ± 0.01</td><td class="n">0.34 ± 0.01</td></tr>
+<tr class="grp"><th colspan="7">LIBERO-Spatial</th></tr>
+<tr><td>ResNet-RNN</td><td class="n">0.40 ± 0.02</td><td class="n">0.29 ± 0.02</td><td class="n">0.29 ± 0.01</td><td class="n">0.27 ± 0.03</td><td class="n">0.38 ± 0.03</td><td class="n">0.06 ± 0.01</td></tr>
+<tr><td>ResNet-T</td><td class="n">0.65 ± 0.03</td><td class="n">0.27 ± 0.03</td><td class="n">0.56 ± 0.01</td><td class="n">0.55 ± 0.01</td><td class="n">0.07 ± 0.02</td><td class="n">0.63 ± 0.00</td></tr>
+<tr><td>ViT-T</td><td class="n">0.63 ± 0.01</td><td class="n">0.29 ± 0.02</td><td class="n">0.50 ± 0.02</td><td class="n">0.57 ± 0.04</td><td class="n">0.15 ± 0.00</td><td class="n">0.59 ± 0.03</td></tr>
+<tr class="grp"><th colspan="7">LIBERO-Object</th></tr>
+<tr><td>ResNet-RNN</td><td class="n">0.30 ± 0.01</td><td class="n">0.27 ± 0.05</td><td class="n">0.17 ± 0.05</td><td class="n">0.29 ± 0.02</td><td class="n">0.35 ± 0.02</td><td class="n">0.13 ± 0.01</td></tr>
+<tr><td>ResNet-T</td><td class="n">0.67 ± 0.07</td><td class="n">0.43 ± 0.04</td><td class="n">0.44 ± 0.06</td><td class="n">0.60 ± 0.07</td><td class="n">0.17 ± 0.05</td><td class="n">0.60 ± 0.05</td></tr>
+<tr><td>ViT-T</td><td class="n">0.70 ± 0.02</td><td class="n">0.28 ± 0.01</td><td class="n">0.57 ± 0.01</td><td class="n">0.58 ± 0.03</td><td class="n">0.18 ± 0.02</td><td class="n">0.56 ± 0.04</td></tr>
+<tr class="grp"><th colspan="7">LIBERO-Goal</th></tr>
+<tr><td>ResNet-RNN</td><td class="n">0.41 ± 0.00</td><td class="n">0.35 ± 0.01</td><td class="n">0.26 ± 0.01</td><td class="n">0.32 ± 0.03</td><td class="n">0.37 ± 0.04</td><td class="n">0.11 ± 0.01</td></tr>
+<tr><td>ResNet-T</td><td class="n">0.64 ± 0.01</td><td class="n">0.34 ± 0.02</td><td class="n">0.49 ± 0.02</td><td class="n">0.63 ± 0.02</td><td class="n">0.06 ± 0.01</td><td class="n">0.75 ± 0.01</td></tr>
+<tr><td>ViT-T</td><td class="n">0.57 ± 0.00</td><td class="n">0.40 ± 0.02</td><td class="n">0.38 ± 0.01</td><td class="n">0.69 ± 0.02</td><td class="n">0.08 ± 0.01</td><td class="n">0.76 ± 0.02</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1（原文第 7 页）：三种架构在四个套件上用 ER 和 PackNet 的结果。3 个种子的均值 ± 标准误。原文把最好的加粗，若在双尾、等样本量、不等方差的 t 检验（p = 0.05）下显著优于其他架构则标紫色；这里没有复现加粗和颜色，显著性我自己算了一遍（读者注 7）。</p>
+<div class="find">
+<p><b>论文的发现：</b>① ResNet-T 和 ViT-T 平均远好于 ResNet-RNN，说明时间维度上 transformer 可能比 RNN 好。② 架构之间的差别依赖算法。用 PackNet 时 ResNet-T 和 ViT-T 没有显著差别，只有 LIBERO-Long 上 ViT-T 好得多；用 ER 时 ResNet-T 除了 LIBERO-Object 都好于 ViT-T。这可能说明网络容量足够大时，ViT 更擅长处理物体种类多的视觉信息（佐证是表 8 里 LIBERO-Object 的 MTL：ViT-T 0.78 对 ResNet-T 0.54）。</p>
+</div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 1 里哪些差距是显著的</span><p>论文用的是 Welch t 检验（不等方差）。我用表里的均值和标准误还原：\(t=(m_1-m_2)/\sqrt{\mathrm{SE}_1^2+\mathrm{SE}_2^2}\)，自由度按 Welch–Satterthwaite 公式，每组 \(n=3\)。只比每列第一和第二：</p>
+<ul>
+<li><b>p &lt; 0.05 的只有 5 格：</b>LIBERO-Long + PackNet 的 FWT（ViT-T 0.36 对 ResNet-T 0.22，p = 0.001）、NBT（ResNet-T 0.08 对 ViT-T 0.14，p = 0.013）、AUC（ViT-T 0.34 对 0.25，p = 0.012）；LIBERO-Goal + ER 的 FWT（ResNet-T 0.64 对 ViT-T 0.57，p = 0.020）和 AUC（0.49 对 0.38，p = 0.017）。</li>
+<li><b>“用 ER 时 ResNet-T 好于 ViT-T”</b>：四个套件的 AUC 方向都对（Long 0.32/0.25、Spatial 0.56/0.50、Goal 0.49/0.38，Object 反过来 0.44/0.57），但显著的只有 Goal；Long p = 0.053、Spatial p = 0.076 在边缘；Object 上 ViT-T 的优势 p = 0.159，也不显著。</li>
+<li>“PackNet 时 ResNet-T 和 ViT-T 除 Long 外没有显著差别”：我的计算支持这一句（Spatial p = 0.314、Object p = 0.568、Goal p = 0.686）。</li>
+</ul>
+<p>限制：标准误只给到两位小数，0.00 的格子实际可能是 0.001 到 0.005，会让 t 值偏大或无法计算；这里的 p 只是近似。</p></div>
+
+<h4 id="s5-2-algo">算法（Q1、Q3）</h4>
+<p>表 2 固定架构为 ResNet-T（论文说它在所有架构里最好），比较三种终身学习算法和 SeqL、MTL 两条基线。</p>
+<div class="tablewrap"><table class="t-r1"><thead><tr><th rowspan="2">算法</th><th colspan="3">左栏套件</th><th colspan="3">右栏套件</th></tr><tr><th>FWT ↑</th><th>NBT ↓</th><th>AUC ↑</th><th>FWT ↑</th><th>NBT ↓</th><th>AUC ↑</th></tr></thead><tbody>
+<tr class="grp"><th></th><th colspan="3">LIBERO-Long</th><th colspan="3">LIBERO-Spatial</th></tr>
+<tr><td>SeqL</td><td class="n">0.54 ± 0.01</td><td class="n">0.63 ± 0.01</td><td class="n">0.15 ± 0.00</td><td class="n">0.72 ± 0.01</td><td class="n">0.81 ± 0.01</td><td class="n">0.20 ± 0.01</td></tr>
+<tr><td>ER</td><td class="n">0.48 ± 0.02</td><td class="n">0.32 ± 0.04</td><td class="n">0.32 ± 0.01</td><td class="n">0.65 ± 0.03</td><td class="n">0.27 ± 0.03</td><td class="n">0.56 ± 0.01</td></tr>
+<tr><td>EWC</td><td class="n">0.13 ± 0.02</td><td class="n">0.22 ± 0.03</td><td class="n">0.02 ± 0.00</td><td class="n">0.23 ± 0.01</td><td class="n">0.33 ± 0.01</td><td class="n">0.06 ± 0.01</td></tr>
+<tr><td>PackNet</td><td class="n">0.22 ± 0.01</td><td class="n">0.08 ± 0.01</td><td class="n">0.25 ± 0.00</td><td class="n">0.55 ± 0.01</td><td class="n">0.07 ± 0.02</td><td class="n">0.63 ± 0.00</td></tr>
+<tr><td>MTL</td><td class="n"></td><td class="n"></td><td class="n">0.48 ± 0.01</td><td class="n"></td><td class="n"></td><td class="n">0.83 ± 0.00</td></tr>
+<tr class="grp"><th></th><th colspan="3">LIBERO-Object</th><th colspan="3">LIBERO-Goal</th></tr>
+<tr><td>SeqL</td><td class="n">0.78 ± 0.04</td><td class="n">0.76 ± 0.04</td><td class="n">0.26 ± 0.02</td><td class="n">0.77 ± 0.01</td><td class="n">0.82 ± 0.01</td><td class="n">0.22 ± 0.00</td></tr>
+<tr><td>ER</td><td class="n">0.67 ± 0.07</td><td class="n">0.43 ± 0.04</td><td class="n">0.44 ± 0.06</td><td class="n">0.64 ± 0.01</td><td class="n">0.34 ± 0.02</td><td class="n">0.49 ± 0.02</td></tr>
+<tr><td>EWC</td><td class="n">0.56 ± 0.03</td><td class="n">0.69 ± 0.02</td><td class="n">0.16 ± 0.02</td><td class="n">0.32 ± 0.02</td><td class="n">0.48 ± 0.03</td><td class="n">0.06 ± 0.00</td></tr>
+<tr><td>PackNet</td><td class="n">0.60 ± 0.07</td><td class="n">0.17 ± 0.05</td><td class="n">0.60 ± 0.05</td><td class="n">0.63 ± 0.02</td><td class="n">0.06 ± 0.01</td><td class="n">0.75 ± 0.01</td></tr>
+<tr><td>MTL</td><td class="n"></td><td class="n"></td><td class="n">0.54 ± 0.02</td><td class="n"></td><td class="n"></td><td class="n">0.80 ± 0.01</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2（原文第 8 页）：固定 ResNet-T，三种终身学习算法和 SeqL、MTL 基线在四个套件上的结果。上半是 LIBERO-Long（左）和 LIBERO-Spatial（右），下半是 LIBERO-Object（左）和 LIBERO-Goal（右）。MTL 只有一个数，放在 AUC 列。3 个种子的均值 ± 标准误，检验方法同表 1。</p>
+<div class="find">
+<p><b>论文的发现：</b>① SeqL 在所有套件上 FWT 最好，令人意外：说明所有被测的终身学习算法其实都损害了前向迁移。② PackNet 在 LIBERO-X 上好于其他算法，但在 LIBERO-Long 上明显不如 ER，主要因为前向迁移低。这印证动态结构方法擅长防遗忘；但 PackNet 把网络分成子网络，学每个任务能用的容量变小，作者猜它不够学 LIBERO-Long。③ EWC 比 SeqL 还差，说明损失上的正则化反而会妨碍 LLDM（附录 E.2）。④ 回放方法 ER 在所有套件上都稳健。</p>
+</div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 2 的几句结论在表 8 全体组合上也成立吗</span>
+<ul>
+<li><b>“SeqL 的 FWT 最好”</b>：在表 8 的 4 个套件 × 3 种架构 = 12 个组合里全部成立，不只是 ResNet-T。</li>
+<li><b>“EWC 比 SeqL 差”</b>（按 AUC）：12 个组合全部成立，例如 Long + ResNet-T 0.02 对 0.15。</li>
+<li><b>“PackNet 在 LIBERO-Long 上不如 ER”</b>：只对 ResNet-T 成立（0.25 对 0.32）。换成 ViT-T 时 PackNet 0.34 反而高于 ER 0.25，而且 0.34 是 LIBERO-Long 上 9 个终身学习组合里最高的 AUC。“容量不够”的解释对 ViT-T 不适用；ViT-T 的空间 transformer 有更多的参数可分，这是我的推断。</li>
+<li><b>MTL 不总是上界。</b>Object + ResNet-T 上 PackNet 的 AUC 0.60 高于 MTL 0.54；Object + ResNet-RNN 上 MTL 只有 0.10，SeqL、ER、PackNet（0.15、0.17、0.13）都比它高。还要注意 MTL 一栏是学完所有任务后的平均成功率，而 AUC 是终身学习过程的面积，两者不是同一个量，只是放在同一列。</li>
+</ul></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 四个套件的平均（我算的）</span><p>论文没有给跨套件的平均。按表 8 直接平均四个套件（每个套件权重相同）：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>算法</th><th>架构</th><th class="n">FWT</th><th class="n">NBT</th><th class="n">AUC</th></tr></thead><tbody>
+<tr><td>SeqL</td><td>ResNet-RNN</td><td class="n">0.458</td><td class="n">0.537</td><td class="n">0.130</td></tr>
+<tr><td>SeqL</td><td>ResNet-T</td><td class="n">0.703</td><td class="n">0.755</td><td class="n">0.208</td></tr>
+<tr><td>SeqL</td><td>ViT-T</td><td class="n">0.645</td><td class="n">0.710</td><td class="n">0.190</td></tr>
+<tr><td>ER</td><td>ResNet-RNN</td><td class="n">0.318</td><td class="n">0.268</td><td class="n">0.200</td></tr>
+<tr><td>ER</td><td>ResNet-T</td><td class="n">0.610</td><td class="n">0.340</td><td class="n">0.453</td></tr>
+<tr><td>ER</td><td>ViT-T</td><td class="n">0.570</td><td class="n">0.315</td><td class="n">0.425</td></tr>
+<tr><td>EWC</td><td>ResNet-RNN</td><td class="n">0.123</td><td class="n">0.180</td><td class="n">0.037</td></tr>
+<tr><td>EWC</td><td>ResNet-T</td><td class="n">0.310</td><td class="n">0.430</td><td class="n">0.075</td></tr>
+<tr><td>EWC</td><td>ViT-T</td><td class="n">0.315</td><td class="n">0.415</td><td class="n">0.092</td></tr>
+<tr><td>PackNet</td><td>ResNet-RNN</td><td class="n">0.253</td><td class="n">0.328</td><td class="n">0.083</td></tr>
+<tr><td>PackNet</td><td>ResNet-T</td><td class="n">0.500</td><td class="n">0.095</td><td class="n">0.557</td></tr>
+<tr><td>PackNet</td><td>ViT-T</td><td class="n">0.550</td><td class="n">0.138</td><td class="n">0.562</td></tr>
+<tr><td>MTL</td><td>ResNet-RNN</td><td></td><td></td><td class="n">0.375</td></tr>
+<tr><td>MTL</td><td>ResNet-T</td><td></td><td></td><td class="n">0.662</td></tr>
+<tr><td>MTL</td><td>ViT-T</td><td></td><td></td><td class="n">0.713</td></tr>
+</tbody></table></div>
+<p>按 AUC 排序：PackNet + ViT-T 0.562 ≈ PackNet + ResNet-T 0.557 &gt; ER + ResNet-T 0.453 &gt; ER + ViT-T 0.425；SeqL 和 EWC 都在 0.21 以下。三个 MTL 平均是 0.375、0.662、0.713，ViT-T 最高。</p></div>
+
+<h4 id="s5-2-lang">语言嵌入（Q4）</h4>
+<p>同一个终身学习器（ResNet-T + ER，LIBERO-Long）换四种预训练语言嵌入：<a href="https://arxiv.org/abs/1810.04805">BERT</a>、<a href="https://arxiv.org/abs/2103.00020">CLIP</a>、GPT-2，以及 Task-ID 嵌入。Task-ID 嵌入是把 “Task 5” 这样的字符串送进预训练 BERT 得到的。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>嵌入</th><th class="n">维度</th><th class="n">FWT ↑</th><th class="n">NBT ↓</th><th class="n">AUC ↑</th></tr></thead><tbody>
+<tr><td>BERT</td><td class="n">768</td><td class="n">0.48 ± 0.02</td><td class="n">0.32 ± 0.04</td><td class="n">0.32 ± 0.01</td></tr>
+<tr><td>CLIP</td><td class="n">512</td><td class="n">0.52 ± 0.00</td><td class="n">0.34 ± 0.01</td><td class="n">0.35 ± 0.01</td></tr>
+<tr><td>GPT-2</td><td class="n">768</td><td class="n">0.46 ± 0.01</td><td class="n">0.34 ± 0.02</td><td class="n">0.30 ± 0.01</td></tr>
+<tr><td>Task-ID</td><td class="n">768</td><td class="n">0.50 ± 0.01</td><td class="n">0.37 ± 0.01</td><td class="n">0.33 ± 0.01</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3（原文第 9 页）：LIBERO-Long 上四种语言嵌入，架构 ResNet-T，算法 ER。3 个种子的均值 ± 标准误。原文说没有观察到统计显著的差异。</p>
+<div class="find"><p><b>论文的发现：</b>四种嵌入（包括 Task-ID）之间没有统计显著的差别。作者认为句子嵌入起的作用像词袋，只是用来区分任务。这说明需要更好的语言编码来利用任务描述的语义。尽管差不多，默认仍用 BERT。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 3 “没有显著差异”取决于怎么比</span><p>同样用 Welch t 检验对 4 种嵌入两两比较（6 对 × 3 个指标 = 18 次）：CLIP 对 GPT-2 的 FWT（0.52 ± 0.00 对 0.46 ± 0.01，t = 6.0，p = 0.027）和 AUC（0.35 对 0.30，t = 3.54，p = 0.024）、GPT-2 对 Task-ID 的 FWT（p = 0.047）单独看都小于 0.05。如果像论文表 1 那样只拿最好的和其他比，或者对 18 次比较做 Bonferroni 校正（阈值 0.05/18 = 0.0028），就都不显著。论文没说比较了哪几对。CLIP 的 FWT 标准误写成 0.00，按 0.005 算 t 仍有 5.4。</p>
+<p><b>和代码对得上的部分：</b><code>utils.py:152</code> <code>get_task_embs</code>：BERT 用 <code>bert-base-cased</code> 的 <code>pooler_output</code>（768 维），CLIP 用 <code>clip-vit-base-patch32</code> 的 <code>get_text_features</code>（512 维），GPT-2 取最后一个 token 的隐藏状态（768 维）；Task-ID 对应配置值 <code>one-hot</code>，实际是把 <code>f"Task {i+offset}"</code> 送进 BERT（第 159 行），和论文描述一致，名字有点误导。</p></div>
+
+<h4 id="s5-2-order">任务顺序（Q5）</h4>
+<p>用 ResNet-T 评估 ER 和 PackNet 在五种任务顺序下的表现。两种算法的表现都随顺序变化，说明需要对任务顺序鲁棒的算法或架构。</p>
+<figure class="pfig narrow" id="fig4">
+<img src="libero/fig4.webp" width="1005" height="454" alt="图 4：两组各五根柱子，红色是 ER，蓝色是 PackNet，纵轴是 AUC" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 9 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#S5.F4">看原图 ↗</a></span>左边红色五根是 ER + ResNet-T 在五种顺序下的 AUC：0.32、0.26、0.24、0.30、0.30；右边蓝色是 PackNet + ResNet-T：0.25、0.28、0.31、0.27、0.33。误差线是固定顺序下（不同种子之间）的标准差。图注里没有说是哪个套件，按正文和数字应是 LIBERO-Long（见读者注 11）。</figcaption>
+</figure>
+<div class="find"><p><b>论文的发现：</b>不同任务顺序确实会让同一算法的表现差别很大，其中 PackNet 的差别统计显著。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 图 4 的读数</span>
+<ul>
+<li><b>第一根柱子就是表 1：</b>ER 0.32、PackNet 0.25，正是表 1 里 LIBERO-Long + ResNet-T 的 AUC，所以第一种顺序是默认顺序，套件是 LIBERO-Long。</li>
+<li><b>两种算法的波动幅度一样：</b>ER 五个值平均 0.284、样本标准差 0.033、极差 0.08；PackNet 平均 0.288、标准差 0.032、极差 0.08。论文说只有 PackNet 显著，可能是因为 PackNet 每种顺序内的误差线更短（图上 ER 第五根的误差线明显更长）。没有逐种子数据，无法复算，<b>未核实</b>。</li>
+<li><b>是哪五种顺序：</b>代码 <code>benchmark/__init__.py:83</code> 定义了 21 种顺序（<code>task_orders</code>，第 0 种是自然顺序），用 <code>data.task_order_index</code> 选。论文没说用的是哪五种；第一根和默认顺序的数字吻合，其余四种我推测是索引 1 到 4，<b>未核实</b>。</li>
+<li>正文这一段开头写“Figure 4 shows the result of the study on Q4”，应为 Q5（读者注 20）。</li>
+</ul></div>
+
+<h4 id="s5-2-pre">预训练（Q6）</h4>
+<p>在 LIBERO-Long 上比较五种算法与架构组合在“先在 LIBERO-90 上预训练”和“从头学”两种条件下的表现。预训练是在 90 个任务上用三种架构各做 50 个 epoch 的行为克隆，每 5 个 epoch 存一次检查点，每种架构挑表现最好的检查点作为下游 LLDM 的初始模型。</p>
+<figure class="pfig" id="fig5">
+<img src="libero/fig5.webp" width="1600" height="339" alt="图 5：五组柱子，每组红色是有预训练、棕色是无预训练、青色是多任务" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 9 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#S5.F5">看原图 ↗</a></span>五组柱子，每组三根：红色有预训练、棕色无预训练、青色多任务学习。柱顶的数字依次是：ER + ResNet-RNN 0.04 / 0.08 / 0.20；ER + ResNet-T 0.22 / 0.32 / 0.48；ER + ViT-T 0.10 / 0.25 / 0.46；EWC + ResNet-T 0.01 / 0.02 / 0.48；PackNet + ResNet-T 0.17 / 0.25 / 0.48。</figcaption>
+</figure>
+<div class="find"><p><b>论文的发现：</b>基本的监督预训练会损害下游终身学习表现。结合表 2（顺序微调的前向迁移反而比终身学习算法好），说明需要更好的预训练方法。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 5 的数和表 8 对得上；纵轴其实是 AUC</span><p>“无预训练”五根（0.08、0.32、0.25、0.02、0.25）正是表 8 里 LIBERO-Long 对应组合的 AUC；“多任务”三种架构（0.20、0.48、0.46）正是表 8 的 MTL。所以红、棕两色是 AUC，青色是 MTL 成功率，纵轴标的 “Success Rate” 不准确。预训练带来的下降：ER + ResNet-RNN −0.04（−50%）、ER + ResNet-T −0.10（−31%）、ER + ViT-T −0.15（−60%）、EWC + ResNet-T −0.01、PackNet + ResNet-T −0.08（−32%）。五个组合方向一致。论文没给预训练条件下的标准误。</p>
+<p><b>代码：</b>预训练对应 <code>lifelong=multitask benchmark_name=LIBERO_90</code>，<code>multitask.py</code> 在 <code>cfg.pretrain</code> 时第 0 个 epoch 也训练；下游用 <code>pretrain_model_path</code> 载入（<code>main.py:160</code>）。<code>LIBERO_90</code> 只允许默认任务顺序（<code>benchmark/__init__.py:199</code>）。另外，多任务训练默认 <code>eval_in_train: false</code>，训练中不做仿真评估；“挑最好的检查点”需要事后用 <code>evaluate.py</code> 对每个存下的检查点评估。</p></div>
+
+<p><b>注意力可视化。</b>为了看智能体在终身学习中忘掉了什么，作者把策略对每张输入图像的注意力画了出来，见附录 E.4。</p>
+
+<h2 id="s6"><span class="no">6</span>相关工作</h2>
+<p><b>终身学习基准。</b>早期工作把标准视觉、语言数据集改成终身学习设定：图像分类的 <a class="ds" href="http://yann.lecun.com/exdb/mnist/">MNIST</a>、<a class="ds" href="https://www.cs.toronto.edu/~kriz/cifar.html">CIFAR</a>、<a class="ds" href="https://www.image-net.org/">ImageNet</a>，<a class="ds" href="https://vlomonaco.github.io/core50/">CORe50</a>（<a href="https://arxiv.org/abs/1705.03550">论文</a>；原文把它归为分割数据集），自然语言理解的 <a class="ds" href="https://gluebenchmark.com/">GLUE</a> 和 <a class="ds" href="https://super.gluebenchmark.com/">SuperGLUE</a>。强化学习里用电子游戏：<a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari</a>、XLand、<a class="ds" href="https://github.com/Farama-Foundation/ViZDoom">ViZDoom</a>。但监督学习不涉及程序性知识，游戏又不代表人类活动。<a class="ds" href="https://sites.google.com/view/continualworld">Continual World</a>（<a href="https://arxiv.org/abs/2105.10919">论文</a>）把 <a class="ds" href="https://meta-world.github.io/">Meta-World</a> 的 50 个操作任务改成终身学习；<a class="ds" href="https://github.com/AGI-Labs/continual_rl">CORA</a>（<a href="https://arxiv.org/abs/2110.10067">论文</a>）基于 Atari、<a class="ds" href="https://github.com/openai/procgen">Procgen</a>、<a class="ds" href="https://github.com/facebookresearch/minihack">MiniHack</a> 和 <a class="ds" href="https://askforalfred.com/">ALFRED</a> 做了四个终身强化学习基准；F-SIOL-310 和 <a class="ds" href="https://lifelong-robotic-vision.github.io/dataset/object">OpenLORIS-Object</a> 是机器人视觉系统拍的真实终身物体学习数据集。也有工作分析终身学习智能体的各组成部分，但不针对机器人操作。</p>
+<p><b>机器人学习基准。</b>元学习的 <a class="ds" href="https://meta-world.github.io/">Meta-World</a>（<a href="https://arxiv.org/abs/1910.10897">论文</a>），因果学习的 <a class="ds" href="https://sites.google.com/view/causal-world">CausalWorld</a>（<a href="https://arxiv.org/abs/2010.04296">论文</a>），多任务的 <a class="ds" href="https://sites.google.com/view/rlbench">RLBench</a>（<a href="https://arxiv.org/abs/1909.12271">论文</a>）和 <a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a>，泛化到新物体的 <a class="ds" href="https://www.maniskill.ai/">ManiSkill</a> 和 ManiSkill2（<a href="https://arxiv.org/abs/2302.04659">论文</a>），组合学习的 <a class="ds" href="https://github.com/Lifelong-ML/CompoSuite">CompoSuite</a>（<a href="https://arxiv.org/abs/2207.04136">论文</a>）。和它们相比，LIBERO 的套件专为 LLDM 的研究主题设计：任务多、来自日常人类活动、物体和交互丰富；任务是程序化生成的，可以扩展；附带高质量人工演示，支持高效学习。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 参考文献 [59] 引错了论文</span><p>§6 写 “natural language understanding datasets like GLUE [67] and SuperGLUE [59]”，但参考文献 [59] 是 Sarlin 等的 “SuperGlue: Learning feature matching with graph neural networks”（CVPR 2020），那是图像特征匹配方法。自然语言基准 SuperGLUE 是 Wang 等 2019 年的另一篇论文。只是同名引错，不影响结论。</p></div>
+
+<h2 id="s7"><span class="no">7</span>结论与局限</h2>
+<p>LIBERO 是机器人操作领域支持 LLDM 研究的新基准，包含能在仿真里造无限多操作任务的程序化生成流水线；作者用它造了 130 个标准化任务，并对策略和算法设计做了一组全面的实验。结果指向三个方向：怎样设计更好的网络来处理空间或时间信息；怎样设计算法提高前向迁移；怎样用预训练改善终身学习。</p>
+<p>作者认为短期内看不到 LIBERO 带来的负面社会影响；但终身学习者主要从人那里学，长期看要研究 LLDM 里怎样保护用户隐私。</p>
+<p class="tcap">第 16 页是 NeurIPS 的论文清单，作者对“是否给了代码数据”“是否给了误差线”“是否报告了算力”都答 Yes；“资产的许可”答 N/A（代码仓库 README 实际写了 MIT 和 CC BY 4.0）。</p>
+
+<h2 id="apA">附录 A　实现的网络架构和终身学习算法</h2>
+<p>表 4 列出实现的内容：三种架构（ResNet-RNN、ResNet-T、ViT-T）和五种算法（SeqL、EWC、ER、PackNet、MTL）。代码里还有一个论文没用到的 A-GEM（<code>algos/agem.py</code>、<code>configs/lifelong/agem.yaml</code>）和一个每任务重新初始化的 SingleTask。</p>
+<h3 id="apA-1">A.1　网络架构</h3>
+<p>三种架构的结构见图 6，图像编码器见图 7，超参数见表 5、6、7。</p>
+<figure class="pfig" id="fig6">
+<img src="libero/fig6.webp" width="1600" height="422" alt="图 6：三栏分别是 BC-ResNet-RNN、BC-ResNet-Transformer、BC-Transformer2 的结构示意" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 17 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A1.F6">看原图 ↗</a></span>三栏从下往上读。左：两路相机（AgentView、Eye-in-Hand）各过一个 ResNet 编码器，和语言嵌入、关节/夹爪拼起来进 LSTM，顶上是 GMM 策略头。中：同样的 ResNet 编码器，但每路输出成为一个 token，语言和关节/夹爪也各是 token，进时间 transformer。右（图里叫 BC-Transformer2，即 ViT-T）：两路相机各过一个 ViT 编码器，语言作为 token 同时进 ViT 和时间 transformer。</figcaption>
+</figure>
+<figure class="pfig narrow" id="fig7">
+<img src="libero/fig7.webp" width="849" height="809" alt="图 7：左边是带 FiLM 调制的 ResNet 编码器，右边是 ViT 编码器" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 17 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A1.F7">看原图 ↗</a></span>左：ResNet 编码器从下往上是卷积、若干残差块，每个残差块后面接一个 \((1+\gamma)\odot\,\cdot\,\oplus\beta\) 的 FiLM 调制，\(\gamma,\beta\) 来自语言嵌入；最后是空间 softmax 和线性层。右：ViT 编码器底下是卷积，图像切成 patch token，再加一个语言 token，过若干层自注意力，顶上是线性层。代码里有 4 个残差块（读者注 4），图里画了 3 个加省略号。</figcaption>
+</figure>
+<details class="tbl"><summary>表 5、6、7：三种架构的超参数，和代码配置逐项对照（点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表</th><th>变量</th><th class="n">论文</th><th>代码（<code>configs/policy/*.yaml</code>）</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">表 5 · ResNet-RNN</th></tr>
+<tr><td>5</td><td>resnet_image_embed_size</td><td class="n">64</td><td class="ok">image_embed_size: 64</td></tr>
+<tr><td>5</td><td>text_embed_size</td><td class="n">32</td><td class="ok">32</td></tr>
+<tr><td>5</td><td>rnn_hidden_size</td><td class="n">1024</td><td class="ok">1024</td></tr>
+<tr><td>5</td><td>rnn_layer_num</td><td class="n">2</td><td class="ok">rnn_num_layers: 2</td></tr>
+<tr><td>5</td><td>rnn_dropout</td><td class="n">0.0</td><td class="ok">0.0</td></tr>
+<tr class="grp"><th colspan="4">表 6 · ResNet-T</th></tr>
+<tr><td>6</td><td>extra_info_hidden_size</td><td class="n">128</td><td class="ok">extra_hidden_size: 128（extra_num_layers: 0，所以实际不用这个隐藏层，关节和夹爪各一个线性层直接映射到 64 维）</td></tr>
+<tr><td>6</td><td>img_embed_size</td><td class="n">64</td><td class="ok">embed_size: 64</td></tr>
+<tr><td>6</td><td>transformer_num_layers / heads / head_output / mlp_hidden</td><td class="n">4 / 6 / 64 / 256</td><td class="ok">相同</td></tr>
+<tr><td>6</td><td>transformer_dropout / max_seq_len</td><td class="n">0.1 / 10</td><td class="ok">相同</td></tr>
+<tr class="grp"><th colspan="4">表 7 · ViT-T</th></tr>
+<tr><td>7</td><td>extra_info_hidden_size / img_embed_size</td><td class="n">128 / 128</td><td class="ok">相同</td></tr>
+<tr><td>7</td><td>spatial_transformer layers / heads / head_output / mlp / dropout</td><td class="n">7 / 8 / 120 / 256 / 0.1</td><td class="ok">相同</td></tr>
+<tr><td>7</td><td>spatial_down_sample_embed_size</td><td class="n">64</td><td class="ok">64</td></tr>
+<tr><td>7</td><td>temporal_transformer input / layers / heads / head_output / mlp / dropout / max_seq_len</td><td class="n">null / 4 / 6 / 64 / 256 / 0.1 / 10</td><td class="ok">相同（键名不带 temporal_ 前缀）</td></tr>
+<tr class="grp"><th colspan="4">三者共用，论文表里没有</th></tr>
+<tr><td>–</td><td>GMM 头</td><td>“GMM based output head”</td><td>5 个分量，隐藏 1024，2 层，min_std 1e-4，softplus</td></tr>
+<tr><td>–</td><td>语言 MLP</td><td>–</td><td>768 → 128（RNN 是 32）单层</td></tr>
+<tr><td>–</td><td>ViT patch</td><td>–</td><td>8 × 8，前接 7 × 7 步长 2 卷积</td></tr>
+</tbody></table></div>
+</details>
+
+<h2 id="apB">附录 B　算力</h2>
+<p>所有实验用单张 NVIDIA A100 或单张 A40（CUDA 11.7），训练和评估配 8 到 16 个 CPU（原文写作 “8 16 CPUs”，应是排版丢了连接符）。论文没有给总 GPU 小时。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 评估要跑多少个回合（我的计算）</span><p>按附录 D 的设置和代码：一次 10 个任务的终身学习，训练中每个任务评估 11 次 × 20 个回合 = 220 个回合，10 个任务 2,200 个；学完第 \(k\) 个任务再测所有已学任务各 20 次，\(20\times(1+2+\dots+10)=1{,}100\) 个。合计 3,300 个回合。PackNet 剪枝后还要微调 50 个 epoch、每 5 个 epoch 评估一次（<code>packnet.py:193</code> 循环 0 到 50，共 11 次），再多 2,200 个，合计 5,500。MTL 默认训练中不评估，最后测 10 × 20 = 200 个。</p>
+<p>每个“架构 × 套件 × 种子”组合：3,300 × 3（SeqL、ER、EWC）+ 5,500 + 200 = 15,600 个回合；× 12（3 架构 × 4 套件）× 3 种子 = 561,600 个回合，每个最多 600 步，上限约 3.4 亿个仿真步。代码默认 20 个进程并行评估（<code>eval/default.yaml</code> 的 <code>num_procs: 20</code>）。不含任务顺序、语言嵌入和预训练这三组额外实验。</p></div>
+
+<h3 id="apB-1">B.1　终身学习算法</h3>
+<p>终身学习研究智能体怎样在无限的任务序列上持续获取和保留知识而不发生灾难性遗忘。主流有三类：<b>动态结构</b>（逐步扩展模型容纳新知识）、<b>正则化</b>（学新任务时把学习者约束在之前的检查点附近）、<b>回放</b>（存旧任务的样本，和新数据一起训练）。也有组合方法和新策略，但本基准只深入分析这三个基本方向在机器人任务上的利弊。</p>
+<p><b>ER（经验回放）。</b>学完一个任务后，把一部分数据存进记忆。学新任务时从记忆里采样，和当前任务数据合在一起，使训练数据近似所有任务的经验分布。实现里每学完一个任务存最多 1000 条轨迹；每次迭代除了新任务的一个 batch，再从记忆均匀采样固定数量（32 条轨迹）的回放数据。</p>
+<p><b>EWC（弹性权重固化）。</b>在单任务学习目标上加正则项，用 Fisher 信息矩阵衡量每个参数的重要性。任务 \(k\) 的损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L^{\rm EWC}_k(\theta)=\mathcal L^{\rm BC}_k(\theta)+\sum_i\frac\lambda2F_i\big(\theta_i-\theta^*_{k-1,i}\big)^2 \]</div><span class="no"></span></div>
+<p>\(\lambda\) 是惩罚系数，\(F_i\) 是 Fisher 信息矩阵的对角：\(F_k=\mathbb E_{s\sim D_k}\mathbb E_{a\sim p_\theta(\cdot|s)}\big(\nabla_{\theta_k}\log p_{\theta_k}(a|s)\big)^2\)。实际用的是在线版本：沿终身学习过程用指数滑动平均更新 Fisher，并用经验 Fisher（动作取自数据）稳定估计：\(\tilde F_k=\gamma F_{k-1}+(1-\gamma)F_k\)，\(F_k=\mathbb E_{(s,a)\sim D_k}\big(\nabla_{\theta_k}\log p_{\theta_k}(a|s)\big)^2\)。取 \(\gamma=0.9\)，\(\lambda=5\cdot10^4\)。</p>
+<p><b>PackNet。</b>动态结构方法，目标是阻止对旧任务重要的参数被改动：反复地训练、剪枝、微调、冻结网络的一部分。理论上完全避免遗忘，但每个新任务可用的参数越来越少。剪枝分两段：先训练，训练结束时按固定比例选出最重要的参数（实现里是 25%），其余剪掉；再微调选中的部分并冻结。按原论文的做法，不训练所有偏置和归一化层。微调的 epoch 数和训练相同（50）。所有评价指标都在微调之前计算。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · ER：代码存的是“前 1000 个片段”，不是 1000 条轨迹</span><p><code>er.py:53</code> 对每个已学任务建 <code>TruncatedSequenceDataset(dataset, n_memories)</code>，<code>n_memories = 1000</code>（<code>configs/lifelong/er.yaml</code>）。这个类（<code>datasets.py:130-139</code>）的长度固定为 1000，<code>__getitem__(idx)</code> 直接取原数据集的第 idx 个样本，而原数据集是 robomimic 的 <code>SequenceDataset</code>，每个样本是一个长度为 10 的片段，大致每个时间步一个，按演示顺序排列。所以每个任务的记忆是<b>前 1000 个片段</b>，也就是前面几条演示（按 OpenVLA 版平均每条 161.5 帧估约 6 条；原始数据含停顿帧更长，条数更少；这是我的估计，未核实），不是随机挑的 1000 条轨迹，也不是 50 条演示的全部。每个任务各存 1000 个，学到第 10 个任务时记忆共 9,000 个片段。</p>
+<p>回放量：每步从记忆里取 <code>batch_size = 32</code> 个片段，和当前任务的 32 个拼成 64 个（<code>er.py:74</code> <code>merge_datas</code>）。论文的“32 条轨迹”实为 32 个片段。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · EWC：代码少了 \(1-\gamma\) 和 \(\tfrac12\)</span><p><code>ewc.py</code>：第 68–69 行是 <code>fish *= gamma; fish += fish_k</code>，即 \(\tilde F_k=\gamma\tilde F_{k-1}+F_k\)，没有 \((1-\gamma)\)；第 39、79 行的惩罚是 \(\lambda\sum_iF_i(\theta_i-\theta^*_i)^2\)，没有 \(\tfrac12\)。按代码，学过 \(k\) 个任务后 Fisher 的总权重是 \(\sum_{j<k}\gamma^j\)，趋于 \(1/(1-\gamma)=10\)；按论文公式总权重不超过 1。两项合起来，代码的有效惩罚在稳态下约是论文公式的 \(10\times2=20\) 倍（第 2 个任务时是 \(1\times2=2\) 倍，如果论文的 \(\tilde F_1=F_1\)）。论文说 \(\lambda=5\cdot10^4\)，配置 <code>e_lambda: 50000</code> 相同，所以“论文的数字配代码的公式”才是实际跑的东西。</p>
+<p>另一个细节：第 61 行的 <code>fish += grads**2</code> 是先对一个 batch 的平均负对数似然求梯度、再平方，是 batch 级的平方梯度，不是论文写的逐样本 \((\nabla\log p)^2\) 的期望；最后除以 batch 数。这样估出来的 Fisher 一般偏小。</p></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · PackNet：25% 是剩余参数的 25%</span><p><code>packnet.py:42</code> 只在“属于当前任务”的权重里按绝对值排序，剪掉 <code>prune_perc = 0.75</code>；剪掉的权重在下一个任务开始时重新分给新任务（第 120 行）。所以第 \(k\) 个任务能留下的份额是 \(0.25\times0.75^{k-1}\)：25%、18.75%、14.1%、10.5%、7.9%、5.9%、4.4%、3.3%、2.5%、1.9%，10 个任务后还剩 \(0.75^{10}=5.6\%\) 没用。这和论文“每个任务可用参数越来越少”一致，并给出具体数字：LIBERO-Long 最后几个长任务只分到 2% 左右的卷积和线性权重（偏置和归一化层冻结、共享）。评估时把属于更晚任务的权重置零（第 284 行）。</p>
+<p><b>“所有指标在微调之前计算”只对 FWT 成立。</b>FWT 来自 <code>learn_one_task</code> 里的 11 次评估，确实在 <code>end_task</code>（剪枝 + 微调）之前；但成功率矩阵 \(c_{\tau,k}\)（NBT、AUC 用的）是在 <code>end_task</code> 之后测的（<code>main.py:219-239</code>），那时已经剪枝和微调过了。另外微调循环 <code>range(0, 51)</code> 实际训练 51 个 epoch。</p></div>
+
+<h2 id="apC">附录 C　LIBERO 套件设计</h2>
+<h3 id="apC-1">C.1　任务套件</h3>
+<p>图 8 到 11 展示四个套件的全部任务。图 8（Spatial）画的是初始状态，因为目标都一样；其余画的是目标状态。</p>
+<figure class="pfig" id="fig8">
+<img src="libero/fig8.webp" width="1345" height="553" alt="图 8：LIBERO-Spatial 十个任务的初始状态，两排各五张" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 21 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A3.F8">看原图 ↗</a></span>LIBERO-Spatial 十个任务的初始状态。同一张木桌、同一组物体（两个黑碗、盘子、小碟、饼干盒、木柜、炉子），每张图里碗的位置不同：在小碟旁边、在饼干盒上、在柜子顶层抽屉里、在炉子上等。</figcaption>
+</figure>
+<figure class="pfig" id="fig9">
+<img src="libero/fig9.webp" width="1345" height="553" alt="图 9：LIBERO-Object 十个任务的目标状态" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 21 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A3.F9">看原图 ↗</a></span>LIBERO-Object 十个任务的目标状态：地板上散着一组杂货（字母汤、奶油奶酪、沙拉酱、烧烤酱、番茄酱、番茄酱汁、黄油、牛奶、巧克力布丁、橙汁），每个任务把其中一种放进篮子。</figcaption>
+</figure>
+<figure class="pfig" id="fig10">
+<img src="libero/fig10.webp" width="1345" height="553" alt="图 10：LIBERO-Goal 十个任务的目标状态" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 21 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A3.F10">看原图 ↗</a></span>LIBERO-Goal 十个任务的目标状态：同一张桌子、同一套摆放（柜子、炉子、碗、盘子、酒瓶、酒架、奶油奶酪），目标分别是开抽屉、把碗放到炉子或盘子上、开炉子、把酒瓶放到架子上等。</figcaption>
+</figure>
+<figure class="pfig narrow" id="fig11">
+<img src="libero/fig11.webp" width="1510" height="1510" alt="图 11：LIBERO-100 的一百个任务缩略图网格" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 22 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A3.F11">看原图 ↗</a></span>LIBERO-100 的 100 个任务，10 × 10 的缩略图。左半多是浅色木桌的厨房，右半多是深色桌面的客厅和书房；物体、布局和背景都不同。</figcaption>
+</figure>
+<h3 id="apC-2">C.2　基于 PDDL 的场景描述文件</h3>
+<p>附录给出了图 2 例子（“打开柜子顶层抽屉，把碗放进去”）的完整描述文件。它分五块：<code>:regions</code>（每个物体的初始区域：目标表面、xy 范围、偏航角范围；还有柜子上的顶层、中层、底层区域）、<code>:fixtures</code>（桌子、柜子）、<code>:objects</code>（黑碗、盘子）、<code>:obj_of_interest</code>（柜子、黑碗）、<code>:init</code>（三个 On 谓词把物体放到各自区域）和 <code>:goal</code>。下面是代码仓库里一个 LIBERO-Long 任务的同格式文件，节选（MIT）：</p>
+<pre class="bddl">(define (problem LIBERO_Kitchen_Tabletop_Manipulation)
+  (:domain robosuite)
+  (:language turn on the stove and put the moka pot on it)
+  (:regions
+    (moka_pot_init_region (:target kitchen_table)
+        (:ranges ((0.025 -0.025 0.075 0.025))) (:yaw_rotation ((0.0 0.0))))
+    (cook_region (:target flat_stove_1)) …)
+  (:fixtures kitchen_table - kitchen_table  flat_stove_1 - flat_stove)
+  (:objects chefmate_8_frypan_1 - chefmate_8_frypan  moka_pot_1 - moka_pot)
+  (:init (On flat_stove_1 kitchen_table_flat_stove_init_region) …)
+  (:goal (And (Turnon flat_stove_1) (On moka_pot_1 flat_stove_1_cook_region))))</pre>
+<p class="tcap">出处：<code>bddl_files/libero_10/KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it.bddl</code>，我压缩了缩进并省略了两个区域。<code>:ranges</code> 是 (x_min, y_min, x_max, y_max)，单位米，以目标表面为参照；这里摩卡壶的初始位置只在 5 cm × 5 cm 的小方块里随机。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 初始状态：每个任务固定 50 个，原论文只用前 20 个</span><p>论文只说 \(\mu_0\) 是区域里的分布。代码为了让评测可重复，给每个任务存了一份固定的初始状态（<code>benchmark/__init__.py:76</code> <code>init_states_file=f"{task}.pruned_init"</code>）。我用 <code>pickletools</code> 静态读了 130 个 <code>.pruned_init</code> 里数组的形状（没有反序列化）：<b>全部是 50 行</b>，每行是一个展平的 MuJoCo 状态（Goal 79 维、Spatial 92 维、Object 110 维，LIBERO-100 随场景 47 到 123 维）。旁边的未剪枝 <code>.init</code> 文件 Spatial、Long、LIBERO-90 各 100 行，Object 50 行，Goal 没有。</p>
+<p>评测（<code>metric.py:111</code>）第 \(i\) 个回合用第 \(i \bmod 50\) 个状态。原论文每个任务 20 个回合，所以只用到前 20 个；VLA 论文每任务 50 个回合，正好用完 50 个。设置状态后先执行 <b>5 步全零动作</b>让物理稳定（<code>metric.py:119-122</code>；README 的示例写的是 10 步），然后最多 600 步。</p></div>
+
+<h2 id="apD">附录 D　实验设置</h2>
+<p><b>结论先说：</b>每个任务 50 个 epoch、50 条演示；每 5 个 epoch 用 20 个最长 600 步的回合评估；Adam，batch 32，每个任务的学习率按余弦从 1e-4 降到 1e-5；按 robomimic 的惯例取成功率最高的检查点；学完后在所有已学任务上各测 20 个回合；所有网络约 13.5 G FLOPs；每个组合 3 个种子 {100, 200, 300}，共 180 组实验。</p>
+<p>五种算法：SeqL（直接按顺序学，不做任何处理）、MTL（同时学序列里所有任务）、EWC、ER、PackNet；SeqL 和 MTL 可看作任何终身学习算法的下界和上界的近似。三种架构的区别在于空间或时间信息怎样聚合。</p>
+<details class="tbl" open><summary>附录 D 的设置和代码默认配置逐项对照（点开/收起）</summary>
+<div class="tablewrap"><table class="t-w repro"><thead><tr><th>项</th><th>论文附录 D</th><th>代码 8f1084e</th><th>一致</th></tr></thead><tbody>
+<tr><td>每任务训练</td><td>50 epoch，50 条演示</td><td><code>train/default.yaml</code> <code>n_epochs: 50</code>；50 条全部用于训练（<code>train_dataset_ratio: 0.8</code> 定义了但没有被引用）</td><td class="ok">是</td></tr>
+<tr><td>评估频率和规模</td><td>每 5 epoch，20 个回合，最长 600 步</td><td><code>eval/default.yaml</code> <code>eval_every: 5</code>、<code>n_eval: 20</code>、<code>max_steps: 600</code>；先空跑 5 步</td><td class="ok">是</td></tr>
+<tr><td>优化器</td><td>Adam</td><td><code>torch.optim.AdamW</code>，lr 1e-4，betas (0.9, 0.999)，<b>weight_decay 1e-4</b></td><td class="no">AdamW，非 Adam</td></tr>
+<tr><td>学习率</td><td>每个任务余弦 1e-4 → 1e-5</td><td><code>CosineAnnealingLR</code>，<code>T_max = n_epochs</code>，<code>eta_min: 1e-5</code>；每个任务重建优化器和调度器（<code>base.py:88-99</code>）</td><td class="ok">是</td></tr>
+<tr><td>batch</td><td>32</td><td>32；ER 再加 32 个回放片段</td><td class="ok">是</td></tr>
+<tr><td>梯度裁剪</td><td>–</td><td><code>grad_clip: 100</code></td><td>论文未写</td></tr>
+<tr><td>检查点</td><td>成功率最高</td><td>最早达到最高成功率的那个</td><td class="ok">是</td></tr>
+<tr><td>FLOPs</td><td>约 13.5 G（原文写 FLOPS，每秒浮点运算，用词不对）</td><td><code>utils.py:103</code>：thop 的 MACs × 2，输入是 batch 1、一个 10 步片段</td><td>未运行，未核实数值</td></tr>
+<tr><td>种子</td><td>{100, 200, 300}</td><td><code>config.yaml</code> 默认 <code>seed: 10000</code>，需命令行覆盖</td><td>默认值不同</td></tr>
+<tr><td>观测</td><td>图像 + 关节 + 夹爪</td><td><code>agentview_image</code>、<code>robot0_eye_in_hand_image</code>（128 × 128），<code>robot0_joint_pos</code>（7）、<code>robot0_gripper_qpos</code>（2）；不用末端位姿（<code>use_ee: false</code>）</td><td class="ok">是</td></tr>
+<tr><td>实验数</td><td>180</td><td>5 算法 × 3 架构 × 4 套件 × 3 种子 = 180</td><td class="ok">算式对</td></tr>
+</tbody></table></div>
+</details>
+
+<h2 id="apE">附录 E　补充实验结果</h2>
+<h3 id="apE-1">E.1　完整结果</h3>
+<p>表 8 是三种终身学习算法（加 SeqL、MTL）× 三种架构 × 四个套件的全部结果。图 12 到 14 固定架构比较算法，图 15 到 17 固定算法比较架构，展示每个任务的成功率在整个学习过程中怎样变化。</p>
+<details class="tbl"><summary>表 8：全部结果（12 行 × 4 套件 × 3 指标，加 MTL；点开）</summary>
+<div class="tablewrap"><table class="t-r8"><thead><tr><th>算法</th><th>架构</th><th colspan="3">LIBERO-Long</th><th colspan="3">LIBERO-Spatial</th><th colspan="3">LIBERO-Object</th><th colspan="3">LIBERO-Goal</th></tr><tr><th></th><th></th><th>FWT</th><th>NBT</th><th>AUC</th><th>FWT</th><th>NBT</th><th>AUC</th><th>FWT</th><th>NBT</th><th>AUC</th><th>FWT</th><th>NBT</th><th>AUC</th></tr></thead><tbody>
+<tr><td>SeqL</td><td>ResNet-RNN</td><td class="n">0.24 ± 0.02</td><td class="n">0.28 ± 0.01</td><td class="n">0.07 ± 0.01</td><td class="n">0.50 ± 0.01</td><td class="n">0.61 ± 0.01</td><td class="n">0.14 ± 0.01</td><td class="n">0.48 ± 0.03</td><td class="n">0.53 ± 0.04</td><td class="n">0.15 ± 0.01</td><td class="n">0.61 ± 0.01</td><td class="n">0.73 ± 0.01</td><td class="n">0.16 ± 0.00</td></tr>
+<tr><td></td><td>ResNet-T</td><td class="n">0.54 ± 0.01</td><td class="n">0.63 ± 0.01</td><td class="n">0.15 ± 0.00</td><td class="n">0.72 ± 0.01</td><td class="n">0.81 ± 0.01</td><td class="n">0.20 ± 0.01</td><td class="n">0.78 ± 0.04</td><td class="n">0.76 ± 0.04</td><td class="n">0.26 ± 0.02</td><td class="n">0.77 ± 0.01</td><td class="n">0.82 ± 0.01</td><td class="n">0.22 ± 0.00</td></tr>
+<tr><td></td><td>ViT-T</td><td class="n">0.44 ± 0.04</td><td class="n">0.50 ± 0.05</td><td class="n">0.13 ± 0.01</td><td class="n">0.63 ± 0.02</td><td class="n">0.76 ± 0.01</td><td class="n">0.16 ± 0.01</td><td class="n">0.76 ± 0.03</td><td class="n">0.73 ± 0.03</td><td class="n">0.27 ± 0.02</td><td class="n">0.75 ± 0.01</td><td class="n">0.85 ± 0.01</td><td class="n">0.20 ± 0.01</td></tr>
+<tr><td>ER</td><td>ResNet-RNN</td><td class="n">0.16 ± 0.02</td><td class="n">0.16 ± 0.02</td><td class="n">0.08 ± 0.01</td><td class="n">0.40 ± 0.02</td><td class="n">0.29 ± 0.02</td><td class="n">0.29 ± 0.01</td><td class="n">0.30 ± 0.01</td><td class="n">0.27 ± 0.05</td><td class="n">0.17 ± 0.05</td><td class="n">0.41 ± 0.00</td><td class="n">0.35 ± 0.01</td><td class="n">0.26 ± 0.01</td></tr>
+<tr><td></td><td>ResNet-T</td><td class="n">0.48 ± 0.02</td><td class="n">0.32 ± 0.04</td><td class="n">0.32 ± 0.01</td><td class="n">0.65 ± 0.03</td><td class="n">0.27 ± 0.03</td><td class="n">0.56 ± 0.01</td><td class="n">0.67 ± 0.07</td><td class="n">0.43 ± 0.04</td><td class="n">0.44 ± 0.06</td><td class="n">0.64 ± 0.01</td><td class="n">0.34 ± 0.02</td><td class="n">0.49 ± 0.02</td></tr>
+<tr><td></td><td>ViT-T</td><td class="n">0.38 ± 0.05</td><td class="n">0.29 ± 0.06</td><td class="n">0.25 ± 0.02</td><td class="n">0.63 ± 0.01</td><td class="n">0.29 ± 0.02</td><td class="n">0.50 ± 0.02</td><td class="n">0.70 ± 0.02</td><td class="n">0.28 ± 0.01</td><td class="n">0.57 ± 0.01</td><td class="n">0.57 ± 0.00</td><td class="n">0.40 ± 0.02</td><td class="n">0.38 ± 0.01</td></tr>
+<tr><td>EWC</td><td>ResNet-RNN</td><td class="n">0.02 ± 0.00</td><td class="n">0.04 ± 0.01</td><td class="n">0.00 ± 0.00</td><td class="n">0.14 ± 0.02</td><td class="n">0.23 ± 0.02</td><td class="n">0.03 ± 0.00</td><td class="n">0.17 ± 0.04</td><td class="n">0.23 ± 0.04</td><td class="n">0.06 ± 0.01</td><td class="n">0.16 ± 0.01</td><td class="n">0.22 ± 0.01</td><td class="n">0.06 ± 0.01</td></tr>
+<tr><td></td><td>ResNet-T</td><td class="n">0.13 ± 0.02</td><td class="n">0.22 ± 0.03</td><td class="n">0.02 ± 0.00</td><td class="n">0.23 ± 0.01</td><td class="n">0.33 ± 0.01</td><td class="n">0.06 ± 0.01</td><td class="n">0.56 ± 0.03</td><td class="n">0.69 ± 0.02</td><td class="n">0.16 ± 0.02</td><td class="n">0.32 ± 0.02</td><td class="n">0.48 ± 0.03</td><td class="n">0.06 ± 0.00</td></tr>
+<tr><td></td><td>ViT-T</td><td class="n">0.05 ± 0.02</td><td class="n">0.09 ± 0.03</td><td class="n">0.01 ± 0.00</td><td class="n">0.32 ± 0.03</td><td class="n">0.48 ± 0.03</td><td class="n">0.06 ± 0.01</td><td class="n">0.57 ± 0.03</td><td class="n">0.64 ± 0.03</td><td class="n">0.23 ± 0.00</td><td class="n">0.32 ± 0.04</td><td class="n">0.45 ± 0.04</td><td class="n">0.07 ± 0.01</td></tr>
+<tr><td>PackNet</td><td>ResNet-RNN</td><td class="n">0.13 ± 0.00</td><td class="n">0.21 ± 0.01</td><td class="n">0.03 ± 0.00</td><td class="n">0.27 ± 0.03</td><td class="n">0.38 ± 0.03</td><td class="n">0.06 ± 0.01</td><td class="n">0.29 ± 0.02</td><td class="n">0.35 ± 0.02</td><td class="n">0.13 ± 0.01</td><td class="n">0.32 ± 0.03</td><td class="n">0.37 ± 0.04</td><td class="n">0.11 ± 0.01</td></tr>
+<tr><td></td><td>ResNet-T</td><td class="n">0.22 ± 0.01</td><td class="n">0.08 ± 0.01</td><td class="n">0.25 ± 0.00</td><td class="n">0.55 ± 0.01</td><td class="n">0.07 ± 0.02</td><td class="n">0.63 ± 0.00</td><td class="n">0.60 ± 0.07</td><td class="n">0.17 ± 0.05</td><td class="n">0.60 ± 0.05</td><td class="n">0.63 ± 0.02</td><td class="n">0.06 ± 0.01</td><td class="n">0.75 ± 0.01</td></tr>
+<tr><td></td><td>ViT-T</td><td class="n">0.36 ± 0.01</td><td class="n">0.14 ± 0.01</td><td class="n">0.34 ± 0.01</td><td class="n">0.57 ± 0.04</td><td class="n">0.15 ± 0.00</td><td class="n">0.59 ± 0.03</td><td class="n">0.58 ± 0.03</td><td class="n">0.18 ± 0.02</td><td class="n">0.56 ± 0.04</td><td class="n">0.69 ± 0.02</td><td class="n">0.08 ± 0.01</td><td class="n">0.76 ± 0.02</td></tr>
+<tr><td>MTL</td><td>ResNet-RNN</td><td></td><td></td><td class="n">0.20 ± 0.01</td><td></td><td></td><td class="n">0.61 ± 0.00</td><td></td><td></td><td class="n">0.10 ± 0.03</td><td></td><td></td><td class="n">0.59 ± 0.00</td></tr>
+<tr><td></td><td>ResNet-T</td><td></td><td></td><td class="n">0.48 ± 0.01</td><td></td><td></td><td class="n">0.83 ± 0.00</td><td></td><td></td><td class="n">0.54 ± 0.02</td><td></td><td></td><td class="n">0.80 ± 0.01</td></tr>
+<tr><td></td><td>ViT-T</td><td></td><td></td><td class="n">0.46 ± 0.00</td><td></td><td></td><td class="n">0.79 ± 0.01</td><td></td><td></td><td class="n">0.78 ± 0.02</td><td></td><td></td><td class="n">0.82 ± 0.01</td></tr>
+</tbody></table></div>
+<p class="tcap">表 8（原文第 26 页）。原文用三种深浅的洋红标出每个套件 AUC 最高的三个组合（只在三种终身学习算法 × 三种架构的 9 个组合里比）。按数字排：Long 是 PackNet + ViT-T 0.34、ER + ResNet-T 0.32，第三名 PackNet + ResNet-T 和 ER + ViT-T 并列 0.25；Spatial 是 PackNet + ResNet-T 0.63、PackNet + ViT-T 0.59、ER + ResNet-T 0.56；Object 是 PackNet + ResNet-T 0.60、ER + ViT-T 0.57、PackNet + ViT-T 0.56；Goal 是 PackNet + ViT-T 0.76、PackNet + ResNet-T 0.75、ER + ResNet-T 0.49。</p>
+</details>
+<figure class="pfig" id="fig13">
+<img src="libero/fig13.webp" width="1600" height="791" alt="图 13：四行十列的小图，每格是一个任务的成功率随学习过程的变化，五种算法用不同颜色" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 27 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A5.F13">看原图 ↗</a></span>ResNet-T 架构下五种算法的比较。四行是四个套件，十列是十个任务；每格横轴是整个终身学习过程，纵轴是该任务的成功率。曲线在“轮到这个任务”时升起，之后 SeqL（橙）很快掉下去，PackNet（青）基本保持水平，ER（紫）缓慢下降；多任务（蓝色横线）是参照。图 12、14 是 ResNet-RNN 和 ViT-T 的同类图，图 15 到 17 固定 EWC、ER、PackNet 比较三种架构，格式相同，这里不再裁切。</figcaption>
+</figure>
+<div class="fig" id="fig12"><span class="lab">图 12、14 到 17 · 原文第 27–29 页 · <a href="https://arxiv.org/html/2306.03310#A5.F12">看原图 ↗</a></span><p>和图 13 同样的 4 × 10 网格。图 12 是 ResNet-RNN、图 14 是 ViT-T 下五种算法的比较；图 15、16、17 分别固定 EWC、ER、PackNet，用三种颜色比较 ResNet-RNN、ResNet-T、ViT-T。图注都说左上角那格是第一个任务在依次学 10 个任务过程中的表现。</p></div>
+
+<h3 id="apE-2">E.2　损失与成功率</h3>
+<p>行为克隆损失可能误导对成功率的判断。分类任务里损失低通常意味着准确率高，但决策任务里误差会在执行中累积直到失败。图 18 到 20（分别对应 ResNet-RNN、ResNet-T、ViT-T）画了 ER（紫）、EWC（灰）、PackNet（蓝）在四个套件上的训练损失（第一行）和成功率（第二行）。</p>
+<div class="fig" id="fig18"><span class="lab">图 18 到 20 · 原文第 31–33 页 · <a href="https://arxiv.org/html/2306.03310#A5.F18">看原图 ↗</a></span><p>每张图两行：上行是每个任务在终身学习过程中的损失曲线，下行是对应的成功率。EWC 的损失常常最低，成功率却最低；ER 的损失可能最高，成功率却好于 EWC。</p></div>
+<div class="find"><p><b>论文的发现：</b>EWC 有时损失最低但成功率不好；ER 损失可能最高但比 EWC 好。所以判断检查点好坏应该用成功率，不是行为克隆损失。正文这一段写 “Figure 18, 13 and 14”，应为 18、19、20（读者注 20）。</p></div>
+
+<h3 id="apE-3">E.3　多任务成功率</h3>
+<p>LIBERO-90 上三种架构多任务学习后在 90 个任务上各自的成功率（这就是 §5.2 预训练用的模型的表现）。</p>
+<details class="tbl"><summary>LIBERO-90 多任务成功率，90 行（点开）</summary>
+<div class="tablewrap"><table class="t-e3"><thead><tr><th>场景</th><th>指令</th><th class="n">ResNet-RNN</th><th class="n">ResNet-T</th><th class="n">ViT-T</th></tr></thead><tbody>
+<tr><td>KITCHEN SCENE10</td><td>close the top drawer of the cabinet</td><td class="n">0.45</td><td class="n">0.45</td><td class="n">0.60</td></tr>
+<tr><td>KITCHEN SCENE10</td><td>close the top drawer of the cabinet and put the black bowl on top of it</td><td class="n">0.10</td><td class="n">0.10</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE10</td><td>put the black bowl in the top drawer of the cabinet</td><td class="n">0.00</td><td class="n">0.25</td><td class="n">0.05</td></tr>
+<tr><td>KITCHEN SCENE10</td><td>put the butter at the back in the top drawer of the cabinet and close it</td><td class="n">0.15</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE10</td><td>put the butter at the front in the top drawer of the cabinet and close it</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE10</td><td>put the chocolate pudding in the top drawer of the cabinet and close it</td><td class="n">0.25</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE1</td><td>open the bottom drawer of the cabinet</td><td class="n">0.05</td><td class="n">0.00</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE1</td><td>open the top drawer of the cabinet</td><td class="n">0.30</td><td class="n">0.45</td><td class="n">0.25</td></tr>
+<tr><td>KITCHEN SCENE1</td><td>open the top drawer of the cabinet and put the bowl in it</td><td class="n">0.05</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE1</td><td>put the black bowl on the plate</td><td class="n">0.35</td><td class="n">0.30</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE1</td><td>put the black bowl on top of the cabinet</td><td class="n">0.20</td><td class="n">0.70</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>open the top drawer of the cabinet</td><td class="n">0.45</td><td class="n">0.40</td><td class="n">0.65</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>put the black bowl at the back on the plate</td><td class="n">0.20</td><td class="n">0.05</td><td class="n">0.35</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>put the black bowl at the front on the plate</td><td class="n">0.10</td><td class="n">0.35</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>put the middle black bowl on the plate</td><td class="n">0.35</td><td class="n">0.10</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>put the middle black bowl on top of the cabinet</td><td class="n">0.50</td><td class="n">0.10</td><td class="n">0.60</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>stack the black bowl at the front on the black bowl in the middle</td><td class="n">0.25</td><td class="n">0.05</td><td class="n">0.25</td></tr>
+<tr><td>KITCHEN SCENE2</td><td>stack the middle black bowl on the back black bowl</td><td class="n">0.05</td><td class="n">0.05</td><td class="n">0.00</td></tr>
+<tr><td>KITCHEN SCENE3</td><td>put the frying pan on the stove</td><td class="n">0.40</td><td class="n">0.30</td><td class="n">0.35</td></tr>
+<tr><td>KITCHEN SCENE3</td><td>put the moka pot on the stove</td><td class="n">0.15</td><td class="n">0.00</td><td class="n">0.40</td></tr>
+<tr><td>KITCHEN SCENE3</td><td>turn on the stove</td><td class="n">0.60</td><td class="n">0.70</td><td class="n">1.00</td></tr>
+<tr><td>KITCHEN SCENE3</td><td>turn on the stove and put the frying pan on it</td><td class="n">0.15</td><td class="n">0.00</td><td class="n">0.35</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>close the bottom drawer of the cabinet</td><td class="n">0.75</td><td class="n">0.40</td><td class="n">0.55</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>close the bottom drawer of the cabinet and open the top drawer</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>put the black bowl in the bottom drawer of the cabinet</td><td class="n">0.25</td><td class="n">0.30</td><td class="n">0.25</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>put the black bowl on top of the cabinet</td><td class="n">0.80</td><td class="n">0.60</td><td class="n">0.85</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>put the wine bottle in the bottom drawer of the cabinet</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.35</td></tr>
+<tr><td>KITCHEN SCENE4</td><td>put the wine bottle on the wine rack</td><td class="n">0.05</td><td class="n">0.00</td><td class="n">0.20</td></tr>
+<tr><td>KITCHEN SCENE5</td><td>close the top drawer of the cabinet</td><td class="n">0.05</td><td class="n">0.80</td><td class="n">0.90</td></tr>
+<tr><td>KITCHEN SCENE5</td><td>put the black bowl in the top drawer of the cabinet</td><td class="n">0.20</td><td class="n">0.10</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE5</td><td>put the black bowl on the plate</td><td class="n">0.05</td><td class="n">0.05</td><td class="n">0.10</td></tr>
+<tr><td>KITCHEN SCENE5</td><td>put the black bowl on top of the cabinet</td><td class="n">0.50</td><td class="n">0.25</td><td class="n">0.20</td></tr>
+<tr><td>KITCHEN SCENE5</td><td>put the ketchup in the top drawer of the cabinet</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>KITCHEN SCENE6</td><td>close the microwave</td><td class="n">0.10</td><td class="n">0.10</td><td class="n">0.20</td></tr>
+<tr><td>KITCHEN SCENE6</td><td>put the yellow and white mug to the front of the white mug</td><td class="n">0.20</td><td class="n">0.05</td><td class="n">0.10</td></tr>
+<tr><td>KITCHEN SCENE7</td><td>open the microwave</td><td class="n">0.70</td><td class="n">0.10</td><td class="n">0.45</td></tr>
+<tr><td>KITCHEN SCENE7</td><td>put the white bowl on the plate</td><td class="n">0.05</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>KITCHEN SCENE7</td><td>put the white bowl to the right of the plate</td><td class="n">0.05</td><td class="n">0.05</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE8</td><td>put the right moka pot on the stove</td><td class="n">0.15</td><td class="n">0.00</td><td class="n">0.10</td></tr>
+<tr><td>KITCHEN SCENE8</td><td>turn off the stove</td><td class="n">0.20</td><td class="n">0.25</td><td class="n">0.75</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>put the frying pan on the cabinet shelf</td><td class="n">0.45</td><td class="n">0.15</td><td class="n">0.05</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>put the frying pan on top of the cabinet</td><td class="n">0.25</td><td class="n">0.40</td><td class="n">0.30</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>put the frying pan under the cabinet shelf</td><td class="n">0.15</td><td class="n">0.45</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>put the white bowl on top of the cabinet</td><td class="n">0.10</td><td class="n">0.10</td><td class="n">0.15</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>turn on the stove</td><td class="n">0.50</td><td class="n">0.40</td><td class="n">0.95</td></tr>
+<tr><td>KITCHEN SCENE9</td><td>turn on the stove and put the frying pan on it</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE1</td><td>pick up the alphabet soup and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE1</td><td>pick up the cream cheese box and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE1</td><td>pick up the ketchup and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE1</td><td>pick up the tomato sauce and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE2</td><td>pick up the alphabet soup and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE2</td><td>pick up the butter and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE2</td><td>pick up the milk and put it in the basket</td><td class="n">0.00</td><td class="n">0.05</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE2</td><td>pick up the orange juice and put it in the basket</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE2</td><td>pick up the tomato sauce and put it in the basket</td><td class="n">0.00</td><td class="n">0.05</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE3</td><td>pick up the alphabet soup and put it in the tray</td><td class="n">0.00</td><td class="n">0.05</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE3</td><td>pick up the butter and put it in the tray</td><td class="n">0.00</td><td class="n">0.30</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE3</td><td>pick up the cream cheese and put it in the tray</td><td class="n">0.00</td><td class="n">0.25</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE3</td><td>pick up the ketchup and put it in the tray</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE3</td><td>pick up the tomato sauce and put it in the tray</td><td class="n">0.00</td><td class="n">0.25</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE4</td><td>pick up the black bowl on the left and put it in the tray</td><td class="n">0.00</td><td class="n">0.40</td><td class="n">0.20</td></tr>
+<tr><td>LIVING ROOM SCENE4</td><td>pick up the chocolate pudding and put it in the tray</td><td class="n">0.00</td><td class="n">0.20</td><td class="n">0.25</td></tr>
+<tr><td>LIVING ROOM SCENE4</td><td>pick up the salad dressing and put it in the tray</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.10</td></tr>
+<tr><td>LIVING ROOM SCENE4</td><td>stack the left bowl on the right bowl and place them in the tray</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE4</td><td>stack the right bowl on the left bowl and place them in the tray</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>LIVING ROOM SCENE5</td><td>put the red mug on the left plate</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>LIVING ROOM SCENE5</td><td>put the red mug on the right plate</td><td class="n">0.15</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE5</td><td>put the white mug on the left plate</td><td class="n">0.10</td><td class="n">0.15</td><td class="n">0.05</td></tr>
+<tr><td>LIVING ROOM SCENE5</td><td>put the yellow and white mug on the right plate</td><td class="n">0.35</td><td class="n">0.05</td><td class="n">0.05</td></tr>
+<tr><td>LIVING ROOM SCENE6</td><td>put the chocolate pudding to the left of the plate</td><td class="n">0.10</td><td class="n">0.65</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE6</td><td>put the chocolate pudding to the right of the plate</td><td class="n">0.05</td><td class="n">0.55</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE6</td><td>put the red mug on the plate</td><td class="n">0.00</td><td class="n">0.20</td><td class="n">0.00</td></tr>
+<tr><td>LIVING ROOM SCENE6</td><td>put the white mug on the plate</td><td class="n">0.00</td><td class="n">0.20</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE1</td><td>pick up the book and place it in the front compartment of the caddy</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE1</td><td>pick up the book and place it in the left compartment of the caddy</td><td class="n">0.20</td><td class="n">0.05</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE1</td><td>pick up the book and place it in the right compartment of the caddy</td><td class="n">0.00</td><td class="n">0.10</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE1</td><td>pick up the yellow and white mug and place it to the right of the caddy</td><td class="n">0.00</td><td class="n">0.30</td><td class="n">0.35</td></tr>
+<tr><td>STUDY SCENE2</td><td>pick up the book and place it in the back compartment of the caddy</td><td class="n">0.35</td><td class="n">0.30</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE2</td><td>pick up the book and place it in the front compartment of the caddy</td><td class="n">0.25</td><td class="n">0.10</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE2</td><td>pick up the book and place it in the left compartment of the caddy</td><td class="n">0.25</td><td class="n">0.45</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE2</td><td>pick up the book and place it in the right compartment of the caddy</td><td class="n">0.00</td><td class="n">0.20</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE3</td><td>pick up the book and place it in the front compartment of the caddy</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.00</td></tr>
+<tr><td>STUDY SCENE3</td><td>pick up the book and place it in the left compartment of the caddy</td><td class="n">0.40</td><td class="n">0.45</td><td class="n">0.15</td></tr>
+<tr><td>STUDY SCENE3</td><td>pick up the book and place it in the right compartment of the caddy</td><td class="n">0.00</td><td class="n">0.05</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE3</td><td>pick up the red mug and place it to the right of the caddy</td><td class="n">0.00</td><td class="n">0.20</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE3</td><td>pick up the white mug and place it to the right of the caddy</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE4</td><td>pick up the book in the middle and place it on the cabinet shelf</td><td class="n">0.05</td><td class="n">0.20</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE4</td><td>pick up the book on the left and place it on top of the shelf</td><td class="n">0.20</td><td class="n">0.10</td><td class="n">0.15</td></tr>
+<tr><td>STUDY SCENE4</td><td>pick up the book on the right and place it on the cabinet shelf</td><td class="n">0.00</td><td class="n">0.25</td><td class="n">0.05</td></tr>
+<tr><td>STUDY SCENE4</td><td>pick up the book on the right and place it under the cabinet shelf</td><td class="n">0.15</td><td class="n">0.10</td><td class="n">0.05</td></tr>
+<tr class="grp"><td colspan="2">90 个任务的平均（我算的）</td><td class="n">0.154</td><td class="n">0.168</td><td class="n">0.156</td></tr>
+</tbody></table></div>
+<p class="tcap">原文第 34–35 页。最后一行的平均是我算的。所有数都是 0.05 的整数倍，和每任务 20 个回合一致。</p>
+</details>
+<div class="note" id="n19"><span class="lab">读者注 19 · LIBERO-90 多任务的成功率很低（我算的）</span><p>90 个任务平均：ResNet-RNN 0.154、ResNet-T 0.168、ViT-T 0.156。成功率为 0 的任务分别有 34、30、36 个，三种架构都是 0 的有 10 个；达到 0.5 的只有 7、6、9 个。按场景分：厨房 46 个任务平均 0.240 / 0.193 / 0.265，客厅 27 个 0.028 / 0.124 / 0.028，书房 17 个 0.121 / 0.168 / 0.062。客厅的抓放进篮子、托盘任务几乎全军覆没（LIVING_ROOM_SCENE1、2 的 9 个任务三种架构全是 0 或 0.05）。</p>
+<p>这解释了 §5.2 Q6 的一部分：用来初始化下游学习的“预训练模型”本身在 LIBERO-90 上只有 15% 到 17% 的成功率，“预训练有害”是在这样弱的预训练模型上得出的。这是我的解读，论文没这么说。</p></div>
+
+<h3 id="apE-4">E.4　注意力可视化</h3>
+<p>为了直观了解不同算法和架构在终身学习中的表现，作者可视化策略的注意力图，看机器人是否关注了每个任务里该关注的区域。方法是基于扰动的显著性（Greydanus 等）：对输入图像 \(I\) 在位置 \((i,j)\) 用高斯滤波局部模糊，得到 \(\Phi(I,i,j)\)；记 \(\pi_u(I)\) 为空间模块的输入（例如 ResNet 或 ViT 编码器最后的隐表示），显著性分数定义为原图和模糊图隐表示的欧氏距离：</p>
+<div class="eq"><div class="m">\[ S_\pi(i,j)=\frac12\big\|\pi_u(I)-\pi_u(\Phi(I,i,j))\big\|^2 \]</div><span class="no">(4)</span></div>
+<p>\(S_\pi(i,j)\) 大，说明 \((i,j)\) 附近的信息对决策重要。为省计算，只对 \(i\bmod5\)、\(j\bmod5\) 的像素算分数。最后归一化：\(P(i,j)=S_\pi(i,j)/\sum_{i,j}S_\pi(i,j)\)。</p>
+<p class="tcap">代码里的 <code>PerturbationAttention</code>（<code>bc_transformer_policy.py</code>）用的是另一种扰动：把 16 × 16 的 patch 换成图像均值，再对输出差取 \(10^5\) 倍的 softmax。和式 (4) 的高斯模糊、每 5 个像素取一点不是同一个实现；论文的图可能是用别的脚本画的，<b>未核实</b>。</p>
+<figure class="pfig narrow" id="fig21">
+<img src="libero/fig21.webp" width="1434" height="1933" alt="图 21：四行三列的注意力热图，每行一个套件" loading="lazy">
+<figcaption><span class="lab">图 21 · 原文第 37 页 · 从 PDF 裁切，CC BY 4.0（Liu 等），只做了裁切 · <a href="https://arxiv.org/html/2306.03310#A5.F21">看原图 ↗</a></span>ER + ResNet-T 在四个套件各 3 个任务上的注意力图，红色是高显著性。很多热点落在机械臂和目标放置区（例如盘子、篮子），而不是要抓的物体；也有落在桌面空白处的。</figcaption>
+</figure>
+<p><b>不同套件（图 21）。</b>① 策略更关注机械臂和目标放置区，而不是目标物体；② 有时关注和任务无关的区域，比如桌面空白处。说明学到的策略使用感知信息的方式和人很不一样，容易把无关特征和动作虚假关联，这是策略对任务过拟合、跨任务泛化差的主要原因。</p>
+<div class="fig" id="fig22"><span class="lab">图 22 · 原文第 39 页 · <a href="https://arxiv.org/html/2306.03310#A5.F22">看原图 ↗</a></span><p>LIBERO-Long 第一个任务（把字母汤和番茄酱汁都放进篮子）的同一状态，在终身学习过程中注意力的变化。四行分别是 ER 或 PackNet 配 ResNet-T 或 ViT-T；每行从左到右是学完第 1、3、5、10 个任务后的策略。</p></div>
+<p><b>同一任务随学习过程（图 22）。</b>① ViT 编码器的注意力随时间更稳定，ResNet 的注意力图逐渐变散；② PackNet 因为给每个任务分了容量，注意力在整个过程中更一致。</p>
+<div class="fig" id="fig23"><span class="lab">图 23、24 · 原文第 40–41 页 · <a href="https://arxiv.org/html/2306.03310#A5.F23">看原图 ↗</a></span><p>LIBERO-Long 的任务 5（白杯放左盘、黄白杯放右盘）和任务 10（黄白杯放进微波炉并关门）。第一、三行是策略在刚学完的任务上的注意力，第二行是学完任务 10 后回头测任务 5（后向迁移）。图 23 固定 ResNet-T 比较 ER、EWC、PackNet；图 24 固定 ER 比较三种架构。</p></div>
+<p><b>不同算法（图 23）。</b>① PackNet 的注意力更集中，通常只有一个峰；② ER 和 EWC 的注意力图相似，但 EWC 表现差得多，所以注意力只能辅助分析，不能用来预测表现。</p>
+<p><b>不同架构（图 24）。</b>① ViT 的注意力比 ResNet 集中；② ResNet 遗忘时注意力平滑地变散，ViT 遗忘时注意力可能整块跳到别的位置；③ ResNet 配 LSTM 或时间 transformer 时，注意力似乎暗示“未来轨迹的走向”，ViT 没有这种现象。</p>
+<div class="fig" id="fig25"><span class="lab">图 25、26 · 原文第 42–43 页 · <a href="https://arxiv.org/html/2306.03310#A5.F25">看原图 ↗</a></span><p>图 25：ER + ResNet-T 在三种任务顺序下学 LIBERO-Long 的三个任务，每行一种顺序，每张图标出这个任务在序列里排第几。图 26：ResNet-T 配三种算法，在 LIBERO-Long 三个任务上有无预训练的注意力对比。</p></div>
+<p><b>不同任务顺序（图 25）。</b>① 同一任务排在序列不同位置，注意力不同；② 越靠后学的任务，注意力似乎越分散。</p>
+<p><b>有无预训练（图 26）。</b>① 有预训练时策略更容易关注无关区域；② 有些预训练策略的注意力比没预训练的更贴近任务相关特征，表现却更低。再次说明语义上合理的注意力图和表现之间没有正相关。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 原文的几处笔误</span>
+<ul>
+<li>§5.2 “Figure 4 shows the result of the study on Q4”，应为 Q5（任务顺序）。</li>
+<li>附录 E.2 “Figure 18, 13 and 14 plots the training loss…”，应为 18、19、20。</li>
+<li>附录编号：A 之后是 “B Computation”，算法细节却编为 “B.1 Lifelong Learning Algorithms”；正文 §4.3、§6 都引 “Appendix B.1”，引用本身对得上。</li>
+<li>附录 C.1 第一段把“图 8 画的是初始状态”说了两遍。</li>
+<li>附录 D 把 FLOPs（运算次数）写成 FLOPS（每秒运算次数）。</li>
+<li>图 5 纵轴写 Success Rate，实际红、棕两色是 AUC（读者注 12）。</li>
+</ul></div>
+
+<h2 id="code">代码对照（8f1084e，只读）</h2>
+<p><b>结论先说：</b>环境层面（相机、频率、控制器、初始状态、成功判定）代码和论文完全一致，而且代码给出了论文没写的细节。超参数表 5 到 7 全部对得上。不一致的集中在算法实现（ER、EWC、PackNet）、优化器（AdamW）和 ResNet-T 的语言注入方式。指标公式里 FWT、AUC 一致，NBT 的边界处理和 \(c_{k,k}\) 取值不同。</p>
+<div class="tablewrap"><table class="t-w repro"><thead><tr><th>部分</th><th>论文</th><th>代码</th><th>出处</th></tr></thead><tbody>
+<tr><td>仿真器</td><td>基于 robosuite</td><td><code>robosuite==1.4.0</code>、<code>bddl==1.0.1</code>、<code>robomimic==0.2.0</code>；Python 3.8.13</td><td><code>requirements.txt</code>、README</td></tr>
+<tr><td>控制器</td><td>“末端动作”</td><td><code>OSC_POSE</code>：7 维，前 6 维输入范围 [−1, 1]，映射到每步最多 0.05 m、0.5 rad 的增量；kp 150，阻尼比 1；最后一维夹爪 −1 开、+1 合</td><td><code>env_wrapper.py:17</code>；robosuite v1.4.0 <code>osc_pose.json</code></td></tr>
+<tr><td>频率和时域</td><td>–</td><td><code>control_freq=20</code>（每步 0.05 s）；环境内部 <code>horizon=1000</code></td><td><code>env_wrapper.py:27-28</code></td></tr>
+<tr><td>相机</td><td>–</td><td><code>agentview</code>、<code>robot0_eye_in_hand</code>，默认 128 × 128</td><td><code>env_wrapper.py:31-36</code></td></tr>
+<tr><td>成功</td><td>所有谓词为真时结束</td><td><code>done = _check_success()</code>，全部 goal 谓词为真</td><td><code>bddl_base_domain.py:807</code></td></tr>
+<tr><td>初始状态</td><td>\(\mu_0\) 区域内随机</td><td>每任务固定 50 个，第 i 回合用第 i mod 50 个；先空跑 5 步</td><td><code>benchmark/__init__.py:76</code>；<code>metric.py:111-122</code></td></tr>
+<tr><td>任务顺序</td><td>5 种</td><td>21 种（<code>task_orders</code>），LIBERO-90 只允许默认</td><td><code>benchmark/__init__.py:83-105, 199</code></td></tr>
+<tr><td>FWT</td><td>式 (3)</td><td>一致（11 点、最早最好、之后填平）</td><td><code>algos/base.py:162-254</code></td></tr>
+<tr><td>NBT</td><td>式 (3)</td><td>NBT\(_K=0\) 并除以 \(K\)；\(c_{k,k}\) 用重测值</td><td><code>quick_guide_algo.ipynb</code> <code>compute_metric</code>（读者注 6）</td></tr>
+<tr><td>AUC</td><td>式 (3)</td><td>一致</td><td>同上</td></tr>
+<tr><td>ER</td><td>1000 条轨迹，回放 32 条</td><td>每任务前 1000 个片段，回放 32 个片段</td><td><code>er.py:53, 74</code>；<code>datasets.py:130</code>（读者注 15）</td></tr>
+<tr><td>EWC</td><td>\(\tfrac\lambda2\)，\(\gamma F+(1-\gamma)F_k\)</td><td>\(\lambda\)，\(\gamma F+F_k\)；batch 级平方梯度</td><td><code>ewc.py:39, 61, 68-69, 79</code>（读者注 16）</td></tr>
+<tr><td>PackNet</td><td>留 25%，指标在微调前</td><td>留剩余的 25%；FWT 在微调前，\(c_{\tau,k}\) 在微调后</td><td><code>packnet.py:42, 120, 147-248</code>（读者注 17）</td></tr>
+<tr><td>优化器</td><td>Adam</td><td>AdamW，weight_decay 1e-4</td><td><code>configs/train/optimizer/adam_w.yaml</code></td></tr>
+<tr><td>ResNet-T 语言</td><td>单独 token</td><td>单独 token + FiLM</td><td><code>bc_transformer_policy.py:266, 274</code></td></tr>
+<tr><td>RNN 推理</td><td>–</td><td>训练是 10 步片段从零状态开始；评测时隐状态带满整个回合</td><td><code>bc_rnn_policy.py:195</code>（读者注 21）</td></tr>
+<tr><td>Ego4D 模板</td><td>§4.1 第①步</td><td>仓库里没有</td><td>读者注 3</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · ResNet-RNN 的训练和推理不一致</span><p>训练时每个样本是长度 10 的片段，LSTM 从全零隐状态开始（<code>bc_rnn_policy.py</code> <code>forward(train_mode=True)</code>）。评测时 <code>get_action</code> 每步只送一帧，隐状态 <code>eval_h0, eval_c0</code> 从回合开始一直累积（第 195 行），一个回合可达 600 步。模型在推理时看到的“历史长度”远超训练时的 10 步。这是 robomimic BC-RNN 的常见做法，但可能是 ResNet-RNN 表现差的原因之一。这是我的推断，论文没讨论。transformer 策略则在推理时只保留最近 10 步（<code>latent_queue</code>），和训练一致。</p></div>
+
+<h2 id="vla">LIBERO 在 VLA 论文里怎么用</h2>
+<p><b>结论先说：</b>VLA 论文只沿用了 LIBERO 的<b>环境</b>（仿真器、相机、动作接口、BDDL 任务和固定初始状态）和四个套件的名字；<b>训练数据、训练方式、评测协议和指标都换了</b>。所以 VLA 论文里的“LIBERO 成功率”和本文的 FWT/NBT/AUC 不能比，和本文的 MTL 成功率也不能直接比。环境、套件、OpenVLA 版数据（1,693 条 / 273,465 帧）以及 OpenVLA、OpenWAM、MolmoAct2 三家评测协议的对照，见 <a href="openwam.html#qa-libero">OpenWAM 页读者问答 问 1</a>。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项</th><th>本文（2023）</th><th>VLA 论文的常见用法（OpenVLA 之后）</th></tr></thead><tbody>
+<tr><td>问题设定</td><td>终身学习：10 个任务依次学，学新的时旧数据不可用（ER 除外）</td><td>微调：一个套件或四个套件的数据一起训练，一次学完</td></tr>
+<tr><td>套件</td><td>Spatial、Object、Goal、Long 做终身学习；LIBERO-90 做预训练</td><td>Spatial、Object、Goal、Long 四个；LIBERO-90 很少用</td></tr>
+<tr><td>训练数据</td><td>原始 HDF5，每任务 50 条，128 × 128，含停顿</td><td>OpenVLA 重生成版：256 × 256，删空动作帧，删重放失败的演示，Spatial / Object / Goal / Long 各 432 / 454 / 428 / 379 条</td></tr>
+<tr><td>模型</td><td>约 13.5 GFLOPs 的小网络，从头训练，BERT 嵌入</td><td>数十亿参数的预训练 VLA，微调</td></tr>
+<tr><td>评测回合</td><td>每任务 20 个，用 50 个固定初始状态里的前 20 个</td><td>每任务 50 个，50 个初始状态全部用到；每套件 500 个</td></tr>
+<tr><td>开局空等</td><td>5 步全零动作（代码）</td><td>OpenVLA 10 步，OpenWAM 30 步，MolmoAct2 50 步</td></tr>
+<tr><td>最长步数</td><td>统一 600</td><td>按套件设，OpenVLA 220 / 280 / 300 / 520</td></tr>
+<tr><td>图像方向</td><td>训练和评测都用环境原样输出</td><td>数据和评测两边都旋转 180°</td></tr>
+<tr><td>指标</td><td>FWT、NBT、AUC</td><td>成功率</td></tr>
+</tbody></table></div>
+<p>本文自己的数字可以作为一个参照：在四套件的 MTL（多任务，最接近 VLA 的“一起训练”）里，最好的 ViT-T 平均成功率 0.713（读者注 9），而 OpenVLA 之后的 VLA 普遍报到 0.9 以上。差距来自模型规模和预训练，也来自上面这些协议差别，不能直接归因。</p>
+
+<h3 id="repro">复现要点：原论文和代码里和 VLA 复现有关的设置</h3>
+<p>用户手上的几个数我都对过了：附录 D 的 50 epoch、50 条演示、每 5 epoch 20 个回合、600 步、batch 32、余弦 1e-4 → 1e-5、约 13.5 G、3 个种子，robosuite 1.4.0 和 <code>osc_pose.json</code> 的 0.05 m / 0.5 rad，OpenVLA 版 432 / 454 / 428 / 379 条（按 <code>dataset_info.json</code> 的 shardLengths 求和），全部一致。<b>和手上数字不一样的只有一处：</b>论文写的 Adam，代码里是 AdamW（weight_decay 1e-4）。另有一处要补充 OpenWAM 页的协议表：原论文那一列“开局空等”写的是 “–”，代码里实际有 5 步全零动作。</p>
+<div class="tablewrap"><table class="t-w repro"><thead><tr><th>要核对的</th><th>原论文 / 代码 8f1084e</th><th>对 VLA 复现的影响</th></tr></thead><tbody>
+<tr><td>环境版本</td><td>robosuite 1.4.0，LIBERO 8f1084e</td><td>OpenWAM 固定同一提交，另要求 mujoco 3.3.2</td></tr>
+<tr><td>初始状态</td><td><code>.pruned_init</code> 每任务 50 个；第 i 回合用第 i mod 50 个</td><td>每任务 50 回合时，每个初始状态正好用一次；回合编号错位会换掉摆放</td></tr>
+<tr><td>时域上限</td><td><code>ControlEnv(horizon=1000)</code>；robosuite 1.4.0 在 <code>timestep ≥ horizon</code> 后再 <code>step</code> 会抛 “executing action in terminated episode”（<code>environments/base.py:376, 429</code>）</td><td>开局空等 + 最长步数之和必须 ≤ 1000。OpenWAM 30 + 700 = 730，OpenVLA 10 + 520 = 530，都在内；自己加长时要注意</td></tr>
+<tr><td>成功判定</td><td>全部 goal 谓词同时为真；On 物体对物体要求水平距离 &lt; 3 cm 且接触</td><td>评测脚本一般在 <code>done</code> 为真时立刻停止并计成功；不要等到最长步数再判定</td></tr>
+<tr><td>相机分辨率</td><td>环境默认 128；原论文训练和评测都是 128</td><td>VLA 评测时自己设 256 或更高，必须和训练数据一致</td></tr>
+<tr><td>图像方向</td><td>原论文不旋转</td><td>OpenVLA 版数据转 RLDS 时转了 180°，评测也要转</td></tr>
+<tr><td>动作</td><td>7 维；GMM 均值过 tanh 在 [−1, 1]；夹爪 −1 开、+1 合</td><td>OpenVLA 的数据管线把夹爪翻成 0 合 1 开，评测前要翻回</td></tr>
+<tr><td>本体</td><td>原论文用关节角 7 维 + 夹爪 2 维，不用末端位姿</td><td>VLA 多用末端位置、姿态和夹爪（OpenWAM 10 维、MolmoAct2 8 维）</td></tr>
+</tbody></table></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">图 1 两个框的标题对调</a>：Object 框写 “Different layouts”，Spatial 框写 “Different objects”，截图本身对。</li>
+<li><a href="#n2">式 (1) 的求和上限</a>：写成未定义的 \(L\)，应是 \(H\)；论文实际报的是 0/1 成功率。</li>
+<li><a href="#n3">生成流水线和成功判定</a>：Ego4D 模板这一步不在仓库里；20 个场景模板；On 要求水平 &lt; 3 cm 且接触。</li>
+<li><a href="#n4">代码里的三种网络</a>：ResNet-18 前两段、不预训练、FiLM；ViT 每路 64 个 patch；ResNet-T 也用 FiLM；有数据增强。</li>
+<li><a href="#n5">FWT、AUC 公式和代码一致</a>：11 点、最早最好、之后填平。</li>
+<li><a href="#n6">NBT 和公式有两处不同</a>：NBT\(_K\) 记 0 并除以 \(K\)；\(c_{k,k}\) 用重测值，公式的 max 偏高。</li>
+<li><a href="#n7">表 1 的显著性</a>：Welch 检验下只有 5 格 p &lt; 0.05；“ER 时 ResNet-T 好于 ViT-T”只在 Goal 显著。</li>
+<li><a href="#n8">表 2 的结论在全体组合上</a>：SeqL 的 FWT 和 “EWC 差于 SeqL” 在 12 个组合全成立；“PackNet 在 Long 上不如 ER” 只对 ResNet-T 成立；MTL 不总是上界。</li>
+<li><a href="#n9">四个套件的平均</a>：PackNet + ViT-T 0.562 ≈ PackNet + ResNet-T 0.557 最高。</li>
+<li><a href="#n10">表 3 的显著性</a>：单独比 CLIP 对 GPT-2 有 p ≈ 0.03，多重比较校正后都不显著。</li>
+<li><a href="#n11">图 4 的读数</a>：第一根柱子等于表 1；两种算法极差都是 0.08，PackNet 显著的说法未核实；代码有 21 种顺序。</li>
+<li><a href="#n12">图 5 和表 8 对得上</a>：纵轴其实是 AUC；预训练在 5 个组合里都降低 AUC。</li>
+<li><a href="#n13">参考文献 [59] 引错</a>：引成了图像匹配的 SuperGlue。</li>
+<li><a href="#n14">评估回合数</a>：每次终身学习 3,300 个回合（PackNet 5,500），180 组共约 56 万个。</li>
+<li><a href="#n15">ER 的记忆</a>：每任务前 1000 个长度 10 的片段，不是 1000 条轨迹；回放 32 个片段。</li>
+<li><a href="#n16">EWC 少了 \(1-\gamma\) 和 \(\tfrac12\)</a>：稳态下有效惩罚约为论文公式的 20 倍。</li>
+<li><a href="#n17">PackNet 留的是剩余的 25%</a>：第 10 个任务只分到 1.9%；\(c_{\tau,k}\) 在微调后测。</li>
+<li><a href="#n18">每任务固定 50 个初始状态</a>：原论文只用前 20 个；开局空跑 5 步。</li>
+<li><a href="#n19">LIBERO-90 多任务成功率</a>：平均只有 0.15 到 0.17，客厅任务几乎全是 0。</li>
+<li><a href="#n20">原文的几处笔误</a>：Q4→Q5、图 13/14→19/20、FLOPS 等。</li>
+<li><a href="#n21">ResNet-RNN 训练和推理不一致</a>：训练 10 步从零开始，推理隐状态带满 600 步。</li>
+</ol>
+<p><b>复现要点里和手上数字不一致的：</b>只有优化器（论文 Adam，代码 AdamW + weight_decay 1e-4）。另外补充：原论文的评测代码开局有 5 步全零动作，OpenWAM 页协议表里这一格写的是 “–”。</p>
+<p>论文没写、我也没核实的：任务顺序实验用的是 21 种顺序里的哪五种；13.5 GFLOPs 的具体算法；论文图里的注意力图是用哪段代码画的；每种设置的总 GPU 小时。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和工具。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>本文</td><td><a href="https://github.com/Lifelong-Robot-Learning/LIBERO">代码</a> · <a href="https://huggingface.co/datasets/yifengzhu-hf/LIBERO-datasets">HF 数据</a> · <a href="https://lifelong-robot-learning.github.io/LIBERO/">文档</a></td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/openvla/modified_libero_rlds">modified_libero_rlds</a></td><td>OpenVLA 重生成的 LIBERO 训练数据</td><td>HF openvla/modified_libero_rlds</td><td><a href="https://arxiv.org/abs/2406.09246">2406.09246</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/sylvestf/LIBERO-plus">LIBERO-Plus</a></td><td>LIBERO 的扰动鲁棒性版本</td><td>github.com/sylvestf/LIBERO-plus</td><td><a href="https://arxiv.org/abs/2510.13626">2510.13626</a></td></tr>
+<tr><td><a class="ds" href="https://robosuite.ai/">robosuite</a></td><td>底层仿真框架（v1.4.0）</td><td>robosuite.ai</td><td><a href="https://arxiv.org/abs/2009.12293">2009.12293</a></td></tr>
+<tr><td><a class="ds" href="https://robomimic.github.io/">robomimic</a></td><td>数据集类和“选最好检查点”的惯例</td><td>robomimic.github.io</td><td><a href="https://arxiv.org/abs/2108.03298">2108.03298</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/StanfordVL/bddl">BDDL</a></td><td>任务描述语言（v1.0.1）</td><td>github.com/StanfordVL/bddl</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://ego4d-data.org/">Ego4D</a></td><td>行为模板的来源</td><td>ego4d-data.org</td><td><a href="https://arxiv.org/abs/2110.07058">2110.07058</a></td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/continualworld">Continual World</a></td><td>Meta-World 上的终身 RL 基准</td><td>sites.google.com/view/continualworld</td><td><a href="https://arxiv.org/abs/2105.10919">2105.10919</a></td></tr>
+<tr><td><a class="ds" href="https://meta-world.github.io/">Meta-World</a></td><td>50 个操作任务，元学习</td><td>meta-world.github.io</td><td><a href="https://arxiv.org/abs/1910.10897">1910.10897</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/AGI-Labs/continual_rl">CORA</a></td><td>终身 RL 基准平台</td><td>github.com/AGI-Labs/continual_rl</td><td><a href="https://arxiv.org/abs/2110.10067">2110.10067</a></td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/rlbench">RLBench</a></td><td>多任务操作基准</td><td>sites.google.com/view/rlbench</td><td><a href="https://arxiv.org/abs/1909.12271">1909.12271</a></td></tr>
+<tr><td><a class="ds" href="https://www.maniskill.ai/">ManiSkill</a></td><td>可泛化操作技能基准</td><td>maniskill.ai</td><td><a href="https://arxiv.org/abs/2107.14483">2107.14483</a> · <a href="https://arxiv.org/abs/2302.04659">2302.04659</a></td></tr>
+<tr><td><a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a></td><td>1000 种日常活动的具身基准</td><td>behavior.stanford.edu</td><td>CoRL 2023（Li 等）</td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/causal-world">CausalWorld</a></td><td>因果结构与迁移</td><td>sites.google.com/view/causal-world</td><td><a href="https://arxiv.org/abs/2010.04296">2010.04296</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Lifelong-ML/CompoSuite">CompoSuite</a></td><td>组合式 RL 基准</td><td>github.com/Lifelong-ML/CompoSuite</td><td><a href="https://arxiv.org/abs/2207.04136">2207.04136</a></td></tr>
+<tr><td><a class="ds" href="https://vlomonaco.github.io/core50/">CORe50</a></td><td>连续物体识别</td><td>vlomonaco.github.io/core50</td><td><a href="https://arxiv.org/abs/1705.03550">1705.03550</a></td></tr>
+<tr><td><a class="ds" href="https://lifelong-robotic-vision.github.io/dataset/object">OpenLORIS-Object</a></td><td>机器人视觉终身物体数据</td><td>lifelong-robotic-vision.github.io</td><td><a href="https://arxiv.org/abs/1911.06487">1911.06487</a></td></tr>
+<tr><td><a class="ds" href="https://askforalfred.com/">ALFRED</a></td><td>指令跟随的具身任务</td><td>askforalfred.com</td><td><a href="https://arxiv.org/abs/1912.01734">1912.01734</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openai/procgen">Procgen</a></td><td>程序化生成的 RL 游戏</td><td>github.com/openai/procgen</td><td><a href="https://arxiv.org/abs/1912.01588">1912.01588</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/minihack">MiniHack</a></td><td>开放式 RL 沙盒</td><td>github.com/facebookresearch/minihack</td><td><a href="https://arxiv.org/abs/2109.13202">2109.13202</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Farama-Foundation/Arcade-Learning-Environment">Atari（ALE）</a></td><td>游戏 RL 环境</td><td>github.com/Farama-Foundation/Arcade-Learning-Environment</td><td><a href="https://arxiv.org/abs/1312.5602">1312.5602</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Farama-Foundation/ViZDoom">ViZDoom</a></td><td>Doom 视觉 RL 平台</td><td>github.com/Farama-Foundation/ViZDoom</td><td>CIG 2016</td></tr>
+<tr><td><a class="ds" href="https://www.cs.toronto.edu/~kriz/cifar.html">CIFAR</a> · <a class="ds" href="http://yann.lecun.com/exdb/mnist/">MNIST</a> · <a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>图像分类（ImageNet 主页本机检查超时，未确认）</td><td>–</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://gluebenchmark.com/">GLUE</a> · <a class="ds" href="https://super.gluebenchmark.com/">SuperGLUE</a></td><td>自然语言理解基准</td><td>gluebenchmark.com</td><td><a href="https://arxiv.org/abs/1804.07461">1804.07461</a> · <a href="https://arxiv.org/abs/1905.00537">1905.00537</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openvla/openvla">OpenVLA</a></td><td>LIBERO 评测脚本的常用参照</td><td>github.com/openvla/openvla</td><td><a href="https://arxiv.org/abs/2406.09246">2406.09246</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2306.03310 后的整理，不是作者的官方内容。原文：Bo Liu、Yifeng Zhu、Chongkai Gao、Yihao Feng、Qiang Liu、Yuke Zhu、Peter Stone，《LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning》，NeurIPS 2023 数据集与基准赛道，arXiv 2306.03310v2，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 11、13、21 从原文 PDF 裁切，只做了裁切、缩放和格式转换，按 CC BY 4.0 使用。表格数字照录原文；读者注、复现要点和动画是本页所加。代码对照基于 Lifelong-Robot-Learning/LIBERO（MIT）commit 8f1084e。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
