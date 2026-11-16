@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MolmoAct2 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2605.02881 MolmoAct2（Ai2，2026）的中文精读：按原文章节逐节整理正文和附录 A 到 E，含全部编号公式、结果表、图的文字描述、官方代码与 LeRobot 评测分支对照、LIBERO 复现要点、11 幕 3D 框架动画和 26 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:720px}.t-m{min-width:600px}.t-s{min-width:460px}.t-er{min-width:880px}.t-links{min-width:640px}.t-rep{min-width:760px}
+.t-er td,.t-er th{white-space:nowrap;font-size:12.5px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details{border:1px solid var(--line);border-radius:10px;padding:6px 14px;margin:14px 0;background:var(--bg2)}
+details>summary{cursor:pointer;font-size:14.5px;color:var(--fg);font-weight:600}
+details[open]>summary{margin-bottom:6px}
+pre.cmd{font-family:var(--font-mono);font-size:12px;line-height:1.55;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:pre;max-width:100%}
+.ok{color:#4fc98a;font-weight:600}.bad{color:#e46d6d;font-weight:600}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/molmoact2/index.html">3D 框架动画</a><a href="#repro">复现要点</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2605.02881 · cs.RO · v1 2026 年 5 月 4 日 · v2 2026 年 5 月 8 日 · Ai2 · 中文精读</p>
+<h1>MolmoAct2：面向真实部署的动作推理模型</h1>
+<p class="orig">MolmoAct2: Action Reasoning Models for Real-world Deployment</p>
+<p>作者 Haoquan Fang、Jiafei Duan（共同一作）、Donovan Clay、Sam Wang、Shuo Liu、Weikai Huang、Xiang Fan 等共 29 人，通讯负责人 Ranjay Krishna。单位：Allen Institute for AI（Ai2）、华盛顿大学、新加坡国立大学、宾夕法尼亚大学、约翰斯·霍普金斯大学、Amazon、Cortex AI、密歇根大学、北卡罗来纳大学教堂山分校。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2605.02881">arXiv 原文</a><a href="https://arxiv.org/html/2605.02881v2">网页版 v2</a><a href="https://arxiv.org/pdf/2605.02881v2">PDF v2</a><a href="https://allenai.org/blog/molmoact2">项目博客</a><a href="https://github.com/allenai/molmoact2">代码</a><a href="https://huggingface.co/allenai/MolmoAct2-LIBERO">MolmoAct2-LIBERO 权重</a><span>v2 正文 29 页，附录到第 51 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的非独占分发许可（arxiv.org/licenses/nonexclusive-distrib/1.0），没有授权翻译或转载。所以这里不做逐字翻译，不放任何原图，本地也没有存原图。每张图用自己的话说明画了什么，“看原图”打开 arXiv 网页版 v2 的对应位置。PDF 页脚没有另外的版权声明。</p>
+<p>以 v2（2026-05-08，51 页）为准。v1（2026-05-04，32 页）没有附录，也没有 §6.5 鲁棒性实验；两版的 LIBERO 数字相同，差别见<a href="#n1">读者注 1</a>。公式按原文编号排，表格数字照录原文。标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p>代码只读未运行：<a href="https://github.com/allenai/molmoact2/tree/6070080a20321b4f498ab30f28e1d09ac465edb7">allenai/molmoact2</a> 提交 6070080（2026-10-01，Apache-2.0，<code>experiments/</code> 子目录另有一份 Apache-2.0），以及 README 指定的 LIBERO 评测分支 <a href="https://github.com/allenai/lerobot/tree/28b4f721f931aab554cb176412223f098023705f">allenai/lerobot:molmoact2-hf-inference</a> 提交 28b4f72（2026-05-14，Apache-2.0，LeRobot 0.5.1）。另读了 Hugging Face 上 MolmoAct2-LIBERO（修订 0d24a92）和 MolmoAct2-Think-LIBERO（修订 593d25f）的模型卡、<code>config.json</code>、<code>norm_stats.json</code>，以及数据集 MolmoAct2-LIBERO-Dataset（修订 fe3ead4）的说明和 <code>info.json</code>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 Molmo2-ER</a><a href="#s3">3 数据</a><a href="#s4">4 MolmoAct2</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 MolmoAct2-Think</a><a href="#s6">6 实验</a><a href="#s7">7 相关工作</a><a href="#s8">8 结论</a><a href="#apA">附录 A 模型</a><a href="#apB">附录 B 训练</a><a href="#apC">附录 C 评测</a><a href="#apD">附录 D 数据</a><a href="#apE">附录 E 局限</a><a href="#repro" class="rn">复现要点（LIBERO）</a><a href="#code">代码对照</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>MolmoAct2 是 Ai2 的第二代“动作推理模型”。一句话：一个 4B 的视觉语言模型先用离散动作 token 学会“说动作”，再在旁边挂一个和它同样 36 层深的 DiT 动作专家，每一层都直接读 VLM 那一层的 K 和 V，用流匹配输出连续动作块。思考版 MolmoAct2-Think 在出动作前先预测一张 10×10 的离散深度图，但只重算画面里变了的格子。</p>
+<ul>
+<li><b>五项改动：</b>新的具身推理骨干 Molmo2-ER（330 万样本，先专精再复习）；三个新数据集，其中 MolmoAct2-BimanualYAM 有 720 小时、34.5k 条双臂示教；开放权重和训练数据的动作 tokenizer MolmoAct2-FAST（v1 叫 OpenFAST）；离散 token VLM 加流匹配动作专家，逐层 KV 条件；自适应深度推理的 MolmoAct2-Think。</li>
+<li><b>训练三段：</b>预训练（只用离散动作 token，20 万步）→ 后训练（挂上动作专家，10 万步）→ 按机器人或基准微调。</li>
+<li><b>结果：</b><a class="ds" href="https://libero-project.github.io/">LIBERO</a> 四个套件平均 97.2%，Think 版 98.1%（表 8）；<a class="ds" href="https://arxiv.org/abs/2507.00435">RoboEval</a> 44.3%；真实双臂 YAM 8 个任务平均 50.1%（表 19 写 50.6%）；零样本 DROID 真机 87.1%；Molmo2-ER 在 13 个具身推理基准上平均 63.8%。</li>
+<li><b>速度：</b>单张 H100、LIBERO、动作块 10 步，加缓存和 CUDA Graph 后 MolmoAct2 55.79 Hz，Think 版 12.71 Hz（按块摊薄，见<a href="#n21">读者注 21</a>）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，<b>LIBERO 两个数和论文对得上</b>：97.2 = (97.8 + 100.0 + 97.8 + 93.2) / 4，98.1 来自表 8，但表 8 里 Think 版 Goal 写 98.5%，500 回合不可能出现这个数，表 14 同一配方写 98.4%（<a href="#n13">读者注 13</a>）。第二，<b>Think 版的 +0.9 个点</b>折合 2000 回合多成功 18 次，双比例检验 p ≈ 0.06，论文说是“真实增益而非噪声”，证据没有那么强（<a href="#n17">读者注 17</a>）。第三，<b>复现时代码默认值和论文不一样</b>：动作专家学习率默认 1e-4（论文 5e-5），流时间采样默认 1 次（论文 8 次），深度门控默认关，而 README 的深度微调命令没开门控（<a href="#n26">读者注 26</a>、<a href="#n27">27</a>）。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · v1 和 v2 的差别</span><p>v1（32 页）到 v2（51 页）：新增附录 A–E（含表 15–25、图 9–14、公式 13–23）；新增 §6.5 鲁棒性和表 9，原 §6.5–6.7 变成 §6.6–6.8，原表 9–13 变成表 10–14；“OpenFAST tokenizer” 全部改名 “MolmoAct2-FAST Tokenizer”（v1 §4.1.1 标题就是 OpenFAST tokenizer）；§3.4 到 §3.6 的顺序调整（v1 里语言标注是 §3.6）；GPU 小时 2,300 → 2,304、1,150 → 1,152；§5.2 删掉了“深度 token 嵌入在后训练中训练”一句。表 8 和表 10–14 的所有数字两版相同，LIBERO 的 §4.3.1 段落除了 GPU 小时也相同。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>作者从认知科学讲起：人的智能围绕感知和行动组织，靠空间表示和身体交互思考。今天的机器人基础模型在这个意义上不完整：缺结构化的空间表示，推理过程太重影响实时性，又因为不开放而难以改造。</p>
+<p>他们列了四个问题。其一，推理确实提升动作质量（MolmoAct、预测目标图、点轨迹、世界模型），但推理占了延迟大头：出一个动作前要生成几百个 token 或整张预测帧。其二，前沿 VLA 不开放，少数开放权重的又绑定昂贵硬件。其三，零样本性能脆弱，微调后的成功率也达不到可靠部署的门槛。其四，现有开放数据集零散、质量不齐。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 2 页 · <a href="https://arxiv.org/html/2605.02881v2#S1.F1">看原图 ↗</a></span><p>三栏总览。左栏“开源机器人数据”是三组照片：双臂 YAM、DROID 的 Franka、SO-100/101 小机械臂。中栏是两个模型示意：上面“预训练 VLA + 动作专家”标 MolmoAct2，下面同样结构多了一排“自适应深度感知 token”，标 MolmoAct2-Think，两者都画着 KV 连接。右栏上半是开箱即用的三种平台，下半是微调后的实地任务照片（家务、湿实验室、咖啡馆；收拾、洗碗、倒茶）。</p></div>
+<p>相对前作 MolmoAct，MolmoAct2 沿五个方向改进：更强的具身推理骨干、新的开放数据、开放的多本体动作 tokenizer、新的 VLA 结构、新的自适应推理范式。作者称这是开放 VLA 里规模最大的实证研究，覆盖 7 个仿真和真实基准。</p>
+
+<h2 id="s2"><span class="no">2</span>Molmo2-ER</h2>
+<p><b>结论先说：</b>在 Molmo2-4B 上用 330 万条具身推理数据再训两段，13 个基准平均从 46.8 升到 63.8。</p>
+<p>通用 VLM 擅长语义理解，不擅长机器人需要的度量距离、空闲空间、跨视角追踪和场景几何。Molmo2-ER 针对这些能力微调 Molmo2：场景理解、像素级指点、多图和第一人称推理、第一三人称对应、视频时序推理。</p>
+
+<h3 id="s2-1">2.1 训练数据</h3>
+<p>在 Molmo2 原有的预训练和中期训练数据之外，新整理约 330 万条，分六类，每类两三个来源，监督方式混杂（仿真真值、带 3D 标注的真实扫描、模板问答、少量 LLM 生成的思维链），避免模型只学会一种模板。</p>
+<ul>
+<li><b>单图具身问答：</b>SAT（仿真里的动态推理：自身运动、视角转换、动作后果）；RoboPoint-QA（通用 VQA，防遗忘）；RefSpatial（主要的思维链指代来源，取 25 万选择题、25 万思维链、8 万指点）；VST-P（统一虚拟相机，度量一致的深度、距离、方向、尺寸，单图 20 万 + 跨视角 20 万）；VSI-590K（图 20 万、视频 30 万）。</li>
+<li><b>视频具身问答：</b>SIMS-VSI（仿真轨迹上的距离、方向、计数、时序，20.3 万）；RoboVQA（人工标注的长时程具身视频，取 20 万）。</li>
+<li><b>指点和检测：</b>指点是主要的动作接口，所以有意多采样。RoboPoint 全部 70 万指点 + 10 万 LVIS 检测。</li>
+<li><b>多图与第一三人称：</b>SenseNova-SI 取 50 万，加 VST-P 跨视角 20 万。</li>
+<li><b>抽象推理：</b>CLEVR 5 万，GRiD-3D 10 万（物体自身坐标系下的方向，和相机坐标系区分）。</li>
+</ul>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>Molmo2 数据</th><th>样本数</th><th>权重</th><th>Molmo2-ER 数据</th><th>样本数</th><th>权重</th></tr></thead><tbody>
+<tr><td>图像问答</td><td>2.4M</td><td>0.115</td><td>图像具身问答</td><td>1.3M</td><td>0.11</td></tr>
+<tr><td>视频问答</td><td>2.4M</td><td>0.092</td><td>图像指点</td><td>780K</td><td>0.11</td></tr>
+<tr><td>图像指点</td><td>1.1M</td><td>0.046</td><td>图像检测</td><td>100K</td><td>0.01</td></tr>
+<tr><td>视频指点</td><td>370K</td><td>0.069</td><td>视频具身问答</td><td>703K</td><td>0.10</td></tr>
+<tr><td>视频追踪</td><td>800K</td><td>0.069</td><td>多图 / 第一三人称</td><td>700K</td><td>0.09</td></tr>
+<tr><td>描述 / 长问答</td><td>1.2M</td><td>0.069</td><td>抽象推理</td><td>150K</td><td>0.04</td></tr>
+<tr><td>小计</td><td>8.3M</td><td>0.46</td><td>小计</td><td>3.3M</td><td>0.46</td></tr>
+<tr><td>Tulu-3 SFT</td><td>980K</td><td>0.08</td><td>合计</td><td>12.5M</td><td>1.0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 · 多模态训练语料。权重是各组在预训练混合的非机器人部分里所占的比例。<a href="https://arxiv.org/html/2605.02881v2#S2.T1">看原表 ↗</a></p>
+<div class="note" id="n2"><span class="lab">读者注 2 · ER 这一栏加起来是 3.73M，不是 3.3M</span><p>右栏六行：1.3 + 0.78 + 0.10 + 0.703 + 0.70 + 0.15 = <b>3.733M</b>。左栏六行 2.4 + 2.4 + 1.1 + 0.37 + 0.8 + 1.2 = 8.27M，写 8.3M 没问题。合计 12.5M 用的是 3.3M：8.3 + 3.3 + 0.98 = 12.58M；若用 3.73M 则是 13.0M。权重两栏都是 0.46，加 Tulu 0.08 正好 1.0。</p>
+<p>和 §2.1 的来源数对得上的几行：指点 780K = RoboPoint 700K + RefSpatial 80K；多图 700K = SenseNova 500K + VST-P 跨视角 200K；抽象 150K = 50K + 100K；视频 703K = SIMS-VSI 203K + RoboVQA 200K + VSI-590K 的 30 万视频。所以行是对的，“3.3M”这个小计（摘要和 §2 也都写 3.3M）和行不一致。原因论文没说，可能是去重或下采样前后的口径不同（未核实）。</p></div>
+
+<h3 id="s2-2">2.2 先专精、再复习</h3>
+<p>为了不重跑 Molmo2 的全部多模态训练，从已发布的检查点接着训两段：</p>
+<ul>
+<li><b>阶段 1，具身专精：</b>从 Molmo2-4B 中期训练检查点出发，在 ER 语料 + 8% Tulu-3 纯文本上训 2 万步，序列长 4200，全局批 64（每卡 4，2 节点 × 8 张 H100）。指点、视频具身问答、多图推理都迅速上升。</li>
+<li><b>阶段 2，联合精修：</b>再训 1500 步，把 ER 语料和 Molmo2 原有的中期训练数据交错。文本占比仍是 8%，其余 92% 按 \(p\cdot0.92\) 给 ER、\((1-p)\cdot0.92\) 给通用数据。扫了 \(p\in\{0.3,0.5,0.7,0.9\}\)，\(p=0.5\) 在表 3 的 ER 基准和 Molmo2 通用基准之间权衡最好。为容纳长视频，序列长改为 16384，每卡批 1，其余超参同 Molmo2。</li>
+</ul>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码给的 ER 训练命令和两阶段对不上</span><p><code>experiments/README.md</code> 的 “Molmo2-ER Training” 只有一条命令：从 Molmo2-4B 出发，混合 <code>molmo2_embodied_spatial_mix_50</code>，<code>--seq_len=16384 --device_batch_size=1 --max_duration=20000</code>，2 节点 × 8 卡。混合名对应阶段 2 的 \(p=0.5\)，序列长和每卡批也是阶段 2 的，步数却是阶段 1 的 2 万。README 另说 <code>spatial-all-v4</code> 用于“只有空间数据的阶段”，但没有给阶段 1 的完整命令。要复现 Molmo2-ER 得自己拼两段；这和 LIBERO 复现无关，可以直接用发布的 <code>allenai/Molmo2-ER</code>。</p></div>
+
+<h2 id="s3"><span class="no">3</span>数据</h2>
+<p><b>结论先说：</b>机器人数据以三个平台为主（双臂 YAM、DROID Franka、SO-100/101），各占预训练机器人部分的 30%；另加少量学术数据和多模态数据。</p>
+<p>作者认为现有公开语料各有短板：<a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a>（<a href="https://arxiv.org/abs/2310.08864">论文</a>）覆盖广但质量和约定不齐；<a class="ds" href="https://droid-dataset.github.io/">DROID</a>（<a href="https://arxiv.org/abs/2403.12945">论文</a>）规模大但有空转片段、失败尝试和重复指令；LeRobot 社区的 SO-10x 数据有 “lerobot_test” 这类占位标注。而且没有他们目标平台上的高质量双臂数据。</p>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 7 页 · <a href="https://arxiv.org/html/2605.02881v2#S3.F2">看原图 ↗</a></span><p>训练数据拼图。左列学术数据（MolmoAct、Bridge-V2、DROID、FRACTAL 各一张照片）；中间上半是 BimanualYAM 的四个任务照片（pack container、clean plate、scan groceries、store clothes），下半是 SO100/101 的六张小图（sort cubes、pick up block、build Lego 等）；右列是多模态网页数据（两条视频问答示例）和具身推理数据（视频指点、空间指点、多视角空间推理，各一个例题）。</p></div>
+
+<h3 id="s3-1">3.1 MolmoAct2-BimanualYAM 数据集</h3>
+<p>在自建的双臂 YAM 平台上采集，强调任务可重复、任务和物体多样。28 个以上真实任务，从叠衣服、解线缆到收拾餐桌、扫码商品、分装药品，每个任务都变化场景布置、物体实例和摆放。共 34.5k 条示教、720 小时以上，两个月采完。Cortex AI 协助采集，规定了允许的失败重试次数和最长空转时长。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 8 页 · <a href="https://arxiv.org/html/2605.02881v2#S3.F3">看原图 ↗</a></span><p>采集台照片：IKEA 桌上一对 YAM 机械臂，上方用 Amazon 的伸缩桌夹支架挂一台 Intel RealSense D435 俯视相机，两只手腕各一台 RealSense D405。图注说全部零件可以买到，整套成本低于 6000 美元。</p></div>
+
+<h3 id="s3-2">3.2 MolmoAct2-SO100/101 数据集</h3>
+<p>SO-100/101 是 Hugging Face 的低成本机械臂。从 377 位用户贡献的 1222 个公开 LeRobot 数据集中整理，共 38,059 条、1980 万帧、约 184 小时。四道过滤：结构有效性（字段齐全、张量有效、无 NaN）；去掉评测类数据集；许可和代码库资格；最后用 TOPReward 质量门：数据集最后 3 条抽样回合的平均 TOPReward 要高于一组人工审核的优质数据集的平均值。</p>
+
+<h3 id="s3-3">3.3 MolmoAct2-DROID 数据集</h3>
+<p>用 DROID 官方补充标注过滤原始发布：扩展语言标注（7.5 万条成功回合中 95% 有三条指令）和空转帧过滤（只保留至少 1 秒的连续非空转段），再做语言重标注。结果是 74,604 条有效回合、17,758,044 帧，每条都标为成功、至少有一条有效指令、没有明显停顿。</p>
+
+<h3 id="s3-4">3.4 语言标注流水线</h3>
+<p>两类问题：大规模重复采集的数据集指令单一（例如 BC-Z 有 39,350 条回合却只有 104 种指令，占 0.26%）；众包数据指令不准或无意义。做法是用开源 VLM Qwen3.5-27B 看抽样帧和原指令，重新写一条描述示教的指令；为了多样，随机抽一个词数让它照着写。重标注后整体唯一指令从 71,121（22%）增加到 146,485（46%）。细节在附录 D.2。</p>
+
+<h3 id="s3-5">3.5 学术机器人数据</h3>
+<p>为了更多本体、相机布局、任务族和控制约定，加入 Open X-Embodiment 的一个子集：<a class="ds" href="https://sites.google.com/view/bc-z/home">BC-Z</a>（<a href="https://arxiv.org/abs/2202.02005">论文</a>）、<a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a>（<a href="https://arxiv.org/abs/2308.12952">论文</a>）、<a class="ds" href="https://robotics-transformer1.github.io/">RT-1（Fractal）</a>（<a href="https://arxiv.org/abs/2212.06817">论文</a>），再加前作的 <a class="ds" href="https://arxiv.org/abs/2508.07917">MolmoAct Dataset</a>。它们只是补充，主要样本来自 YAM、SO-100/101 和 DROID。</p>
+
+<h3 id="s3-6">3.6 多模态数据</h3>
+<p>和机器人数据共训的多模态混合：46% 是 §2.1 的 Molmo2-ER 混合，46% 是 Molmo2 混合，8% 是 Tulu-3 纯文本（即表 1 的权重）。</p>
+
+<h2 id="s4"><span class="no">4</span>MolmoAct2</h2>
+<p><b>结论先说：</b>三段训练。预训练只用下一个 token 预测，把 Molmo2-ER 变成会输出离散动作 token 的 VLA；后训练挂上流匹配动作专家，两个输出口一起训；部署前再按本体微调。</p>
+<p>为什么分三段：一开始就把 VLM 和连续动作专家一起训，模型要同时学机器人 token 接口、对齐新的状态和动作嵌入、拟合流匹配控制器，优化太难。先用纯自回归监督让骨干“懂动作”，再接专家，专家和条件接口能很快对齐。后训练和本体微调分开是为了效率：后训练的混合故意很杂（数据集、机器人、控制频率、相机布局都不同），把它训到每个本体都能直接部署太贵。</p>
+
+<h3 id="s4-1">4.1 预训练</h3>
+<p>MolmoAct2-Pretrain 保留 Molmo2 的 token 接口：图像和视频帧经 ViT 编码、连接器池化投影，和文本一起送进 LLM。机器人样本多两条 token 流：描述当前机器人构型的状态 token，和描述未来一秒运动的动作 token。这一段没有连续动作头。</p>
+
+<h4 id="s4-1-1">4.1.1 MolmoAct2-FAST tokenizer</h4>
+<p>思路沿用 FAST（<a href="https://arxiv.org/abs/2501.09747">Pertsch 等 2025</a>）：一秒的动作轨迹做频域变换、量化系数、再做字节对编码，词表 2048 个动作 token。作者强调不是新的分词原理，而是补上透明度：FAST 的权重公开，但训练数据混合没说清。MolmoAct2-FAST 公开权重和训练用的动作混合。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>数据集</th><th>比例</th><th>机器人</th><th>动作表示</th></tr></thead><tbody>
+<tr><td>MolmoAct2-BimanualYAM</td><td>30%</td><td>YAM</td><td>绝对关节</td></tr>
+<tr><td>MolmoAct2-SO100/101</td><td>30%</td><td>SO-100/101</td><td>绝对关节</td></tr>
+<tr><td>MolmoAct2-DROID</td><td>30%</td><td>Franka</td><td>绝对关节</td></tr>
+<tr><td>Fractal</td><td>3.33%</td><td>Google Robot</td><td>末端增量</td></tr>
+<tr><td>BC-Z</td><td>3.33%</td><td>Google Robot</td><td>末端增量</td></tr>
+<tr><td>Bridge</td><td>3.33%</td><td>WidowX</td><td>末端增量</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · tokenizer 训练用的本体混合，共抽 100 万条动作序列。<a href="https://arxiv.org/html/2605.02881v2#S4.T2">看原表 ↗</a></p>
+<p>拟合前统一格式：每条序列是一秒的运动，所以块内动作数等于数据集的控制频率；每个动作补零到 32 维；连续维度用 1% 到 99% 分位数归一化（限制离群值、保留动态范围）；夹爪指令单独处理，因为它通常是二值或很窄的开合信号。这样关节空间和末端控制可以共用一个 tokenizer。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 表 2 和正文的小出入</span><p>比例加起来 30 × 3 + 3.33 × 3 = 99.99%，是四舍五入。“五种本体”对得上：YAM、SO-100/101、Franka、Google Robot、WidowX。正文说覆盖范围还包括 RT-1 和 MolmoAct Dataset 的轨迹；RT-1 就是表里的 Fractal，但 <b>MolmoAct Dataset 不在表 2 里</b>。正文同一段还说 MolmoAct2-FAST 编码的是“一秒、32 维”的连续动作，LIBERO 一秒 10 步、7 维有效，余下 25 维是补零。</p></div>
+
+<h4 id="s4-1-2">4.1.2 预训练配方</h4>
+<p><b>模型。</b>从 Molmo2-ER 初始化，保留 Molmo2 结构：SigLIP2 ViT 编码，连接器取 ViT 倒数第 3 层和倒数第 9 层的特征，池化成紧凑的图像或视频帧 token，投影到 LLM 嵌入空间。完整超参在表 15。</p>
+<p><b>数据。</b>10% 采样给多模态，90% 给机器人轨迹。机器人部分 YAM、SO-100/101、DROID 各 30%，余下 10% 分给 BC-Z、BridgeData V2、RT-1 和 MolmoAct Dataset。所有视觉输入用单张缩放裁剪，不用高分辨率切块；视频最多 8 帧、最高 2 FPS；超出序列预算的样本跳过（主要是长文本和带长字幕的视频）。用附录 B 的图像增强。多相机回合在回合级随机打乱相机顺序，防止模型依赖固定的相机槽位。每个机器人样本带上本体和控制描述，例如 <code>&lt;setup_start&gt;bimanual yam robotic arms in molmoact2&lt;setup_end&gt;</code>、<code>&lt;control_start&gt;absolute joint pose&lt;control_end&gt;</code>。</p>
+<p><b>动作和状态表示。</b>这一段只有离散自回归监督。每个机器人目标是一秒的动作块。动作和状态用 1% 到 99% 分位数归一化，夹爪另算；动作补到 32 维，用 2048 词表的 MolmoAct2-FAST 编码。本体状态单独表示：归一化后每个数值均匀离散成 256 个状态 token 之一，放在动作目标之前。</p>
+<p><b>训练。</b>20 万步，最大序列 4200 token。样本长短差很多，所以在线打包：多个短样本拼成一条 4200 的序列，同一次前向，但注意力掩码把它们隔开。训 ViT、连接器、LLM 和新加 token 的嵌入。全局批 128，64 张 H100，约 5760 GPU 小时。ViT 和连接器学习率 \(5\times10^{-6}\)，LLM \(1\times10^{-5}\)。</p>
+
+<h3 id="s4-2">4.2 后训练</h3>
+<p>预训练模型给定语言、图像、本体和控制描述、状态 token，预测离散动作 token。部署时要的是连续轨迹，所以后训练加一个流匹配动作专家，得到最终的 MolmoAct2（发布名 <code>allenai/MolmoAct2</code>，论文里也叫 MolmoAct2-Post）。</p>
+
+<h4 id="s4-2-1">4.2.1 动作专家和逐层 KV 条件</h4>
+<p>专家是 DiT 风格的 transformer。分工是：VLM 负责视觉语言落地和机器人状态上下文，专家负责把带噪动作块变成可执行轨迹的速度场。关键问题是专家怎样接收 VLM 的上下文。只投影最后一层隐状态，会把整个骨干压成一条残差流；MolmoAct2 让专家<b>每一层</b>都交叉注意到 VLM 对应层的 K 和 V。</p>
+<p>给定归一化的目标动作块 \(a\)、高斯噪声 \(\epsilon\)、时间 \(t\in[0,1]\)，在噪声和数据之间插值：</p>
+<div class="eq"><div class="m">\[x_t=(1-t)\,\epsilon+t\,a,\qquad u^\star=a-\epsilon.\]</div><span class="no">(1)</span></div>
+<p>专家 \(f_\theta\) 从带噪动作块、时间嵌入和 VLM 上下文 \(c\)（任务、观测、本体和控制描述、离散状态 token）预测目标速度：</p>
+<div class="eq"><div class="m">\[\mathcal L_{\text{flow}}=\mathbb E_{a,\epsilon,t}\Big[\big\|\,m\odot\big(f_\theta(x_t,t,c)-u^\star\big)\big\|_2^2\Big],\]</div><span class="no">(2)</span></div>
+<p>\(m\) 屏蔽补齐的时间步和补齐的动作维度。推理时从高斯噪声出发积分速度场。</p>
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 11 页 · <a href="https://arxiv.org/html/2605.02881v2#S4.F4">看原图 ↗</a></span><p>结构图。左边大框“预训练 VLA”，底下是三个视觉编码器（图像观测）、语言 tokenizer（例句 “sort the candy into the correct bins”）和状态 tokenizer（机器人状态），框内是 L 层自注意力，顶上输出离散动作 token（55、20、26、134、2……），标“下一个 token 预测”。右边“动作专家”框，底下输入是带噪动作 \(\epsilon\sim\mathcal N(0,1)\)，内部是交替的自注意力和交叉注意力，顶上输出连续动作（5.5、2.0、2.6、−3.4、2.0），标“流匹配”。中间放大一层：VLM 自注意力层的 K、V 经过 \(P_K\)、\(P_V\) 投影，和专家的 \(W_Q\) 一起做缩放点积交叉注意力；两侧各标 “L Layers”，虚线标“逐层 KV 连接”。离散动作到专家之间有一条虚线标 “Masked”。</p></div>
+<p>结构上专家和 VLM 一样深，都是 \(L=36\) 层。专家先嵌入带噪动作序列，每块依次做动作自注意力、对 VLM 的交叉注意力、MLP，时间嵌入给三个残差分支各产生 DiT 式的平移、缩放和门控：</p>
+<div class="eq"><div class="m">\[h'_\ell=h_\ell+g^{\text{sa}}_\ell\,\mathrm{SA}\big(\mathrm{AdaRMS}^{\text{sa}}_\ell(h_\ell,t)\big),\]</div><span class="no">(3)</span></div>
+<div class="eq"><div class="m">\[\bar h_\ell=h'_\ell+g^{\text{ca}}_\ell\,\mathrm{CA}\big(\mathrm{AdaRMS}^{\text{ca}}_\ell(h'_\ell,t),\,\tilde K_\ell,\,\tilde V_\ell\big),\]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[h_{\ell+1}=\bar h_\ell+g^{\text{ff}}_\ell\,\mathrm{MLP}\big(\mathrm{AdaRMS}^{\text{ff}}_\ell(\bar h_\ell,t)\big).\]</div><span class="no">(5)</span></div>
+<p>每个 VLM 层 \(\ell\) 的自注意力产生 \((K^{\text{vlm}}_\ell,V^{\text{vlm}}_\ell)\)，用学到的适配投影映射到专家宽度：</p>
+<div class="eq"><div class="m">\[\tilde K_\ell=\mathrm{reshape}\big(P_K K^{\text{vlm}}_\ell\big),\qquad \tilde V_\ell=\mathrm{reshape}\big(P_V V^{\text{vlm}}_\ell\big).\]</div><span class="no">(6)</span></div>
+<p>\(P_K\)、\(P_V\) 是 VLM 到专家的线性适配层，和 VLM 自己产生 K、V 的投影不是一回事。专家第 \(\ell\) 块的交叉注意力：</p>
+<div class="eq"><div class="m">\[\mathrm{CA}(Q_\ell,\tilde K_\ell,\tilde V_\ell)=\mathrm{softmax}\Big(\frac{Q_\ell\tilde K_\ell^{\top}}{\sqrt{d_h}}\Big)\tilde V_\ell,\]</div><span class="no">(7)</span></div>
+<p>\(d_h\) 是专家的头维度。后训练时这条条件路径从 VLM 上断开梯度，流损失只训专家和适配投影。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · t 怎么采样，论文没写</span><p>论文只说 \(t\in[0,1]\)。代码 <code>olmo/models/molmoact2/molmoact2.py</code> 的 <code>_sample_beta_timesteps</code>：\(t=0.001+0.999\cdot s\)，\(s\sim\mathrm{Beta}(1,1.5)\)（配置键 <code>flow_matching_beta_alpha=1.0</code>、<code>beta_beta=1.5</code>、<code>time_offset=0.001</code>、<code>time_scale=0.999</code>，两个 LIBERO 检查点的 <code>config.json</code> 相同）。Beta(1, 1.5) 的密度是 \(1.5(1-s)^{0.5}\)，均值 0.4，偏向 \(t\) 小、也就是噪声多的一端。按式 (1) 的约定 \(t=1\) 是数据，推理时从 \(t=0\) 积分到 1。插值和目标速度的写法和式 (1) 完全一致（同文件 <code>xt = (1 - t) * noise + t * actions</code>，<code>target_velocity = actions - noise</code>）。</p></div>
+
+<h4 id="s4-2-2">4.2.2 后训练配方</h4>
+<p>从 20 万步的预训练检查点出发，结构和数据构造同 §4.1.2（含图像增强）。主要变化：机器人样本同时监督两个输出口，LLM 继续预测离散动作 token，专家学生成连续动作块。</p>
+<p><b>多个流样本。</b>每个动作块在 \(K\) 个独立的 \((\epsilon_i,t_i)\) 上算流损失，共用同一份 VLM 上下文：</p>
+<div class="eq"><div class="m">\[\mathcal L_{\text{flow}}(a,c)=\frac1K\sum_{i=1}^K\big\|\,m\odot\big(f_\theta(x_{t_i},t_i,c)-(a-\epsilon_i)\big)\big\|_2^2 .\]</div><span class="no">(8)</span></div>
+<p>后训练用 \(K=4\)，没用微调时的 \(K=8\)，主要是显存限制。</p>
+<p><b>补齐和打包。</b>连续动作右补到最长 30 步、最宽 32 维。时间掩码去掉补齐的步，维度掩码在噪声输入、目标和预测里把补齐维置零，损失只在有效维上平均。打包延伸到专家：一条打包序列里可以有多个机器人样本，每个动作块只看自己那个子样本的 VLM 上下文。为了显存稳定，每条打包序列的动作块数尽量补到固定上限 5；补出来的行不计损失，超过 5 块的序列照常使用。</p>
+<p><b>训练目标。</b></p>
+<div class="eq"><div class="m">\[\mathcal L_{\text{post}}=\mathcal L_{\text{LM}}+\mathcal L_{\text{flow}}.\]</div><span class="no">(9)</span></div>
+<p>语言模型损失沿用预训练的下一个 token 目标（机器人样本里是离散动作 token，VLM 样本里是文本）。流损失只用于连续动作块。机器人样本同时有离散和连续目标，所以把离散动作 token 的那一段从专家的条件路径里屏蔽，专家看得到任务、观测、描述和状态 token，看不到要预测的动作 token。另外用了知识隔离（Driess 等 2025）：K、V 进入专家前 detach，\(\mathcal L_{\text{flow}}\) 只更新专家和适配投影，VLM 只由 \(\mathcal L_{\text{LM}}\) 更新。</p>
+<p><b>训练。</b>机器人批序列长 2100，非机器人 VLM 批保持 4200（机器人批还要跑专家和 4 个流样本）。10 万步，全局批 128，每卡 2，64 张 H100，约 2304 GPU 小时。VLM 学习率同预训练，专家 \(5\times10^{-5}\)。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 知识隔离在代码里是一个默认关的开关</span><p>知识隔离对应 <code>train_lerobot.py</code> 的 <code>--action_expert_detach_vlm</code>，默认 <code>False</code>（第 280 行），实现在 <code>molmoact2.py</code> 的 <code>_maybe_detach_action_expert_condition</code>（第 966 到 984 行）。<code>experiments/README.md</code> 的 “Post-Training” 命令<b>没有</b>传这个参数。按我读的代码，照 README 跑后训练不会 detach，和 §4.2.2 不一致。我没有运行，也不排除发布的检查点是用别的命令训的。对 LIBERO 微调没有影响：§4.3.1 明确说微调不用知识隔离，和默认值一致。</p>
+<p>损失合成在 <code>olmo/train/trainer.py</code> 第 1832 到 1853 行：token 损失和 <code>action_flow_loss</code> 直接相加，没有权重，和式 (9) 一致。代码另加了系数 1e-4 的 softmax 辅助损失（<code>softmax_auxiliary_loss_scale</code>），论文没提。</p></div>
+
+<h3 id="s4-3">4.3 部署</h3>
+<h4 id="s4-3-1">4.3.1 按本体微调</h4>
+<p><b>共用配方。</b>从后训练检查点 MolmoAct2-Post 出发，结构不变。继续同时训离散自回归输出和连续流匹配专家，动作宽度 32，学习率同后训练（ViT 和连接器 \(5\times10^{-6}\)，LLM \(1\times10^{-5}\)，专家 \(5\times10^{-5}\)）。保留单张缩放裁剪、打包、本体和控制描述、离散状态 token、同一套动作词表、附录 B 的提示格式和图像增强。</p>
+<p>和后训练有四处不同：只用机器人数据，没有多模态混合；每个动作块的流时间采样从 4 增加到 8；<b>不用知识隔离</b>，流损失的梯度可以经条件路径更新 VLM（作者说 detach 在这一阶段没有稳定的收益）；主要本体检查点<b>不训新增 token 的输入嵌入</b>，只训 LLM 输出头和最后的归一化。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>检查点</th><th>相机顺序</th><th>语言</th><th>动作</th><th>块长</th><th>序列 / 批 / 步数</th><th>GPU</th><th>GPU 小时</th></tr></thead><tbody>
+<tr><td>BimanualYAM</td><td>固定：顶、左、右</td><td>重标注</td><td>绝对关节</td><td>30（30 Hz）</td><td>2100 / 128 / 100K</td><td>64 H100</td><td>约 2304</td></tr>
+<tr><td>DROID</td><td>固定：外部、手腕；训练时两个外部相机随机取一</td><td>不用扩展标注</td><td>绝对关节</td><td>15（15 Hz）</td><td>2100 / 64 / 100K</td><td>32 H100</td><td>约 1152</td></tr>
+<tr><td>SO-100/101</td><td>回合级随机</td><td>重标注</td><td>绝对关节</td><td>30（30 Hz）</td><td>2100 / 64 / 100K</td><td>32 H100</td><td>约 1152</td></tr>
+<tr><td><b>LIBERO</b></td><td>固定：前视、手腕</td><td>不用标注</td><td>相对末端</td><td>10（10 Hz）</td><td>2100 / 64 / <b>50K，取 40K</b></td><td>32 H100</td><td>约 1152</td></tr>
+</tbody></table></div>
+<p class="tcap">§4.3.1 四个主要微调，我整理成表。LIBERO 一行：四个套件合在一起训一个模型，不是每个套件一个；评测选最好的检查点，出现在 4 万步。</p>
+<p><b>其他评测微调。</b>下游的小规模微调同样配方：固定相机顺序、不用语言标注、2100 序列、打包、8 个流样本、只用机器人数据，块长等于控制频率，控制表示随数据集。真实世界评测的微调用 8 张 H100、全局批 16、5 万步，取最好的检查点。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · LIBERO 的 GPU 小时和表 16 对不上</span><p>LIBERO 写“5 万步、32 张 H100、约 1152 GPU 小时”；DROID 和 SO-100/101 是“10 万步、32 张 H100、约 1152 GPU 小时”。序列长和全局批三者都一样（2100、64），步数减半，GPU 小时却相同。1152 = 32 × 36，正是表 16 微调列的 “36 小时”。表 16 的微调步数写 100k，并注明“只列主要数据集的微调超参”。所以 LIBERO 这行的 1152 很可能是照抄，实际约 576（按每步耗时相同推算，未核实）。v1 写的是 1150，v2 改为 1152，没改步数。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · LIBERO 训练数据有多少、训了几遍</span><p>§6.3 说每个套件 500 条示教、10 个任务，四套合计 2000 条。发布的 <a class="ds" href="https://huggingface.co/datasets/allenai/MolmoAct2-LIBERO-Dataset">MolmoAct2-LIBERO-Dataset</a> 的 <code>meta/info.json</code> 是 <b>1693 条回合、273,465 帧、40 个任务、10 FPS</b>，图像 256×256，状态 8 维，动作 7 维。这两个总数和 <a class="ds" href="https://huggingface.co/datasets/HuggingFaceVLA/libero">HuggingFaceVLA/libero</a> 的 <code>info.json</code> 完全相同（只是手腕相机键名不同：<code>wrist_image</code> 对 <code>image2</code>），训练代码 <code>olmo/data/lerobot_wrapper.py</code> 第 3266 行的默认数据源也是 <code>HuggingFaceVLA/libero</code>。1693 少于 2000，说明用的是去掉了一部分示教的版本；具体按什么规则去掉的，论文和数据卡都没写（未核实）。</p>
+<p>训了几遍：不打包时每条序列一个样本，5 万步 × 64 = 320 万个样本 ≈ 273,465 帧的 <b>11.7 遍</b>；选中的 4 万步是 9.4 遍；Think 版选中的 3 万步是 7.0 遍。论文的 LIBERO 配方开着打包（§4.3.1 “packing”），一条 2100 token 的序列可以装下几个样本，实际遍数是这个下限乘以每条序列的平均样本数。README 也提醒：打包时“全局批 64 是 64 条打包序列，不一定是 64 个样本”，要看训练日志里的 <code>batch/n_packed</code>。</p></div>
+
+<h4 id="s4-3-2">4.3.2 推理优化</h4>
+<p>MolmoAct2 的推理时间主要花在专家的定步数流匹配积分上。一个动作块内 VLM 上下文不变，只有带噪动作和流时间在变，所以缓存可复用的中间量（依赖上下文的交叉注意力状态、固定的位置项），整个流循环复用；再用 CUDA Graph 捕获定形状的流循环，减少 Python 和内核启动开销。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>从数据到部署拆成 11 幕：三段训练总览、数据混合、Molmo2-ER、动作 tokenizer（当场算 DCT）、序列格式与打包、逐层 KV 条件（可切换三种接法）、流匹配（当场积分）、两个损失与知识隔离、自适应深度（当场算哪些格子要重算）、深度门控、LIBERO 部署与评测。玩具和示意部分都标了。</p>
+<iframe src="../interactives/molmoact2/index.html?embed=1&amp;scene=6" title="MolmoAct2 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/molmoact2/index.html">全屏打开，还有完整结构表（论文、代码、模型配置并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>MolmoAct2-Think</h2>
+<p><b>结论先说：</b>出动作前先预测 100 个深度 token（10×10 网格，每格 128 个码之一），但只重算 RGB 变化了的格子，其余从上一步缓存搬过来。</p>
+<p>物体距离、空闲空间、遮挡、表面布局都影响动作，但行为克隆只间接监督它们。MolmoAct 用深度 token 作为中间推理步骤；MolmoAct2-Think 把同样的思路接到 MolmoAct2 上，预测的深度 token 也经逐层 KV 条件进入专家。新的地方是让深度预测在时间上自适应：相邻控制步之间很多格子不变。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 15 页 · <a href="https://arxiv.org/html/2605.02881v2#S5.F5">看原图 ↗</a></span><p>上方三张灰度深度图 T=0、T=1、T=2，T=1 到 T=2 之间标“自适应更新”，T=1 下面有一个解码器。中间是“预训练 MolmoAct2”大框和右边“动作专家”框，之间多条箭头标“KV 连接”。两框之间顶上画了一排彩色小方块（红、绿、……、橙），标“自适应深度感知 token”。左下是输入（一张桌面照片，指令 “Put the plushie into the box”），右下是噪声输入，专家输出动作。</p></div>
+
+<h3 id="s5-1">5.1 自适应深度数据</h3>
+<p>MolmoAct2-Think 用到的每个机器人数据集都加深度标注，用的是给策略看的那路相机：单视角用它的主相机，多视角用第一个有深度标注的视角。对每帧 RGB，先用 Depth Anything V2 估计稠密单目深度，再用 MolmoAct 训好的深度 VQ-VAE 量化：输入 320×320，下采样 32 倍，得到 10×10 的码本索引，取值 0 到 127。</p>
+<p>同一遍预处理还生成自适应的旁路信息。设 \(d_t\in\{0,\dots,127\}^{100}\) 是第 \(t\) 帧按光栅顺序展平的完整深度码，维护缓冲 \(b_t\) 和更新掩码 \(m_t\in\{0,1\}^{100}\)。回合第一帧全部更新，\(b_1=d_1\)。之后把 RGB 缩放到 320×320，切成同样的 10×10 个 32×32 块，和上一帧对应块比余弦相似度：</p>
+<div class="eq"><div class="m">\[m_{t,i}=\mathbb 1\big[\cos(x_{t,i},x_{t-1,i})<0.996\big],\qquad b_{t,i}=\begin{cases}d_{t,i}, & m_{t,i}=1,\\ b_{t-1,i}, & m_{t,i}=0.\end{cases}\]</div><span class="no">(10)</span></div>
+<p>每帧存三样：完整深度码 \(d_t\)、带着往前走的缓冲 \(b_t\)、更新掩码 \(m_t\)。监督的是缓冲码，和推理时维护的表示一致。</p>
+
+<h3 id="s5-2">5.2 训练</h3>
+<p><b>后训练。</b>和标准 MolmoAct2 一样从 20 万步的预训练检查点出发，配方同 §4.2：数据构造、动作专家、逐层 KV 条件、序列长、优化器、10 万步、全局批 128、64 张 H100。加了深度相关的特殊 token（附录 A.3）。机器人数据里均匀采样三种任务：只出动作；只出 100 个深度缓冲 token；先出深度再出动作，此时专家条件在输入上下文加预测的深度上。离散动作目标仍对专家屏蔽。</p>
+<p><b>微调。</b>MolmoAct2-Think-LIBERO 从深度版后训练检查点出发，配方和算力同 §4.3.1 的全 LIBERO：只用机器人数据、四个套件合训、前视再手腕、2100 序列、全局批 64、32 张 H100、5 万步，<b>选 3 万步的检查点评测</b>。和深度后训练比有三处不同：</p>
+<ul>
+<li>只均匀采样“只出动作”和“先深度再动作”两种，去掉“只出深度”。</li>
+<li>推理时专家条件在模型自己预测的深度上，不是真值，所以训练时往教师强制的深度前缀里注噪：10% 的深度码输入换成均匀随机码，预测目标不变。</li>
+<li>在专家逐层 KV 条件的深度部分加一个逐层学习的门：</li>
+</ul>
+<div class="eq"><div class="m">\[c_\ell=\frac{\sum_t A_t(1-M_t)\,V^{\text{vlm}}_{\ell,t}}{\sum_t A_t(1-M_t)},\qquad g_\ell=\sigma\big(w_\ell^{\top}c_\ell+b_\ell\big),\]</div><span class="no">(11)</span></div>
+<div class="eq"><div class="m">\[\bar K^{\text{vlm}}_{\ell,t}=(1-M_t+M_t\,g_\ell)\,K^{\text{vlm}}_{\ell,t},\qquad \bar V^{\text{vlm}}_{\ell,t}=(1-M_t+M_t\,g_\ell)\,V^{\text{vlm}}_{\ell,t}.\]</div><span class="no">(12)</span></div>
+<p>\(M_t=1\) 标记深度触发 token、深度分隔符和深度码的位置，\(A_t\) 标记有效上下文位置。门由该层非深度上下文的 V 平均算出，只乘在深度位置的 K、V 上，然后照常投影进专家。偏置初始化为 −4，所以微调开始时接近不用深度的标准路径，再学每层该用多少深度。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 门的初值有多小</span><p>\(b_\ell=-4\) 时，如果 \(w_\ell^{\top}c_\ell\) 起初接近 0，\(g_\ell=\sigma(-4)=0.018\)，深度位置的 K、V 被缩到 1.8%。注意乘在 K 上的缩放会进 softmax 的打分：深度 token 的打分被压低，几乎拿不到注意力权重；乘在 V 上又把它们的贡献再缩一次。这和“开始时接近标准路径”的说法一致。我没找到 \(w_\ell\) 的初始化，代码 <code>molmoact2.py</code> 第 262 行起有门的构建，未细读。</p></div>
+
+<h3 id="s5-3">5.3 自适应深度推理</h3>
+<p><b>流程。</b>推理时用“先深度再动作”，提示末尾是 <code>&lt;depth_output&gt;&lt;action_output&gt;</code>。先对提示和图像做预填充。没有深度缓存时（回合开始或重置后），自回归生成完整的 <code>&lt;depth_start&gt;</code>、100 个深度码、<code>&lt;depth_end&gt;</code>。有缓存时，用 §5.1 同样的 10×10 RGB 块余弦阈值比较当前第一张图和缓存的上一张图：变了的格子用深度 logits 的 argmax 解码；没变的格子从上一步的预测缓冲里搬过来，作为已知 token 输入。连续没变的一段一起回放，变了的逐个解码。100 格填满后输出 <code>&lt;depth_end&gt;</code>，存下当前图和新缓冲给下一步。</p>
+<p>然后生成动作：专家拿到提示加深度前缀对应的 VLM K、V，积分流匹配速度场。自适应只改变深度前缀怎么来，动作接口不变。</p>
+<p><b>推理优化。</b>每帧重算和回放的格子组合不同，解码调度依赖数据，整个自适应循环没法做成一张 CUDA Graph。所以调度器保持 eager（包括对没变格子的整段回放），用预分配的静态 KV 缓存让解码状态稳定；对重算的深度 token，把从注意力之后到下一层注意力之前的定形状计算捕获成 CUDA Graph 段，注意力本身保持 eager，因为它的有效 KV 长度一直在变。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 阈值和格子数在代码里一致</span><p>HF 推理代码 <code>olmo/hf_model/modeling_molmoact2.py</code> 第 86、87 行：<code>_DEPTH_REASONING_PATCH_SIZE = 32</code>，<code>_DEPTH_REASONING_THRESHOLD = 0.996</code>；网格边长由 <code>num_depth_codes = 100</code> 开方得 10。深度标注脚本 <code>scripts/generate_depth_annotation.py</code> 的 <code>--threshold</code> 默认也是 0.996，VQ-VAE 输入 320。论文没说 Depth Anything V2 用哪个尺寸；脚本默认从 <code>allenai/MolmoAct-7B-D-0812</code> 下载 <code>depth_anything_v2_vitb.pth</code>（ViT-B）和 <code>vae-final.pt</code>。Think-LIBERO 的 <code>config.json</code> 里 <code>depth_mode: 2</code> 就是自适应，<code>num_depth_tokens: 128</code>，<code>action_expert_depth_gate: true</code>，<code>action_expert_depth_gate_per_layer: true</code>，<code>action_expert_depth_gate_init_bias: -4.0</code>。</p></div>
+
+<h2 id="s6"><span class="no">6</span>实验</h2>
+<p>八个研究问题：Molmo2-ER 在具身推理基准上如何；开箱即用如何；微调到新任务和本体如何；深度 token 是否提升 Think 版；分布外扰动下是否稳健；轨迹质量如何；哪些部件贡献最大；推理多快。</p>
+
+<h3 id="s6-1">6.1 Molmo2-ER 评测</h3>
+<p>13 个基准：<a class="ds" href="https://pointarena.github.io/">Point-Bench</a>（<a href="https://arxiv.org/abs/2505.09990">PointArena</a>）、<a class="ds" href="https://arxiv.org/abs/2506.04308">RefSpatial</a>、<a class="ds" href="https://chanh.ee/RoboSpatial/">RoboSpatial</a>（<a href="https://arxiv.org/abs/2411.16537">论文</a>，分 Point 和 VQA 两项）、<a class="ds" href="https://robo-point.github.io/">Where2Place</a>（<a href="https://arxiv.org/abs/2406.10721">RoboPoint</a>）、<a class="ds" href="https://zeyofu.github.io/blink/">BLINK</a>（<a href="https://arxiv.org/abs/2404.12390">论文</a>）、<a class="ds" href="https://cambrian-mllm.github.io/">CV-Bench</a>（<a href="https://arxiv.org/abs/2406.16860">Cambrian-1</a>）、<a class="ds" href="https://github.com/embodiedreasoning/ERQA">ERQA</a>（<a href="https://arxiv.org/abs/2503.20020">Gemini Robotics</a>）、<a class="ds" href="https://arxiv.org/abs/2406.05756">EmbSpatial</a>、<a class="ds" href="https://mll-lab-nu.github.io/mind-cube/">MindCube</a>（<a href="https://arxiv.org/abs/2506.21458">论文</a>）、<a class="ds" href="https://arxiv.org/abs/2412.07755">SAT</a>、<a class="ds" href="https://open-eqa.github.io/">OpenEQA</a>、<a class="ds" href="https://vision-x-nyu.github.io/thinking-in-space.github.io/">VSI-Bench</a>（<a href="https://arxiv.org/abs/2412.14171">论文</a>）。基线：Gemini 系列、GPT-5 系列、LLaVA-OneVision、Qwen3-VL、InternVL3.5，以及出发点 Molmo2。</p>
+<details><summary>表 3 全表：12 个模型 × 13 个基准（展开）</summary>
+<div class="tablewrap"><table class="t-er"><thead><tr><th>模型</th><th>Point</th><th>RefSp</th><th>RS-Pt</th><th>W2P</th><th>BLINK</th><th>CV</th><th>ERQA</th><th>EmbSp</th><th>Mind</th><th>RS-VQA</th><th>SAT</th><th>OEQA</th><th>VSI</th><th>平均</th></tr></thead><tbody>
+<tr><td>GR-ER 1.5 Thinking</td><td>71.6</td><td>48.5</td><td>31.1</td><td>59.0</td><td>57.8</td><td>84.3</td><td>54.8</td><td>78.4</td><td>54.7</td><td>79.3</td><td>76.7</td><td>55.0</td><td>45.8</td><td>61.3</td></tr>
+<tr><td>GR-ER 1.5</td><td>73.3</td><td>41.8</td><td>25.3</td><td>48.0</td><td>65.2</td><td>83.6</td><td>47.0</td><td>73.4</td><td>47.7</td><td>57.0</td><td>62.0</td><td>50.5</td><td>39.9</td><td>55.0</td></tr>
+<tr><td>Gemini 2.5 Pro</td><td>62.7</td><td>33.6</td><td>8.3</td><td>37.0</td><td>69.2</td><td>85.9</td><td>56.0</td><td>78.0</td><td>59.2</td><td>71.3</td><td>74.7</td><td>55.0</td><td>51.1</td><td>57.1</td></tr>
+<tr><td>GPT-5</td><td>43.6</td><td>23.5</td><td>19.0</td><td>37.0</td><td>71.3</td><td>86.1</td><td>59.0</td><td>81.5</td><td>58.0</td><td>69.3</td><td>86.7</td><td>64.4</td><td>52.9</td><td>57.9</td></tr>
+<tr><td>GPT-5-mini</td><td>39.5</td><td>23.0</td><td>12.5</td><td>33.5</td><td>56.4</td><td>85.9</td><td>57.3</td><td>78.8</td><td>55.6</td><td>70.7</td><td>81.3</td><td>59.2</td><td>46.2</td><td>53.8</td></tr>
+<tr><td>Qwen3-VL-4B</td><td>63.8</td><td>49.5</td><td>62.3</td><td>63.0</td><td>65.2</td><td>85.8</td><td>39.5</td><td>78.1</td><td>27.4</td><td>62.7</td><td>60.7</td><td>47.6</td><td>61.4</td><td>59.0</td></tr>
+<tr><td>Qwen3-VL-8B</td><td>64.2</td><td>47.5</td><td>56.6</td><td>63.0</td><td>66.6</td><td>85.6</td><td>41.5</td><td>78.2</td><td>33.4</td><td>73.7</td><td>70.0</td><td>49.3</td><td>63.3</td><td>61.0</td></tr>
+<tr><td>LLaVA-OV-7B</td><td>9.4</td><td>3.0</td><td>0.0</td><td>19.0</td><td>44.2</td><td>70.3</td><td>39.8</td><td>69.7</td><td>45.6</td><td>68.9</td><td>58.0</td><td>36.2</td><td>31.2</td><td>38.1</td></tr>
+<tr><td>InternVL3.5-4B</td><td>43.0</td><td>21.5</td><td>23.0</td><td>53.0</td><td>58.7</td><td>80.5</td><td>37.0</td><td>72.0</td><td>42.6</td><td>61.0</td><td>49.3</td><td>44.6</td><td>56.5</td><td>49.4</td></tr>
+<tr><td>InternVL3.5-8B</td><td>45.5</td><td>35.0</td><td>27.0</td><td>57.0</td><td>59.1</td><td>80.9</td><td>41.0</td><td>74.7</td><td>39.7</td><td>62.7</td><td>58.7</td><td>43.5</td><td>56.4</td><td>52.4</td></tr>
+<tr><td>Molmo2</td><td>76.9</td><td>52.5</td><td>13.9</td><td>18.0</td><td>50.8</td><td>64.4</td><td>46.3</td><td>67.0</td><td>37.6</td><td>57.9</td><td>50.0</td><td>46.9</td><td>26.1</td><td>46.8</td></tr>
+<tr><td><b>Molmo2-ER</b></td><td>77.3</td><td>52.5</td><td>32.0</td><td>54.0</td><td>72.5</td><td>87.8</td><td>46.8</td><td>78.8</td><td>57.0</td><td>73.4</td><td>78.0</td><td>44.7</td><td>74.5</td><td><b>63.8</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 具身推理结果。前五行只能调 API，中间五行开放权重，最后两行权重、数据、代码全开放。列顺序按原表（我用 PDF 文字坐标核对过竖排表头的顺序）。<a href="https://arxiv.org/html/2605.02881v2#S5.T3">看原表 ↗</a></p>
+</details>
+<p>论文结论：13 项中 9 项超过所有基线，平均 63.8% 最高，比第二名 Gemini-ER 1.5 Thinking 高 2.5，比出发点 Molmo2 高 17。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · “13 项中 9 项最好”要看和谁比</span><p>12 行的平均我逐行重算，和表里的“平均”都在 ±0.05 以内。Molmo2-ER：829.3 / 13 = 63.79；Molmo2：608.3 / 13 = 46.79，差 17.0 个<b>百分点</b>（正文写 “17%”，是点数不是相对比例；相对提升是 36%）。</p>
+<p>“9 / 13”：只和开放权重模型比，Molmo2-ER 有 9 项最高（含 RefSpatial 和 Molmo2 并列 52.5）；<b>把 API 模型算进来只有 5 项</b>（Point-Bench、RefSpatial、BLINK、CV-Bench、VSI-Bench）。逐个比：对 GR-ER 1.5 Thinking 赢 9 项，对 GPT-5 赢 8 项。§6.1 说“超过所有基线 VLM 9 项”，§2 说“超过所有开放权重基线以及最强的闭源模型……9 项”，按表都不成立；对开放权重成立，对单个最强闭源模型大致成立。另外 §6.1 正文只列了 12 个基准名，少了 RoboSpatial-VQA。</p></div>
+
+<h3 id="s6-2">6.2 开箱即用</h3>
+<p><b>设置。</b>仿真里用 MolmoAct2-DROID 在两个复刻 DROID 场景的基准上零样本评测：<a class="ds" href="https://molmospaces.allen.ai/">MolmoSpaces</a>（<a href="https://arxiv.org/abs/2602.11337">论文</a>）和 <a class="ds" href="https://arxiv.org/abs/2603.16861">MolmoBot</a>，都是单次取放，后者物体和场景更难。协议、试验次数照各自原文。真实世界里 DROID 和 SO-100/101 都在分布外条件下测：两台相机（手腕加一台随机摆放的第三人称），物体都没见过，环境也是分布外。每个策略 15 次，近成功给部分分。</p>
+<details><summary>表 4、表 5：MolmoSpaces 和 MolmoBot 仿真零样本（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>Pick</th><th>Pick &amp; Place</th><th>Open</th><th>Close</th><th>平均</th></tr></thead><tbody>
+<tr><td>StereoVLA</td><td>7.0±2.3</td><td>–</td><td>–</td><td>–</td><td>7.0</td></tr>
+<tr><td>LAP-VLA</td><td>24.9±2.7</td><td>6.6±1.6</td><td>11.4±1.5</td><td>45.9±2.9</td><td>22.2</td></tr>
+<tr><td>π0-DROID</td><td>16.2±2.6</td><td>12.5±2.0</td><td>11.0±2.0</td><td>53.1±3.2</td><td>23.2</td></tr>
+<tr><td>π0.5-DROID</td><td>36.4±2.9</td><td>13.6±2.2</td><td>22.7±2.6</td><td>65.1±3.1</td><td>34.5</td></tr>
+<tr><td><b>MolmoAct2-DROID</b></td><td>43.7±3.1</td><td>26.7±2.8</td><td>9.5±2.0</td><td>70.8±3.0</td><td><b>37.7</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · MolmoSpaces，三次独立评测的平均成功率（%）和标准误。<a href="https://arxiv.org/html/2605.02881v2#S6.T4">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th>Pick MSProc</th><th>Pick Classic</th><th>Pick</th><th>Pick 随机相机</th><th>Pick&amp;Place</th><th>PnP Next-To</th><th>PnP Color</th><th>平均</th></tr></thead><tbody>
+<tr><td>StereoVLA</td><td>6.6±2.6</td><td>4.3±1.5</td><td>1.1±1.0</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>X-VLA</td><td>3.3±1.0</td><td>0.5±0.5</td><td>0.7±0.5</td><td>0.8±0.5</td><td>0.1/0.1</td><td>1.9/1.0</td><td>0.9/0.5</td><td>1.2</td></tr>
+<tr><td>LAP-VLA</td><td>19.4±2.4</td><td>2.4±1.0</td><td>3.1±1.1</td><td>2.7±1.0</td><td>3.81/1.59</td><td>6.48/3.41</td><td>3.1/1.5</td><td>4.8</td></tr>
+<tr><td>π0.5-DROID</td><td>18.1±2.4</td><td>6.4±1.5</td><td>7.0±1.6</td><td>8.0±1.9</td><td>11.7/7.6</td><td>8.2/6.2</td><td>10.4/6.7</td><td>10.0</td></tr>
+<tr><td><b>MolmoAct2-DROID</b></td><td>35.6±3.0</td><td>18.9±2.6</td><td>20.5±2.6</td><td>15.4±2.4</td><td>15.8/7.8</td><td>20.9/14.4</td><td>17.2/8.8</td><td><b>20.6</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 5 · MolmoBot 仿真留出环境，每个任务 1000 回合。取放类给两个数：任意时刻满足成功条件 / 最后一刻满足；原表每个数还带 95% 置信区间半宽，取放列我省略了。<a href="https://arxiv.org/html/2605.02881v2#S6.T5">看原表 ↗</a></p>
+</details>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>苹果放盘</th><th>移液枪放托盘</th><th>红方块进胶带卷</th><th>刀放盒</th><th>物体放碗</th><th>平均</th></tr></thead><tbody>
+<tr><td>π0.5-DROID</td><td>66.7</td><td>33.3</td><td>53.3</td><td>26.7</td><td>46.2</td><td>45.2</td></tr>
+<tr><td>MolmoBot</td><td>86.7</td><td>53.3</td><td>33.3</td><td>40.0</td><td>28.6</td><td>48.4</td></tr>
+<tr><td><b>MolmoAct2-DROID</b></td><td>100.0</td><td>86.7</td><td>93.3</td><td>93.3</td><td>62.0</td><td><b>87.1</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · 真实 DROID 零样本，每格 15 次。<a href="https://arxiv.org/html/2605.02881v2#S6.T6">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>叉子放盘</th><th>叠方块</th><th>纸巾进篮</th><th>笔放本子</th><th>方块进盒</th><th>平均</th></tr></thead><tbody>
+<tr><td>SmolVLA</td><td>3.3</td><td>5.0</td><td>0.0</td><td>3.3</td><td>0.0</td><td>2.3</td></tr>
+<tr><td>π0-SO100/101</td><td>30.0</td><td>6.7</td><td>20.0</td><td>80.0</td><td>90.0</td><td>45.3</td></tr>
+<tr><td><b>MolmoAct2-SO100/101</b></td><td>70.0</td><td>20.0</td><td>73.3</td><td>86.7</td><td>33.3</td><td><b>56.7</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 7 · SO-100 零样本，每格 15 次的平均分，部分分 0.25 到达、0.5 抓起、1.0 放好。<a href="https://arxiv.org/html/2605.02881v2#S6.T7">看原表 ↗</a></p>
+<p><b>结果。</b>仿真里 MolmoAct2-DROID 在两个基准都第一，比第二名 π0.5-DROID 高 10.6（MolmoBot）和 3.2（MolmoSpaces）。Open 一项落后，作者说铰接物体交互还要改进。真实 DROID 87.1%，比第二名 MolmoBot 高 38.7；SO-100 上 56.7%，比作者自己在 SO-100/101 数据上微调的 π0 高 11.4。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 开箱即用四张表的核算和命名</span><p>平均都对：表 4 MolmoAct2 (43.7 + 26.7 + 9.5 + 70.8) / 4 = 37.68，π0.5 34.45；表 5 的平均是 7 列的<b>第一个数</b>（任意时刻成功）的平均，MolmoAct2 144.3 / 7 = 20.61，π0.5 69.8 / 7 = 9.97；表 6 MolmoAct2 87.06、MolmoBot 48.38、π0.5 45.24；表 7 MolmoAct2 56.66、π0 45.34。差值 +3.2、+10.6、+38.7、+11.4 都对。</p>
+<p>命名前后不一：表 7 叫 “π0-SO100/101”，附录表 20 叫 “DePi0”，附录 C.4 说对比 “DePi 和 SmolVLA”；表 18 把 π0.5 排成了 “π0 5-DROID”，附录 C.2 正文又写 “π0”；表 20 里本文模型叫 “MolmoAct v2”。相机设置也不一致：§6.2 说 SO-100 的第三人称相机位置随机初始化，附录 C.4 说“固定的、预先初始化的相机视角”，表 20 标题也写“固定初始相机位置”。</p></div>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 21 页 · <a href="https://arxiv.org/html/2605.02881v2#S6.F6">看原图 ↗</a></span><p>(A) RoboEval 八个任务加平均的分组柱状图，五种方法：Diffusion Policy、GR00T N1.5、X-VLA、π0.5-DROID、MolmoAct（粉色）。Rotate Valve 最高，π0.5 和 MolmoAct 都在 70% 出头；Lift Tray、Pick Book 几个基线接近 0。(B) 雷达图，十来个轨迹和结果指标各自归一化（外圈最好），粉色的 MolmoAct 区域最大。</p></div>
+
+<h3 id="s6-3">6.3 微调效果</h3>
+<p><b>设置。</b>所有微调都从 MolmoAct2-Post 出发。仿真两个：<a class="ds" href="https://arxiv.org/abs/2507.00435">RoboEval</a>，双臂 Franka、8 个需要双臂协同的任务；<a class="ds" href="https://libero-project.github.io/">LIBERO</a>（<a href="https://arxiv.org/abs/2306.03310">论文</a>），按 OpenVLA 的做法用 Spatial、Object、Goal、Long 四个套件，每套 10 个任务、500 条示教。全量微调，和协议类似的 VLA 对比。真实世界在固定和移动双臂 YAM 上做 8 个任务，每个任务 50 次，三种空间变体用于采数据；每个任务从 MolmoAct2-Post 单独微调，对比 Cosmos Policy、X-VLA、OpenVLA-OFT、π0.5-DROID。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th></tr></thead><tbody>
+<tr><td>TraceVLA</td><td>84.6</td><td>85.2</td><td>75.1</td><td>54.1</td><td>74.8</td></tr>
+<tr><td>OpenVLA</td><td>84.7</td><td>88.4</td><td>79.2</td><td>53.7</td><td>76.5</td></tr>
+<tr><td>SpatialVLA</td><td>88.2</td><td>89.9</td><td>78.6</td><td>55.5</td><td>78.1</td></tr>
+<tr><td>CoT-VLA</td><td>87.5</td><td>91.6</td><td>87.6</td><td>69.0</td><td>83.9</td></tr>
+<tr><td>π0</td><td>96.8</td><td>98.8</td><td>95.8</td><td>85.2</td><td>94.2</td></tr>
+<tr><td>ThinkAct</td><td>88.3</td><td>91.4</td><td>87.1</td><td>70.9</td><td>84.4</td></tr>
+<tr><td>MolmoAct-7B-D</td><td>87.0</td><td>95.4</td><td>87.6</td><td>77.2</td><td>86.6</td></tr>
+<tr><td>GR00T N1.7</td><td>97.7</td><td>97.5</td><td>98.5</td><td>94.4</td><td>97.0</td></tr>
+<tr><td>π0.5</td><td>98.8</td><td>98.2</td><td>98.0</td><td>92.4</td><td>96.9</td></tr>
+<tr><td>NORA-1.5</td><td>97.3</td><td>96.4</td><td>94.5</td><td>89.6</td><td>94.5</td></tr>
+<tr><td><b>MolmoAct2</b></td><td>97.8</td><td>100.0</td><td>97.8</td><td>93.2</td><td><b>97.2</b></td></tr>
+<tr><td><b>MolmoAct2-Think</b></td><td>98.8</td><td>99.8</td><td>98.5</td><td>95.4</td><td><b>98.1</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 8 · LIBERO 成功率（%）。v1 和 v2 的这张表数字完全相同（v1 也是表 8）。<a href="https://arxiv.org/html/2605.02881v2#S6.T8">看原表 ↗</a></p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 97.2 和 98.1 核对；Think 版 Goal 应是 98.4</span><p>每个套件 500 回合（10 任务 × 50 次），所以每格必须是 0.2% 的整数倍。MolmoAct2：489 + 500 + 489 + 466 = 1944 / 2000 = <b>97.2%</b>，和表、正文、表 13 末行（97.20%）一致。</p>
+<p>MolmoAct2-Think 的 Goal 写 98.5%，等于 492.5 次成功，<b>不可能</b>。表 14 末行（论文说就是 MolmoAct2-Think-LIBERO 的配方）同一格写 98.4%，其他三格相同（98.8、99.8、95.4），平均 98.10%。按 98.4 算：494 + 499 + 492 + 477 = 1962 / 2000 = <b>98.1%</b>；按 98.5 算是 98.125%，也舍入成 98.1。所以平均数 98.1 两种写法都成立，但单看 Goal 应以 98.4 为准。这处 v1 就有，v2 没改。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 8 其他几处</span><p>平均我逐行重算：MolmoAct-7B-D 的四个数平均是 347.2 / 4 = <b>86.8</b>，表里写 86.6；其余各行都对（舍入以内）。正文基线名写 “GR00T-N1”，表里是 “GR00T N1.7”。基线数字是引用的，评测设置（种子、回合数、是否四套合训）不一定和本文相同，论文只说“协议类似”。本文 97.2 和 GR00T N1.7 的 97.0、π0.5 的 96.9 只差 0.2 到 0.3 个点；2000 回合、97% 附近的 95% 置信区间半宽约 ±0.72 个点，排名第一这个结论分辨不出来。</p></div>
+<p><b>结果。</b>LIBERO 平均 97.2%，最高，Object 100%，比 MolmoAct-7B-D 高 10.6。RoboEval 44.3%，比第二名 π0.5 高 3.8。真实世界 8 个任务里 7 个第一，平均 50.1%，比第二名 OpenVLA-OFT 高 15。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 23 页 · <a href="https://arxiv.org/html/2605.02881v2#S6.F7">看原图 ↗</a></span><p>上半是真实双臂 YAM 八个任务加平均的分组柱状图，五种方法（π0.5、Cosmos Policy、X-VLA、OpenVLA-OFT、MolmoAct2 粉色）。任务轴：Stack Cups、Store Test tubes、Store Candy、Hang Tools、Store Toys、Shelf Cups、Prep Pipette、Make Popcorn、Average。MolmoAct2 在 Shelf Cups 到 100%，Stack Cups 输给 π0.5、Cosmos 和 OpenVLA-OFT。下半是 8 张任务现场照片。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 真实 YAM：50.1 还是 50.6，任务名对不上</span><p>附录表 19 的 MolmoAct 一列：(54.0 + 64.0 + 14.0 + 100.0 + 40.5 + 67.0 + 32.0 + 33.0) / 8 = 50.56，表里写 50.6，正文和图 7 标题说 50.1。OpenVLA-OFT 平均 35.55（表写 35.5），差 15.0，“高 15”对。其他列：π0.5 32.25、Cosmos 15.46、X-VLA 4.93，和表一致。7 / 8 第一也对，唯一输的是 Cup Stacking（54.0 对 Cosmos 64.5）。</p>
+<p>任务名三处写法不同：正文是 stack_cups、store_test_tubes、store_candy、hang_tools、store_toys、shelf_cups、prepare_pipette、make_popcorn；表 19 是 Cup Stacking、Linearbot、Pegboard、Cup Storing、Candy Storing、Store Test Tube、Store Toys、Prepare Pipette。按数值和图 7 柱高对，我推断 Linearbot = Make Popcorn（64.0）、Pegboard = Hang Tools（14.0）、Cup Storing = Shelf Cups（100.0）。这是我的推断。表 19 和图 6、表 17 的模型名都写 “MolmoAct”，不是 MolmoAct2。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · RoboEval 的 44.3 从哪来</span><p>附录表 17 是“组合变体”下的逐任务结果，MolmoAct 一行成功率 0.36、0.32、0.46、0.62、0.30、0.72、0.18、0.52，平均 <b>43.5%</b>；π0.5 一行平均 40.5%。正文 44.3 − 3.8 = 40.5，和 π0.5 对得上，但 MolmoAct2 的 44.3 和表 17 差 0.8，可能来自全部变体而不是组合变体（未核实）。§6.6 引的完成时间 4.70 s、5.87 s、7.27 s 和关节路径 1.04、2.16 不完全对得上表 17：Stack Two Blocks 的 JPL，MolmoAct 是 6.16、π0.5 是 10.44，没有 1.04 和 2.16；完成时间 4.70、5.87、7.27 对得上。Rotate Valve 的 π0.5 完成时间表里是 8.65 s，正文说 9.69 s。图 6 图注的缩写（CJ、JJ、SC、SL）和雷达图上的标签（MCJ、MJJ、SCC、ECC 等）也不一致。附录 C.1 说“评测 MolmoAct2-Post”，但上一句是在微调后的模型上评。</p></div>
+
+<h3 id="s6-4">6.4 MolmoAct2-Think 的表现</h3>
+<p>Think 版用自适应深度流程微调，和标准配方微调的 MolmoAct2 在 LIBERO 上比。论文说：四个套件里三个提升、第四个持平（基线已经 100%）；最大提升在最难的 Long（+2.2，基线 93.2）；2000 次回合平均 98.1 对 97.2，提升 +0.9，方向一致且集中在最难处，所以是真实增益，不是饱和附近的噪声。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · +0.9 个点有多可靠</span><p>“第四个持平”不对：Object 基线 100.0%，Think 版 99.8%，即 500 次里少成功 1 次，是略低。</p>
+<p>按<a href="#n13">读者注 13</a>的次数，Think 1962 / 2000，基线 1944 / 2000，多 18 次。把两组当独立样本做双比例 z 检验：合并比例 0.9765，标准误 \(\sqrt{0.9765\times0.0235\times2/2000}=0.479\%\)，\(z=0.9/0.479=1.88\)，双侧 p ≈ 0.06。按 LeRobot 评测分支的设置两次评测用同一组初始状态和种子（见<a href="#repro">复现要点</a>），严格说应做配对检验（McNemar），但论文没给逐回合结果，算不了。Long 一项 466 对 477（各 500），差 2.2 个点，单项 95% 置信区间半宽约 ±2 个点。结论：方向一致，但统计证据处在边缘；另外两个模型选的检查点不同（4 万步对 3 万步），而且都是在测试集上挑的（<a href="#n20">读者注 20</a>）。</p></div>
+
+<h3 id="s6-5">6.5 分布外扰动下的鲁棒性（v2 新增）</h3>
+<p>从 8 个真实双臂任务里选 4 个（stack_cups、store_test_tubes、store_candy、prepare_pipette），各自在 MolmoAct2-Post 上单独微调（正文说是“参数高效微调”），测四种分布外变体：空间（目标放在训练分布外的位置）、光照、语言（三种改写）、干扰物（加没见过的物体，布局保持分布内）。每个任务每组 20 次，每种扰动 5 次。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>空间</th><th>光照</th><th>语言</th><th>干扰物</th><th>总体</th></tr></thead><tbody>
+<tr><td>π0.5</td><td>15.00</td><td>33.70</td><td>26.15</td><td>33.20</td><td>27.01</td></tr>
+<tr><td>Cosmos Policy</td><td>8.75</td><td>17.50</td><td>5.00</td><td>13.75</td><td>11.25</td></tr>
+<tr><td>X-VLA</td><td>3.75</td><td>8.30</td><td>9.95</td><td>3.75</td><td>6.44</td></tr>
+<tr><td>OpenVLA-OFT</td><td>13.75</td><td>46.25</td><td>51.25</td><td>48.30</td><td>39.89</td></tr>
+<tr><td><b>MolmoAct2-Think</b></td><td>26.25</td><td>62.05</td><td>60.35</td><td>54.10</td><td><b>50.69</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 9 · 环境扰动下的平均成功率（%）。v1 没有这张表，v2 插入后后面的表号顺延一位。<a href="https://arxiv.org/html/2605.02881v2#S6.T9">看原表 ↗</a></p>
+<p>MolmoAct2 平均 50.7%，比第二名 OpenVLA-OFT 高约 10.8；四类都领先，干扰物上领先最少（5.8），空间变化上绝对分数最低（26.25）。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 表 9 的数不像是 5 次试验的结果</span><p>总体是四列的简单平均：(26.25 + 62.05 + 60.35 + 54.10) / 4 = 50.69；OpenVLA-OFT 39.89；差 10.80，对。但按“每任务每种扰动 5 次、4 个任务”，每列是 20 次的成功率，只能是 5% 的整数倍；26.25、62.05、8.30 这样的数都不是，所以要么有部分分，要么次数不是这样，论文没说明。另外表里这一行叫 MolmoAct2-Think，正文和标题说 MolmoAct2；附录 C.3 又说真实 YAM 的 8 个任务是各自单独的单任务策略、训练到收敛。</p></div>
+
+<h3 id="s6-6">6.6 轨迹质量</h3>
+<p>成功率之外，用 RoboEval 的行为和结果指标看效率、稳定和安全。效率：Stack Two Blocks 上完成时间从 π0.5 的 5.87 s、Diffusion 的 7.27 s 降到 4.70 s，关节路径长约短一半；Rotate Valve 完成时间最低（8.51 s 对 π0.5 9.69 s），轨迹也更短。稳定：图 6B 里笛卡尔和关节空间的指标都接近归一化后的最好值，其他方法波动更大。核算见<a href="#n16">读者注 16</a>。</p>
+
+<h3 id="s6-7">6.7 系统分析（消融，都在 LIBERO 上）</h3>
+<p>除非另说明，数据、图像增强、动作归一化、动作块长、评测协议都和对应的 LIBERO 微调相同；全套件消融的平均是四个套件的平均。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>骨干</th><th>动作目标</th><th>Long</th></tr></thead><tbody>
+<tr><td>Molmo2</td><td>离散</td><td>77.6%</td></tr>
+<tr><td>Molmo2-ER</td><td>离散</td><td>83.6%</td></tr>
+</tbody></table></div>
+<p class="tcap">表 10 · 骨干消融。直接从 VLM 检查点出发，只在 LIBERO-Long 上用 MolmoAct2-FAST 的离散动作训 6 万步，没有连续专家。+6.0 个点。<a href="https://arxiv.org/html/2605.02881v2#S6.T10">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>条件来源</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th></tr></thead><tbody>
+<tr><td>隐状态条件</td><td>97.0</td><td>95.4</td><td>96.6</td><td>87.0</td><td>94.0</td></tr>
+<tr><td>逐头逐层 KV</td><td>95.8</td><td>97.2</td><td>96.6</td><td>89.6</td><td>94.8</td></tr>
+<tr><td><b>逐层 KV</b></td><td>96.2</td><td>99.0</td><td>98.6</td><td>89.8</td><td><b>95.9</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 11 · VLM 到专家的条件来源。都从 MolmoAct2-Pretrain 出发（没有后训练），直接挂专家。逐头版本让 VLM 的 KV 头和专家的头一一对应，要求头数相同，这里都是 8。<a href="https://arxiv.org/html/2605.02881v2#S6.T11">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>K</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th></tr></thead><tbody>
+<tr><td>1</td><td>95.0</td><td>95.8</td><td>98.2</td><td>87.6</td><td>94.15</td></tr>
+<tr><td>2</td><td>96.6</td><td>96.0</td><td>95.4</td><td>92.2</td><td>95.05</td></tr>
+<tr><td>4</td><td>96.2</td><td>98.4</td><td>97.0</td><td>89.0</td><td>95.15</td></tr>
+<tr><td><b>8</b></td><td>96.2</td><td>99.0</td><td>98.6</td><td>89.8</td><td><b>95.90</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 12 · 每个动作块的流样本数 K。同样从 MolmoAct2-Pretrain 出发。总体 K 越大越好，但不是每个套件都单调。<a href="https://arxiv.org/html/2605.02881v2#S6.T12">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>离散共训</th><th>知识隔离</th><th>训练方式</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th></tr></thead><tbody>
+<tr><td>✗</td><td>✗</td><td>全量</td><td>95.8</td><td>98.6</td><td>98.4</td><td>95.0</td><td>96.95</td></tr>
+<tr><td>✓</td><td>✓</td><td>全量</td><td>96.8</td><td>99.4</td><td>97.2</td><td>94.8</td><td>97.05</td></tr>
+<tr><td>✓</td><td>✗</td><td>LoRA</td><td>98.0</td><td>99.4</td><td>97.2</td><td>90.4</td><td>96.25</td></tr>
+<tr><td>✗</td><td>✗</td><td>只训专家</td><td>91.6</td><td>97.6</td><td>93.8</td><td>89.2</td><td>93.05</td></tr>
+<tr><td><b>✓</b></td><td><b>✗</b></td><td><b>全量（MolmoAct2-LIBERO）</b></td><td>97.8</td><td>100.0</td><td>97.8</td><td>93.2</td><td><b>97.20</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 13 · 微调设计。去掉离散共训平均差不多，但在套件间挪动（Long 升，Spatial 和 Object 降）；加知识隔离略差；LoRA 在 Long 上少 2.8；只训专家最差，93.05。<a href="https://arxiv.org/html/2605.02881v2#S6.T13">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>混合训练</th><th>注噪</th><th>深度门</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th></tr></thead><tbody>
+<tr><td>✗</td><td>✗</td><td>✗</td><td>97.6</td><td>99.6</td><td>96.6</td><td>96.2</td><td>97.50</td></tr>
+<tr><td>✓</td><td>✗</td><td>✗</td><td>98.8</td><td>99.8</td><td>96.6</td><td>95.4</td><td>97.65</td></tr>
+<tr><td><b>✓</b></td><td><b>✓</b></td><td><b>✓</b></td><td>98.8</td><td>99.8</td><td><b>98.4</b></td><td>95.4</td><td><b>98.10</b></td></tr>
+</tbody></table></div>
+<p class="tcap">表 14 · Think 版深度微调。全开这一行就是 MolmoAct2-Think-LIBERO 的配方。去掉注噪和门，平均 98.10 → 97.65，主要是 Goal 少 1.8；再去掉混合训练（只用先深度再动作），97.50。<a href="https://arxiv.org/html/2605.02881v2#S6.T14">看原表 ↗</a></p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 消融表之间的关系</span><p>平均全部重算过，和表一致。几处要注意：</p>
+<ul>
+<li>表 11 的“逐层 KV”一行和表 12 的 K = 8 一行四个数完全相同（96.2、99.0、98.6、89.8），应是同一次运行。它们都从 Pretrain 出发、没有后训练，平均 95.9；同样设置从 Post 出发是 97.2（表 13 末行）。所以后训练这一段在 LIBERO 上值约 1.3 个点，论文没把这个对比单独拿出来。</li>
+<li>表 13 末行和表 8 的 MolmoAct2 完全一样；表 14 末行和表 8 的 Think 版只差 Goal（98.4 对 98.5，见<a href="#n13">读者注 13</a>）。</li>
+<li>表 14 第一行（只用先深度再动作、不注噪、不加门）Long 是 96.2，比最终配方的 95.4 还高。</li>
+<li>表 13 说去掉知识隔离更好，但差别 0.15 个点，远小于约 ±0.7 的置信区间；表 12 的 K = 2、4 只差 0.10。这些消融都是单次评测，作者没给方差。</li>
+</ul></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 检查点是在测试集上挑的</span><p>LIBERO 没有单独的验证集。§4.3.1 说“选表现最好的检查点，在 4 万步”，§5.2 说 Think 版“选 3 万步”。表现是用什么评的论文没写，最可能就是同一套评测。这样报告的分数会略偏乐观，基线是否也这样挑无从得知。复现时如果固定只评 5 万步的最终检查点，分数可能略低于表 8；如果按 1 万步间隔都评一遍再取最好，才和论文的做法一致（我的推断）。</p></div>
+
+<h3 id="s6-8">6.8 推理速度</h3>
+<p>单张 H100、LIBERO、动作块 10，控制频率按“块长 / 端到端延迟”算。三条路径：原始实现、带缓存的优化 eager、再加 CUDA Graph。缓存让 MolmoAct2 从 23.02 Hz 到 27.39 Hz，Think 从 8.04 到 9.72；CUDA Graph 收益更大，MolmoAct2 55.79 Hz（2.42 倍），Think 12.71 Hz（1.58 倍）。Think 版收益小，因为自适应深度是自回归解码，依赖顺序、长度可变，不适合捕获成图。离散动作路径（VLM 自回归解码整个块）在同样优化下 MolmoAct2 14.17 Hz、Think 6.82 Hz，比连续路径慢 3.94 倍和 1.86 倍，所以默认用连续路径。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 第 27 页 · <a href="https://arxiv.org/html/2605.02881v2#S6.F8">看原图 ↗</a></span><p>左右两组柱状图，左 MolmoAct2，右 MolmoAct2-Think，每组四根：Original、Caching、Caching + CUDA Graph（粉色最高）、Caching + CUDA Graph（Discrete）。柱顶标数：左 23.02、27.39、55.79、14.17 Hz；右 8.04、9.72、12.71、6.82 Hz。右下角注“在 H100 上、LIBERO 动作块 10 测得”。</p></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 速度核算，换成延迟更直观</span><p>倍数都对：55.79 / 23.02 = 2.42，12.71 / 8.04 = 1.58，55.79 / 14.17 = 3.94，12.71 / 6.82 = 1.86。换成每次调用的延迟（10 / Hz）：MolmoAct2 原始 434 ms、优化后 179 ms；Think 原始 1244 ms、优化后 787 ms。LIBERO 是 10 Hz 控制，一块 10 步要执行 1 秒，所以两者都来得及；但附录 E 自己也说这是按块摊薄的吞吐，不是闭环反应速度，块内无法对扰动反应。Think 版比 MolmoAct2 慢 4.4 倍（55.79 / 12.71），这个代价论文正文没有强调。</p></div>
+
+<h2 id="s7"><span class="no">7</span>相关工作</h2>
+<ul>
+<li><b>通用操作策略：</b>研究从任务专用转向跨场景、跨本体的通用策略，代表是在网页规模多模态数据上预训练、再用机器人数据训练的 VLA。除了前作 MolmoAct，复现前沿 VLA（如 π 系列）很难，因为数据和代码不开放。</li>
+<li><b>具身推理：</b>文本思维链对操作帮助有限，于是出现各种非文本的“具身思维链”：框和点、预测未来图像、隐式推理、2D/3D 点轨迹。最接近自适应深度的是 PEEK（遮住 RGB、以视觉轨迹为条件学低层策略）。共同缺点是出动作前消耗大量 token。</li>
+<li><b>VLM 和动作专家的接口：</b>要么全离散化（向量量化），要么挂连续生成专家（扩散或流匹配），后者通常只看 VLM 最后一层隐状态。MolmoAct2 用逐层 KV 条件，让专家直接访问骨干的分层特征。</li>
+</ul>
+
+<h2 id="s8"><span class="no">8</span>结论</h2>
+<p>MolmoAct2 是一族全开放的动作推理模型，建在空间专精的 Molmo2-ER 上；MolmoAct2-Think 加自适应深度推理，可解释且推理开销可控。作者称它开箱即用超过强基线，少量示教即可高效微调，并能迁移到低到中等成本的三种本体。公开全部权重、训练代码和数据，包括迄今最大的开放双臂数据集。</p>
+<p>正文后有作者贡献（两位共同一作分别主导模型实现和项目方法设计，其他人按数据、tokenizer、Think、推理优化、真机设施等分工）和致谢（Ai2 集群、Cirrascale；Jiafei Duan 受 A*STAR 奖学金支持），这里不展开。</p>
+
+<h2 id="apA">附录 A　模型细节</h2>
+<p><b>结论先说：</b>4B 的 Molmo2-ER 骨干（ViT 3.8 亿、连接器 5700 万、LLM 40 亿）加 6.21 亿参数的动作专家；专家 36 层、宽 768，每层从 VLM 的 8 个 KV 头（每头 128 维，共 1024 维）投影到 8 个 96 维的头。</p>
+<h3 id="apA-1">A.1 骨干</h3>
+<p>机器人策略阶段每路相机用一张缩放裁剪，不切高分辨率块；视频最高 2 FPS、最多 8 帧；多相机序列化为多张图，预训练时回合级打乱相机顺序。连接器取 ViT 倒数第 3 和倒数第 9 层的块特征，用多头注意力池化局部窗口：图像 2×2 块合成一个视觉 token（用块特征均值作查询），视频 3×3；再用共享 MLP 投影到 LLM 嵌入空间。多相机用图像序号文本区分。视觉 token 之间可以互相“向前看”，包括跨帧和跨相机。</p>
+<p><b>新增 token：</b><code>&lt;setup_start&gt;</code>、<code>&lt;setup_end&gt;</code>、<code>&lt;control_start&gt;</code>、<code>&lt;control_end&gt;</code>、<code>&lt;state_start&gt;</code>、<code>&lt;state_end&gt;</code>、<code>&lt;action_output&gt;</code>；动作 token <code>&lt;action_0&gt;</code> 到 <code>&lt;action_2047&gt;</code>；状态 token <code>&lt;state_0&gt;</code> 到 <code>&lt;state_255&gt;</code>。Think 版另加 <code>&lt;depth_output&gt;</code>、<code>&lt;depth_start&gt;</code>、<code>&lt;depth_end&gt;</code> 和 <code>&lt;depth_0&gt;</code> 到 <code>&lt;depth_127&gt;</code>。本体和控制描述让同一个 tokenizer 和骨干支持不同机器人，不必统一物理坐标约定。连续状态按数据集统计归一化、每维离散成 256 个 token 之一，放在动作输出标记之前。</p>
+<details><summary>表 15 结构超参全表（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>超参</th><th>图像编码器</th><th>视觉语言连接器</th><th>LLM</th><th>动作专家</th></tr></thead><tbody>
+<tr><td>参数</td><td>380M</td><td>57M</td><td>4.0B</td><td>621M</td></tr>
+<tr><td>宽度</td><td>1152</td><td>1152</td><td>2560</td><td>768</td></tr>
+<tr><td>MLP 宽度</td><td>4304</td><td>9728</td><td>9728</td><td>3072</td></tr>
+<tr><td>激活</td><td>GELU</td><td>SwiGLU</td><td>SwiGLU</td><td>SwiGLU</td></tr>
+<tr><td>头数 / KV 头</td><td>16 / 16</td><td>16 / –</td><td>32 / 8</td><td>8 / –</td></tr>
+<tr><td>层数</td><td>27</td><td>–</td><td>36</td><td>36</td></tr>
+<tr><td>Dropout</td><td>0.0</td><td>0.0</td><td>0.1</td><td>0.0</td></tr>
+<tr><td>图像尺寸 / 块大小</td><td>384×384 / 14</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>图像 / 视频池化</td><td>–</td><td>2×2 / 3×3，池化宽 1152，16 头</td><td>–</td><td>–</td></tr>
+<tr><td>词表 / RoPE θ</td><td>–</td><td>–</td><td>151936 / 1M</td><td>–</td></tr>
+<tr><td>最长块 / 最宽动作 / 时间嵌入</td><td>–</td><td>–</td><td>–</td><td>30 / 32 / 256</td></tr>
+<tr><td>条件</td><td>–</td><td>–</td><td>–</td><td>逐层 KV</td></tr>
+</tbody></table></div>
+<p class="tcap">表 15 · 结构超参。<a href="https://arxiv.org/html/2605.02881v2#A1.T15">看原表 ↗</a></p>
+</details>
+<div class="note" id="n22"><span class="lab">读者注 22 · 表 15 和发布配置的出入</span><p>对照 MolmoAct2-LIBERO 的 <code>config.json</code>：</p>
+<ul>
+<li><b>图像尺寸：</b>表写 384×384、块 14，但 384 / 14 = 27.4 不是整数。配置 <code>vit_config.image_default_input_size = [378, 378]</code>，378 = 27 × 14，<code>image_num_pos = 729 = 27²</code>。应是 378。</li>
+<li><b>RoPE θ：</b>表写 1M，配置 <code>rope_theta = 5000000.0</code>（基础模型 <code>allenai/MolmoAct2</code> 也是 5M）。</li>
+<li><b>KV 维度：</b>LLM <code>num_key_value_heads = 8</code>、<code>head_dim = 128</code>，每 token 1024 维；专家 <code>hidden_size = 768</code>、<code>num_heads = 8</code>，每头 96。和 A.2 一致。</li>
+<li><b>其他：</b>专家 <code>num_layers = 36</code>、<code>qk_norm = true</code>、<code>rope = true</code>、<code>timestep_embed_dim = 256</code>，和正文一致。LIBERO 检查点 <code>max_action_horizon = 10</code>，基础模型是 30。词表：表写 151936，配置 <code>vocab_size = 154624</code> 加 128 个额外词（Think 版 155648），表里的数大概是加新 token 之前的。</li>
+</ul></div>
+
+<h3 id="apA-2">A.2 连续动作专家</h3>
+<p>专家是动作块上的非因果 transformer，把带噪归一化轨迹 \(x_t\in\mathbb R^{H\times D_{\max}}\) 映射成同形状的速度，\(D_{\max}=32\)。发布的 MolmoAct2 后训练用 \(H=30\)，<b>LIBERO 微调检查点用 \(H=10\)</b>。式 (13)(14) 重复式 (1)(2)。推理时从高斯噪声出发，用定步数欧拉法积分：</p>
+<div class="eq"><div class="m">\[x_t=(1-t)\epsilon+ta,\quad u^\star=a-\epsilon\qquad\qquad \mathcal L_{\text{flow}}=\mathbb E\big[\|m\odot(f_\theta(x_t,t,c)-u^\star)\|_2^2\big]\]</div><span class="no">(13)(14)</span></div>
+<div class="eq"><div class="m">\[z_{i+1}=z_i+\Delta t\,f_\theta(z_i,t_i,c),\qquad t_i=\frac iN,\qquad \Delta t=\frac1N .\]</div><span class="no">(15)</span></div>
+<p>发布的检查点 \(N=10\)。最后把归一化轨迹切到本体的动作宽度，再用数据集统计反归一化。</p>
+<p>每层专家块：动作块上的双向自注意力、对 VLM 的交叉注意力、MLP。正弦时间嵌入过一个小 MLP，产生三个残差分支的 DiT 式平移、缩放、门控。式 (16)–(18) 重复式 (3)–(5)。AdaRMS 是 RMS 归一化后接随时间变化的仿射调制；自注意力和交叉注意力都用 query-key 归一化；动作序列用旋转位置编码。最后一块之后是调制的 RMS 归一化加线性层映射回 32 维。最后的投影初始化成输出接近 0 的速度，新挂的专家更好优化。式 (19)(20) 重复式 (6)(7)；VLM 8 个 KV 头 × 128 维 = 1024 维，适配投影到 768，重排成 8 个 96 维的头。后训练时这条路径对流损失 detach。</p>
+<div class="eq"><div class="m">\[\text{(16)–(18)}=\text{(3)–(5)},\qquad \text{(19)(20)}=\text{(6)(7)}\]</div><span class="no">(16)–(20)</span></div>
+
+<h3 id="apA-3">A.3 自适应深度扩展</h3>
+<p>Think 版骨干和专家不变，只在动作前加自回归的深度 token 接口。只出深度的样本以 <code>&lt;depth_output&gt;</code> 开头；先深度再动作的以 <code>&lt;depth_output&gt;&lt;action_output&gt;</code> 开头，深度 token 先生成，再进入专家的上下文。LIBERO 深度微调模型带逐层深度门，式 (21)(22) 重复式 (11)(12)，偏置初始化 −4。</p>
+<div class="eq"><div class="m">\[\text{(21)(22)}=\text{(11)(12)}\]</div><span class="no">(21)(22)</span></div>
+
+<h2 id="apB">附录 B　训练细节</h2>
+<h3 id="apB-1">B.1 实现</h3>
+<p><b>基础设施。</b>基本沿用 Molmo2：PyTorch FSDP2；用 PyTorch 的缩放点积注意力而不是 FlashAttention，因为打包的多模态序列和机器人条件需要自定义掩码；<code>torch.compile</code> 加静态形状；bfloat16 自动混合精度，层归一化和 RoPE 保持全精度。token 级损失按所有设备上的平均损失 token 数归一化，而不是各自本地的数，避免短目标的样本（比如短的机器人动作）被过度加权。微调时一个批内混多个数据源。超长样本截断，影响不到 0.1%。作者说训练稳定，没有损失尖峰和 NaN。</p>
+<p><b>打包。</b>每个数据加载进程维护一个 \(M=48\) 的样本池，池满后用动态规划选一个子集：</p>
+<div class="eq"><div class="m">\[\max\ T+w_i I\quad\text{s.t.}\quad T\le T_{\max},\ I\le I_{\max},\]</div><span class="no">(23)</span></div>
+<p>\(T\) 是文本 token 总数，\(I\) 是图像裁剪总数，\(w_i=30\)。Molmo2 设 \(T_{\max}=16384\)、\(I_{\max}=128\)；MolmoAct2 用各阶段的序列预算。实际把 token 数四舍五入到 32 的倍数来解。池再大收益递减；\(w_i\) 太小会让池里堆满难打包的多图样本。</p>
+<details><summary>图像增强的具体参数（展开）</summary>
+<p>预训练、后训练、微调全部使用，对所有图像和视频生效（不只机器人数据），评测和推理关掉。变换在归一化和最终缩放之前：随机裁剪到 95% 高宽再缩放回原尺寸；随机旋转 ±5°；颜色抖动（亮度 0.2、对比度 0.8–1.2、饱和度 0.8–1.2、色调 0.05）；以 0.2 的概率做高斯模糊（核 5，σ 0.1–1.0）。代码的 <code>--img_aug</code> 默认 <code>full</code>（含裁剪旋转），另有 <code>photometric</code> 和 <code>none</code>。</p></details>
+<p><b>提示格式。</b>三种输出风格：动作、深度、先深度再动作。用户消息包在 <code>&lt;|im_start|&gt;user</code> 和 <code>&lt;|im_end|&gt;</code> 之间，接 <code>&lt;|im_start|&gt;assistant</code>，再接触发 token（<code>&lt;action_output&gt;</code>、<code>&lt;depth_output&gt;</code> 或两者）。训练时目标跟在触发后面；推理时把同样的前缀作为生成前缀。任务字符串先规范化（去掉簿记信息、统一标点空格），本体和控制信息放进单独字段。附录给了三个例子，其中两个是 LIBERO：“The setup is &lt;setup_start&gt;single franka robotic arm in libero&lt;setup_end&gt; … The expected control mode is &lt;control_start&gt;delta end-effector pose&lt;control_end&gt;”。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>超参</th><th>预训练</th><th>后训练</th><th>微调</th></tr></thead><tbody>
+<tr><td>预热步数（ViT / 连接器 / LLM / 专家）</td><td>200</td><td>200</td><td>200</td></tr>
+<tr><td>学习率 ViT / 连接器</td><td>5e-6</td><td>5e-6</td><td>5e-6</td></tr>
+<tr><td>学习率 LLM</td><td>1e-5</td><td>1e-5</td><td>1e-5</td></tr>
+<tr><td>学习率 专家</td><td>5e-5</td><td>5e-5</td><td>5e-5</td></tr>
+<tr><td>余弦衰减到</td><td>10%</td><td>10%</td><td>10%</td></tr>
+<tr><td>Adam ε / β</td><td>1e-6 / 0.9, 0.95</td><td>同</td><td>同</td></tr>
+<tr><td>步数</td><td>200k</td><td>100k</td><td>100k</td></tr>
+<tr><td>全局批</td><td>128</td><td>128</td><td>64，BimanualYAM 128</td></tr>
+<tr><td>序列长</td><td>4200</td><td>2100（机器人）/ 4200（多模态）</td><td>2100</td></tr>
+<tr><td>GPU（H100）/ 小时 / GPU 小时</td><td>64 / 90 / 5760</td><td>64 / 36 / 2304</td><td>32 或 64 / 36 / 1152 或 2304</td></tr>
+</tbody></table></div>
+<p class="tcap">表 16 · 各阶段训练超参。标题注明只列主要数据集的微调。预训练列也列了专家学习率，但预训练阶段没有专家。<a href="https://arxiv.org/html/2605.02881v2#A2.T16">看原表 ↗</a></p>
+<h3 id="apB-2">B.2 MolmoAct2-FAST tokenizer</h3>
+<p>基于 Physical Intelligence 的 FAST，核心是频域压缩（DCT）加 BPE。32 维统一格式：单臂 \([A_1,\dots,A_n,G_1,0,\dots,0]\)，双臂 \([A^L_1,\dots,A^L_n,G_L,A^R_1,\dots,A^R_n,G_R,0,\dots,0]\)。不要求统一坐标系，训练数据里混着绝对关节和末端增量两种“方言”，由 VLM 根据提示里的本体学会区分。</p>
+<h3 id="apB-3">B.3 GPU 集群</h3>
+<details><summary>Jupiter 集群的硬件（展开）</summary>
+<p>在 Ai2 的 Jupiter 集群（得州奥斯汀，Cirrascale 运营）上训练：128 台服务器、1024 张 H100 80GB；每台 2 颗 Xeon 8468、2 TB 内存、18 TB NVMe；800 Gbps 网络接 WEKA 存储（1 PB NVMe + 5 PB HDD）；跨节点 InfiniBand，每台 8 × 400 Gbps；PUE 1.2，满载 GPU 温度峰值约 75 °C。</p>
+</details>
+
+<h2 id="apC">附录 C　评测细节</h2>
+<p><b>C.1 RoboEval。</b>MolmoAct2-Post 在 RoboEval 数据上用 8 卡、全局批 64、1 万步微调，8 个任务合训。8 个双臂任务各有 3 到 5 种结构化变体（静态、位置、朝向、位置加旋转，还有任务专属的如竖直交接、拖拽托盘、有障碍的阀门）。除了成功率，还记录轨迹指标（关节和笛卡尔路径长、加加速度）、空间指标（自碰撞、环境碰撞、滑移）、协同指标（两臂高度差、速度差）和分阶段进度。</p>
+<details><summary>表 17 · RoboEval 组合变体下的全部指标（展开，只列成功率和几项代表指标）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>Diffusion</th><th>GR00T</th><th>xVLA</th><th>π0.5</th><th>MolmoAct</th><th>MolmoAct 完成时间 s</th><th>π0.5 完成时间 s</th></tr></thead><tbody>
+<tr><td>Cube Handover</td><td>0.06</td><td>0.00</td><td>0.00</td><td>0.40</td><td>0.36</td><td>4.21</td><td>3.66</td></tr>
+<tr><td>Lift Pot</td><td>0.02</td><td>0.06</td><td>0.00</td><td>0.52</td><td>0.32</td><td>4.67</td><td>3.86</td></tr>
+<tr><td>Lift Tray</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.32</td><td>0.46</td><td>5.04</td><td>5.87</td></tr>
+<tr><td>Pack Box</td><td>0.04</td><td>0.00</td><td>0.02</td><td>0.54</td><td>0.62</td><td>3.14</td><td>3.70</td></tr>
+<tr><td>Pick Single Book</td><td>0.02</td><td>0.00</td><td>0.00</td><td>0.22</td><td>0.30</td><td>8.79</td><td>6.03</td></tr>
+<tr><td>Rotate Valve</td><td>0.04</td><td>0.00</td><td>0.10</td><td>0.72</td><td>0.72</td><td>8.51</td><td>8.65</td></tr>
+<tr><td>Stack Single Book Shelf</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.12</td><td>0.18</td><td>8.76</td><td>5.96</td></tr>
+<tr><td>Stack Two Blocks</td><td>0.06</td><td>0.04</td><td>0.00</td><td>0.40</td><td>0.52</td><td>4.70</td><td>5.87</td></tr>
+<tr><td>平均（我算）</td><td>0.030</td><td>0.013</td><td>0.015</td><td>0.405</td><td>0.435</td><td>–</td><td>–</td></tr>
+</tbody></table></div>
+<p class="tcap">原表每格是均值 ± 95% 置信区间，共 14 个指标（成功率、任务进度、两臂速度差、夹爪高度差、笛卡尔路径、完成时间、环境碰撞、关节路径、平均笛卡尔和关节加加速度、朝向路径、自碰撞、滑移、轨迹步数），末行是人类示教的参考值。<a href="https://arxiv.org/html/2605.02881v2#A3.T17">看原表 ↗</a></p>
+</details>
+<p><b>C.2 真实零样本 DROID。</b>厨房环境，5 个任务各 3 种空间变体，三种模型相机位置相同。</p>
+<details><summary>表 18 · DROID 逐位置结果（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>任务</th><th>策略</th><th>位置 1</th><th>位置 2</th><th>位置 3</th><th>总计</th></tr></thead><tbody>
+<tr><td rowspan="3">苹果放盘</td><td>MolmoAct2</td><td>5/5</td><td>5/5</td><td>5/5</td><td>15/15</td></tr>
+<tr><td>π0.5-DROID</td><td>5/5</td><td>3/5</td><td>2/5</td><td>10/15</td></tr>
+<tr><td>MolmoBot</td><td>5/5</td><td>4/5</td><td>4/5</td><td>13/15</td></tr>
+<tr><td rowspan="3">移液枪放托盘</td><td>MolmoAct2</td><td>4/5</td><td>4/5</td><td>5/5</td><td>13/15</td></tr>
+<tr><td>π0.5-DROID</td><td>2/5</td><td>3/5</td><td>0/5</td><td>5/15</td></tr>
+<tr><td>MolmoBot</td><td>3/5</td><td>2/5</td><td>3/5</td><td>8/15</td></tr>
+<tr><td rowspan="3">红方块进胶带卷</td><td>MolmoAct2</td><td>5/5</td><td>4/5</td><td>5/5</td><td>14/15</td></tr>
+<tr><td>π0.5-DROID</td><td>3/5</td><td>5/5</td><td>0/5</td><td>8/15</td></tr>
+<tr><td>MolmoBot</td><td>1/5</td><td>0/5</td><td>4/5</td><td>5/15</td></tr>
+<tr><td rowspan="3">刀放盒</td><td>MolmoAct2</td><td>5/5</td><td>5/5</td><td>4/5</td><td>14/15</td></tr>
+<tr><td>π0.5-DROID</td><td>3/5</td><td>1/5</td><td>0/5</td><td>4/15</td></tr>
+<tr><td>MolmoBot</td><td>1/5</td><td>0/5</td><td>5/5</td><td>6/15</td></tr>
+<tr><td rowspan="3">物体放碗（部分分）</td><td>MolmoAct2</td><td>73.2%</td><td>53.0%</td><td>59.8%</td><td>62.0%</td></tr>
+<tr><td>π0.5-DROID</td><td>39.6%</td><td>39.6%</td><td>59.4%</td><td>46.2%</td></tr>
+<tr><td>MolmoBot</td><td>33.0%</td><td>26.4%</td><td>26.4%</td><td>28.6%</td></tr>
+</tbody></table></div>
+<p class="tcap">每条轨迹按 {0, 0.33, 0.66, 1.0} 打分。原表把 π0.5 排成 “π0 5”。<a href="https://arxiv.org/html/2605.02881v2#A3.T18">看原表 ↗</a></p></details>
+<div class="fig" id="fig9"><span class="lab">图 9–12 · 第 45–47 页 · <a href="https://arxiv.org/html/2605.02881v2#A3.F9">图 9 ↗</a> <a href="https://arxiv.org/html/2605.02881v2#A3.F10">图 10 ↗</a> <a href="https://arxiv.org/html/2605.02881v2#A3.F11">图 11 ↗</a> <a href="https://arxiv.org/html/2605.02881v2#A3.F12">图 12 ↗</a></span><p>四张轨迹截图拼版：图 9 是 DROID 评测的 5 个任务，图 10 是双臂 YAM 评测，图 11 是双臂 YAM 的分布外评测，图 12 是 SO-100 评测。每行是一条执行过程的几帧。</p></div>
+<p><b>C.3 真实双臂 YAM。</b>8 个任务各训一个单任务策略，4 个基线用相同训练协议，都训到收敛。评测和场地由 Cortex AI 执行，每个任务 3 种空间变体，评测时用同样的 3 种。表 19 见<a href="#n15">读者注 15</a>。</p>
+<details><summary>表 19、表 20（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>任务（表 19 写法）</th><th>π0.5</th><th>Cosmos</th><th>X-VLA</th><th>OpenVLA</th><th>MolmoAct</th></tr></thead><tbody>
+<tr><td>Cup Stacking</td><td>62.0</td><td>64.5</td><td>5.5</td><td>60.5</td><td>54.0</td></tr>
+<tr><td>Linearbot</td><td>11.6</td><td>9.2</td><td>5.2</td><td>24.4</td><td>64.0</td></tr>
+<tr><td>Pegboard</td><td>2.0</td><td>0.0</td><td>3.0</td><td>4.5</td><td>14.0</td></tr>
+<tr><td>Cup Storing</td><td>85.9</td><td>0.0</td><td>7.9</td><td>96.0</td><td>100.0</td></tr>
+<tr><td>Candy Storing</td><td>26.0</td><td>0.0</td><td>3.8</td><td>26.5</td><td>40.5</td></tr>
+<tr><td>Store Test Tube</td><td>17.0</td><td>11.0</td><td>0.0</td><td>42.0</td><td>67.0</td></tr>
+<tr><td>Store Toys</td><td>26.0</td><td>7.0</td><td>2.5</td><td>2.0</td><td>32.0</td></tr>
+<tr><td>Prepare Pipette</td><td>27.5</td><td>32.0</td><td>11.5</td><td>28.5</td><td>33.0</td></tr>
+<tr><td>平均</td><td>32.2</td><td>15.5</td><td>4.9</td><td>35.5</td><td>50.6</td></tr>
+</tbody></table></div>
+<p class="tcap">表 19 · 8 个任务各 50 次。<a href="https://arxiv.org/html/2605.02881v2#A3.T19">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>任务</th><th>0.25</th><th>0.5</th><th>1.0</th><th>SmolVLA</th><th>MolmoAct v2</th><th>DePi0</th></tr></thead><tbody>
+<tr><td>叉子放盘</td><td>到达</td><td>抓起叉子</td><td>放到盘上</td><td>3.3</td><td>70.0</td><td>30.0</td></tr>
+<tr><td>叠方块</td><td>到达</td><td>抓起方块</td><td>叠好</td><td>5.0</td><td>20.0</td><td>6.7</td></tr>
+<tr><td>纸巾进篮</td><td>到达</td><td>抓起</td><td>放下</td><td>0.0</td><td>73.3</td><td>20.0</td></tr>
+<tr><td>笔放本子</td><td>到达</td><td>抓起</td><td>放下</td><td>3.3</td><td>86.7</td><td>80.0</td></tr>
+<tr><td>方块进盒</td><td>到达</td><td>抓起</td><td>放下</td><td>0.0</td><td>33.3</td><td>90.0</td></tr>
+<tr><td>平均</td><td colspan="3"></td><td>2.3</td><td>56.7</td><td>45.3</td></tr>
+</tbody></table></div>
+<p class="tcap">表 20 · SO-100 零样本，固定初始相机位置，每任务 15 次。数字和表 7 相同。<a href="https://arxiv.org/html/2605.02881v2#A3.T20">看原表 ↗</a></p></details>
+<p><b>C.4 真实 SO-100/101 零样本。</b>固定、预先初始化的相机视角，对比 DePi 和 SmolVLA，部分分评分，不额外训练。</p>
+
+<h2 id="apD">附录 D　数据细节</h2>
+<h3 id="apD-1">D.1 SO-100/101 数据统计</h3>
+<p>先收 1660 个数据集，用 TOPReward 滤掉 438 个低质量的，剩 1222 个（1660 − 438 = 1222）。</p>
+<details><summary>表 21、表 22：SO-100/101 统计（展开）</summary>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>统计</th><th>值</th></tr></thead><tbody>
+<tr><td>数据集 / 贡献者</td><td>1,222 / 377</td></tr>
+<tr><td>回合 / 帧</td><td>38,059 / 19.8M</td></tr>
+<tr><td>估计时长</td><td>183.6 小时</td></tr>
+<tr><td>元数据任务数</td><td>1,322</td></tr>
+<tr><td>全局唯一指令 / 比例</td><td>12,818 / 33.7%</td></tr>
+</tbody></table></div>
+<p class="tcap">表 21 · SO-100/101 训练子集。<a href="https://arxiv.org/html/2605.02881v2#A4.T21">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>机型</th><th>数据集</th><th>回合</th><th>帧</th><th>小时</th></tr></thead><tbody>
+<tr><td>SO-100</td><td>921</td><td>31,101</td><td>15.18M</td><td>141.7</td></tr>
+<tr><td>SO-101</td><td>299</td><td>6,898</td><td>4.57M</td><td>41.6</td></tr>
+<tr><td>MOSS</td><td>2</td><td>60</td><td>15.6K</td><td>0.2</td></tr>
+</tbody></table></div>
+<p class="tcap">表 22 · 按机型分。<a href="https://arxiv.org/html/2605.02881v2#A4.T22">看原表 ↗</a></p>
+</details>
+<details><summary>表 23 · 录制和特征元数据（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>字段</th><th>值</th><th>数据集</th><th>回合</th><th>帧</th></tr></thead><tbody>
+<tr><td>FPS</td><td>30</td><td>1,114</td><td>36,828</td><td>18.96M</td></tr>
+<tr><td>FPS</td><td>20</td><td>78</td><td>527</td><td>261.4K</td></tr>
+<tr><td>FPS</td><td>25</td><td>18</td><td>423</td><td>256.7K</td></tr>
+<tr><td>FPS</td><td>60</td><td>8</td><td>208</td><td>231.6K</td></tr>
+<tr><td>相机数</td><td>1</td><td>230</td><td>4,159</td><td>2.26M</td></tr>
+<tr><td>相机数</td><td>2</td><td>835</td><td>24,151</td><td>13.05M</td></tr>
+<tr><td>相机数</td><td>3</td><td>151</td><td>9,235</td><td>4.11M</td></tr>
+<tr><td>相机数</td><td>4</td><td>6</td><td>514</td><td>342.1K</td></tr>
+<tr><td>动作 / 状态维度</td><td>6</td><td>1,222</td><td>38,059</td><td>19.76M</td></tr>
+</tbody></table></div>
+<p class="tcap"><a href="https://arxiv.org/html/2605.02881v2#A4.T23">看原表 ↗</a></p></details>
+<div class="note" id="n23"><span class="lab">读者注 23 · SO-100/101 统计表的内部核算</span><p>表 22 三行加起来：数据集 921 + 299 + 2 = 1222，回合 31,101 + 6,898 + 60 = 38,059，帧 15.18 + 4.57 + 0.016 = 19.77M，小时 183.5（表 21 写 183.6，舍入）。都对。</p>
+<p>表 23 的相机数四行：数据集 230 + 835 + 151 + 6 = 1222，回合 38,059，对。<b>FPS 四行</b>：数据集 1114 + 78 + 18 + 8 = <b>1218</b>，回合 36,828 + 527 + 423 + 208 = <b>37,986</b>，比总数少 4 个数据集、73 条回合，应该还有别的帧率没列出来。</p>
+<p>指令数：表 21 说全局唯一指令 12,818（33.7%，= 12,818 / 38,059），表 24 说 SO100/101 重标注后 16,205（34%）。两个数不同，比例却几乎一样，可能统计口径不同（未核实）。</p></div>
+<div class="fig" id="fig13"><span class="lab">图 13、14 · 第 48–49 页 · <a href="https://arxiv.org/html/2605.02881v2#A4.F13">图 13 ↗</a> <a href="https://arxiv.org/html/2605.02881v2#A4.F14">图 14 ↗</a></span><p>图 13 是对数纵轴的分组柱状图，横轴是二十来个动作动词（pick、place、move、grab、stack、push、open、close 等），比较重标注前后每个动词的回合数：重标注后长尾动词明显变多。图 14 是 SO-10x 数据的几条样例轨迹截图。</p></div>
+<h3 id="apD-2">D.2 语言标注流水线实现</h3>
+<p>Qwen3.5-27B，温度 0.1，最长 1024 token。提示的要点：给同一次执行的多个视角视频和原始指令，让它写一条以动词开头的祈使句，描述机械臂做的所有动作，注意物体颜色和位置，注意机械臂可能是推而不是抓，只有手腕相机里夹爪闭合时才说在抓，长度约为 <code>word_limit</code> 个词。<code>word_limit</code> 从右尾的幂分布抽，最小 5、最大 25。每个没冻结的相机等间隔抽 12 帧。</p>
+<details><summary>表 24：重标注前后的唯一指令数（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>数据集</th><th>原始唯一指令</th><th>重标注后</th></tr></thead><tbody>
+<tr><td>MolmoAct2-BimanualYAM</td><td>34（0.1%）</td><td>11,448（35%）</td></tr>
+<tr><td>MolmoAct2-DROID</td><td>49,623（67%）</td><td>55,905（75%）</td></tr>
+<tr><td>MolmoAct2-SO100/101</td><td>707（1.5%）</td><td>16,205（34%）</td></tr>
+<tr><td>MolmoAct Dataset</td><td>134（1%）</td><td>2,959（28%）</td></tr>
+<tr><td>BC-Z</td><td>104（0.3%）</td><td>9,981（25%）</td></tr>
+<tr><td>Fractal</td><td>598（0.7%）</td><td>16,729（19%）</td></tr>
+<tr><td>Bridge</td><td>19,973（37%）</td><td>35,096（66%）</td></tr>
+<tr><td>合计</td><td>71,121（22%）</td><td>146,485（46%）</td></tr>
+</tbody></table></div>
+<p class="tcap">表 24 · 重标注前后的唯一指令数。<a href="https://arxiv.org/html/2605.02881v2#A4.T24">看原表 ↗</a></p>
+</details>
+<div class="note" id="n24"><span class="lab">读者注 24 · 表 24 的合计小于各行之和</span><p>原始一列各行相加 71,173，表写 71,121，少 52；重标注一列各行相加 148,323，表写 146,485，少 1,838。如果“合计”是对全体数据去重后的唯一数，跨数据集重复的指令只算一次，合计小于行和是合理的；论文没说是哪种口径（未核实）。§3.4 的“翻倍”：146,485 / 71,121 = 2.06，对。BC-Z 104 / 39,350 = 0.26%，和 §3.4 一致。</p></div>
+<details><summary>表 25：已有的桌面双臂数据集（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>数据集</th><th>本体</th><th>轨迹数</th><th>开放</th></tr></thead><tbody>
+<tr><td>MolmoAct2-BimanualYAM（本文）</td><td>双臂 YAM</td><td>34,500</td><td>开放</td></tr>
+<tr><td>AIST Bimanual Manipulation</td><td>ALOHA</td><td>10,000</td><td>开放</td></tr>
+<tr><td>BiPlay</td><td>ALOHA</td><td>7,000</td><td>开放</td></tr>
+<tr><td>RDT-1B 微调数据</td><td>ALOHA</td><td>6,000</td><td>开放</td></tr>
+<tr><td>ALOHA Unleashed 训练数据</td><td>ALOHA</td><td>26,000</td><td>闭源</td></tr>
+<tr><td>SARM RA-BC</td><td>双臂 YAM</td><td>200 小时</td><td>闭源</td></tr>
+</tbody></table></div>
+<p class="tcap">表 25 · 已有的桌面双臂数据集。按轨迹数，本文最大。<a href="https://arxiv.org/html/2605.02881v2#A4.T25">看原表 ↗</a>（720 小时 / 34,500 条 ≈ 每条 75 秒，我的计算。）</p>
+</details>
+
+<h2 id="apE">附录 E　局限和可能的解决办法</h2>
+<ul>
+<li><b>动作块和缺少实时重分块。</b>固定长度的块（YAM 和 SO 30 步 @ 30 Hz，DROID 15 @ 15 Hz，LIBERO 10 @ 10 Hz）开环执行完再查询。块与块之间的平滑没有约束，专家对每块独立去噪，接缝处可能有速度或加速度跳变；而且执行一块期间无法对扰动、接触或自身跟踪误差作出反应。55.79 Hz 是按块摊薄的吞吐，不是闭环反应速度。</li>
+<li><b>零样本只限三种本体。</b>开箱即用只在有大规模数据的 YAM、SO-100/101、DROID Franka 上成立；其他双臂平台、灵巧手、移动操作、人形都要微调。扩大零样本范围要沿同样方向扩大数据采集。</li>
+</ul>
+
+<h2 id="repro">复现要点：MolmoAct2-LIBERO 和 MolmoAct2-Think-LIBERO</h2>
+<p><b>结论先说：</b>你记的两个数都对得上论文：MolmoAct2-LIBERO 平均 97.2%，MolmoAct2-Think-LIBERO 平均 98.1%，都在 v2（和 v1）的表 8。出处编号也对：LIBERO 配方在 §4.3.1 “Embodiment-specific fine-tuning” 的 LIBERO 段，Think 版在 §5.2 “Training” 的 Fine-tuning 段（它又引回 §4.3.1）。要注意三点：表 8 的 Think 版 Goal 98.5% 应是 98.4%；README 没有给 LIBERO 的训练命令，只给了数据混合和一个 DROID 的例子；代码的几个默认值和论文不同，必须显式传参。</p>
+
+<h3 id="repro-1">1　分数核对</h3>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>项目</th><th>你手上的</th><th>论文 v2</th><th>v1</th><th>核对</th></tr></thead><tbody>
+<tr><td>表号</td><td>表 8</td><td>表 8（LIBERO）</td><td>表 8</td><td class="ok">一致。消融表 v1 是 9–13，v2 顺延为 10–14</td></tr>
+<tr><td>MolmoAct2-LIBERO</td><td>97.2</td><td>97.8 / 100.0 / 97.8 / 93.2 → 97.2</td><td>相同</td><td class="ok">1944 / 2000 = 97.2%；表 13 末行 97.20</td></tr>
+<tr><td>MolmoAct2-Think-LIBERO</td><td>98.1</td><td>98.8 / 99.8 / 98.5 / 95.4 → 98.1</td><td>相同</td><td class="bad">平均对；Goal 98.5% 不可能（500 回合），表 14 写 98.4%（<a href="#n13">注 13</a>）</td></tr>
+<tr><td>§4.3.1</td><td>训练配方</td><td>4.3 Deployment → 4.3.1 Embodiment-specific fine-tuning，LIBERO 段</td><td>同号同文（GPU 小时 1150）</td><td class="ok">一致</td></tr>
+<tr><td>§5.2</td><td>Think 配方</td><td>5.2 Training → Post-training / Fine-tuning 两段</td><td>同号</td><td class="ok">一致</td></tr>
+<tr><td>评测规模</td><td>–</td><td>§6.4：“2,000 rollouts”</td><td>同</td><td class="ok">4 套 × 10 任务 × 50 次</td></tr>
+<tr><td>叫法</td><td>MolmoER、OpenFAST</td><td>Molmo2-ER、MolmoAct2-FAST Tokenizer</td><td>Molmo2-ER、OpenFAST tokenizer</td><td>OpenFAST 是 v1 的名字，v2 改名；Hub 上叫 <code>allenai/MolmoAct2-FAST-Tokenizer</code></td></tr>
+</tbody></table></div>
+
+<h3 id="repro-2">2　训练配方逐项</h3>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>项目</th><th>MolmoAct2-LIBERO</th><th>MolmoAct2-Think-LIBERO</th><th>出处</th></tr></thead><tbody>
+<tr><td>起点检查点</td><td>MolmoAct2-Post = <code>allenai/MolmoAct2</code></td><td>深度版后训练 = <code>allenai/MolmoAct2-Think</code></td><td>§4.3.1、§5.2、§6.3；<code>experiments/README.md</code> Checkpoints 表</td></tr>
+<tr><td>数据</td><td colspan="2">四个套件合在一起训一个模型。Hub 数据 <code>allenai/MolmoAct2-LIBERO-Dataset</code>：1693 回合、273,465 帧、10 FPS、图像 256×256（<a href="#n8">注 8</a>）</td><td>§4.3.1；<code>data_mixtures.py</code> 第 319–335 行 <code>build_molmoact2_libero</code></td></tr>
+<tr><td>相机</td><td colspan="2">固定顺序：前视 <code>observation.images.image</code>，再手腕 <code>observation.images.wrist_image</code>；不随机打乱（<code>--random_camera_order=none</code>）</td><td>§4.3.1；同上</td></tr>
+<tr><td>语言</td><td colspan="2">原始 LIBERO 任务名，不用重标注（<code>--use_annotated_task=false</code>）；推理时小写并去掉末尾标点（<code>normalize_language=True</code>）</td><td>§4.3.1；数据卡；模型卡</td></tr>
+<tr><td>本体 / 控制描述</td><td colspan="2"><code>single franka robotic arm in libero</code> / <code>delta end-effector pose</code></td><td>附录 B.1；<code>data_mixtures.py</code></td></tr>
+<tr><td>状态</td><td colspan="2">8 维 <code>observation.state</code>，q01–q99 归一化后每维离散成 256 个 token</td><td>§4.1.2；<code>norm_stats.json</code></td></tr>
+<tr><td>动作</td><td colspan="2">7 维相对末端动作，q01–q99 归一化（<code>normalize_gripper=False</code>），补零到 32 维</td><td>§4.1.2、§4.3.1；<code>norm_stats.json</code></td></tr>
+<tr><td>动作块</td><td colspan="2">10 步（10 Hz × 1 秒）；推理时 10 步全部执行再重新查询（<code>n_action_steps = 10</code>）</td><td>§4.3.1；附录 A.2；<code>norm_stats.json</code></td></tr>
+<tr><td>输出口</td><td colspan="2"><b>两个都训</b>：LLM 学 MolmoAct2-FAST（OpenFAST）离散动作 token（\(\mathcal L_{\text{LM}}\)），专家学连续动作（\(\mathcal L_{\text{flow}}\)），式 (9) 相加。<b>评测用的是连续专家</b>；离散路径只用于对照调试</td><td>§4.3.1；表 13；§6.8；模型卡</td></tr>
+<tr><td>流样本 K</td><td colspan="2">8（<code>--num_flow_timesteps=8</code>，代码默认是 1）</td><td>§4.3.1；表 12</td></tr>
+<tr><td>知识隔离</td><td colspan="2">不用（代码默认就不用）</td><td>§4.3.1；表 13</td></tr>
+<tr><td>可训参数</td><td colspan="2">全量：ViT、连接器、LLM、专家；嵌入只训 LM 输出头和最后归一化（<code>--ft_embedding=lm_head</code>，默认值），不训新增 token 的输入嵌入</td><td>§4.3.1；<code>trainer_config.py</code> 第 587–592 行</td></tr>
+<tr><td>步数</td><td>5 万步，<b>选 4 万步</b></td><td>5 万步，<b>选 3 万步</b></td><td>§4.3.1；§5.2</td></tr>
+<tr><td>批 / 序列</td><td colspan="2">全局批 64（32 张 H100 × 每卡 2），序列 2100，<b>打包开</b>（64 条打包序列 ≠ 64 个样本）</td><td>§4.3.1；README “Packing And Training Budget”</td></tr>
+<tr><td>学习率</td><td colspan="2">ViT 5e-6，连接器 5e-6，LLM 1e-5，专家 5e-5（<b>代码默认 1e-4，必须显式传</b>）</td><td>§4.3.1；表 16；<code>train_lerobot.py</code> 第 211–214 行</td></tr>
+<tr><td>优化器 / 调度</td><td colspan="2">AdamW，β = (0.9, 0.95)，ε = 1e-6，权重衰减 0（代码），各组预热 200 步，余弦衰减到峰值的 10%（<code>alpha_f=0.1</code>），梯度裁剪 1（代码），bf16 混合精度</td><td>表 16；<code>train_lerobot.py</code> 第 841–881 行</td></tr>
+<tr><td>流时间采样</td><td colspan="2">\(t=0.001+0.999\cdot\mathrm{Beta}(1,1.5)\)，论文没写（<a href="#n5">注 5</a>）</td><td>代码与 <code>config.json</code></td></tr>
+<tr><td>图像增强</td><td colspan="2">附录 B 那一套（裁剪 95%、旋转 ±5°、颜色抖动、20% 模糊），评测关闭</td><td>附录 B.1；<code>--img_aug</code> 默认 <code>full</code></td></tr>
+<tr><td>深度数据</td><td>–</td><td>每帧前视图：Depth Anything V2（ViT-B）→ MolmoAct 深度 VQ-VAE → 10×10 码（0–127），按式 (10) 生成缓冲和掩码；要先跑 <code>scripts/generate_depth_annotation.py --camera-key observation.images.image</code></td><td>§5.1；README “Depth Annotations”</td></tr>
+<tr><td>深度训练</td><td>–</td><td>只采样“只出动作”和“先深度再动作”，均匀（<code>--style_robot_action=1.0 --style_robot_depth=0.0 --style_robot_depth_action=1.0</code>）；深度输入注噪 10%（<code>--depth_code_input_noise_rate=0.1</code>）；逐层深度门，偏置 −4（<b>要加</b> <code>--action_expert_depth_gate=true --action_expert_depth_gate_per_layer=true</code>，README 漏了，<a href="#n26">注 26</a>）</td><td>§5.2；表 14；Think-LIBERO <code>config.json</code></td></tr>
+</tbody></table></div>
+
+<h3 id="repro-3">3　评测协议</h3>
+<p>论文只说 2000 次回合、按 OpenVLA 的四套件设置。具体协议在主仓库 README 指向的 LeRobot 分支 <code>allenai/lerobot:molmoact2-hf-inference</code>（提交 28b4f72，固定在 LeRobot 0.5.1，作者说就是论文评测用的版本）：</p>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>项目</th><th>设置</th><th>出处（该分支）</th></tr></thead><tbody>
+<tr><td>套件</td><td><code>libero_10,libero_goal,libero_object,libero_spatial</code>（libero_10 即 Long）</td><td>README 第 147–175 行</td></tr>
+<tr><td>每任务回合</td><td><code>--eval.n_episodes=50</code>，逐任务循环，每套 10 任务 → 500 次，合计 2000 次</td><td>README；<code>scripts/lerobot_eval.py</code> 第 717–806 行</td></tr>
+<tr><td>初始状态</td><td>LIBERO 官方固定初始状态文件，第 k 个回合用第 k 个初始状态（<code>init_states=True</code>）</td><td><code>envs/libero.py</code> 第 148–151、300–302 行</td></tr>
+<tr><td>种子</td><td><code>--seed=1000</code>；每个回合由种子导出确定的种子，也用来生成动作采样的 <code>torch.Generator</code>（流匹配初始噪声）</td><td>README 第 137 行；<code>lerobot_eval.py</code> 第 106–120 行</td></tr>
+<tr><td>并行</td><td><code>--eval.batch_size=1</code>；<code>OMP_NUM_THREADS=1</code>、<code>MKL_NUM_THREADS=1</code>（作者说多线程会改变闭环结果）；<code>MUJOCO_GL=egl</code></td><td>README 第 137–146 行</td></tr>
+<tr><td>最长步数</td><td>Spatial 280、Object 280、Goal 300、Long 520</td><td><code>envs/libero.py</code> 第 88–93 行</td></tr>
+<tr><td>开头空等</td><td>重置后先执行 50 步空动作让物体落稳（<code>num_steps_wait=50</code>）</td><td><code>envs/libero.py</code> 第 117、307–308 行</td></tr>
+<tr><td>控制</td><td><code>control_mode="relative"</code>（末端增量）</td><td><code>envs/configs.py</code> LiberoEnv</td></tr>
+<tr><td>图像</td><td>环境渲染 360×360，LeRobot 的 LIBERO 处理把图像旋转 180°（同时翻转高和宽）以匹配 HuggingFaceVLA/libero 的方向；模型内部再缩放到 378</td><td><code>envs/configs.py</code>；<code>processor/env_processor.py</code> 第 45–59 行</td></tr>
+<tr><td>推理</td><td>连续动作，10 步欧拉；float32（模型卡：报告的实验用 float32，约 26 GB 显存）；CUDA Graph 开</td><td>模型卡；<code>config.json</code> <code>flow_matching_num_steps = 10</code></td></tr>
+<tr><td>Think 推理</td><td><code>--policy.enable_depth_reasoning=True --policy.enable_adaptive_depth=True</code>；深度缓存在同一环境内跨步传递，回合重置时清空</td><td>README；<code>policies/molmoact2/modeling_molmoact2.py</code></td></tr>
+</tbody></table></div>
+<pre class="cmd">export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+lerobot-eval --policy.type=molmoact2 --policy.checkpoint_path=allenai/MolmoAct2-LIBERO \
+  --policy.inference_action_mode=continuous --policy.enable_cuda_graph=True \
+  --policy.norm_tag=libero --policy.device=cuda --env.type=libero \
+  --env.task=libero_10,libero_goal,libero_object,libero_spatial \
+  --eval.batch_size=1 --eval.n_episodes=50 --seed=1000
+# Think 版：checkpoint 换成 allenai/MolmoAct2-Think-LIBERO，再加
+#   --policy.enable_depth_reasoning=True --policy.enable_adaptive_depth=True</pre>
+<p class="tcap">照抄自 allenai/lerobot:molmoact2-hf-inference 的 README（第 141–176 行），只把换行合并了。</p>
+<div class="note" id="n25"><span class="lab">读者注 25 · 训练图和评测图的分辨率不同</span><p>训练数据是 256×256，评测环境渲染 360×360（LeRobot 0.5.1 的 LiberoEnv 默认 <code>observation_height = observation_width = 360</code>），两者在模型里都缩放到 378×378。256 → 378 是放大，360 → 378 几乎原样，所以训练和评测的图像清晰度不同。这是 LeRobot 的默认设置，作者的分数就是在这个设置下得到的，复现时不要“修正”它，否则反而可能偏离论文。另外 LeRobot 版本的环境和 OpenVLA 原始评测脚本（256×256 渲染、自己的空等步数）不同，用别的评测脚本跑出来的数不能直接和表 8 比。</p></div>
+
+<h3 id="repro-4">4　训练命令：README 里没有，我拼了一条</h3>
+<p>README 的 “Fine-Tuning Existing Mixtures” 只给了 DROID 的完整命令，并说 LIBERO 或 Franka 桌面任务从 <code>allenai/MolmoAct2</code> 开始。下面是我按 §4.3.1、表 16 和那条 DROID 命令拼出来的 LIBERO 版本，<b>是示意，不是官方命令，没有运行过</b>：</p>
+<pre class="cmd">torchrun --nnodes=4 --nproc-per-node=8 ... launch_scripts/train_lerobot.py \
+  allenai/MolmoAct2 libero \
+  --seq_len=2100 --max_duration=50000 --device_batch_size=2 --global_batch_size=64 \
+  --save_interval=10000 --save_num_checkpoints_to_keep=20 \
+  --packing=true --crop_mode=resize \
+  --ft_vlm=true --ft_action_expert=true --ft_embedding=lm_head \
+  --vit_learning_rate=5e-6 --connector_learning_rate=5e-6 --llm_learning_rate=1e-5 \
+  --action_expert_learning_rate=5e-5 \
+  --num_flow_timesteps=8 --mask_action_dim_padding=true \
+  --random_camera_order=none --frame_loading_backend=torchcodec_exact \
+  --use_annotated_task=false --sample_annotated_task=false
+# Think 版：起点换成 allenai/MolmoAct2-Think，先生成深度标注，再加
+#   --enable_depth_reasoning=true --num_depth_tokens=128 --num_depth_tokens_per_image=100
+#   --depth_code_input_noise_rate=0.1 --style_robot_action=1.0 --style_robot_depth=0.0
+#   --style_robot_depth_action=1.0
+#   --action_expert_depth_gate=true --action_expert_depth_gate_per_layer=true   # README 没写，按 config.json 补</pre>
+<div class="note" id="n26"><span class="lab">读者注 26 · README 的深度微调参数漏了深度门</span><p>README “Depth Fine-Tuning” 和 DROID 深度微调命令都只加了 <code>--enable_depth_reasoning</code>、<code>--num_depth_tokens</code>、<code>--num_depth_tokens_per_image</code>、<code>--depth_code_input_noise_rate=0.1</code> 和三个 style 权重，<b>没有</b> <code>--action_expert_depth_gate</code>。<code>train_lerobot.py</code> 第 264–278 行这两个开关默认都是 <code>False</code>，第 586–588 行直接写进模型配置。而发布的 MolmoAct2-Think-LIBERO 的 <code>config.json</code> 里 <code>action_expert_depth_gate: true</code>、<code>action_expert_depth_gate_per_layer: true</code>，论文 §5.2 和表 14 也说最终配方有逐层门。照 README 跑，得到的是表 14 第二行那种“没有门”的变体（那一行同时也没注噪，所以不完全等同）。</p></div>
+<div class="note" id="n27"><span class="lab">读者注 27 · 代码默认值和论文不同的地方</span><p><code>train_lerobot.py</code> 的默认值（行号）和论文微调配方对比：</p>
+<ul>
+<li><code>--action_expert_learning_rate</code> 默认 <b>1e-4</b>（214 行），论文 5e-5。README 的命令都显式传了 5e-5。</li>
+<li><code>--num_flow_timesteps</code> 默认 <b>1</b>（241 行），论文 8。</li>
+<li><code>--packing</code> 默认 <code>False</code>（373 行）；论文配方开打包，README 的自定义数据示例又建议关打包加 <code>--dynamic_seq_len=true</code>。两种设置下“5 万步 × 64”看到的样本数差好几倍。</li>
+<li><code>--ft_vlm</code>、<code>--ft_action_expert</code> 默认都是 <code>False</code>（281、283 行），不传就只训 LM 头。</li>
+<li><code>--random_camera_order</code> 默认 <code>none</code>，<code>--use_annotated_task</code> 的默认要看数据混合；稳妥起见显式传。</li>
+<li>模型里的 <code>max_duration</code> 写死的默认是 24000（第 876 行），会被命令行覆盖。保存间隔默认 2000，只保留 1 个检查点，要按 1 万步保存多个才能像论文那样挑。</li>
+</ul></div>
+
+<h2 id="code">代码对照</h2>
+<p>主仓库 <a href="https://github.com/allenai/molmoact2/tree/6070080a20321b4f498ab30f28e1d09ac465edb7">allenai/molmoact2@6070080</a>（2026-10-01）的结构：根目录是推理服务（<code>examples/droid</code>、<code>examples/yam</code> 的 FastAPI 服务）、ManiSkill 零样本仿真评测 <code>sim_eval/</code>；<code>experiments/</code> 是 2026-06-13 公开的训练代码（基于 Molmo2 的 <code>olmo</code> 包），<code>experiments/lerobot/</code> 是随附的 LeRobot 副本，另有子模块指向 <code>allenai/lerobot:molmoact2-policy</code>。README 的更新记录说 2026-08-22 修过 LeRobot 训练脚本的微调问题。代码比论文晚五个月，默认值不一定是论文实验所用。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>论文</th><th>代码位置</th><th>对照</th></tr></thead><tbody>
+<tr><td>式 (1)(2)(8) 流损失</td><td><code>olmo/models/molmoact2/molmoact2.py</code> <code>_compute_flow_matching_loss</code>（约 986–1110 行）</td><td>插值、目标速度一致；时间分布 Beta(1, 1.5)，论文没写（注 5）</td></tr>
+<tr><td>式 (9) 总损失</td><td><code>olmo/train/trainer.py</code> 1832–1853 行</td><td>直接相加；另有 1e-4 的 softmax 辅助损失（注 6）</td></tr>
+<tr><td>知识隔离</td><td><code>_maybe_detach_action_expert_condition</code>；<code>--action_expert_detach_vlm</code></td><td>默认关；README 后训练命令没开（注 6）</td></tr>
+<tr><td>式 (10) 自适应掩码</td><td><code>olmo/hf_model/modeling_molmoact2.py</code> 86–87、1185–1224 行；<code>scripts/generate_depth_annotation.py</code></td><td>32×32 块、阈值 0.996、10×10，一致</td></tr>
+<tr><td>式 (11)(12) 深度门</td><td><code>molmoact2.py</code> 93–99、224–227、262 行起</td><td>默认关，要显式开（注 26）</td></tr>
+<tr><td>式 (15) 欧拉积分</td><td><code>molmoact2.py</code> 599–613 行：<code>steps = num_steps or flow_matching_num_steps</code>，<code>dt = 1.0 / steps</code></td><td>N = 10，一致</td></tr>
+<tr><td>表 15 结构</td><td>Hub <code>config.json</code></td><td>图像 378 而非 384；RoPE θ 5M 而非 1M（注 22）</td></tr>
+<tr><td>表 16 优化器</td><td><code>launch_scripts/train_lerobot.py</code> 841–881 行</td><td>AdamW、β、ε、预热 200、衰减到 10% 一致；权重衰减 0、梯度裁剪 1 论文没写</td></tr>
+<tr><td>§4.3.1 LIBERO 数据</td><td><code>launch_scripts/data_mixtures.py</code> 319–335 行</td><td>块长 10、相机两路、描述一致。注意 338–353 行的 <code>libero_goal</code> 混合和 <code>libero</code> 完全相同（同一个数据仓库，没有按套件过滤），名字有误导性</td></tr>
+<tr><td>§6.8 CUDA Graph</td><td>LeRobot 策略 <code>enable_cuda_graph</code>；README 服务 <code>--cuda-graph</code></td><td>README 说约快 2 倍、多 2 GB 显存；和图 8 的 27.39 → 55.79 一致</td></tr>
+</tbody></table></div>
+<p>模型卡补充：MolmoAct2-LIBERO 在 float32 下约 26 GB 显存（开 CUDA Graph），bfloat16 可以在 16 GB 内运行，“通常不太影响性能”。README 的推理服务对 bfloat16 打了两处补丁，说明上游代码原本只支持 float32 的流匹配轨迹。复现论文分数建议用 float32。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">v1 和 v2 的差别</a>：v2 加附录 A–E、§6.5 和表 9，表 9–13 顺延为 10–14，OpenFAST 改名 MolmoAct2-FAST；LIBERO 数字不变。</li>
+<li><a href="#n2">ER 一栏加起来 3.73M</a>：小计、摘要和 §2 都写 3.3M。</li>
+<li><a href="#n3">ER 训练命令对不上两阶段</a>：混合和序列长是阶段 2 的，步数是阶段 1 的。</li>
+<li><a href="#n4">表 2 和正文</a>：MolmoAct Dataset 不在 tokenizer 的混合表里；比例和为 99.99%。</li>
+<li><a href="#n5">t 的采样</a>：代码是 0.001 + 0.999·Beta(1, 1.5)，偏噪声端，论文没写。</li>
+<li><a href="#n6">知识隔离是默认关的开关</a>：README 后训练命令没开；另有论文没提的 softmax 辅助损失。</li>
+<li><a href="#n7">LIBERO 的 GPU 小时</a>：5 万步和 10 万步都写 1152，像照抄；表 16 写 100k。</li>
+<li><a href="#n8">LIBERO 数据和遍数</a>：1693 条不是 2000 条，和 HuggingFaceVLA/libero 同数；不打包时下限 11.7 遍。</li>
+<li><a href="#n9">门的初值</a>：σ(−4) = 0.018，开始时几乎不用深度。</li>
+<li><a href="#n10">深度阈值和格子</a>：代码和论文一致；Depth Anything 用 ViT-B，论文没写。</li>
+<li><a href="#n11">“9 / 13”</a>：对开放模型 9 项，算上 API 只有 5 项；“17%” 是 17 个点。</li>
+<li><a href="#n12">开箱即用四张表</a>：算术都对；基线和相机设置的叫法前后不一。</li>
+<li><a href="#n13"><b>Think 版 Goal 98.5 应为 98.4</b></a>：500 回合不可能出现 98.5；97.2 和 98.1 两个平均都对。</li>
+<li><a href="#n14">表 8 其他</a>：MolmoAct-7B-D 平均应为 86.8；和 GR00T N1.7、π0.5 只差 0.2–0.3，分辨不出第一。</li>
+<li><a href="#n15">真实 YAM</a>：表 19 平均 50.6，正文 50.1；任务名三套写法。</li>
+<li><a href="#n16">RoboEval 44.3</a>：表 17 算出 43.5；几个引用的指标对不上表。</li>
+<li><a href="#n17">+0.9 有多可靠</a>：1962 对 1944，双比例 p ≈ 0.06；Object 是略低不是持平。</li>
+<li><a href="#n18">表 9</a>：数值不是 5% 的倍数；行名是 Think 版。</li>
+<li><a href="#n19">消融之间</a>：表 11 和表 12 共用一次运行；后训练在 LIBERO 上值约 1.3 个点。</li>
+<li><a href="#n20">检查点在测试集上挑</a>：40K 和 30K 都是挑出来的，分数略偏乐观。</li>
+<li><a href="#n21">速度换成延迟</a>：179 ms 和 787 ms；Think 慢 4.4 倍。</li>
+<li><a href="#n22">表 15 对配置</a>：图像 378 不是 384，RoPE θ 5M 不是 1M。</li>
+<li><a href="#n23">SO-100/101 统计</a>：表 22 对；表 23 的 FPS 行少 4 个数据集、73 条回合。</li>
+<li><a href="#n24">表 24 合计小于行和</a>：可能是全局去重，论文没说。</li>
+<li><a href="#n25">训练 256、评测 360</a>：LeRobot 默认设置，复现时别“修正”。</li>
+<li><a href="#n26"><b>README 漏了深度门</b></a>：Think 版复现必须补 <code>--action_expert_depth_gate</code> 两个开关。</li>
+<li><a href="#n27"><b>代码默认值</b></a>：专家学习率 1e-4、K = 1、打包关、不训 VLM，都要显式传。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 16 日用脚本核对过可以打开（返回 200）；arXiv 编号都打开摘要页核对过标题。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://allenai.org/blog/molmoact2">MolmoAct2</a></td><td>本文</td><td><a href="https://github.com/allenai/molmoact2">allenai/molmoact2</a> · <a href="https://github.com/allenai/lerobot/tree/molmoact2-hf-inference">LIBERO 评测分支</a></td><td><a href="https://arxiv.org/abs/2605.02881">2605.02881</a></td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>四套件仿真基准（复现对象）</td><td><a href="https://huggingface.co/datasets/allenai/MolmoAct2-LIBERO-Dataset">MolmoAct2-LIBERO-Dataset</a> · <a href="https://huggingface.co/datasets/HuggingFaceVLA/libero">HuggingFaceVLA/libero</a></td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/allenai/MolmoAct2-LIBERO">MolmoAct2-LIBERO</a></td><td>微调检查点</td><td><a href="https://huggingface.co/allenai/MolmoAct2-Think-LIBERO">Think 版</a> · <a href="https://huggingface.co/allenai/MolmoAct2">起点 MolmoAct2</a> · <a href="https://huggingface.co/allenai/MolmoAct2-Think">起点 Think</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/allenai/MolmoAct2-FAST-Tokenizer">MolmoAct2-FAST</a></td><td>动作 tokenizer（v1 叫 OpenFAST）</td><td>Hugging Face</td><td>FAST：<a href="https://arxiv.org/abs/2501.09747">2501.09747</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/allenai/Molmo2-ER">Molmo2-ER</a></td><td>具身推理骨干</td><td>Hugging Face</td><td>本文 §2</td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>Franka 野外数据；零样本评测</td><td><a href="https://huggingface.co/datasets/KarlP/droid">补充标注</a></td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/collections/allenai/molmoact2-bimanualyam-dataset-69f81e17b140ec34f430a35e">MolmoAct2-BimanualYAM</a></td><td>720 小时双臂数据</td><td><a href="https://huggingface.co/collections/allenai/molmoact2-datasets-69f81e316ec3daafe3f9555c">其他机器人数据</a></td><td>本文 §3.1</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2507.00435">RoboEval</a></td><td>双臂仿真基准</td><td>–</td><td><a href="https://arxiv.org/abs/2507.00435">2507.00435</a></td></tr>
+<tr><td><a class="ds" href="https://molmospaces.allen.ai/">MolmoSpaces</a></td><td>DROID 风格仿真基准</td><td>molmospaces.allen.ai</td><td><a href="https://arxiv.org/abs/2602.11337">2602.11337</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2603.16861">MolmoBot</a></td><td>仿真基准和基线策略</td><td>–</td><td><a href="https://arxiv.org/abs/2603.16861">2603.16861</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></td><td>学术数据来源</td><td>–</td><td><a href="https://arxiv.org/abs/2310.08864">2310.08864</a></td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a> · <a class="ds" href="https://sites.google.com/view/bc-z/home">BC-Z</a> · <a class="ds" href="https://robotics-transformer1.github.io/">RT-1</a></td><td>学术数据子集</td><td>–</td><td><a href="https://arxiv.org/abs/2308.12952">2308.12952</a> · <a href="https://arxiv.org/abs/2202.02005">2202.02005</a> · <a href="https://arxiv.org/abs/2212.06817">2212.06817</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.07917">MolmoAct</a></td><td>前作，深度 VQ-VAE 来源</td><td>–</td><td><a href="https://arxiv.org/abs/2508.07917">2508.07917</a></td></tr>
+<tr><td><a class="ds" href="https://topreward.github.io/webpage/">TOPReward</a></td><td>SO-10x 质量过滤</td><td>项目页</td><td>–</td></tr>
+<tr><td>具身推理基准</td><td>表 3 的 13 项</td><td><a class="ds" href="https://pointarena.github.io/">Point-Bench</a> · <a class="ds" href="https://chanh.ee/RoboSpatial/">RoboSpatial</a> · <a class="ds" href="https://robo-point.github.io/">Where2Place</a> · <a class="ds" href="https://zeyofu.github.io/blink/">BLINK</a> · <a class="ds" href="https://cambrian-mllm.github.io/">CV-Bench</a> · <a class="ds" href="https://github.com/embodiedreasoning/ERQA">ERQA</a> · <a class="ds" href="https://mll-lab-nu.github.io/mind-cube/">MindCube</a> · <a class="ds" href="https://open-eqa.github.io/">OpenEQA</a> · <a class="ds" href="https://vision-x-nyu.github.io/thinking-in-space.github.io/">VSI-Bench</a></td><td><a href="https://arxiv.org/abs/2505.09990">2505.09990</a> · <a href="https://arxiv.org/abs/2506.04308">RefSpatial 2506.04308</a> · <a href="https://arxiv.org/abs/2411.16537">2411.16537</a> · <a href="https://arxiv.org/abs/2406.10721">2406.10721</a> · <a href="https://arxiv.org/abs/2404.12390">2404.12390</a> · <a href="https://arxiv.org/abs/2406.16860">2406.16860</a> · <a href="https://arxiv.org/abs/2503.20020">2503.20020</a> · <a href="https://arxiv.org/abs/2406.05756">EmbSpatial 2406.05756</a> · <a href="https://arxiv.org/abs/2506.21458">2506.21458</a> · <a href="https://arxiv.org/abs/2412.07755">SAT 2412.07755</a> · <a href="https://arxiv.org/abs/2412.14171">2412.14171</a></td></tr>
+<tr><td>主要基线</td><td>LIBERO 和真机对比</td><td>–</td><td>π0 <a href="https://arxiv.org/abs/2410.24164">2410.24164</a> · π0.5 <a href="https://arxiv.org/abs/2504.16054">2504.16054</a> · OpenVLA <a href="https://arxiv.org/abs/2406.09246">2406.09246</a> · Cosmos Policy <a href="https://arxiv.org/abs/2601.16163">2601.16163</a> · X-VLA <a href="https://arxiv.org/abs/2510.10274">2510.10274</a> · SmolVLA <a href="https://arxiv.org/abs/2506.01844">2506.01844</a> · 知识隔离 <a href="https://arxiv.org/abs/2505.23705">2505.23705</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2605.02881（v2）和官方代码后的整理，不是作者的官方内容。原文作者 Haoquan Fang、Jiafei Duan 等 29 人（Ai2 等），出处 arXiv 2605.02881，arXiv 非独占分发许可；原文和原图版权归作者所有，这里没有复制原图。代码引用自 allenai/molmoact2 和 allenai/lerobot（Apache-2.0），只引文件名、行号和参数。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

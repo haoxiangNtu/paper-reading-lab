@@ -8,6 +8,8 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| OpenWAM: An Open, Modular Exploration Towards Systematic World-Action Model Pretraining（[arXiv 2609.07398](https://arxiv.org/abs/2609.07398)，2026-09，CC BY 4.0） | [openwam 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/openwam.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/openwam/index.html) | 世界-动作模型的模块化研究栈 + OpenWAM-α（Wan2.2-5B + 1B ActionDiT）；RoboTwin 受控消融，LIBERO 99.3%，附 LIBERO 复现要点。 | 19 条 |
+| MolmoAct2: Action Reasoning Models for Real-world Deployment（[arXiv 2605.02881](https://arxiv.org/abs/2605.02881)，v2 2026-05，非独占分发） | [molmoact2 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/molmoact2.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/molmoact2/index.html) | 离散动作 token VLM + 逐层 KV 流匹配专家 + 自适应深度推理；LIBERO 97.2 / 98.1 核实，表 8 一格不可能，附 LIBERO 复现要点。 | 27 条 |
 | Mundo: Customized World Model（无论文；[项目页](https://mundo-world-model.github.io/) + [HF 博客](https://huggingface.co/blog/Luo-Yihang/mundo-world-model)，2026-10-23，© 保留） | [mundo 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/mundo.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/mundo/index.html) | 显式 3D 代理 + 场景程序 + MuJoCo 算物理，视频扩散按 proxy 帧和照片渲染外观；无定量评测，用页面数据核对了弹跳、时间线和框修正。 | 14 条 |
 | Real Garment Benchmark (RGBench)（[arXiv 2511.06434](https://arxiv.org/abs/2511.06434)，v2，AAAI 2026） | [rgbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rgbench.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rgbench/index.html) | 衣物网格库 + 闭源 GarmentDynamics 模拟器 + 真实点云 CD/HD 评测；表 4、5 和公开 CSV 逐格一致，附录 C 多处文字和表不符。 | 22 条 |
 | PhysTwin: Physics-Informed Reconstruction and Simulation of Deformable Objects from Videos（[arXiv 2503.17973](https://arxiv.org/abs/2503.17973)，ICCV 2025） | [phystwin 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/phystwin.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/phystwin/index.html) | 弹簧-质点 + CMA-ES 与可微模拟两段辨识 + 高斯 LBS；对照官方代码核了积分、弹簧力、子步和优化细节。 | 17 条 |
@@ -335,6 +337,8 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
+papers/openwam.html        OpenWAM 精读（裁切原图在 papers/openwam/，11 幕动画在 interactives/openwam/）
+papers/molmoact2.html      MolmoAct2 精读（无原图；11 幕动画在 interactives/molmoact2/）
 papers/gauge.html   GAUGE 精读
 papers/foundationpose.html  FoundationPose 架构专题
 papers/wapr.html            WAPR 架构专题

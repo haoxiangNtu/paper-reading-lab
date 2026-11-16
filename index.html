@@ -20,6 +20,22 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/openwam.html">OpenWAM：把世界-动作模型拆成模块做受控实验，再训出 OpenWAM-α</a></p>
+<p class="en">OpenWAM: An Open, Modular Exploration Towards Systematic World-Action Model Pretraining</p>
+<div class="meta"><span>arXiv 2609.07398</span><span>2026-09</span><span>2026-11-16 读</span></div>
+<p class="d">Wan2.2-5B 视频骨干加 1B ActionDiT，在 RoboTwin 上受控比较“继承什么、怎样协同、能否跨域”，再用 5.18 亿帧人类加机器人数据预训练 OpenWAM-α，LIBERO 99.3%。附 LIBERO 复现要点：公布的基座是第 154,000 步而非表 9 的 155,862 步，评测协议只写在代码里。</p>
+<div class="tags"><span class="pill">世界-动作模型</span><span class="pill">视频扩散</span><span class="pill">LIBERO 复现</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">19 条读者注</span></div>
+<div class="links"><a class="go" href="papers/openwam.html">读精读 →</a><a href="interactives/openwam/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2609.07398">原文</a><a href="https://github.com/OpenWAM-Official/OpenWAM">官方代码</a><a href="papers/openwam.html#repro">复现要点</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/molmoact2.html">MolmoAct2：会“说”动作的 VLM 接上逐层读 KV 的流匹配动作专家</a></p>
+<p class="en">MolmoAct2: Action Reasoning Models for Real-world Deployment</p>
+<div class="meta"><span>arXiv 2605.02881</span><span>2026-05</span><span>2026-11-16 读</span></div>
+<p class="d">4B 的 Molmo2-ER 先用离散 FAST 动作 token 训练，再挂一个 36 层流匹配专家逐层读 VLM 的 K、V；Think 版只重算画面里变了的深度格子。LIBERO 97.2 / 98.1 都核实了，但表 8 中 Think 的 Goal 98.5 不可能（应为 98.4）；README 漏了深度门参数，代码默认值和论文有几处不同。</p>
+<div class="tags"><span class="pill">VLA</span><span class="pill">流匹配</span><span class="pill">LIBERO 复现</span><span class="pill">版权保留 · 文字描述</span><span class="pill rn">27 条读者注</span></div>
+<div class="links"><a class="go" href="papers/molmoact2.html">读精读 →</a><a href="interactives/molmoact2/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2605.02881">原文</a><a href="https://github.com/allenai/molmoact2">官方代码</a><a href="papers/molmoact2.html#repro">复现要点</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/mundo.html">Mundo：从几张照片定制一个能编辑、能模拟的世界模型</a></p>
 <p class="en">Mundo: Customized World Model</p>
 <div class="meta"><span>无论文 · 项目页 + HF 博客</span><span>2026-10</span><span>2026-11-11 读</span></div>

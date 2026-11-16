@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpenWAM 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2609.07398 OpenWAM 做成 11 幕 3D 动画：80 维统一动作空间、33 帧窗口到 token、30 层双流共享注意力、四种掩码、噪声平面上的训练和推理调度、策略服务器、预训练数据、LIBERO 微调和评测、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="openwam.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/openwam.html">返回精读</a><a href="../../papers/openwam.html#s5-1">原文 §5.1</a><a href="../../papers/openwam.html#repro">LIBERO 复现要点</a><a href="https://arxiv.org/abs/2609.07398">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2609.07398 · OpenWAM / OpenWAM-α</p>
+<h1>一个世界-动作模型，从数据到 LIBERO 分数</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是数据怎样变成 token；第 4、5 幕是网络和注意力掩码；第 6、7 幕是训练和推理在噪声平面上怎么走；第 8 幕是部署；第 9 幕是预训练；<b>第 10 幕是 LIBERO 的微调和评测协议</b>；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。数字来自论文、官方代码（commit 1dcaeea）和 Hugging Face 检查点配置；第 6、7、9、10 幕里标“现算”的数是页面按公式当场算的。没有任何 OpenWAM 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码 / 检查点”分开写。代码是 OpenWAM-Official/OpenWAM commit 1dcaeea（2026-11-12），只读未运行；检查点配置来自 Hugging Face 的 OpenWAM-Alpha-Pretrain-Foundation-Model 和 OpenWAM-Alpha-Sim-LIBERO。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / 检查点</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入</td></tr>
+<tr><td>I1</td><td>视频窗口</td><td>33 帧，video stride 4，384 × 320，多视角拼成一张画布（表 9）</td><td>LIBERO：上方主相机 256 × 320，下方左腕部 128 × 160，右半黑；9 帧</td></tr>
+<tr><td>I2</td><td>视觉编码</td><td>冻结 Wan2.2-VAE，首帧单独、之后每 4 帧一组，T′ = 1 + (T − 1)/4</td><td>WanVideoVAE38：z_dim 48，空间 16 倍；9 帧 → 3 个隐帧 × 24 × 20 × 48</td></tr>
+<tr><td>I3</td><td>世界 token</td><td>(1,2,2) patch，宽 3072，3D RoPE</td><td>每隐帧 12 × 10 = 120 个；共 360 个，其中首帧 120 个干净（我的推算）</td></tr>
+<tr><td>I4</td><td>动作 token</td><td>H 步各一个，宽 1024，1D RoPE；a ∈ ℝ^(H×80)</td><td>H = num_frames − 1 = 32；action_dim 80</td></tr>
+<tr><td>I5</td><td>条件</td><td>umT5 4096 维文本 + 本体 q ∈ ℝ⁸⁰ 线性投影成一个 token，两流各自交叉注意力</td><td>umT5-xxl 分词器 seq_len 512；use_proprioception: true，state_dim 80</td></tr>
+<tr><td>I6</td><td>统一动作空间</td><td>80 = 2 × (3 + 6 + 1 + 24) + 12 保留</td><td>LIBERO 映射 0-9；RoboCOIN/DROID/InternData 0-9 和 34-43</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>世界流</td><td>Wan2.2-TI2V-5B DiT，30 层</td><td>dim 3072，ffn 14336，24 头，in/out_dim 48</td></tr>
+<tr><td>N2</td><td>动作流</td><td>ActionDiT，约 1B 参数</td><td>dim 1024，ffn 4096，30 层；按代码算 1,021,035,600 个参数</td></tr>
+<tr><td>N3</td><td>桥接</td><td>30 对层全部桥接，共享注意力 24 头 × 128</td><td>bridge_layers: null，bridge_interval: 1</td></tr>
+<tr><td>N4</td><td>掩码</td><td>Mutual + 视频内首帧因果；首帧行不看带噪帧和动作</td><td>attention_mask_mode: mutual；video_attention_mask_mode: first_frame_causal</td></tr>
+<tr><td>N5</td><td>冻结</td><td>umT5、Wan2.2-VAE</td><td>freeze 列表还含 reason1、image_encoder、video_encoder（这个结构里不存在）</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>损失</td><td>式 (2)，λv = λa = 1，钟形 w(t)</td><td>lambda_video 1.0，lambda_action 1.0</td></tr>
+<tr><td>T2</td><td>时间步</td><td>t = 1 − f₅(u)，两流独立</td><td>shift_video 5.0，shift_action 5.0</td></tr>
+<tr><td>T3</td><td>预训练</td><td>128 × H200，batch 3,072，155,862 步，lr 1e-4 cosine</td><td>batch 24 × 128；公布权重 checkpoint_step_154000</td></tr>
+<tr><td>T4</td><td>LIBERO SFT</td><td>batch 256，10 epochs（10,690 步），不增强</td><td>batch 4 × 64 进程；checkpoint_step_10690；273,465 帧</td></tr>
+<tr class="grp"><td colspan="4">推理和评测</td></tr>
+<tr><td>D1</td><td>去噪</td><td>同步，N = 10，t_i = 1 − f₅(1 − i/10)</td><td>denoise_steps 10，denoise_mode sync</td></tr>
+<tr><td>D2</td><td>执行</td><td>同步推理，整块执行</td><td>inference_mode sync，inference_horizon null</td></tr>
+<tr><td>D3</td><td>加速</td><td>编译 + CUDA graph、速度复用、提示词缓存、不解码；RTX 5090 约 170 ms/块</td><td>dit_cache 余弦 0.99、最多连跳 3；compile 开；decode_video false</td></tr>
+<tr><td>D4</td><td>LIBERO 协议</td><td>论文未写</td><td>每任务 50 次，种子 42，开局 30 步，最长 600 / 700 步</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕的方块布局</b>是我排的，模块名和数量来自图 1、图 2。</li>
+<li><b>第 3 幕的“假如 stride 是 2 或 8”。</b>α 固定 stride 4；另两档只为看清帧数和隐帧数怎样随它变，按 T′ = 1 + (T − 1)/4 现算。</li>
+<li><b>第 4 幕各结构的画法</b>只示意连接关系，层数和宽度只在双系统联合自注意力上按真实比例画。</li>
+<li><b>第 5 幕矩阵</b>的格子按 120 : 240 : 32 的比例缩小画；可见比例按真实 token 数现算。</li>
+<li><b>第 6 幕的散点</b>是页面用固定种子现抽的 600 个样本，不是训练日志。</li>
+<li><b>第 7 幕的曲线</b>按代码的写法：领先流取 f_α(s)，落后流取 s 或 h_o(s)；分数是图 9 的标注。</li>
+<li><b>第 8 幕的时间线</b>按 10 Hz 控制和 170 ms 推理画，不是实测日志。</li>
+<li><b>第 10 幕的失败格子</b>位置是我随便放的：论文只给每个套件的成功率，没给哪个任务失败。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2609.07398 后的理解，不是作者的官方图。原图见<a href="../../papers/openwam.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容、读者注和 LIBERO 复现要点也在精读页。</p></footer>
+</div>
+</body>
+</html>
