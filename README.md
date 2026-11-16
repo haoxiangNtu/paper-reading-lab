@@ -8,6 +8,8 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Wan: Open and Advanced Large-Scale Video Generative Models（[arXiv 2503.20314](https://arxiv.org/abs/2503.20314)，2025-03，非独占许可，经决定放原图） | [wan 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wan.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wan/index.html) | Wan2.1 技术报告 + Wan2.2 MoE / Wan2.2-VAE / TI2V-5B 补充、FLUX.2-VAE 附节；OpenWAM 视频骨干的上游。 | 21 条 |
+| Both Semantics and Reconstruction Matter（S-VAE / PS-VAE，[arXiv 2512.17909](https://arxiv.org/abs/2512.17909)，2025-12，非独占许可，经决定放原图） | [svae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/svae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/svae/index.html) | 表示编码器特征压成 KL 正则隐空间；OpenWAM S-VAE 的出处，附与 OpenWAM 实现的逐项对照。 | 16 条 |
 | LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning（[arXiv 2306.03310](https://arxiv.org/abs/2306.03310)，NeurIPS 2023 D&B，CC BY 4.0） | [libero 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/libero.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/libero/index.html) | 130 个程序化生成任务的终身学习基准；3 种网络 × 5 种算法的 FWT/NBT/AUC，代码对照 8f1084e；附 VLA 用法和复现要点。 | 21 条 |
 | OpenWAM: An Open, Modular Exploration Towards Systematic World-Action Model Pretraining（[arXiv 2609.07398](https://arxiv.org/abs/2609.07398)，2026-09，CC BY 4.0） | [openwam 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/openwam.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/openwam/index.html) | 世界-动作模型的模块化研究栈 + OpenWAM-α（Wan2.2-5B + 1B ActionDiT）；RoboTwin 受控消融，LIBERO 99.3%，附 LIBERO 复现要点。 | 19 条 |
 | MolmoAct2: Action Reasoning Models for Real-world Deployment（[arXiv 2605.02881](https://arxiv.org/abs/2605.02881)，v2 2026-05，非独占分发） | [molmoact2 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/molmoact2.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/molmoact2/index.html) | 离散动作 token VLM + 逐层 KV 流匹配专家 + 自适应深度推理；LIBERO 97.2 / 98.1 核实，表 8 一格不可能，附 LIBERO 复现要点。 | 27 条 |
@@ -338,6 +340,8 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
+papers/wan.html            Wan 精读（原图在 papers/wan/，11 幕动画在 interactives/wan/）
+papers/svae.html           S-VAE 精读（原图在 papers/svae/，11 幕动画在 interactives/svae/）
 papers/libero.html         LIBERO 精读（裁切原图在 papers/libero/，11 幕动画在 interactives/libero/）
 papers/openwam.html        OpenWAM 精读（裁切原图在 papers/openwam/，11 幕动画在 interactives/openwam/）
 papers/molmoact2.html      MolmoAct2 精读（无原图；11 幕动画在 interactives/molmoact2/）
