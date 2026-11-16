@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DINOv3 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2508.10104 DINOv3 的整个流程做成 11 幕 3D 动画：数据整理、ViT 与 RoPE、DINO/iBOT 自蒸馏、稠密特征变差、当场计算的 Gram anchoring、高分辨率 Gram 教师、高分辨率适配、多学生蒸馏、文本对齐、稠密特征用法，以及 OpenWAM 怎样把 ViT-B/16 接到视频 DiT 上。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="dinov3.js" defer></script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'},options:{enableMenu:false}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/dinov3.html">返回精读</a><a href="../../papers/dinov3.html#s4-2">原文 §4.2</a><a href="../../papers/dinov3.html#openwam">OpenWAM 接法</a><a href="https://arxiv.org/abs/2508.10104">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2508.10104 · Meta 2025 · DINOv3</p>
+<h1>一个 7B 自监督视觉模型，从数据到 OpenWAM 的接口</h1>
+<p class="lead">一共 11 幕。第 1 到 3 幕是第一阶段训练：数据、网络、自蒸馏损失；第 4 幕是问题（长训练后稠密特征变差）；<b>第 5 幕是核心，当场跑 Gram anchoring</b>；第 6、7 幕是高分辨率；第 8 到 10 幕是蒸馏、文本对齐和稠密特征用法；<b>第 11 幕是 OpenWAM 怎样把 ViT-B/16 接到视频 DiT 上</b>。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。部分幕左上角有开关。网络尺寸和超参数来自论文和官方代码（提交 6876159）；第 1、6、8、9、10 幕的柱子是原文表格数字。第 4、5、6、10 幕的热图是玩具数据当场算的，标明了“玩具”。没有任何 DINOv3 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每个阶段</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 facebookresearch/dinov3 提交 6876159（2026-07-15），只读未运行；DINOv3 License，只引文件和配置键。OpenWAM 一组来自 OpenWAM 代码 commit 1dcaeea。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>数据池</td><td>Instagram 公开图片约 170 亿张</td><td>不公开；<code>DATASETS.md</code> 只说明 ImageNet 等公开数据的目录格式</td></tr>
+<tr><td>D2</td><td>LVD-1689M</td><td>DINOv2 嵌入，5 层层次 k-means（2 亿 / 800 万 / 80 万 / 10 万 / 2.5 万簇），平衡采样 16.89 亿张</td><td>未发布筛选代码</td></tr>
+<tr><td>D3</td><td>采样</td><td>10% 迭代是纯 ImageNet-1k 批，其余是各部分混合批</td><td>配置里 <code>dataset_path: null</code>，未核实</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>ViT-7B 教师</td><td>40 层，宽 4096，32 头 × 128，SwiGLU 8192，patch 16，4 register，RoPE，6.7B</td><td><code>vit_7b</code>：ffn_ratio 3 + swiglu64 → 8192；<code>qkv_bias: false</code>；<code>untie_global_and_local_cls_norm: true</code></td></tr>
+<tr><td>N2</td><td>ViT-B/16（蒸馏）</td><td>86M，GFLOPs 47 @256、216 @512</td><td><code>dinov3_vitb16</code>：768 / 12 层 / 12 头 / MLP 3072 / 4 register / <code>mask_k_bias</code>；HF config 相同</td></tr>
+<tr><td>N3</td><td>RoPE</td><td>坐标归一到 [−1, 1]，训练时缩放到 [−s, s]，s ∈ [0.5, 2]</td><td><code>normalize_coords: separate</code>，<code>rescale_coords: 2</code>（对数均匀），base 100；CLS 和 register 不旋转</td></tr>
+<tr><td>N4</td><td>投影头（7B）</td><td>DINO 8192-8192-512、256k 原型；iBOT 8192-8192-384、96k 原型</td><td>DINO 相同；iBOT <code>head_hidden_dim: 4096</code>、384、98304</td></tr>
+<tr class="grp"><td colspan="4">训练阶段</td></tr>
+<tr><td>T1</td><td>第一阶段 式 (1)</td><td>DINO + iBOT + 0.1 Koleo；Sinkhorn-Knopp；2 × 256 + 8 × 112 裁切；batch 4096 / 256 卡；100 万步常数超参</td><td>lr 5e-5 × 4 × √(4096/1024) = 4e-4；预热 10 万步；EMA 0.994（论文 0.999）</td></tr>
+<tr><td>T2</td><td>Gram 精修 式 (2)(3)</td><td>100 万步后开始，w_Gram = 2，每 1 万步更新 Gram 教师，最多 3 次；Gram 教师 2 倍分辨率再下采样</td><td>MSE 平均；权重 0 → 2（1000 步余弦）；首次更新 101 万步；<code>gram_teacher_crops_size: 512</code>；bicubic；局部 DINO 权重 1 → 0.5</td></tr>
+<tr><td>T3</td><td>高分辨率适配</td><td>1 万步；全局 {512, 768}，局部 {112 … 336}；Gram 教师 = 7B</td><td>30 个 epoch × 1000 步；五组裁切与概率与附录 C 相同；Gram 权重 1.5</td></tr>
+<tr><td>T4</td><td>蒸馏</td><td>固定 7B 教师，同样损失，无 Gram；100 万步 + 25 万步冷却 + 高分辨率</td><td>示例配置：S / S+ / B / L 分到 48 / 48 / 80 / 120 张卡，全局 batch 1920</td></tr>
+<tr><td>T5</td><td>dino.txt</td><td>冻结视觉，加 2 层；CLS ⊕ patch 均值；文本编码器从头训练</td><td><code>vision_model_num_head_blocks: 2</code>，<code>patch_tokens_pooler_type: mean</code></td></tr>
+<tr class="grp"><td colspan="4">OpenWAM 接法</td></tr>
+<tr><td>W1</td><td>编码</td><td>OpenWAM §4.1.2：DINOv3 768 维，逐帧，每 4 帧平均</td><td><code>dinov3.py</code>：9 × 384 × 320 → 每帧 485 token → 丢 5 个 → 768 × 24 × 20</td></tr>
+<tr><td>W2</td><td>时间</td><td>“每 4 个连续帧平均”</td><td>首帧单独，其余每 4 帧平均 → 3 个隐帧</td></tr>
+<tr><td>W3</td><td>归一化与降维</td><td>可选 S-VAE 压到 48 维</td><td>无参 LayerNorm；S-VAE 在训练集特征上单独训练</td></tr>
+<tr><td>W4</td><td>DiT 接口</td><td>Wan2.2-TI2V-5B 结构随机初始化</td><td><code>Conv3d(C, 3072, (1,2,2))</code>：360 个 token，每个 4C 维（3072 或 192）</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕的点云。</b>簇的数量按对数缩小画，不是真实簇数。柱子是表 1 原文数字。</li>
+<li><b>第 3 幕的掩码。</b>被遮的 patch 是随机挑的，比例在 [0.1, 0.5] 里取，符合附录 C，但具体位置是我画的。</li>
+<li><b>第 4 幕的退化。</b>玩具：16 × 16 个 patch，三块区域，每块一个原型向量加噪声；“训练越久”用一个混入公共方向（像 CLS）和噪声的系数模拟。只演示现象，不是 DINOv3 的特征。右边两条曲线是仿照图 5 形状画的示意，不是读数。</li>
+<li><b>第 5 幕的 Gram 优化。</b>玩具：64 个 patch、8 维特征。学生初始化成“教师特征整体旋转后再退化”，然后对式 (2) 做 80 步梯度下降（步长 0.003，每步重新 L2 归一化）。数字当场算。</li>
+<li><b>第 6 幕的下采样。</b>用 2 × 2 平均代替双三次插值；噪声是独立同分布的。只说明“先高分辨率再下采样能平滑噪声”。</li>
+<li><b>第 8 幕的代价估算。</b>每样本教师推理按图 16a 的 GFLOPs（7B @256 = 3550），学生训练按前向的 3 倍，我的假设。</li>
+<li><b>第 9 幕的相似度矩阵。</b>玩具，当场生成。</li>
+<li><b>第 10 幕的 PCA。</b>对第 4 幕玩具特征当场做 PCA（幂迭代取前 3 个主成分），不是论文的图。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2508.10104 后的理解，不是作者的官方图。原图见<a href="../../papers/dinov3.html">精读页</a>（arXiv 非独占分发许可，只做裁切，经站点作者决定放原图）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
