@@ -869,7 +869,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <li>DINOv3 不加 S-VAE：4C 正好等于 3072，处在边界上。</li>
 <li>V-JEPA 2.1 不加 S-VAE：4C 超过宽度（按代码的 ViT-g 是 1.83 倍），违反了这个条件。</li>
 </ul>
-<p>这是我把 RAE 的条件套到 OpenWAM 形状上的推算，论文没有这样算。它能解释“不加 S-VAE 的两个都差”，但解释不了顺序：V-JEPA 超得更多，分数（80.91）反而比 DINOv3（76.42）高。RAE 还提出噪声调度的 shift 要随维度变大。OpenWAM 的默认是 shift = 5，而表示式编码器配置文件头的示例命令用 <code>shift_video=12.0</code>（方向和 RAE 的建议一致）；图 7 各变体实际用的是哪个值，论文没写，未核实。所以“不匹配”是一个合理但不完整的解释。</p>
+<p>这是我把 RAE 的条件套到 OpenWAM 形状上的推算，论文没有这样算。它能解释“不加 S-VAE 的两个都差”，但解释不了顺序：V-JEPA 超得更多，分数（80.91）反而比 DINOv3（76.42）高。RAE 还提出噪声调度的 shift 要随维度变大。OpenWAM 的默认是 shift = 5，而表示式编码器配置文件头的示例命令用 <code>shift_video=12.0</code>（方向和 RAE 的建议一致）；图 7 各变体实际用的是哪个值，论文没写，未核实。按 RAE 的公式 \(\alpha=\sqrt{m/4096}\)（只算 2 个带噪隐帧，\(m=2\times24\times20\times C\)）：Wan2.2-VAE 3.35、FLUX.2 5.48、DINOv3 13.42、V-JEPA 2.1 18.17，所以 12 方向对但幅度仍偏小（见 <a href="rae.html#openwam">RAE 精读页</a>）。所以“不匹配”是一个合理但不完整的解释。</p>
 
 <h4>S-VAE 的具体结构（OpenWAM 版）</h4>
 <p>来自 <code>openwam/model/video_backbone/encoder/svae/model.py</code> 和 <code>configs/model/video_backbone/encoder/svae/train.yaml</code>：</p>
