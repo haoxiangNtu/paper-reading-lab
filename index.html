@@ -20,6 +20,22 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/wan.html">Wan：阿里开源视频生成模型的技术报告（含 Wan2.2 与 TI2V-5B）</a></p>
+<p class="en">Wan: Open and Advanced Large-Scale Video Generative Models</p>
+<div class="meta"><span>arXiv 2503.20314</span><span>2025-03</span><span>2026-11-16 读</span></div>
+<p class="d">因果 3D VAE（首帧 + 每 4 帧分块缓存）、所有块共享时间步调制的 DiT、流匹配训练；补上 Wan2.2 的双专家 MoE、Wan2.2-VAE（4×16×16，48 通道）和 OpenWAM 用的 TI2V-5B（首帧替换、该帧 t=0）。参数量按代码逐项算和 HF 完全一致；表 3 实为“胜率减负率”。</p>
+<div class="tags"><span class="pill">视频生成</span><span class="pill">OpenWAM 上游</span><span class="pill">非独占许可 · 经决定放原图</span><span class="pill rn">21 条读者注</span></div>
+<div class="links"><a class="go" href="papers/wan.html">读精读 →</a><a href="interactives/wan/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2503.20314">原文</a><a href="https://github.com/Wan-Video/Wan2.2">官方代码</a><a href="papers/wan.html#openwam">在 OpenWAM 里怎么用</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/svae.html">S-VAE / PS-VAE：把表示编码器改造成能做文生图和编辑的隐空间</a></p>
+<p class="en">Both Semantics and Reconstruction Matter: Making Representation Encoders Ready for Text-to-Image Generation and Editing</p>
+<div class="meta"><span>arXiv 2512.17909</span><span>2025-12</span><span>2026-11-16 读</span></div>
+<p class="d">把 DINOv2 的 768 维特征压成 96 维 KL 正则隐空间（S-VAE，只重建特征），再解冻编码器加像素重建（PS-VAE）。作者认为 RAE 的主要问题是离流形而不是重建。OpenWAM 的 S-VAE 对应第一步，但是 48 维、视频特征、机器人数据。无官方代码。</p>
+<div class="tags"><span class="pill">隐空间</span><span class="pill">OpenWAM 上游</span><span class="pill">非独占许可 · 经决定放原图</span><span class="pill rn">16 条读者注</span></div>
+<div class="links"><a class="go" href="papers/svae.html">读精读 →</a><a href="interactives/svae/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2512.17909">原文</a><a href="papers/svae.html#openwam">在 OpenWAM 里怎么用</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/libero.html">LIBERO：研究机器人终身学习里知识怎么迁移的仿真基准</a></p>
 <p class="en">LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning</p>
 <div class="meta"><span>arXiv 2306.03310</span><span>NeurIPS 2023 D&amp;B</span><span>2026-11-16 读</span></div>
