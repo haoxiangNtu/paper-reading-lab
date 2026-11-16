@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>V-JEPA 2.1 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2603.14482 V-JEPA 2.1 的中文精读：按原文章节逐节整理，含全部编号公式、结果表、裁切的原图、官方代码（facebookresearch/vjepa2）对照、在 OpenWAM 里怎么接、11 幕 3D 框架动画和 27 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:860px}.t-links{min-width:660px}.t-code{min-width:700px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.lin{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.lin p{margin:4px 0}
+td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
+.t-code td:first-child{white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/vjepa21/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2603.14482 · cs.CV · v3 2026 年 6 月 11 日 · Meta FAIR · 中文精读</p>
+<h1>V-JEPA 2.1：让视频自监督模型学出好用的稠密特征</h1>
+<p class="orig">V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning</p>
+<p>作者 Lorenzo Mur-Labadia、Matthew Muckley、Amir Bar、Mido Assran、Koustuv Sinha、Mike Rabbat、Yann LeCun、Nicolas Ballas、Adrien Bardes，来自 FAIR at Meta（第一作者同时属于 Universidad de Zaragoza，工作在 Meta 完成）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2603.14482">arXiv 原文</a><a href="https://arxiv.org/pdf/2603.14482v3">PDF</a><a href="https://arxiv.org/html/2603.14482v3">HTML 版</a><a href="https://github.com/facebookresearch/vjepa2">官方代码</a><span>正文 24 页，参考文献到第 32 页，附录到第 37 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a> 发布（署名、非商业、禁止演绎）。PDF 上没有和它矛盾的版权声明。这里按原文顺序覆盖正文五节和附录 A 到 D，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文（读的是 v3，2026-06-11；v1 是 2026-03-15）。</p>
+<p>图 1 到图 15 从 arXiv PDF 裁切，<b>只做了裁切和格式转换</b>，没有改图内容，版权归作者。ND 许可不允许演绎，按惯例这类论文本站只用文字描述；这一批是<b>经站点作者决定放原图</b>，每张图注都写了出处、许可和看原图链接。图下的文字是我写的。本页的“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码在 <a href="https://github.com/facebookresearch/vjepa2">facebookresearch/vjepa2</a>，和 V-JEPA 2 同一个仓库，2.1 的训练代码在 <code>app/vjepa_2_1/</code>，配置在 <code>configs/train_2_1/</code> 和 <code>configs/eval_2_1/</code>，加载入口在 <code>src/hub/backbones.py</code>。许可大部分是 MIT，三个数据增强文件是 Apache 2.0。我读的是 <a href="https://github.com/facebookresearch/vjepa2/tree/204698b45b3712590f06245fbfba32d3be539812">204698b</a>（2026-03-23，当时最新），只读，没有运行。OpenWAM 仓库里带了一份改写的推理用实现（<code>vjepa21_src/</code>），我也逐函数对照了，见<a href="#code">代码对照</a>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#bg">背景：从 JEPA 到 2.1</a><a href="#s1">1 引言</a><a href="#s2">2 方法</a><a href="#s2-1">2.1 JEPA 预备</a><a href="#s2-2">2.2 V-JEPA 2 的稠密特征</a><a href="#s2-3">2.3 V-JEPA 2.1</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 结果</a><a href="#s3-3">3.3 机器人抓取</a><a href="#s3-5">3.5 深度和分割</a><a href="#s3-7">3.7 分类</a><a href="#s3-10">3.10 蒸馏</a><a href="#s4">4 相关工作</a><a href="#s5">5 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#apD">附录 D</a><a href="#code">代码对照</a><a href="#openwam">在 OpenWAM 里怎么用</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>V-JEPA 系列是 Meta 的视频自监督编码器：把视频遮掉一部分，在特征空间里预测被遮部分的特征。V-JEPA 2 的整体理解很强（动作识别、动作预测、机器人规划），但 patch 级的局部特征很乱，线性探针做分割、深度都差。2.1 要把局部特征补上，同时不丢整体理解。</p>
+<p>做法是四件事：</p>
+<ul>
+<li><b>稠密预测损失：</b>不只算被遮 token 的损失，可见（上下文）token 也算，并按它离最近被遮 token 的距离加权（式 2、3）。</li>
+<li><b>深监督：</b>编码器 4 个中间层的输出拼起来送进预测器，预测器同时预测 4 层，损失在 4 层上都算。</li>
+<li><b>多模态 tokenizer：</b>视频用 2×16×16 的 3D 卷积，图像用 16×16 的 2D 卷积，再加一个“这是图像还是视频”的可学嵌入。图像不再复制成 16 帧。</li>
+<li><b>扩数据、扩模型：</b>ImageNet 换成 1.42 亿张的 LVD-142M，视频提高 YT-1B 的权重；模型从 ViT-L（3 亿）扩到 ViT-G（20 亿），再蒸馏出 ViT-L、ViT-B。</li>
+</ul>
+<p>结果：ViT-G 在 <a class="ds" href="https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html">NYUv2</a> 线性探针深度 RMSE 0.307（V-JEPA 2 是 0.642），<a class="ds" href="https://ade20k.csail.mit.edu/">ADE20K</a> 分割 47.9 mIoU（V-JEPA 2 是 24.4），同时 <a class="ds" href="https://www.qualcomm.com/developer/software/something-something-v-2-dataset">SSv2</a> 动作识别 77.7%，和 V-JEPA 2 的 77.3% 持平略高。<a class="ds" href="https://ego4d-data.org/">Ego4D</a> 短时交互预测 7.71 mAP、<a class="ds" href="https://epic-kitchens.github.io/">EPIC-KITCHENS-100</a> 动作预测 40.8 Recall@5，都是冻结骨干下的最好成绩。</p>
+<p>读完我认为最值得记住的三点：(1) 关键实验只有一个：V-JEPA 2 加上下文损失，ADE20K 从 22.2 跳到 33.8，但 SSv2 从 72.8 掉到 62.5，深监督把 SSv2 拉回 72.1（表 1）。“上下文损失换局部、深监督换回整体”是全文的骨架。(2) 同样 1B 大小时，2.1 在所有整体任务上都略低于 V-JEPA 2（<a href="#n20">读者注 20</a>），整体任务上的“最好”要靠 2B 的 ViT-G。(3) 公开配置和论文附录有几处不同：图像的 λ、编码器中间层的位置、batch 大小和数据集（<a href="#n6">读者注 6</a>、<a href="#n7">7</a>、<a href="#n9">9</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="vjepa21/fig1.webp" width="1600" height="643" alt="图 1：五组图像和视频帧，下面两行分别是 V-JEPA 2 和 V-JEPA 2.1 特征的 PCA 彩色图" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S0.F1">看原图 ↗</a></span>第一行是输入（街景、猫、跳水运动员的视频帧、泳池）。第二行是 V-JEPA 2（ViT-g）的 patch 特征做 PCA、前三个主成分映射成 RGB 的结果，满屏彩色噪点，几乎看不出物体。第三行是 V-JEPA 2.1（ViT-G）：猫的轮廓、跳水运动员、车道线都成块地显出来，同类物体颜色相同。</figcaption>
+</figure>
+
+<h2 id="bg">背景：从 JEPA 到 V-JEPA 2.1</h2>
+<p>这一节只用本文和官方 README 里写到的内容交代来龙去脉，不展开前几篇的细节。</p>
+<div class="lin">
+<p><b>JEPA</b>（LeCun 2022）：联合嵌入预测架构。同一个输入做一个“损坏版”和一个“干净版”，都过编码器；预测器从损坏版的表示预测干净版的表示。预测发生在<b>表示空间</b>，不重建像素。编码器和预测器一起学，会有“编码器输出常数”的平凡解，所以要防塌缩：显式正则（VICReg 一类）或隐式的 EMA 目标编码器加 stop-gradient（BYOL、I-JEPA 一类）。</p>
+<p><b>V-JEPA</b>（Bardes 等 2024，<a href="https://arxiv.org/abs/2404.08471">2404.08471</a>）：把这个思路用到视频，损坏方式是遮掉时空块。表 9 里它的 ViT-H（6 亿参数）SSv2 74.3%。</p>
+<p><b>V-JEPA 2</b>（Assran 等 2025，<a href="https://arxiv.org/abs/2506.09985">2506.09985</a>）：扩到 ViT-g（10 亿）、VideoMix22M 数据，预测器 12 层；图像复制成 16 帧当静止视频训练。后训练出动作条件的 V-JEPA 2-AC，在 <a class="ds" href="https://droid-dataset.github.io/">DROID</a> 机器人数据上学一个 3 亿参数的预测器，用模型预测控制在真实 Franka 机械臂上零样本做到达、抓取、放置（README：杯子抓取 60%，放置 80%）。整体理解和动作预测很强，但局部特征差，这是本文的出发点。</p>
+<p><b>V-JEPA 2.1</b>（本文）：同一个仓库、同一套遮挡策略，改的是损失（可见 token 也算）、监督位置（4 个中间层）、tokenizer（图像走 2D）、数据和规模。预测器加深到 24 层。</p>
+</div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>世界模型的核心是状态估计：从嘈杂的低层感知里学到能总结当前世界状态的表示。视频自监督学习能利用大量无标签数据学几何、动力学和物理属性，是一条好路。但同时保住稠密时空结构（定位、几何、跟踪需要）和整体理解（高层识别需要）仍是难题。V-JEPA 家族整体理解强，局部结构难以提取（图 1）；DINO 系列稠密特征好，但基本是图像模型，不直接学时间动态。</p>
+<p><b>核心发现。</b>在“特征空间里做遮挡去噪”的框架下，<b>只在被遮区域算预测损失时，好的稠密时空特征不会可靠地出现</b>；把损失扩到全部输入（被遮和可见都算）能显著改善低层表示。原因的解释是：可见 token 不受监督，就会变成聚合全局信息的“寄存器”，不再编码自己位置的内容（图 3）。</p>
+<p><b>贡献。</b>稠密预测损失；深监督在两类任务上都带来稳定提升；图像和视频各自的 tokenizer 共享一个编码器；随数据（图像从 100 万到 1.42 亿张，VisionMix-163M）和模型（3 亿到 20 亿）扩展而持续提升。发布 ViT-g/G（1B/2B）和蒸馏出的 ViT-B/L（80M/300M）。</p>
+<p><b>摘要里的数字：</b>Ego4D 短时物体交互预测 7.71 mAP；EK-100 动作预测 40.8 Recall@5；真机抓取成功率比 V-JEPA 2-AC 高 20%（这个数怎么来的见<a href="#n16">读者注 16</a>）；导航 <a class="ds" href="https://github.com/castacks/tartan_drive">TartanDrive</a> 5.687 ATE，规划比 NWM 快 10 倍；NYUv2 线性探针深度 0.307 RMSE；Pascal VOC 线性分割 85.0 mIoU；YouTube-VOS 72.7 J&amp;F；SSv2 77.7%；PerceptionTest 83.1。</p>
+
+<figure class="pfig" id="fig2">
+<img src="vjepa21/fig2.webp" width="1600" height="533" alt="图 2：八组柱状图，每组三根柱子：V-JEPA 2、V-JEPA 2.1、此前冻结骨干的最好成绩" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 2 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S1.F2">看原图 ↗</a></span>左边四组是稠密任务（NYUv2 深度、Ego4D 短时预测、DAVIS 跟踪、ADE20K 分割），右边四组是整体任务（SSv2、EK 动作预测、K400、IN1K）。浅灰是 V-JEPA 2 ViT-g，蓝色是 V-JEPA 2.1 ViT-G，米色是此前冻结骨干的最好成绩。稠密组标了相对 V-JEPA 2 的提升：+52%、+35%、+31%、+96%。名字下面有下划线的是 2.1 拿到冻结骨干最好成绩的任务。</figcaption>
+</figure>
+<div class="note" id="n1"><span class="lab">读者注 1 · 图 2 的“+35%”不是相对 V-JEPA 2</span><p>图注说标的是“V-JEPA 2.1 相对 V-JEPA 2 ViT-g 的提升”。其他三个对得上：NYUv2 (0.642 − 0.307)/0.642 = 52.2%，DAVIS 69.0/52.5 = 1.314，ADE20K 47.9/24.4 = 1.963。但 Ego4D 是 7.71/6.02 = 1.281，只有 +28%。+35% 对应的是相对 STAformer：7.71/5.67 = 1.360，正文 §3.1 说“比此前最好方法高约 35%”指的就是它。图上箭头画在 V-JEPA 2 和 2.1 两根柱子之间，容易读错。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 图 2 的米色柱和表里的数</span><p>图注说 SSv2 和 IN1K 的参照模型是 DINOv3。但图上 SSv2 是 71.1、IN1K 是 88.1，表 9 里 DINOv3 7B 是 70.1 和 88.4，ViT-H+ 是 69.8 和 87.9，两个数都找不到。另外 ADE20K 的米色柱 54.8 是 DINOv3 ViT-H+，而表 8 里 DINOv3 7B 是 55.9，更高；同一张图里 NYUv2 却用了 7B 的 0.309。所以“此前最好”这一栏的选取不一致，SSv2 和 IN1K 两个数的出处未核实。K400 89.4（InternVideo2s2）、EK 27.6（PlausiVL）、Ego4D 5.67（STAformer）、DAVIS 71.1（DINOv3）和表对得上。</p></div>
+
+<h2 id="s2"><span class="no">2</span>方法</h2>
+
+<h3 id="s2-1"><span class="no">2.1</span>预备：联合嵌入预测架构</h3>
+<p>编码器 \(E_\theta(\cdot)\) 处理损坏和干净两个版本，预测器 \(P_\phi(\cdot)\) 把损坏版的表示映射到干净版的表示。V-JEPA 的损坏方式是遮挡：\(x\) 是去掉若干 patch 的视频，编码器只处理可见 patch，输出“上下文 token”；再拼上一组可学的 mask token \(\Delta_y\)，它们带着被遮位置的时空坐标；预测器处理拼起来的序列，每个输入出一个向量。训练目标：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm predict}=\frac{1}{|M|}\sum_{i\in M}\big\|P_\phi(E_\theta(x),\Delta_y)_i-\mathrm{sg}\big(E_{\bar\theta}(y)_i\big)\big\|_1 \]</div><span class="no">(1)</span></div>
+<p>\(M\) 是被遮 patch 的下标集合。sg 是 stop-gradient，目标编码器 \(E_{\bar\theta}\) 的权重是 \(\theta\) 的指数滑动平均（EMA），两者一起防塌缩。<b>损失只算被遮 token，不算上下文 token。</b>编码器和预测器都是 ViT，遮挡策略同 V-JEPA 2（附录 A）。</p>
+
+<h3 id="s2-2"><span class="no">2.2</span>V-JEPA 的特征适不适合稠密任务</h3>
+<p>之前没人系统看过 V-JEPA 2 特征的稠密任务表现。作者做了两件事：patch 特征做 PCA 可视化；冻结编码器、只训一个线性层做 ADE20K 语义分割和 NYUv2 深度估计（附录 C）。</p>
+<p><b>观察。</b>特征图有噪声，只有零碎的局部结构（图 1、图 3）。线性探针成绩差：ADE20K 22.2 mIoU，NYUv2 0.682 RMSE（表 1）。结论：局部信息不容易从 V-JEPA 2 的表示里取出来。</p>
+<p><b>假设。</b>原因是上下文 patch 没有自监督。预测器对上下文 token 也有输出，但式 (1) 只管被遮 token，所以模型没有动力在上下文 token 里保留局部信息，反而可能把算力用来聚合全局信息去降低预测损失，像 register token 那样。</p>
+<figure class="pfig narrow" id="fig3">
+<img src="vjepa21/fig3.webp" width="771" height="695" alt="图 3：两列图（狗、汽车），三行分别是原图、V-JEPA 2 的 PCA、加上下文损失后的 PCA" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S2.F3">看原图 ↗</a></span>两张图：两只躺着的狗、一辆车。中间一行是 V-JEPA 2 的特征 PCA，满是碎点；下面一行是加了 \(\mathcal L_{\rm ctx}\) 后的，狗和车成块显出来，狗头对应同一种颜色，车轮对应同一种颜色。</figcaption>
+</figure>
+<p><b>上下文自监督。</b>为验证假设，对上下文 token 加一个加权的预测损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm context}=\frac{1}{|C|}\sum_{i\in C}\lambda_i\big\|P_\phi(E_\theta(x),\Delta_y)_i-\mathrm{sg}\big(E_{\bar\theta}(y)_i\big)\big\|_1 \]</div><span class="no">(2)</span></div>
+<p>\(C\) 是上下文 token 的下标集合，\(\lambda_i\) 是逐 patch 的权重（下一节）。总目标 \(\mathcal L_{\rm predict}+\mathcal L_{\rm ctx}\)。效果明显：特征图出现局部结构，ADE20K 从 22.2 到 33.9，NYUv2 从 0.682 到 0.473。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 正文和表 1 差一点</span><p>§2.2 和 §2.3.1 写加上下文损失后是 33.9 mIoU、0.473 RMSE；表 1 和表 2 都是 33.8，表 1 是 0.474。§2.3.2 写深监督后“SSv2 72.0”，表 1 和图 5 都是 72.1。都是 0.1 的差，大概是不同轮次的结果，以表为准。</p></div>
+
+<h3 id="s2-3"><span class="no">2.3</span>V-JEPA 2.1：改进视频自监督的稠密特征</h3>
+<p>两个算法改动：(1) 稠密预测损失，被遮和可见 token 都监督（§2.3.1）；(2) 深监督，用多层预测器监督编码器的中间层（§2.3.2）。另外三项：多模态 tokenizer（§2.3.4）、数据扩展（§2.3.3）、模型扩展到 ViT-G（§2.3.5），后者也让蒸馏小模型更有效（§2.3.6）。</p>
+<figure class="pfig" id="fig4">
+<img src="vjepa21/fig4.webp" width="1600" height="726" alt="图 4：上半是 x 编码器路线：3D 或 2D 卷积、加模态嵌入、去掉被遮 token、编码器多层输出、MLP 融合、拼 mask token、多层预测器；下半是 y 编码器路线和两种损失" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 5 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S2.F4">看原图 ↗</a></span>上半是训练的“学生”路线：视频走 3D 卷积、图像走 2D 卷积，切成 token，加模态嵌入，去掉被遮 token；x 编码器 \(E_\theta\) 从几个中间块引出输出，叠成多层表示，MLP 融合降维；再拼上 mask token（红色），进多层预测器 \(P_\phi\)，对每个 token 输出 4 层的预测。下半是“老师”路线：同样的卷积和模态嵌入，但不遮挡，y 编码器 \(E_{\bar\theta}\) 也引出 4 层。右下两种损失：上下文 token 用带距离权重的 \(\lambda_d\cdot L_1\)（蓝虚线），被遮 token 用 \(L_1\)（红虚线），老师一侧都有 stop-grad。</figcaption>
+</figure>
+<p><b>结构。</b>输入按模态各自切 patch 嵌入；随机丢掉一部分 token 作为遮挡；x 编码器处理剩下的上下文 token，输出最后一层和若干中间层；多层表示沿通道拼起来，MLP 降维；沿序列拼上带时空位置信息的 mask token；预测器对每个 token 输出多层预测。两种损失都用 y 编码器（处理未遮挡输入）的多层输出做目标。</p>
+<p><b>实现。</b>沿用 V-JEPA 2 的“预热再恒定”学习率，训 135,000 步；EMA 系数和权重衰减固定。视频 16 帧、256×256，图像 256×256。第二阶段是冷却：学习率衰减，同时提高分辨率，再训 12,000 步，视频 64 帧、384×384，图像 512×512。消融都在第一阶段之后报告；最终下游结果用完整的预热—恒定—冷却流程。</p>
+<p><b>评测。</b>稠密任务（ADE20K、NYUv2）用线性探针，按 DINOv3 的协议；整体任务（SSv2 动作识别、ImageNet 物体识别）用注意力探针，按 V-JEPA 2 的协议。</p>
+
+<figure class="pfig" id="fig5">
+<img src="vjepa21/fig5.webp" width="1302" height="573" alt="图 5：七组双柱图，左轴 ADE20K mIoU，右轴 SSv2 准确率，从 V-JEPA 2 逐项加组件" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 6 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S2.F5">看原图 ↗</a></span>从 V-JEPA 2（ViT-L）出发逐项加组件：浅蓝柱是 ADE20K mIoU（左轴 20 到 50），米色柱是 SSv2 准确率（右轴 60 到 80）。数字和表 1 相同：22.2/72.8 → 33.8/62.5 → 38.6/72.1 → 40.8/72.6 → 41.4/72.6 → 47.1/76.1 → 47.9/77.7。最后一项在图里叫“High-Res. Annealing”，表 1 叫“Cool-down”。</figcaption>
+</figure>
+
+<p class="tcap" id="t1">表 1 · 各组件的影响（照录原文。前五行 ViT-L；“+ Model Scaling” 换成 ViT-G；前六行是第一阶段结束时的成绩）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>配置</th><th>IN1K Acc.</th><th>SSv2 Acc.</th><th>NYU RMSE ↓</th><th>ADE20K mIoU</th></tr></thead><tbody>
+<tr><td>V-JEPA 2</td><td>82.2</td><td>72.8</td><td>0.682</td><td>22.2</td></tr>
+<tr><td>+ Context Loss</td><td>72.6</td><td>62.5</td><td>0.474</td><td>33.8</td></tr>
+<tr><td>+ Multi-level Pred.</td><td>80.8</td><td>72.1</td><td>0.463</td><td>38.6</td></tr>
+<tr><td>+ Vision Mix</td><td>81.6</td><td>72.6</td><td>0.418</td><td>40.8</td></tr>
+<tr><td>+ Multi-modal Tok.</td><td>81.6</td><td>72.6</td><td>0.415</td><td>41.4</td></tr>
+<tr><td>+ Model Scaling</td><td>84.8</td><td>76.1</td><td>0.365</td><td>47.1</td></tr>
+<tr><td>+ Cool-down</td><td>85.5</td><td>77.7</td><td>0.307</td><td>47.9</td></tr>
+</tbody></table></div>
+<p>原文表 1 的图注没写前几行是 ViT-L，这是从图 5 的图注（“从 ViT-L 架构出发”）和 §2.3.5（“从 ViT-L 扩到 ViT-G”）推出来的。最后一行和表 8、表 9 的 ViT-G 一致。</p>
+
+<h4 id="s2-3-1"><span class="no">2.3.1</span>稠密预测损失</h4>
+<p>总损失 \(\mathcal L_{\rm dense}=\mathcal L_{\rm predict}+\mathcal L_{\rm ctx}\)。直接加 \(\mathcal L_{\rm ctx}\) 会伤整体任务，因为系统可能找到平凡解，比如直接复制上下文特征。所以要调 \(\lambda_i\)。表 2 是三种做法：</p>
+<ol>
+<li><b>固定 λ：</b>所有 \(\lambda_i=\lambda\)，试 0、0.05、0.2、0.5、1.0。λ 增大，ADE20K 先升后降（0.2 时最好），SSv2 一路下降。</li>
+<li><b>λ 预热：</b>在第 50 到 100 个 epoch 之间把 λ 从 0 升上来，训练更稳，SSv2 收回一部分。</li>
+<li><b>按距离加权：</b>上下文 token \(i\) 的权重随它到最近被遮 token 的距离 \(d_{\min}\) 的平方根反比下降：</li>
+</ol>
+<div class="eq"><div class="m">\[ \lambda_i=\frac{\lambda}{\sqrt{d_{\min}(i,M)}} \]</div><span class="no">(3)</span></div>
+<p>\(d_{\min}\) 以块（token）为单位。离被遮区越近的上下文 token 权重越大，强调被遮区和可见区之间的局部连续。这样在分割和动作识别之间取得较好的折中：ADE20K 22.2 → 33.9，NYUv2 0.682 → 0.473；图 3 显示它也把特征图里的噪点去掉了。但整体任务仍然掉：SSv2 72.8 → 62.5，IN1K 82.2 → 72.6（表 1）。</p>
+<p class="tcap" id="t2">表 2 · 上下文损失的加权方式（照录原文，ViT-L，第一阶段）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>λ</th><th>方式</th><th>预热</th><th>ADE20K mIoU</th><th>SSv2 Acc.</th></tr></thead><tbody>
+<tr><td>0（V-JEPA 2）</td><td>常数</td><td></td><td>22.2</td><td>72.8</td></tr>
+<tr><td>0.05</td><td>常数</td><td></td><td>26.4</td><td>71.0</td></tr>
+<tr><td>0.2</td><td>常数</td><td></td><td>29.6</td><td>62.5</td></tr>
+<tr><td>0.5</td><td>常数</td><td></td><td>27.5</td><td>53.8</td></tr>
+<tr><td>1.0</td><td>常数</td><td></td><td>24.6</td><td>51.1</td></tr>
+<tr><td>0.2</td><td>常数</td><td>✓</td><td>30.5</td><td>60.5</td></tr>
+<tr><td>0.5</td><td>常数</td><td>✓</td><td>32.2</td><td>61.5</td></tr>
+<tr><td>0.5</td><td>按距离加权</td><td>✓</td><td>33.8</td><td>62.5</td></tr>
+</tbody></table></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 表 2 的读法</span><p>表 2 的 SSv2 一列看上去和图注说的“加权方案在两项上都更好”有点出入：按距离加权（62.5）只比同样 0.5 加预热的常数（61.5）高 1.0，比 λ = 0.05 不加预热（71.0）低 8.5。也就是说，单看这张表，“几乎不伤 SSv2”的最好办法是把 λ 调得很小；加权方案的好处是在 ADE20K 拿到最高分（33.8）的同时 SSv2 比同档 λ 的其他做法高。真正把 SSv2 拉回来的是下一节的深监督。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 代码里的 \(d_{\min}\) 和权重</span><p><code>app/vjepa_2_1/models/utils/masks_dist.py</code> 的 <code>compute_mask_distance</code> 把 token 下标拆成（时间块、行、列）三个整数坐标，对每个上下文 token 用 <code>torch.cdist(p=2)</code> 算到所有被遮 token 的欧氏距离，取最小值再开平方；<code>train.py</code> 的 <code>loss_fn</code> 把 \(|z-h|\) 乘上 <code>1/d</code>。所以 \(\lambda_i=\lambda/\sqrt{d_{\min}}\) 和式 (3) 一致，“块”就是 token 网格的单位，时间方向一个单位是 2 帧（一个 tubelet）。</p>
+<p>由此可以推出一个论文没说的性质：配置里遮挡的 <code>temporal_scale</code> 是 [1.0, 1.0]，每个遮挡块贯穿所有时间，同一空间位置要么全时段被遮、要么全时段可见。所以最近的被遮 token 总在同一时间块，\(d_{\min}\) 其实只是空间距离，最小为 1，权重最大就是 λ。另外两点：λ 的预热在代码里是 <code>Lambda_LinearWarmupHold</code>，第 15,000 到 30,000 步线性升；配置 <code>ipe: 300</code>（每 epoch 300 步），正好是论文说的第 50 到 100 个 epoch。冷却配置把 <code>weight_distance_loss</code> 设为 false、<code>lambda_progressive</code> 设为 false，冷却阶段的上下文损失是不加距离权重的常数 λ，论文没提。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 图像的 λ：论文 0.7，配置 0.5</span><p>附录 A 和表 12 写 λ 视频 0.5、图像 0.7。<code>configs/train_2_1/</code> 下 B、L、g、G 四个尺寸的预训练和冷却配置全都是 <code>lambda_value_img: 0.5</code>、<code>lambda_value_vid: 0.5</code>。<code>train.py</code> 按进程是图像还是视频选其中一个值。公开配置和论文不一致，哪个是发布检查点实际所用未核实。</p></div>
+
+<h4 id="s2-3-2"><span class="no">2.3.2</span>深监督</h4>
+<p>不只监督编码器的输出，也监督中间层。取 x 编码器 3 个中间块的输出加上最后一层，沿通道拼起来，一个轻量 MLP 融合并降维，再送进预测器；预测器处理上下文和 mask token 组成的序列，输出 4 份预测，对应编码器的 4 层；预测损失和上下文损失在 4 层上都算。</p>
+<p>深监督在整体和稠密任务上都有明显提升（图 5），还让局部信息流到最后几层，下游稠密任务不再需要中间层特征（附录 D.1）。它把 V-JEPA 2 的整体能力找回来（SSv2 72.1、IN1K 80.8），同时保住上下文损失带来的稠密提升（ADE20K 38.6，NYU 0.463）。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 中间层的位置和预测器的结构（代码）</span><p>表 12 写 ViT-G 的中间块是 [12, 24, 36, 48]，附录 A 说“等间距”。代码 <code>vision_transformer.py</code> 里 48 层的 <code>hierarchical_layers</code> 是 <code>[11, 23, 37, 47]</code>（从 0 数），换成从 1 数是 12、24、<b>38</b>、48，第三个不是 36，也不等间距。ViT-g（40 层）是 [9, 19, 29, 39]，即 10、20、30、40，等间距；ViT-L 是 [5, 11, 17, 23]，ViT-B 是 [2, 5, 8, 11]。发布的 ViT-G 检查点用 [11, 23, 37, 47] 训练，加载时必须一致，所以我认为表 12 的 36 是笔误。</p>
+<p>预测器（<code>predictor.py</code>）：输入端的“MLP 融合”是 Linear(4D → D)、GELU、Linear(D → 384)，ViT-G 时 D = 1664，即 6656 → 1664 → 384；24 层、宽 384、12 个头；输出端被遮 token 用 <code>predictor_proj</code>，上下文 token 另用一个 <code>predictor_proj_context</code>，都是 Linear(384 → 4D)。上下文 token 有独立的输出头，图 4 和正文没画出来。目标一侧，<code>forward_target</code> 把 y 编码器的 4 层输出各自再做一次无参 LayerNorm 后拼起来，损失是 4D 维上的逐元素 L1 均值，等于 4 层各自 L1 的平均。</p></div>
+
+<h4 id="s2-3-3"><span class="no">2.3.3</span>扩展图像数据</h4>
+<p>DINOv2 用聚类检索从网上图片里挑出 1.42 亿张，叫 <a class="ds" href="https://github.com/facebookresearch/dinov2">LVD-142M</a>；V-JEPA 2 用类似方法从 <a class="ds" href="https://rowanzellers.com/merlotreserve/">YT-1B</a> 视频里挑场景，加上公开视频数据，共 1,900 万个样本、160 万小时。本文把两者合起来叫 VisionMix163M：ImageNet 的 100 万张图换成 LVD-142M；图像已经覆盖很多静态概念，视频采样就偏向运动多的内容，SSv2 权重从 0.056 提到 0.170；YT-1B 更杂，权重从 0.188 提到 0.720。</p>
+<p class="tcap" id="t3">表 3 · VideoMix22M 和 VisionMix163M（照录原文）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>来源</th><th>样本数</th><th>类型</th><th>总时长</th><th>V-JEPA 2 权重</th><th>V-JEPA 2.1 权重</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://www.qualcomm.com/developer/software/something-something-v-2-dataset">SSv2</a></td><td>168K</td><td>第一视角视频</td><td>168 h</td><td>0.056</td><td>0.170</td></tr>
+<tr><td><a class="ds" href="https://github.com/cvdfoundation/kinetics-dataset">Kinetics</a></td><td>733K</td><td>第三视角视频</td><td>614 h</td><td>0.188</td><td>0.010</td></tr>
+<tr><td><a class="ds" href="https://www.di.ens.fr/willow/research/howto100m/">HowTo100M</a></td><td>1.1M</td><td>第三视角视频</td><td>134K h</td><td>0.318</td><td>0.100</td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>1M</td><td>图像</td><td>–</td><td>0.250</td><td>0.</td></tr>
+<tr><td>YT-1B</td><td>19M</td><td>第三视角视频</td><td>1.6M h</td><td>0.188</td><td>0.720</td></tr>
+<tr><td>LVD-142M</td><td>142M</td><td>筛选过的图像</td><td>–</td><td></td><td></td></tr>
+</tbody></table></div>
+<p><b>怎样混图像和视频。</b>不在同一个 batch 里混，而是分给不同的进程：一部分 GPU 只跑视频，一部分只跑图像，每步把两边的梯度汇总再更新。图像和视频的比例由各自的 batch 大小控制，经验上最好的是每个全局 batch 128 段视频（每段 16 帧）加 2,304 张图。换成更大更杂的数据，四项都涨：SSv2 72.1 → 72.6，ImageNet 80.8 → 81.6，ADE20K 38.6 → 40.8，NYUv2 0.463 → 0.418。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 3 的算术和公开配置的数据</span><p>两列权重各自加起来都是 1：0.056 + 0.188 + 0.318 + 0.250 + 0.188 = 1.000；0.170 + 0.010 + 0.100 + 0 + 0.720 = 1.000。名字里的数也对得上：VisionMix 163M = 0.168 + 0.733 + 1.1 + 19 + 142 = 163.0M（不含 ImageNet）；VideoMix 22M = 0.168 + 0.733 + 1.1 + 1 + 19 = 22.0M。2.1 一列里 LVD-142M 没有权重，因为图像走单独的进程，不参与视频的采样权重。表里没写的一点：Kinetics 的权重从 0.188 降到 0.010，几乎拿掉了。</p>
+<p>公开的训练配置用的是另一套数据：视频是 K710、SSv2、HowTo100M，权重 0.335 / 0.100 / 0.565；图像只有 ImageNet-1K。YT-1B 和 LVD-142M 都不在里面（它们没有公开）。所以照公开配置训出来的不是论文的 VisionMix 配方。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · batch 大小：论文 128 + 2,304，按配置算是 3,072 + 4,608</span><p>ViT-G 的预训练配置：32 节点 × 8 卡 = 256 个进程，<code>rank_ratio: 0.5</code>，一半进程跑图像。<code>train.py</code> 里视频的全局 batch 是 <code>batch_size × world_size</code> = 12 × 256 = 3,072，再平分给 128 个视频进程（每个 24）；图像进程直接用 <code>img_data.batch_size</code> = 36，128 个进程共 4,608 张。ViT-g 和 ViT-L（16 节点，24 和 72）算出来也是 3,072 和 4,608。论文写的 128 和 2,304 都对不上，未核实论文怎么数的。</p>
+<p>按 token 算，两者的图像占比差很多：论文的 128 × 2,048 = 262,144 个视频 token 对 2,304 × 256 = 589,824 个图像 token，图像占 69%；配置的 3,072 × 2,048 对 4,608 × 256，图像只占 16%。（16 帧 256² 的视频是 8 × 16 × 16 = 2,048 个 token，256² 的图是 256 个。）</p></div>
+
+<h4 id="s2-3-4"><span class="no">2.3.4</span>多模态 tokenizer</h4>
+<p>V-JEPA 2 联合训图像和视频的方式不理想：只有一个 3D 卷积的 patch 嵌入，图像在时间上复制成 16 帧的静止视频，既多花算力，又带来错误的偏置（把图像当成不动的视频）。2.1 用两个 tokenizer：视频是 16×16×2 的 3D 卷积，图像是 16×16 的 2D 卷积；编码器和预测器的输入都加一个可学的模态嵌入，告诉网络输入来自哪条路，帮它分开图像里更强的静态外观线索和视频里的运动信息。图像不再复制，算力更省；ADE20K 从 40.8 到 41.4，动作和物体识别不变。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 代码里的“2D 卷积”和“模态 token”</span><p>代码里图像分支是 <code>PatchEmbed3D(tubelet_size=1)</code>，即核为 1×16×16 的 Conv3d，作用在 T = 1 的输入上，和 16×16 的 2D 卷积等价（<code>vision_transformer.py</code>，<code>img_temporal_dim_size=1</code> 时启用）。“模态 token”在代码里不是额外拼进序列的 token，而是 <code>img_mod_embed</code> / <code>video_mod_embed</code> 两个 1×1×D 的向量，<b>加到每个 patch token 上</b>（编码器和预测器各一对）。图 4 画的“Add modality embedding”是对的，正文“learnable token”的说法容易误解成多一个 token。</p>
+<p>省多少：一张 256² 的图复制成 16 帧，按 tubelet 2 是 8 × 256 = 2,048 个 token；直接走 2D 分支是 256 个，少 8 倍。注意力是平方复杂度，那部分省得更多。</p></div>
+
+<h4 id="s2-3-5"><span class="no">2.3.5</span>扩到 ViT-G（2B）和高分辨率冷却</h4>
+<p>编码器从 ViT-L（3 亿）扩到 ViT-G（20 亿），所有任务都明显提升：SSv2 72.6 → 76.1，ImageNet 81.6 → 84.8，ADE20K 41.4 → 47.1，NYUv2 0.415 → 0.365。再加冷却阶段（学习率衰减，图像 256² → 512²，视频 16 帧 256² → 64 帧 384²），所有任务再涨：SSv2 77.7，ImageNet 85.5，ADE20K 47.9，NYUv2 0.307。深度受益最大（0.365 → 0.307）。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 各尺寸的参数量（按代码算）</span><p>按 <code>vision_transformer.py</code> 的定义（qkv 有偏置、LayerNorm、GELU MLP，加两路 patch 嵌入、4 个层归一化和两个模态向量）算编码器参数：ViT-B（768 宽、12 层）86.8M；ViT-L（1024、24 层）304.7M；ViT-g（1408、40 层、MLP 6,144）1,013.3M；ViT-G（1664、48 层、26 个头、MLP 8,192）1,845.2M。所以“2B”实际约 18.5 亿。四个尺寸的头维度都是 64。24 层预测器 ViT-G 时约 59M（含输入 MLP 和两个输出头）。这些是我算的，论文没给精确数。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 学习率和步数：附录和配置</span><p>表 12：第一阶段学习率从 1e-4 预热到 5.25e-4 再恒定，135,000 步；冷却从 6e-4 衰减到 1e-6，12,000 步。配置：<code>start_lr 1e-4</code>、<code>lr 6e-4</code>、<code>final_lr 6e-4</code>（预热 40 epoch × 300 = 12,000 步后恒定在 <b>6e-4</b>，不是 5.25e-4）；<code>epochs: 1000</code>，即计划 300,000 步，论文说训 135,000 步，大概是中途取检查点进冷却（冷却配置的 <code>anneal_ckpt</code> 指向 <code>latest.pth.tar</code>）。</p>
+<p>冷却：<code>LinearDecaySchedule</code> 从 6e-4 线性降向 1e-6，但总长 <code>T_max</code> = ipe_scale × epochs × ipe = 1.25 × 40 × 300 = 15,000 步，而只跑 40 × 300 = 12,000 步，所以结束时学习率约 6e-4 − 0.8 × (6e-4 − 1e-6) = 1.2e-4，到不了 1e-6。这是我按代码推的，未运行验证。另外冷却配置文件名和内容都是 256px（<code>cooldown-256px-64f.yaml</code>，<code>crop_size: 256</code>，图像也 256），论文冷却是视频 384、图像 512；附录 D.2 的表 14 正好有“256 冷却”这一档，公开配置对应的可能是它。</p></div>
+
+<h4 id="s2-3-6"><span class="no">2.3.6</span>模型蒸馏</h4>
+<p>扩大模型也是为了能蒸馏出好的小模型。把 ViT-G 蒸馏成 ViT-B（80M）和 ViT-L（300M），流程改自预训练，区别有四点：(i) 目标编码器不用 EMA，换成冻结的老师；(ii) 学生另存一份 EMA，不参与损失，作为最终发布的模型；(iii) 损失和预训练相同，但只算老师的最后一层，不用深监督；(iv) 预测器只有 12 层，最后一个线性层输出老师的维度。其余超参（遮挡比例、冷却、学习率、增强）不变。细节在附录 B。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 蒸馏：检查点对得上，脚本不在仓库里</span><p><code>src/hub/backbones.py</code> 里 ViT-B、ViT-L 的加载参数和附录 B 一致：<code>checkpoint_key="ema_encoder"</code>（学生的 EMA），<code>predictor_depth=12</code>，<code>n_output_distillation=1</code>（只有最后一层），<code>teacher_embed_dim=1664</code>（预测器输出 ViT-G 的维度）。ViT-g、ViT-G 用 <code>target_encoder</code>、24 层预测器、4 层输出。但仓库里没有蒸馏的训练代码（<code>train.py</code> 里没有 teacher 相关逻辑），README 给蒸馏检查点链接的 <code>configs/train_2_1/vitb16</code>、<code>vitl16</code> 是普通的从头预训练配置（ViT-B 那份把预测器设成 12 层）。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>拆成 11 幕：总览、切 tubelet、遮挡、编码器和预测器、稠密损失（可见和被遮 token 都算，当场算距离权重）、深监督、多模态 tokenizer、数据和规模、冷却和蒸馏、下游结果、OpenWAM 接法。下面嵌的是第 5 幕。</p>
+<iframe src="../interactives/vjepa21/index.html?embed=1&amp;scene=5" title="V-JEPA 2.1 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/vjepa21/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>结果</h2>
+<p>所有实验都把 V-JEPA 2.1 当作<b>冻结</b>编码器用。先看两个预测任务（§3.1 短时交互预测、§3.2 动作预测），再看机器人操作（§3.3）和导航（§3.4），然后是稠密特征（§3.5 深度和分割、§3.6 视频目标分割）、整体理解（§3.7 分类、§3.8 视频问答），最后是蒸馏模型（§3.10）。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>短时物体交互预测</h3>
+<p><b>任务。</b>在第一视角视频里预测下一次物体交互：下一个被交互物体的框 \(b\)、名词类别 N、动词 V、到接触的时间 δ。同时考 2D 定位、物体语义、时间推理和意图预测。用 Ego4D 的 STA v2 划分：243 小时，128 个名词、81 个动词，训练 98,276、验证 47,395 个样本。指标是 Top-5 AP 和 mAP，框 IoU &gt; 0.5 再加类别条件，例如 Top-5 mAP All 要求名词、动词都对、IoU &gt; 0.5、δ 误差在 0.25 秒内；每个样本最多不计 4 个最高分的假阳性，因为未来本来有多种可能。</p>
+<figure class="pfig" id="fig6">
+<img src="vjepa21/fig6.webp" width="1600" height="630" alt="图 6：一段桌面游戏视频的时间轴，最后观察帧上画出多个预测框，接触帧上画出真值框" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F6">看原图 ↗</a></span>上方是视频时间轴：观察到 \(t\) 为止，δ 秒后是接触帧 \(V_{t+\delta}\)。左下放大的是最后观察帧 \(V_t\)，上面有多个预测（框、名词、动词、δ）；右下是从接触帧取出、但标在最后观察帧坐标里的真值框。</figcaption>
+</figure>
+<p><b>协议。</b>输入一段低分辨率视频（384 px，8 帧，跨 0.5 秒）和最后一帧的高分辨率图（1080 px）。冻结编码器分别用视频的 3D 卷积和图像的 2D 卷积提取最后一层特征。视频特征过一个 4 层注意力探针，再用 STAformer 的“帧引导时间池化”把 3D token 聚成和最后一帧对齐的 2D 表示，加到图像特征上，缩放成 4 个尺度的特征图，送进 StillFast 的检测头（Faster R-CNN 加动词和 δ 的线性层）。DINOv2、DINOv3、V-JEPA 2 用同一协议。</p>
+<p class="tcap" id="t4">表 4 · Ego4D 短时物体交互预测（照录原文。Top-5 AP / mAP，主指标是最后一列 mAP All）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>模型</th><th>AP b</th><th>b+N</th><th>b+V</th><th>b+δ</th><th>b+N+V</th><th>b+δ+N</th><th>b+δ+V</th><th>All</th><th>mAP N</th><th>N+V</th><th>N+δ</th><th>All</th></tr></thead><tbody>
+<tr class="grp"><th colspan="13">文献报告</th></tr>
+<tr><td>StillFast</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>20.2</td><td>10.3</td><td>7.17</td><td>3.96</td></tr>
+<tr><td>STAformer</td><td>38.3</td><td>28.3</td><td>16.6</td><td>12.27</td><td>12.8</td><td>8.89</td><td>5.47</td><td>4.06</td><td>29.4</td><td>15.3</td><td>9.94</td><td>5.67</td></tr>
+<tr><td>GANO</td><td>45.3</td><td>27.0</td><td>12.2</td><td>16.6</td><td>6.54</td><td>9.0</td><td>4.18</td><td>2.47</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr class="grp"><th colspan="13">同一协议的编码器</th></tr>
+<tr><td>DINOv2 ViT-L</td><td>45.1</td><td>37.8</td><td>21.9</td><td>14.4</td><td>17.6</td><td>10.6</td><td>7.27</td><td>5.25</td><td>28.3</td><td>15.2</td><td>9.22</td><td>5.25</td></tr>
+<tr><td>DINOv2 ViT-g</td><td>47.8</td><td>38.1</td><td>23.6</td><td>14.1</td><td>19.1</td><td>10.9</td><td>7.29</td><td>5.73</td><td>30.6</td><td>16.8</td><td>9.37</td><td>5.44</td></tr>
+<tr><td>DINOv3 ViT-H+</td><td>48.9</td><td>40.2</td><td>23.4</td><td>13.6</td><td>19.4</td><td>10.8</td><td>6.71</td><td>5.45</td><td>32.4</td><td>17.2</td><td>9.53</td><td>5.20</td></tr>
+<tr><td>DINOv3 ViT-7B</td><td>50.2</td><td>40.9</td><td>23.8</td><td>14.2</td><td>19.8</td><td>11.5</td><td>7.33</td><td>5.82</td><td>33.8</td><td>17.4</td><td>10.3</td><td>5.68</td></tr>
+<tr><td>V-JEPA 2 ViT-g</td><td>45.7</td><td>34.4</td><td>22.2</td><td>16.7</td><td>16.9</td><td>12.1</td><td>8.56</td><td>6.26</td><td>27.2</td><td>14.9</td><td>10.4</td><td>6.02</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g</td><td>47.3</td><td>36.5</td><td>23.6</td><td>18.1</td><td>18.2</td><td>13.5</td><td>9.55</td><td>7.21</td><td>28.7</td><td>15.5</td><td>11.4</td><td>6.75</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G</td><td>50.7</td><td>39.3</td><td>25.8</td><td>20.2</td><td>20.3</td><td>15.1</td><td>10.8</td><td>8.20</td><td>30.9</td><td>17.2</td><td>12.8</td><td>7.71</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>mAP All 7.71，比此前最好的 STAformer 相对高约 35%（STAformer 用了任务专用的组件）。提升主要来自动词（AP b+V 25.8）和接触时间（AP b+δ 20.2）。框本身也准：AP b 50.7，超过 DINOv3 ViT-7B 的 50.2。不过和名词相关的几列（b+N、mAP N、N+V）DINOv3 7B 仍然更高。</p>
+<figure class="pfig" id="fig7">
+<img src="vjepa21/fig7.webp" width="1600" height="656" alt="图 7：四列两行，V-JEPA 2.1 预测和真值并排，画着框和动词名词标签" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 11 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F7">看原图 ↗</a></span>四个场景（切菜、开门、柜子、木工），每个场景左边是 V-JEPA 2.1 的多个预测框和标签，右边是真值。预测给出几种都说得通的交互，框的位置和类别大多合理。</figcaption>
+</figure>
+<div class="note" id="n14"><span class="lab">读者注 14 · §3.1 正文里的几个数</span><p>“比此前最好方法相对高约 35%”：7.71/5.67 = 1.360，是 36%，可以说约 35%。正文写“20.20 AP<sub>b+δ</sub>, 12.9 mAP<sub>b+δ</sub>”，表 4 里 AP b+δ 是 20.2，对；但表里没有“mAP b+δ”这一列，最接近的 mAP N+δ 是 12.8，不是 12.9。</p><p>输入设置也有两种说法：§3.1 写视频是“384 px、8 帧、跨 0.5 秒”（即 16 fps）；附录 C.4 写搜索后最好的是“16 帧、384 px、2 fps”，即跨 8 秒。表 4 用的是哪一个，论文没说。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>动作预测</h3>
+<p><b>任务。</b>EK-100：45 个厨房、100 小时第一视角做饭视频，3,568 个动作标签（97 个动词 × 300 个名词的组合）。给定动作开始前的一段上下文视频，预测动词、名词和动作，预测间隔默认 1 秒。指标是逐类平均的 Recall@5。</p>
+<p><b>协议。</b>同 V-JEPA 2：取在动作开始前 1 秒结束的视频片段送进编码器；预测器拿编码器表示和“未来 1 秒那一帧”对应的 mask token，预测未来帧的表示；编码器和预测器的输出沿 token 维拼起来，送进注意力探针。探针最后的交叉注意力有 3 个查询 token，分别接动作、动词、名词三个线性分类器，各用 focal loss 再相加。上下文 32 帧、8 fps、384²。</p>
+<p class="tcap" id="t5">表 5 · EK-100 动作预测，验证集 Recall@5（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th>参数</th><th>动词</th><th>名词</th><th>动作</th></tr></thead><tbody>
+<tr><td>InAViT</td><td>160M</td><td>51.9</td><td>52.0</td><td>25.8</td></tr>
+<tr><td>Video-LLaMA</td><td>7B</td><td>52.9</td><td>52.0</td><td>26.0</td></tr>
+<tr><td>PlausiVL</td><td>8B</td><td>55.6</td><td>54.2</td><td>27.6</td></tr>
+<tr><td>V-JEPA 2 ViT-g</td><td>1B</td><td>63.6</td><td>57.1</td><td>39.7</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g</td><td>1B</td><td>63.6</td><td>56.2</td><td>38.4</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G</td><td>2B</td><td>64.3</td><td>59.9</td><td>40.8</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>同为 1B 时 2.1 和 V-JEPA 2 相当，扩到 2B 后到 40.8，论文称“+2.8%”的新最好。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · “+2.8%”是相对值</span><p>40.8/39.7 = 1.0277，即相对 +2.8%；绝对只高 1.1 点。同为 ViT-g 时 2.1 的动作 Recall@5 是 38.4，比 V-JEPA 2 的 39.7 <b>低</b> 1.3 点，名词也低 0.9。正文说“相当”，严格说是略低。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>机械臂规划</h3>
+<p>按 V-JEPA 2 的流程训一个逐帧因果的动作条件预测器：用 V-JEPA 2 的公开代码，只把特征换成 2.1 视频编码器的；预测器同样是 24 层 Transformer，约 3 亿参数，在 DROID 原始数据上用 teacher forcing 和两步 rollout 损失训练。然后零样本部署到作者实验室的桌面 Franka Panda（平行夹爪），用图像指定目标，做到达、抓取、放置，用模型预测控制，任务配置文件和 V-JEPA 2 完全相同。</p>
+<figure class="pfig" id="fig8">
+<img src="vjepa21/fig8.webp" width="1600" height="805" alt="图 8：(a) 两行机器人图片，V-JEPA 2 和 V-JEPA 2.1 各一行：目标帧、起始帧、执行；(b) 3D 能量曲面" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F8">看原图 ↗</a></span>(a) 抓杯子：上行 V-JEPA 2、下行 V-JEPA 2.1，每行依次是目标帧、起始帧、机器人执行。(b) V-JEPA 2.1 的能量地形：标题写“Reach \(\Delta_y=-0.1\)”，两条水平轴标的却是 \(\Delta_x\) 和 \(\Delta_y\)（原图如此），纵轴是能量（约 0.24 到 0.36）。曲面平滑，中间有一片低谷。图注说 2.1 更好地编码了深度，抓取需要沿相机深度方向推理时更有利。</figcaption>
+</figure>
+<p class="tcap" id="t6">表 6 · 真机抓杯子的闭环规划（照录原文。交叉熵法，单张 A100；每项技能 10 个任务取平均）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>样本数</th><th>迭代</th><th>视野</th><th>时间</th><th>到达</th><th>抓取</th><th>放置</th></tr></thead><tbody>
+<tr><td>V-JEPA 2</td><td>800</td><td>10</td><td>1</td><td>3 秒</td><td>100%</td><td>60%</td><td>80%</td></tr>
+<tr><td rowspan="2">V-JEPA 2.1</td><td>800</td><td>10</td><td>1</td><td>3 秒</td><td>100%</td><td>70%</td><td>80%</td></tr>
+<tr><td>300</td><td>15</td><td>8</td><td>14 秒</td><td>100%</td><td>80%</td><td>80%</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>深度理解更好，同样设置下抓取比 V-JEPA 2 高 10%（图 8）。2.1 还能从更长的规划视野里得益：减少 CEM 样本、规划 8 步，抓取再提高；V-JEPA 2 视野加长反而变差。2.1 在放置和抓取上的失败，定性看都是夹爪动作规划得不好（夹早了、搬运途中稍微张开），不是空间理解错。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · “+20%”怎么来的</span><p>摘要、引言和表 6 的图注都说抓取比 V-JEPA 2 高 20%。表 6 里 80% 对 60% 的这 20 点，是 2.1 换了规划设置（300 个样本、15 次迭代、视野 8、每步 14 秒）得到的；同样设置（800、10、1、3 秒）只高 10 点，正文 §3.3 也是这么说的。每项技能 10 个任务，所以 10 点就是 1 个任务、20 点是 2 个任务，样本很小。到达和放置两者完全相同。另外表 6 只有杯子：V-JEPA 2 一行的 100/60/80 和仓库 README 里 V-JEPA 2-AC 的杯子成绩相同；README 里还有盒子（抓取 20%、放置 50%），2.1 没报。</p></div>
+
+<h3 id="s3-4"><span class="no">3.4</span>导航规划</h3>
+<p>给出最近一帧观测和一张目标图，预测 2 秒的导航轨迹。沿用 NWM 的设置，在 2.1 的表示上训一个隐空间世界模型（条件扩散 Transformer，CDiT）。直接在 2.1 的高维嵌入里做扩散很难：表示维度至少是 SD-VAE 的 80 倍，任意方向加噪很容易离开数据流形。两个改动：预测干净表示而不是噪声；用 DDIM 采样（比 DDPM 随机性小，更稳）。规划时用交叉熵法采 N = 480 条 2 秒、4 FPS 的候选轨迹，在世界模型里模拟，选终点离目标嵌入最近的一条；动作空间简化成 3 自由度（平移和偏航）。2.1 只要 8 步去噪，SD-VAE 最少要 128 步。</p>
+<figure class="pfig" id="fig9">
+<img src="vjepa21/fig9.webp" width="1600" height="527" alt="图 9：三行，每行左边起始帧、右边目标帧，中间 8 张规划出的隐变量 PCA 图" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F9">看原图 ↗</a></span>三条导航例子。每行最左是起始帧、最右是目标帧，中间是规划出的隐轨迹在 8 个去噪步上的 PCA 图，颜色块逐渐从起点的布局变成目标的布局。</figcaption>
+</figure>
+<p class="tcap" id="t7">表 7 · 开环导航规划（照录原文。时间是平均规划时间；ATE、RTE 越低越好）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">模型</th><th rowspan="2">时间</th><th colspan="2"><a class="ds" href="https://sites.google.com/view/recon-robot">RECON</a></th><th colspan="2">TartanDrive</th><th colspan="2"><a class="ds" href="https://www.cs.utexas.edu/~xiao/SCAND/SCAND.html">SCAND</a></th><th colspan="2"><a class="ds" href="https://sites.google.com/view/sacson-review/home">SACSoN</a></th><th colspan="2">平均</th></tr><tr><th>ATE</th><th>RTE</th><th>ATE</th><th>RTE</th><th>ATE</th><th>RTE</th><th>ATE</th><th>RTE</th><th>ATE</th><th>RTE</th></tr></thead><tbody>
+<tr><td>NWM</td><td>103.2 s</td><td>1.146</td><td>0.339</td><td>5.831</td><td>1.219</td><td>1.113</td><td>0.297</td><td>4.037</td><td>0.928</td><td>3.032</td><td>0.696</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g</td><td>10.6 s</td><td>1.146</td><td>0.338</td><td>5.758</td><td>1.200</td><td>1.094</td><td>0.299</td><td>3.904</td><td>0.921</td><td>2.975</td><td>0.690</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G</td><td>10.6 s</td><td>1.179</td><td>0.340</td><td>5.687</td><td>1.187</td><td>1.038</td><td>0.285</td><td>4.054</td><td>0.938</td><td>2.990</td><td>0.688</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 7 的算术和“10 倍”“80 倍”</span><p>平均列都是四个数据集的简单平均：NWM ATE (1.146 + 5.831 + 1.113 + 4.037)/4 = 3.032，ViT-g 2.9755，ViT-G 2.9895；RTE 0.696、0.6895、0.6875。时间 103.2/10.6 = 9.7 倍。精度上的提升很小：平均 ATE 3.032 → 2.990 只低 1.4%；ViT-G 的平均 ATE 比 ViT-g 还高（2.990 对 2.975），RECON 和 SACSoN 两项的 ATE 比 NWM 差。摘要的“TartanDrive 5.687 ATE”是 ViT-G 唯一明显领先的一项。所以这张表支持的是“快 10 倍、精度不降”，不是“更准”。</p>
+<p>“至少 80 倍”：256² 输入时 SD-VAE 的隐变量是 4 × 32 × 32 = 4,096 个数；2.1 ViT-g 是 1,408 × 16 × 16 = 360,448，是 88 倍；ViT-G 1,664 × 256 = 425,984，104 倍。对得上“至少 80 倍”。（导航实验的输入分辨率论文没写，这里按 256² 算。）</p></div>
+
+<h3 id="s3-5"><span class="no">3.5</span>深度估计和语义分割</h3>
+<p><b>任务。</b>语义分割看类别语义和物体边界：<a class="ds" href="http://host.robots.ox.ac.uk/pascal/VOC/">Pascal VOC12</a>、ADE20K、<a class="ds" href="https://www.cityscapes-dataset.com/">Cityscapes</a>，报告 mIoU；按 DINOv3 把输入调到 1,024 个 patch token（patch 16 用 512²，patch 14 用 448²）。深度估计看几何结构：NYUv2 和 <a class="ds" href="https://www.cvlibs.net/datasets/kitti/">KITTI</a>，报告 RMSE。</p>
+<p><b>协议。</b>按 DINOv3：冻结编码器最后一层特征上训一个稠密线性投影，用图像分支，<b>不用中间层</b>。2.1 用 3D RoPE，频率按图像分辨率插值。</p>
+<p class="tcap" id="t8">表 8 · 稠密任务（照录原文。参数列是“参数量/patch 大小”；VOS 两列是 J&amp;F-Mean）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>参数</th><th>NYUv2 ↓</th><th>KITTI ↓</th><th>ADE20k</th><th>Citysc.</th><th>VOC</th><th>DAVIS-S</th><th>YT VOS-S</th></tr></thead><tbody>
+<tr class="grp"><th colspan="9">7B 模型</th></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td>0.466</td><td>3.158</td><td>42.7</td><td>68.3</td><td>76.1</td><td>57.2</td><td>43.9</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td>0.309</td><td>2.346</td><td>55.9</td><td>81.1</td><td>86.6</td><td>71.1</td><td>74.1</td></tr>
+<tr class="grp"><th colspan="9">2B 以下</th></tr>
+<tr><td>PEcore</td><td>2B/14</td><td>0.590</td><td>4.119</td><td>38.9</td><td>61.1</td><td>69.2</td><td>48.2</td><td>34.7</td></tr>
+<tr><td>PEspatial</td><td>2B/14</td><td>0.362</td><td>3.082</td><td>49.3</td><td>73.2</td><td>82.7</td><td>68.4</td><td>68.5</td></tr>
+<tr><td>AM-RADIOv2.5</td><td>1B/14</td><td>0.340</td><td>2.918</td><td>53.0</td><td>78.4</td><td>85.4</td><td>66.5</td><td>70.1</td></tr>
+<tr><td>InternVideo2-1B</td><td>1B/14</td><td>0.471</td><td>4.739</td><td>28.4</td><td>35.6</td><td>65.2</td><td>50.6</td><td>51.2</td></tr>
+<tr><td>SigLIP 2</td><td>1B/16</td><td>0.494</td><td>3.273</td><td>42.7</td><td>64.8</td><td>72.7</td><td>56.1</td><td>52.0</td></tr>
+<tr><td>DINOv2</td><td>1B/14</td><td>0.372</td><td>2.624</td><td>49.5</td><td>75.6</td><td>83.1</td><td>63.9</td><td>65.6</td></tr>
+<tr><td>DINOv3 ViT-H+</td><td>0.8B/16</td><td>0.352</td><td>2.635</td><td>54.8</td><td>79.5</td><td>85.8</td><td>71.1</td><td>74.0</td></tr>
+<tr><td>V-JEPA 2 ViT-g</td><td>1B/16</td><td>0.642</td><td>4.650</td><td>24.4</td><td>45.9</td><td>63.9</td><td>52.5</td><td>53.7</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g</td><td>1B/16</td><td>0.350</td><td>2.601</td><td>47.8</td><td>71.8</td><td>84.7</td><td>68.1</td><td>72.3</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G</td><td>2B/16</td><td>0.307</td><td>2.461</td><td>47.9</td><td>73.5</td><td>85.0</td><td>69.0</td><td>72.7</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>ViT-G 的 NYUv2 0.307 是线性探针深度的最好成绩，略胜 DINOv3 7B（0.309）和 PEspatial-G（0.362），远好于视频编码器 InternVideo2-1B（0.471）和 V-JEPA 2（0.642）。KITTI 2.461，在 2B 以下的模型里最好（DINOv3 7B 是 2.346）。图 10 和图 12 是定性对比。分割：VOC 85.0、Cityscapes 73.5、ADE20K 47.9，比 V-JEPA 2 高很多，但 ADE20K 和 Cityscapes 仍落后最好的图像编码器。作者猜原因是 VisionMix 里杂乱场景偏少，而这两个数据集类别多、尺度变化大、布局杂乱。</p>
+<figure class="pfig" id="fig10">
+<img src="vjepa21/fig10.webp" width="1600" height="701" alt="图 10：左边三张 NYUv2 室内图、右边一张 KITTI 街景，下面两行分别是 V-JEPA 2 和 V-JEPA 2.1 的深度图" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 16 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F10">看原图 ↗</a></span>V-JEPA 2 的深度图大体有远近，但满是斑块、边界糊；V-JEPA 2.1 的深度图平滑，床、椅子、街边车辆的边界清楚。</figcaption>
+</figure>
+<figure class="pfig narrow" id="fig12">
+<img src="vjepa21/fig12.webp" width="809" height="397" alt="图 12：街景和两张室内图，V-JEPA 2.1 和 DINOv3 的深度图对比，白圈标出差异处" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 15 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F12">看原图 ↗</a></span>V-JEPA 2.1 ViT-G 对 DINOv3 ViT-H+。白圈处：2.1 画出了红绿灯的轮廓；右边两张里 DINOv3 把床上的绿色物体和电视估得比实际更近。</figcaption>
+</figure>
+<figure class="pfig" id="fig11">
+<img src="vjepa21/fig11.webp" width="1600" height="1143" alt="图 11：五行分割示例（牛、骑马、自行车、两张城市街景），五列为原图、真值、DINOv3、V-JEPA 2、V-JEPA 2.1" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 17 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F11">看原图 ↗</a></span>VOC12 和 Cityscapes 的线性分割。V-JEPA 2 的掩码稀疏、有洞（牛、自行车上尤其明显）；V-JEPA 2.1 和 DINOv3 ViT-H+ 接近，自行车的辐条轮廓也分得出来。</figcaption>
+</figure>
+<div class="note" id="n18"><span class="lab">读者注 18 · 相对 V-JEPA 2 的分割提升</span><p>正文写“ADE20K +23.4、Cityscapes +27.6、VOC12 +20.7”。按表 8：47.9 − 24.4 = 23.5，73.5 − 45.9 = 27.6，85.0 − 63.9 = 21.1。Cityscapes 对，另两个差 0.1 和 0.4。“深度最好”的领先只有 0.002 RMSE（0.307 对 0.309），而对手是 7B 模型。</p></div>
+
+<h3 id="s3-6"><span class="no">3.6</span>视频目标分割</h3>
+<p>用 VOS 看特征的时间一致性：给第一帧的真值掩码，传播到后面所有帧。<a class="ds" href="https://davischallenge.org/">DAVIS 2017</a> 和 <a class="ds" href="https://youtube-vos.org/">YouTube-VOS</a>，报告 J&amp;F-Mean。协议是无参数的标签传播：在嵌入空间用余弦相似度匹配相邻帧的 patch，没有可学参数，直接考表示的时间稳定性。按 DINOv3 把短边调到 480 px（patch 16）或 420 px（patch 14）。在训练集上搜超参，DAVIS 最好的是 15 帧上下文、圆形邻域 12、top-5、温度 0.2，用于全部验证集。结果 DAVIS 69.0、YouTube-VOS 72.7，第二好，只低于 DINOv3。</p>
+<figure class="pfig" id="fig13">
+<img src="vjepa21/fig13.webp" width="1600" height="315" alt="图 13：两行，第一列是带真值掩码的首帧，后面五帧是传播出的掩码" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 18 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F13">看原图 ↗</a></span>上行是人群里的几个人，下行是越野摩托。第一列给真值掩码，后面各帧的掩码靠 V-JEPA 2.1 嵌入空间里的 patch 相似度传播，短边 480 px。快速运动和外观变化下掩码仍然连贯。</figcaption>
+</figure>
+
+<h3 id="s3-7"><span class="no">3.7</span>视频和图像分类</h3>
+<p>四个数据集：SSv2 和 <a class="ds" href="http://www.svcl.ucsd.edu/projects/resound/dataset.html">Diving-48</a> 考运动理解（要看多帧才能判对），Kinetics-400 和 ImageNet-1K 主要考外观（很多类一帧就能猜）。对比对象：图像自监督（DINOv2 带 register、DINOv3）、图文对比（SigLIP2、PEcore G）、视频（V-JEPA、V-JEPA 2、InternVideo2s2-1B），以及文献里的 VideoMAEv2、InternVideo2、VideoPrism、DINOv3。协议同 V-JEPA 2：冻结特征上训 4 层注意力探针，推理时采多个片段平均 logits。作者指出 DINOv3 的探针另加了时空位置编码和 3D 分解 RoPE，2.1 的探针不需要这些。</p>
+<p class="tcap" id="t9">表 9 · 整体任务，Top-1 准确率（照录原文）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>参数</th><th>SSv2</th><th>Diving-48</th><th>K400</th><th>IN1K</th></tr></thead><tbody>
+<tr class="grp"><th colspan="6">文献报告</th></tr>
+<tr><td>VideoMAEv2</td><td>1B</td><td>56.1</td><td>–</td><td>82.8</td><td>71.4</td></tr>
+<tr><td>InternVideo2-1B</td><td>1B</td><td>67.3</td><td>–</td><td>87.9</td><td>–</td></tr>
+<tr><td>VideoPrism</td><td>1B</td><td>68.5</td><td>71.3</td><td>87.6</td><td>–</td></tr>
+<tr><td>DINOv3 ViT-H+</td><td>0.8B</td><td>69.8</td><td>–</td><td>86.7</td><td>87.9</td></tr>
+<tr><td>DINOv3</td><td>7B</td><td>70.1</td><td>–</td><td>87.8</td><td>88.4</td></tr>
+<tr class="grp"><th colspan="6">图像编码器，同一协议</th></tr>
+<tr><td>DINOv2</td><td>1.1B</td><td>50.7</td><td>82.5</td><td>83.6</td><td>86.1</td></tr>
+<tr><td>PEcore G</td><td>1.9B</td><td>55.4</td><td>76.9</td><td>88.5</td><td>87.6*</td></tr>
+<tr><td>SigLIP2</td><td>1.2B</td><td>49.9</td><td>75.3</td><td>87.3</td><td>88.0</td></tr>
+<tr class="grp"><th colspan="6">视频编码器，同一协议</th></tr>
+<tr><td>InternVideo2s2-1B</td><td>1B</td><td>69.7</td><td>86.4</td><td>89.4</td><td>85.8</td></tr>
+<tr><td>V-JEPA ViT-H</td><td>600M</td><td>74.3</td><td>87.9</td><td>84.5</td><td>80.0</td></tr>
+<tr><td>V-JEPA 2 ViT-g</td><td>1B</td><td>77.3</td><td>90.2</td><td>87.3</td><td>85.1</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g</td><td>1B</td><td>76.9</td><td>89.0</td><td>87.0</td><td>84.8</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G</td><td>2B</td><td>77.7</td><td>89.2</td><td>87.7</td><td>85.5</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>ViT-G 的 SSv2 77.7%，论文称新的最好：InternVideo2 全量微调 77.5，V-JEPA 2 77.3，DINOv3 7B 70.1，同协议的 InternVideo2 69.7。外观任务上 K400 87.7、IN1K 85.5，也有竞争力。从 ViT-g 到 ViT-G 平均提升 0.6 点。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 9 的输入设置写了两种</span><p>表 9 图注：默认 256²、V-JEPA 2 ViT-g 和 2.1 用 384²；SSv2 是 16 × 2 × 3（16 帧、2 个时间裁剪、3 个空间裁剪）。附录 C.5：所有基准都用 384²；SSv2 是 “64 × 2 × 3”，括号里却又写“16 frames clip”。仓库的 <code>configs/eval_2_1/vitG-384/ssv2.yaml</code> 是 <code>frames_per_clip: 64</code>、<code>num_segments: 2</code>、<code>num_views_per_segment: 3</code>、<code>resolution: 384</code>，标签也叫 <code>64x2x3</code>。所以 2.1 的 SSv2 是 64 帧，表 9 图注的 16 帧（至少对 2.1）不对。</p></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 同样 1B，2.1 在整体任务上都低一点</span><p>“平均 +0.6”：(0.8 + 0.2 + 0.7 + 0.7)/4 = 0.6，对。但和 V-JEPA 2 ViT-g 同尺寸比，2.1 ViT-g 四项都低：SSv2 76.9 对 77.3，Diving-48 89.0 对 90.2，K400 87.0 对 87.3，IN1K 84.8 对 85.1；EK-100 动作也低（38.4 对 39.7，表 5）。2.1 ViT-G 在 Diving-48 上也低于 V-JEPA 2（89.2 对 90.2）。所以“稠密大涨、整体不丢”在 1B 上是“整体小丢”，整体任务的最好成绩要靠 2B。</p></div>
+
+<h3 id="s3-8"><span class="no">3.8</span>视频问答</h3>
+<p>按 V-JEPA 2 的配方，用 2.1 编码器加 Llama 3.1 8B 训一个视频大模型。训练数据是 PerceptionLM 公开的一部分，经过领域过滤、图文不对齐过滤，再用 Qwen3VL 打分，去掉 18%，不改写数据。在同样数据上重训了 V-JEPA 2 做对照。流程是 V-JEPA 2 的三阶段（图文描述 → 更高质量的图像和视频描述、问答），再加第四阶段把上下文扩到 64 帧（V-JEPA 2 是 32 帧）。主要用纯视频模式。最后在 PerceptionTest 训练集上再后训一次，所有任务都涨。</p>
+<p class="tcap" id="t10">表 10 · 视频问答（照录原文。PerceptionTest 是验证集，* 是测试集，测试服务器已停）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>编码器/LLM</th><th>平均</th><th><a class="ds" href="https://github.com/google-deepmind/perception_test">PerceptionTest</a></th><th><a class="ds" href="https://github.com/facebookresearch/minimal_video_pairs">MVP</a></th><th><a class="ds" href="https://llyx97.github.io/tempcompass/">TempCompass</a></th><th><a class="ds" href="https://temporalbench.github.io/">TemporalBench</a></th><th><a class="ds" href="https://github.com/yale-nlp/TOMATO">TOMATO</a></th><th><a class="ds" href="https://github.com/daniel-cores/tvbench">TVBench</a></th><th><a class="ds" href="https://github.com/OpenGVLab/Ask-Anything">MVBench</a></th></tr></thead><tbody>
+<tr class="grp"><th colspan="10">≤ 8B 视频语言模型，文献报告</th></tr>
+<tr><td>InternVL-2.5</td><td>300M/7B</td><td>52.1</td><td>68.9</td><td>39.9</td><td>68.3</td><td>24.3</td><td>29.4</td><td>61.6</td><td>72.6</td></tr>
+<tr><td>Qwen2VL</td><td>675M/7B</td><td>47.0</td><td>66.9</td><td>29.2</td><td>67.9</td><td>20.4</td><td>31.5</td><td>46.0</td><td>67.0</td></tr>
+<tr><td>Qwen2.5VL</td><td>1B/7B</td><td>49.7</td><td>70.5</td><td>36.7</td><td>71.7</td><td>24.5</td><td>24.6</td><td>50.5</td><td>69.6</td></tr>
+<tr><td>PLM 8B</td><td>1B/8B</td><td>56.7</td><td>82.7*</td><td>39.7</td><td>72.7</td><td>28.3</td><td>33.2</td><td>63.5</td><td>77.1</td></tr>
+<tr><td>V-JEPA 2 ViT-g384</td><td>1B/8B</td><td>59.5</td><td>84.0*</td><td>44.5</td><td>76.9</td><td>36.7</td><td>40.3</td><td>60.6</td><td>73.5</td></tr>
+<tr class="grp"><th colspan="10">本文用过滤后的 PerceptionLM 数据训练</th></tr>
+<tr><td>V-JEPA 2 ViT-g384</td><td>1B/8B</td><td>57.8</td><td>80.1</td><td>40.9</td><td>74.1</td><td>32.3</td><td>41.4</td><td>62.6</td><td>73.3</td></tr>
+<tr><td>V-JEPA 2.1 ViT-G384</td><td>2B/8B</td><td>57.9</td><td>83.1</td><td>43.2</td><td>74</td><td>28.5</td><td>38</td><td>62.8</td><td>75.4</td></tr>
+</tbody></table></div>
+<p><b>结果。</b>同数据下 2.1 平均略好，PerceptionTest、MVP、MVBench、TVBench 提高；TemporalBench 和 TOMATO 变差（都是短视频的运动事件理解）。和文献里 V-JEPA 2 的报告值比，2.1 略低，作者归因于对齐数据更少（8,850 万对 7,250 万样本）。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 表 10 的平均和几处措辞</span><p>平均列是 7 项的简单平均：2.1 (83.1 + 43.2 + 74 + 28.5 + 38 + 62.8 + 75.4)/7 = 57.86；同数据的 V-JEPA 2 是 57.81；文献 V-JEPA 2 是 59.50；PLM 8B 56.74。“平均略好”就是 0.05 点。正文说 TVBench“显著提高”，表里只是 62.6 → 62.8。对比用的是 2B 的 2.1 对 1B 的 V-JEPA 2，不同尺寸。“8,850 万样本”引的是 Assran et al. (2023)，那是 I-JEPA；V-JEPA 2 是 Assran et al. (2025)，引文年份应是笔误。</p></div>
+
+<h3 id="s3-9"><span class="no">3.9</span>稠密特征的定性结果</h3>
+<p>图 14 在单张图上比较 V-JEPA 2.1 ViT-G、DINOv2 ViT-g、DINOv3 ViT-H+、V-JEPA 2 ViT-g 的特征 PCA。按 DINOv3 的做法，三个主成分在 6 种 RGB 排列里挑最好看的一种。图 15 扩到 64 帧的整段视频：<a class="ds" href="https://ego4d-data.org/">Ego4D</a> 第一视角、Cityscapes 街景、Diving48 跳水、<a class="ds" href="https://www.robots.ox.ac.uk/~vgg/data/MoCA/">MoCA</a> 伪装动物，特征在时间上保持一致。</p>
+<details class="tbl"><summary>图 14、图 15（两张整页大图，点开）</summary>
+<figure class="pfig" id="fig14">
+<img src="vjepa21/fig14.webp" width="1592" height="2040" alt="图 14：十行单图，五列为原图、DINOv2、DINOv3、V-JEPA 2、V-JEPA 2.1 的特征 PCA" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 21 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F14">看原图 ↗</a></span>十张图（街景、马、摩天轮、猫、鸟、自行车等），短边调到 1,024 px，走 2D 图像分支。DINOv2 和 DINOv3 的图平滑；V-JEPA 2 一片噪点；V-JEPA 2.1 的猫毛、行人、自行车轮这些细节最清楚。</figcaption>
+</figure>
+<figure class="pfig" id="fig15">
+<img src="vjepa21/fig15.webp" width="1600" height="2117" alt="图 15：六组视频，每组上行原帧下行 V-JEPA 2.1 特征 PCA，跨五个时刻" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 22 页 · Mur-Labadia 等 · CC BY-NC-ND 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2603.14482v3#S3.F15">看原图 ↗</a></span>Ego4D（1080 px）、Cityscapes（1080 px）、Diving48（768 px）、MoCA（768 px）等视频，整段走 3D 视频分支。每组上行是原帧、下行是特征 PCA，同一物体在不同时刻颜色一致，运动的物体（跳水的人）尤其稳定。</figcaption>
+</figure>
+</details>
+
+<h3 id="s3-10"><span class="no">3.10</span>蒸馏的小模型</h3>
+<p>同样的协议评测蒸馏出的 ViT-L 和 ViT-B。从头训的 ViT-L 和从 ViT-G 蒸馏的 ViT-L 相比，所有基准都显著提升，几乎追上 ViT-G：SSv2 74.2 → 76.5（ViT-G 77.7），ADE20K 42.0 → 46.7。ViT-B 和从头训的 ViT-L 相当。</p>
+<p class="tcap" id="t11">表 11 · 蒸馏的收益（照录原文）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>模型</th><th>参数</th><th>蒸馏</th><th>SSv2</th><th>K400</th><th>IN1K</th><th>ADE20K</th><th>Citys.</th><th>VOC12</th><th>NYU ↓</th><th>KITTI ↓</th><th>DAVIS</th></tr></thead><tbody>
+<tr><td>ViT-G</td><td>2B</td><td></td><td>77.7</td><td>87.7</td><td>85.5</td><td>47.9</td><td>73.5</td><td>85.0</td><td>0.307</td><td>2.461</td><td>69.0</td></tr>
+<tr><td>ViT-L</td><td>300M</td><td></td><td>74.2</td><td>84.3</td><td>81.8</td><td>42.0</td><td>66.7</td><td>79.6</td><td>0.381</td><td>2.914</td><td>64.5</td></tr>
+<tr><td>ViT-L</td><td>300M</td><td>✓</td><td>76.5</td><td>86.9</td><td>84.9</td><td>46.7</td><td>71.0</td><td>83.9</td><td>0.336</td><td>2.490</td><td>68.7</td></tr>
+<tr><td>ViT-B</td><td>80M</td><td>✓</td><td>74.5</td><td>85.1</td><td>84.0</td><td>42.0</td><td>64.5</td><td>78.0</td><td>0.408</td><td>2.850</td><td>67.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · “68.7，接近 67.0”应是 69.0</span><p>正文说蒸馏 ViT-L 的 DAVIS 是“68.7 J&amp;F，接近 67.0”。表 11 里 ViT-G 的 DAVIS 是 69.0，67.0 是 ViT-B 的。应是“接近 69.0”。KITTI 的“2.490 接近 2.461”对。另外从头训的 ViT-L 一行（ADE 42.0、NYU 0.381）和附录表 13 带深监督、只用最后一层的 ViT-L（42、0.381）相同，是同一个模型。</p></div>
+
+<h2 id="s4"><span class="no">4</span>相关工作</h2>
+<p><b>自监督学习。</b>从手工前置任务（相对位置、拼图、修补、上色、预测变换），到联合嵌入学不变性（对比、非对比、聚类），再到 ViT 上的视图不变方法和掩码图像建模（像素空间或隐空间）；最强的方法把两者结合（iBOT、DINOv2）。在隐空间预测缺失信息的思路被 JEPA 形式化，已用于音频、图像、视频。</p>
+<p><b>视频模型。</b>早期用运动线索做前置任务；Kinetics 之后转向监督视频模型（晚融合、3D 卷积、2D+1D 分解、双路、视频 ViT）；监督需要大量标注，焦点又回到自监督：时序验证、对比、未来预测、VideoMAE 一类掩码建模、CLIP 空间掩码、图像视频联合训练（OmniMAE）。扩数据、扩模型证明能学到通用视频编码器；JEPA 在大规模上比生成式更高效，并通向世界建模。</p>
+<p><b>稠密特征。</b>常见办法是设计局部损失（时空一致、裁剪间空间对齐、patch 一致），基于区域的对比（DetCon、ORL），多编码器蒸馏（AM-RADIO、PE、DINOv3，用余弦和 Gram 矩阵正则），事后改进（聚类微调、patch 对齐、patch 排序、STEGO）。结构方面，DPT 把 ViT 序列重组成多尺度 2D 特征图再卷积融合，是 Depth Anything 等模型的基础。</p>
+
+<h2 id="s5"><span class="no">5</span>结论和未来工作</h2>
+<p>关键是一种深度时空自监督：加权的上下文损失加多层预测器，让中间层也受监督。再加上模态专用 tokenizer、大规模均衡的图像视频数据、扩到 ViT-G，并能有效蒸馏到小模型。ViT-G 在短时交互预测、动作预测、动作识别上拿到冻结骨干的最好成绩，线性探针深度最好，分割和视频目标跟踪很强。</p>
+<p><b>未来工作：</b>继续扩模型（1B 到 2B 趋势很好，DINOv3 说明 7B 有益）和数据；V-JEPA 2 展示过在表示上建世界模型，下一步从稠密预测的角度做世界建模；在需要像素级状态估计的机器人和自主体应用里使用，比如复杂真实环境导航、精细操作。</p>
+
+<h2 id="apA">附录 A · 预训练细节</h2>
+<p>B、L、g、G 用同一套超参。两阶段：第一阶段 135k 步，学习率 1e-4 预热 12k 步到 5.25e-4，然后恒定；第二阶段冷却 12k 步，学习率 6e-4 衰减到 1e-6。第一阶段视频 16 帧、4 fps，视频和图像都是 256²；冷却阶段视频 64 帧、384²，图像 512²。遮挡策略同 V-JEPA；图像和视频 batch 2,304 和 128；权重衰减 0.04；EMA 0.99925。标准 ViT，patch 16，视频 tubelet 2。预测器 24 层（V-JEPA 2 是 12 层），宽 384。深监督用编码器 4 个“等间距”的中间块。式 (3) 的 λ 视频 0.5、图像 0.7。</p>
+<details class="tbl"><summary>表 12 · 预训练超参全表（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>参数</th><th>第一阶段</th><th>冷却阶段</th></tr></thead><tbody>
+<tr><td>帧数</td><td>16</td><td>64</td></tr>
+<tr><td>帧率</td><td>4.0</td><td>4.0</td></tr>
+<tr><td>视频裁剪</td><td>256</td><td>384</td></tr>
+<tr><td>图像裁剪</td><td>256</td><td>512</td></tr>
+<tr><td>随机缩放宽高比</td><td>[0.75, 1.35]</td><td>[0.75, 1.35]</td></tr>
+<tr><td>随机缩放比例</td><td>[0.3, 1.0]</td><td>[0.3, 1.0]</td></tr>
+<tr><td>步数</td><td>135,000</td><td>12000</td></tr>
+<tr><td>预热步数</td><td>12,000</td><td>N/A</td></tr>
+<tr><td>图像 batch（全局）</td><td>2,304</td><td>2,304</td></tr>
+<tr><td>视频 batch（全局）</td><td>128</td><td>128</td></tr>
+<tr><td>起始学习率</td><td>1e-4</td><td>6e-4</td></tr>
+<tr><td>最终学习率</td><td>5.25e-4</td><td>1e-6</td></tr>
+<tr><td>权重衰减</td><td>0.04</td><td>0.04</td></tr>
+<tr><td>EMA</td><td>0.99925</td><td>0.99925</td></tr>
+<tr><td>空间遮挡比例</td><td>[0.15, 0.7]</td><td>[0.15, 0.7]</td></tr>
+<tr><td>时间遮挡比例</td><td>[1.0, 1.0]</td><td>[1.0, 1.0]</td></tr>
+<tr><td>遮挡宽高比</td><td>[0.75, 1.5]</td><td>[0.75, 1.5]</td></tr>
+<tr><td>tubelet</td><td>2</td><td>2</td></tr>
+<tr><td>patch</td><td>16</td><td>16</td></tr>
+<tr><td>预测器层数</td><td>24</td><td>24</td></tr>
+<tr><td>预测器宽度</td><td>384</td><td>384</td></tr>
+<tr><td>编码器中间块（ViT-G）</td><td>[12, 24, 36, 48]</td><td>[12, 24, 36, 48]</td></tr>
+<tr><td>上下文损失 λ</td><td>视频 0.5，图像 0.7</td><td>视频 0.5，图像 0.7</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n23"><span class="lab">读者注 23 · “空间遮挡比例 [0.15, 0.7]”不是一个范围</span><p>配置里视频有两个遮挡生成器：一个是 8 个块、每块空间比例 0.15（短程），一个是 2 个块、每块 0.7（长程），宽高比都在 [0.75, 1.5]，时间方向贯穿全部帧。每个样本会生成两种遮挡，编码器对每种各跑一次（<code>MultiSeqWrapper</code> 按遮挡循环），预测器也一样。图像只有一个生成器：10 个块、每块 0.15。表 12 把两个值写成一个区间，容易误读成“从 0.15 到 0.7 随机取”。块会重叠，实际遮掉的比例论文没给。我按 <code>src/masks/multiseq_multiblock3d.py</code> 的规则（每次采一个块大小：面积取整 int(16×16×比例)，宽高比随机，h、w 取整；各块位置均匀随机，取并集）在 16 × 16 网格上模拟 4,000 次：短程平均遮掉约 62%，长程约 81%，图像（10 块）约 68%。这是我算的，第 3 幕当场按同一规则采样。</p></div>
+
+<h2 id="apB">附录 B · 蒸馏细节</h2>
+<p>流程沿用预训练：同样的 JEPA 损失、遮挡、结构和超参，只改几处。EMA 目标编码器换成冻结的老师；预测器最后一层的维度改成老师的维度；不用深监督，预测器只接编码器最后一层，损失也只在最后一层；预测器不用预训练权重，重新训一个 12 层的（预训练是 24 层），蒸馏稳定得多；另存一份上下文编码器的 EMA（Polyak 平均），不进损失，作为最终发布的模型。</p>
+<p>也分两阶段：第一阶段用预热再恒定的学习率、低分辨率（16 帧、256²），老师是冷却前的低分辨率 ViT-G；第二阶段短的退火、高分辨率（64 帧、384²），老师换成冷却后的高分辨率 ViT-G，学生从第一阶段的 EMA 学生初始化。这种两阶段比单阶段、或一直用最终高分辨率老师都好。</p>
+
+<h2 id="apC">附录 C · 评测协议</h2>
+<p>六个下游任务的协议。正文已经讲过主要设置，这里把超参搜索范围和探针结构放在折叠里。</p>
+<details class="tbl"><summary>C.1 到 C.6 的细节（点开）</summary>
+<p><b>C.1 深度估计。</b>NYUv2、KITTI，RMSE。按 DINOv3：冻结 patch 特征上训线性层，再接一个可学的 BatchNorm。单张图训练和评测，走 2D 图像分支。学习率扫 {1.5e-3, 1e-3, 8e-4, 3e-4, 1e-4, 8e-5, 3e-5}，权重衰减 {1e-3, 1e-4}。</p>
+<p><b>C.2 语义分割。</b>ADE20K、VOC12、Cityscapes，mIoU。最后一块的 patch 特征（已过 LayerNorm）上训线性分类器，AdamW，学习率 {1.5e-3, 8e-4, 5e-4, 8e-5}，权重衰减 {0.1, 0.01, 1e-4}。ADE20K 和 VOC12 用 512 px，Cityscapes 高 1,024 px。</p>
+<p><b>C.3 视频目标分割。</b>DAVIS 2017（训练/验证 60/30 段）和 YouTube-VOS（只有训练集公开，按 80/20 分）。按 Rajasegaran 等和 DINOv3 做无参标签传播：首帧标签编码成 one-hot patch，后续每帧和首帧及少量过去帧算相似度，在空间邻域内做加权 k-NN。扫上下文长度 {4, 7, 10, 15}、邻域大小 {12, 24, 36}、形状 {方, 圆}、top-k {3, 5, 10}、温度 {0.01, 0.1, 0.2, 0.7}，在 DAVIS 训练集上选，480 px。</p>
+<p><b>C.4 短时交互预测。</b>数据和指标同 §3.1。按 StillFast 官方实现（扩展 Faster R-CNN）。4 个注意力块后接 STAformer 的帧引导时间池化：最后一帧的 2D token 做查询、整段的 3D token 做键值，残差交叉注意力；池化后的 2D 视频 token 双线性插值到高分辨率图像 token 的大小，相加后用 2D 卷积融合，上采样成 1/4、1/8、1/16、1/32、1/64 的金字塔。检测头：RPN 出候选，RoIAlign 取局部特征，拼上 4 层探针池化出的全局 token，经两层全连接后残差加回局部特征；名词、动词、δ 各一个线性层，δ 过 Softplus 保证为正。损失是 Faster R-CNN 损失加动词损失（权重 0.1）和 Smooth-L1 的 δ 损失（0.5）。Adam，学习率 {1e-5, 8e-5, 1.2e-4, 2e-4, 5e-4}；输入扫 {16, 8, 4, 2} fps、{32, 16, 8, 4} 帧、{256, 384} px；图像短边在 {640, …, 800} 里随机、长边不超 1,333。最好的是 16 帧、384 px、2 fps、学习率 1.2e-4。DINOv2、DINOv3、V-JEPA 2 同样搜索，报告各自最好。</p>
+<p><b>C.5 视频和图像分类。</b>IN1K、K400、SSv2、Diving-48。探针：4 个 Transformer 块，16 个头，前三块自注意力，最后一块是带一个可学查询 token 的交叉注意力，交叉注意力输出残差加回查询再过 LayerNorm 和单 GELU 的 MLP，最后接线性分类器。验证时每段取 3 个空间视图。SSv2 64 × 2 × 3，K400 16 × 8 × 3，Diving-48 32 × 4 × 3，全部 384²；图像和视频分别走 2D、3D 分支。batch 256，ImageNet 1,024 且不用多片段。Diving-48 用多层策略：取编码器最后一层和三个中间层的 token 一起送进探针。同时训多个探针头（5 个学习率 × 4 个权重衰减 = 20 个），报告最好的；K400、SSv2、ImageNet 训 20 个 epoch，余弦衰减；Diving-48 训 50 个 epoch。</p>
+<p><b>C.6 动作预测。</b>EK-100，同 §3.2。focal loss α = 0.25、γ = 2.0。上下文 32 帧、8 fps、384²。训练时预测间隔在 0.25 到 1.75 秒随机，预测点在 0.0 到 0.25 随机。探针同 C.5，最后的交叉注意力有一组查询 token，每个接一个线性分类器。</p>
+</details>
+
+<h2 id="apD">附录 D · 补充消融</h2>
+<p><b>D.1 多尺度评测。</b>没有深监督的模型，用 4 层特征比只用最后一层好很多；有深监督的模型只用最后一层就更强，4 层只多一点点。所以深监督让下游不必取中间层。</p>
+<p class="tcap" id="t13">表 13 · 深监督和多尺度评测（照录原文，ViT-L 从头训练）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">深监督</th><th colspan="2">ADE20k</th><th colspan="2">NYU ↓</th><th colspan="2">Diving-48</th></tr><tr><th>最后一层</th><th>4 层</th><th>最后一层</th><th>4 层</th><th>最后一层</th><th>4 层</th></tr></thead><tbody>
+<tr><td>✗</td><td>34.9</td><td>39.1</td><td>0.513</td><td>0.463</td><td>85.8</td><td>86.9</td></tr>
+<tr><td>✓</td><td>42</td><td>43.9</td><td>0.381</td><td>0.370</td><td>87.2</td><td>88.1</td></tr>
+</tbody></table></div>
+<p><b>D.2 预训练空间分辨率。</b>冷却阶段用 256² 和 384² 对比。论文说高分辨率在所有下游任务上都有益。</p>
+<details class="tbl"><summary>表 14 · 冷却分辨率（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>模型</th><th>分辨率</th><th>SSv2</th><th>D-48</th><th>K400</th><th>IN1K</th><th>EK100</th><th>ADE20k</th><th>Citys.</th><th>VOC</th><th>NYU</th><th>KITTI</th><th>DAVIS</th><th>YT-VOS</th></tr></thead><tbody>
+<tr><td>ViT-g</td><td>256</td><td>76.7</td><td>88.6</td><td>86.2</td><td>84.1</td><td>35.7</td><td>47.8</td><td>71.7</td><td>84.6</td><td>0.359</td><td>2.611</td><td>68.0</td><td>72.0</td></tr>
+<tr><td>ViT-g</td><td>384</td><td>76.9</td><td>89</td><td>87</td><td>84.8</td><td>38.4</td><td>47.8</td><td>71.8</td><td>84.7</td><td>0.350</td><td>2.601</td><td>67.4</td><td>71.3</td></tr>
+<tr><td>ViT-G</td><td>256</td><td>77.1</td><td>89.5</td><td>87.3</td><td>84.8</td><td>38.8</td><td>47.8</td><td>73.2</td><td>84.7</td><td>0.313</td><td>2.472</td><td>68.6</td><td>72.7</td></tr>
+<tr><td>ViT-G</td><td>384</td><td>77.7</td><td>89.2</td><td>87.7</td><td>85.5</td><td>40.8</td><td>47.9</td><td>73.5</td><td>85.0</td><td>0.307</td><td>2.461</td><td>69.0</td><td>72.6</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n24"><span class="lab">读者注 24 · 表 14 和表 8 对不上，“所有任务”也不成立</span><p>384 的两行应该就是正文的发布模型。ViT-g 384：DAVIS 67.4、YT-VOS 71.3，表 8 是 68.1、72.3；ViT-G 384 的 YT-VOS 72.6，表 8 是 72.7。其余（SSv2、K400、IN1K、EK100、分割、深度、ViT-G 的 DAVIS 69.0）和表 5、8、9 一致。</p>
+<p>“高分辨率在所有任务上都有益”：按表 14 本身，ViT-g 的 DAVIS（68.0 → 67.4）和 YT-VOS（72.0 → 71.3）下降，ViT-G 的 Diving-48（89.5 → 89.2）和 YT-VOS（72.7 → 72.6）下降，ADE20k 几乎不变。确实有益的是 EK100（+2.7、+2.0）和深度。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>官方 <code>facebookresearch/vjepa2</code> 提交 204698b（2026-03-23）。2.1 是 2026-03-17 的 PR #130 合进来的；CHANGELOG 把这次发布写成“[0.0.2] - 2025-03-16”，年份应是 2026；README 里 2.1 论文的链接还是 <code>arxiv.org/abs/TODO</code>。下表把论文说法和代码并列，代码列只引文件名和配置键。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项</th><th>论文</th><th>代码（204698b）</th></tr></thead><tbody>
+<tr><td>编码器尺寸</td><td>ViT-B/L/g/G：80M/300M/1B/2B</td><td><code>vit_base</code> 768×12，<code>vit_large</code> 1024×24，<code>vit_giant_xformers</code> 1408×40（22 头，MLP 48/11），<code>vit_gigantic_xformers</code> 1664×48（26 头，MLP 64/13）</td></tr>
+<tr><td>位置编码</td><td>3D RoPE，评测时按分辨率插值频率</td><td>每个头 64 维里时间、行、列各转 20 维，剩 4 维不转；<code>interpolate_rope: true</code> 训练和推理都开，行列位置统一缩放到 256/16 = 16 的网格上，时间不缩放</td></tr>
+<tr><td>tokenizer</td><td>视频 2×16×16 3D 卷积，图像 16×16 2D 卷积</td><td>图像是 Conv3d(1×16×16)，T = 1 时启用（读者注 10）</td></tr>
+<tr><td>模态信息</td><td>可学的模态 token</td><td>加到每个 token 上的两个向量，编码器、预测器各一对</td></tr>
+<tr><td>中间层</td><td>ViT-G [12, 24, 36, 48]</td><td>[11, 23, 37, 47]（从 0 数），读者注 7</td></tr>
+<tr><td>预测器</td><td>24 层、宽 384；MLP 融合</td><td>Linear(4D→D)–GELU–Linear(D→384)；24 层 12 头；被遮和上下文各一个输出头</td></tr>
+<tr><td>上下文损失权重</td><td>λ/√d<sub>min</sub>；λ 视频 0.5、图像 0.7</td><td>欧氏距离开方；图像 λ 也是 0.5（读者注 6）；第 15k 到 30k 步线性预热；冷却阶段关掉距离权重和预热</td></tr>
+<tr><td>遮挡</td><td>[0.15, 0.7]</td><td>视频 8 块 × 0.15 和 2 块 × 0.7 两个生成器；图像 10 块 × 0.15（读者注 23）</td></tr>
+<tr><td>数据</td><td>VisionMix163M</td><td>K710/SSv2/HowTo 加 ImageNet-1K 占位路径（读者注 8）</td></tr>
+<tr><td>batch</td><td>视频 128，图像 2,304</td><td>按配置算 3,072 和 4,608，图像占一半 GPU（读者注 9）</td></tr>
+<tr><td>学习率</td><td>1e-4 → 5.25e-4 恒定；冷却 6e-4 → 1e-6</td><td>恒定 6e-4；冷却线性衰减但只走到 80%（读者注 12）</td></tr>
+<tr><td>冷却分辨率</td><td>视频 64 帧 384²，图像 512²</td><td>公开配置 64 帧 256²，图像 256²</td></tr>
+<tr><td>未在论文出现的开关</td><td>–</td><td>冷却配置有 <code>computing_gram_loss: false</code>、<code>gram_loss_weight: 10.0</code>；<code>MultiSeqWrapper</code> 有 <code>gram_mode</code>（放大 2 倍再缩回的高分辨率特征）。都默认关闭，像是试过 DINOv3 式 Gram 锚定的痕迹，论文没提</td></tr>
+<tr><td>加载</td><td>发布 B/L（蒸馏）、g、G</td><td><code>torch.hub</code> 的 <code>vjepa2_1_vit_{base,large,giant,gigantic}_384</code>，返回（编码器，预测器）；推理输出最后一层过对应 LayerNorm 的特征</td></tr>
+</tbody></table></div>
+<div class="note" id="n25"><span class="lab">读者注 25 · OpenWAM 里的那份是官方代码的精简版</span><p>OpenWAM 的 <code>openwam/model/video_backbone/encoder/vjepa21_src/</code> 注明改自官方 commit <code>ce64921</code>（2026-03-17，“Fix eval paths”），比我读的 204698b 早两个提交。我把 <code>vision_transformer.py</code>、<code>modules.py</code>、<code>patch_embed.py</code> 按函数做了语法树比较：共有的函数和方法全部相同，只是删了推理用不到的部分（<code>get_num_layers</code>、<code>no_weight_decay</code>、<code>CrossAttentionBlock</code>、<code>Lambda_LinearWarmupHold</code>、<code>AudioPatchEmbed</code>）和改了导入路径、换行。OpenWAM 额外做了一件事：<code>loader.py</code> 给 RoPE 的旋转函数打补丁，把输出转回输入的 dtype（官方实现在 bf16 下会把 Q、K 升成 fp32，和 bf16 的 V 一起进 SDPA 时报错）。数值上和官方一致，只是解决混合精度下的类型问题。</p></div>
+
+<h2 id="openwam">在 OpenWAM 里怎么用</h2>
+<p><a href="openwam.html">OpenWAM</a> §4.1.2 把 V-JEPA 2.1 当作“表示式”视觉编码器之一，替换 Wan2.2-TI2V-5B 原配的 VAE，比较不同的预测目标空间。接法的完整走查（六个变体的形状、S-VAE 结构、“维度不匹配”的推算）在 <a href="openwam.html#qa-enc">OpenWAM 页读者问答 问 2</a>，这里只说 V-JEPA 2.1 这一路的要点：</p>
+<ul>
+<li><b>用的检查点：</b>下载脚本只提供 <code>vjepa2_1_vitg_384.pt</code>，即 ViT-g/16（40 层、宽 1408、22 个头），manifest 里 <code>tubelet 2</code>、<code>img_size 384</code>、64 帧、<code>checkpoint_key: target_encoder</code>。冻结不训。</li>
+<li><b>时间：</b>以 RoboTwin 的 9 帧、384 × 320 为例。条件帧单独走一遍：首帧复制成 2 帧进视频分支，得 1 个隐帧（也可设成 <code>mixed</code> 走图像分支）。目标帧另走一遍：在 8 帧前面拼上 [f0, f0]，共 10 帧进视频分支得 5 个隐帧，丢掉第一个，剩 4 个，再按相邻两帧<b>求平均</b>（步长 2）得 2 个。拼起来 1 + 2 = 3 个隐帧，和 Wan2.2-VAE 的因果分组（首帧单独、之后每 4 帧 1 个）对齐。</li>
+<li><b>空间和通道：</b>patch 16，所以是 24 × 20 的网格，每个位置 1,408 维。论文 OpenWAM 写的是 1,024 维，那是 ViT-L 的宽度，见 <a href="openwam.html#n20">OpenWAM 页读者注 20</a> 和下面的读者注 26。</li>
+<li><b>可选 S-VAE：</b>不加时 1,408 维直接过一个冻结的 LayerNorm（把 O(30) 量级的特征拉到 O(1)）；加 S-VAE 时先压到 48 维再 LayerNorm。</li>
+<li><b>接 DiT：</b>DiT 用随机初始化的 Wan2.2-TI2V-5B 结构，patch 嵌入 Conv3d(C, 3072, (1, 2, 2))，token 数 3 × 12 × 10 = 360。C = 1,408 时每个 token 输入 5,632 维，超过 DiT 宽度 3,072。</li>
+<li><b>成绩（OpenWAM 图 7，RoboTwin2.0-Full）：</b>不加 S-VAE 80.91%，加 S-VAE 88.46%；对照 Wan2.2-VAE 90.30%、DINOv3 加 S-VAE 90.18%。</li>
+</ul>
+<div class="note" id="n26"><span class="lab">读者注 26 · 1024 维会不会是蒸馏的 ViT-L</span><p>V-JEPA 2.1 的 1,024 维模型只有一个：从 ViT-G 蒸馏的 ViT-L（<code>vjepa2_1_vitl_dist_vitG_384.pt</code>）。所以 OpenWAM 论文的“1024-D”如果不是笔误，就是用了这个蒸馏 ViT-L；但 OpenWAM 代码的下载脚本、manifest 和 S-VAE 注释都指向 ViT-g（1,408 维）。图 7 用的是哪个，仍然未核实。另外 OpenWAM 编码器配置文件头的用法注释写着 <code>shift_video=12.0</code>（DINOv3 和 V-JEPA 2.1 两份都是），而骨干配置默认 5.0，图 7 的实验用了哪个 shift 也未核实。</p></div>
+<div class="note" id="n27"><span class="lab">读者注 27 · OpenWAM 接法的两个细节</span><p>(1) 目标帧那一遍不是只把 8 帧送进去，而是前面拼了 [f0, f0]（<code>vjepa21.py</code> 的 <code>_batch_encode_pooled_raw</code>），让时间注意力能看到参考帧，然后丢掉这一对产生的隐帧。所以 V-JEPA 每个样本要跑两遍编码器：2 帧一遍、10 帧一遍。(2) OpenWAM 的输入是 384 × 320，网格 24 × 20，不是方形；官方 RoPE 的 <code>interpolate_rope</code> 会把行位置乘 15/23、列位置乘 15/19，压到训练时 16 × 16 的网格范围。时间位置不插值，10 帧只用到 0 到 4 五个位置，远少于预训练的 32 个（64 帧 / 2）。这些是按代码读出的，没有运行验证对特征的影响。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">图 2 的“+35%”</a>：对 V-JEPA 2 是 +28%，+36% 是对 STAformer。</li>
+<li><a href="#n2">图 2 的米色柱</a>：SSv2 71.1、IN1K 88.1 在表 9 里找不到；ADE 用 H+ 而非更高的 7B。</li>
+<li><a href="#n3">正文和表 1 差一点</a>：33.9/0.473/72.0 对 33.8/0.474/72.1。</li>
+<li><a href="#n4">表 2 的读法</a>：最不伤 SSv2 的是小 λ；加权方案的优势是 ADE 最高。</li>
+<li><a href="#n5">代码里的 d<sub>min</sub></a>：欧氏距离开方，与式 (3) 一致；遮挡贯穿时间，所以只是空间距离；预热 15k–30k 步 = 第 50–100 epoch；冷却关掉加权。</li>
+<li><a href="#n6">图像的 λ</a>：论文 0.7，所有公开配置 0.5。</li>
+<li><a href="#n7">中间层位置和预测器结构</a>：ViT-G 代码是第 38 层不是 36；上下文 token 有独立输出头。</li>
+<li><a href="#n8">表 3 的算术和公开数据</a>：权重和名字都对；公开配置不用 YT-1B 和 LVD-142M。</li>
+<li><a href="#n9">batch 大小</a>：论文 128 + 2,304，按配置 3,072 + 4,608；图像 token 占比 69% 对 16%。</li>
+<li><a href="#n10">“2D 卷积”和“模态 token”</a>：Conv3d(1×16×16)；模态是加法向量；图像 token 少 8 倍。</li>
+<li><a href="#n11">参数量</a>：ViT-G 1.845B，ViT-g 1.013B，ViT-L 305M，ViT-B 87M。</li>
+<li><a href="#n12">学习率和步数</a>：恒定 6e-4 不是 5.25e-4；冷却只走到约 1.2e-4；公开冷却配置是 256px。</li>
+<li><a href="#n13">蒸馏</a>：加载参数和附录 B 一致，蒸馏脚本不在仓库。</li>
+<li><a href="#n14">§3.1 的数</a>：“12.9 mAP b+δ”表里没有这一列，最近的是 12.8；输入是 0.5 秒还是 8 秒，正文和附录不同。</li>
+<li><a href="#n15">EK-100 的“+2.8%”</a>：相对值，绝对 +1.1；同为 1B 时 2.1 更低。</li>
+<li><a href="#n16">抓取的“+20%”</a>：同设置只 +10 点（1 个任务）；+20 要换规划设置、慢 4.7 倍。</li>
+<li><a href="#n17">表 7</a>：平均都对；快 9.7 倍，精度只好 1.4%；“80 倍”是 88 到 104 倍。</li>
+<li><a href="#n18">分割提升</a>：ADE +23.5、VOC +21.1，正文写 23.4、20.7。</li>
+<li><a href="#n19">表 9 的输入设置</a>：图注 16 帧，附录和配置是 64 帧。</li>
+<li><a href="#n20">同样 1B</a>：2.1 ViT-g 在五项整体任务上都低于 V-JEPA 2。</li>
+<li><a href="#n21">表 10</a>：平均 57.86 对 57.81；TVBench 只 +0.2；引文年份笔误。</li>
+<li><a href="#n22">蒸馏段</a>：“接近 67.0”应是 69.0。</li>
+<li><a href="#n23">遮挡比例</a>：是 0.15 和 0.7 两个生成器，不是区间；模拟出平均遮掉约 62%、81%（图像 68%）。</li>
+<li><a href="#n24">表 14</a>：ViT-g 384 的 VOS 和表 8 不同；“所有任务都受益”不成立。</li>
+<li><a href="#n25">OpenWAM 的副本</a>：和官方 ce64921 逐函数相同，只加了 RoPE dtype 补丁。</li>
+<li><a href="#n26">1024 维</a>：只可能是蒸馏 ViT-L，代码却下载 ViT-g；shift 12 还是 5 未核实。</li>
+<li><a href="#n27">OpenWAM 接法细节</a>：目标那遍前面拼了 [f0, f0]；24×20 的 RoPE 被压到 16 网格。</li>
+</ol>
+<p>论文没写、我也没找到的：VisionMix 训练的总样本数和总 GPU 时间；§3.3 机器人和 §3.4 导航用的是 ViT-g 还是 ViT-G（表 6 没标尺寸）；导航实验的输入分辨率；Fig. 2 里 SSv2 71.1、IN1K 88.1 的出处。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和代码。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td>V-JEPA 2.1</td><td>本文</td><td><a href="https://github.com/facebookresearch/vjepa2">代码</a></td><td><a href="https://arxiv.org/abs/2603.14482">2603.14482</a></td></tr>
+<tr><td>V-JEPA 2</td><td>前作，同一仓库</td><td><a href="https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks">博客</a> · <a href="https://huggingface.co/collections/facebook/v-jepa-2-6841bad8413014e185b497a6">HF</a></td><td><a href="https://arxiv.org/abs/2506.09985">2506.09985</a></td></tr>
+<tr><td>V-JEPA</td><td>第一代</td><td>–</td><td><a href="https://arxiv.org/abs/2404.08471">2404.08471</a></td></tr>
+<tr><td><a class="ds" href="https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html">NYUv2</a></td><td>室内深度</td><td>cs.nyu.edu</td><td>Silberman 等，ECCV 2012</td></tr>
+<tr><td><a class="ds" href="https://www.cvlibs.net/datasets/kitti/">KITTI</a></td><td>驾驶场景深度</td><td>cvlibs.net</td><td>Geiger 等，IJRR 2013</td></tr>
+<tr><td><a class="ds" href="https://ade20k.csail.mit.edu/">ADE20K</a></td><td>场景分割（本机脚本访问超时，旧地址 groups.csail.mit.edu 301 跳转到这里）</td><td>ade20k.csail.mit.edu</td><td><a href="https://arxiv.org/abs/1608.05442">1608.05442</a></td></tr>
+<tr><td><a class="ds" href="https://www.cityscapes-dataset.com/">Cityscapes</a></td><td>城市街景分割</td><td>cityscapes-dataset.com</td><td><a href="https://arxiv.org/abs/1604.01685">1604.01685</a></td></tr>
+<tr><td><a class="ds" href="http://host.robots.ox.ac.uk/pascal/VOC/">Pascal VOC</a></td><td>分割</td><td>host.robots.ox.ac.uk</td><td>Everingham 等，IJCV 2015</td></tr>
+<tr><td><a class="ds" href="https://davischallenge.org/">DAVIS 2017</a></td><td>视频目标分割</td><td>davischallenge.org</td><td><a href="https://arxiv.org/abs/1704.00675">1704.00675</a></td></tr>
+<tr><td><a class="ds" href="https://youtube-vos.org/">YouTube-VOS</a></td><td>视频目标分割</td><td>youtube-vos.org</td><td><a href="https://arxiv.org/abs/1809.03327">1809.03327</a></td></tr>
+<tr><td><a class="ds" href="https://ego4d-data.org/">Ego4D</a></td><td>第一视角视频，STA 任务</td><td>ego4d-data.org</td><td><a href="https://arxiv.org/abs/2110.07058">2110.07058</a></td></tr>
+<tr><td><a class="ds" href="https://epic-kitchens.github.io/">EPIC-KITCHENS-100</a></td><td>厨房第一视角，动作预测</td><td>epic-kitchens.github.io</td><td><a href="https://arxiv.org/abs/2006.13256">2006.13256</a></td></tr>
+<tr><td><a class="ds" href="https://www.qualcomm.com/developer/software/something-something-v-2-dataset">SSv2</a></td><td>运动理解分类</td><td>qualcomm.com</td><td><a href="https://arxiv.org/abs/1706.04261">1706.04261</a></td></tr>
+<tr><td><a class="ds" href="http://www.svcl.ucsd.edu/projects/resound/dataset.html">Diving-48</a></td><td>跳水动作分类</td><td>svcl.ucsd.edu</td><td>Li 等，ECCV 2018</td></tr>
+<tr><td><a class="ds" href="https://github.com/cvdfoundation/kinetics-dataset">Kinetics</a></td><td>动作分类（K400/K710）</td><td>github.com/cvdfoundation</td><td><a href="https://arxiv.org/abs/1705.06950">1705.06950</a></td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>图像分类（本机脚本访问超时，未核实）</td><td>image-net.org</td><td>Deng 等，CVPR 2009</td></tr>
+<tr><td><a class="ds" href="https://www.di.ens.fr/willow/research/howto100m/">HowTo100M</a></td><td>教学视频，预训练</td><td>di.ens.fr</td><td><a href="https://arxiv.org/abs/1906.03327">1906.03327</a></td></tr>
+<tr><td><a class="ds" href="https://rowanzellers.com/merlotreserve/">YT-1B</a></td><td>YouTube 视频（MERLOT Reserve），预训练</td><td>rowanzellers.com</td><td><a href="https://arxiv.org/abs/2201.02639">2201.02639</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/dinov2">LVD-142M</a></td><td>DINOv2 筛选的图像集（未公开，链 DINOv2）</td><td>github.com/facebookresearch/dinov2</td><td><a href="https://arxiv.org/abs/2304.07193">2304.07193</a></td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>真机操作数据，训动作条件预测器</td><td>droid-dataset.github.io</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://www.amirbar.net/nwm/">NWM</a></td><td>导航世界模型，§3.4 的基线和设置</td><td>amirbar.net/nwm</td><td><a href="https://arxiv.org/abs/2412.03572">2412.03572</a></td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/recon-robot">RECON</a></td><td>导航数据</td><td>sites.google.com</td><td><a href="https://arxiv.org/abs/2104.05859">2104.05859</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/castacks/tartan_drive">TartanDrive</a></td><td>越野驾驶数据</td><td>github.com/castacks</td><td><a href="https://arxiv.org/abs/2205.01791">2205.01791</a></td></tr>
+<tr><td><a class="ds" href="https://www.cs.utexas.edu/~xiao/SCAND/SCAND.html">SCAND</a></td><td>社交导航数据</td><td>cs.utexas.edu</td><td><a href="https://arxiv.org/abs/2203.15041">2203.15041</a></td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/sacson-review/home">SACSoN</a></td><td>室内导航数据</td><td>sites.google.com</td><td><a href="https://arxiv.org/abs/2306.01874">2306.01874</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/perception_test">PerceptionTest</a></td><td>视频问答</td><td>github.com/google-deepmind</td><td><a href="https://arxiv.org/abs/2305.13786">2305.13786</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/minimal_video_pairs">MVP</a></td><td>最小视频对问答</td><td>github.com/facebookresearch</td><td><a href="https://arxiv.org/abs/2506.09987">2506.09987</a></td></tr>
+<tr><td><a class="ds" href="https://llyx97.github.io/tempcompass/">TempCompass</a></td><td>时间理解问答</td><td>llyx97.github.io</td><td><a href="https://arxiv.org/abs/2403.00476">2403.00476</a></td></tr>
+<tr><td><a class="ds" href="https://temporalbench.github.io/">TemporalBench</a></td><td>细粒度时间问答</td><td>temporalbench.github.io</td><td><a href="https://arxiv.org/abs/2410.10818">2410.10818</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/yale-nlp/TOMATO">TOMATO</a></td><td>视觉时间推理</td><td>github.com/yale-nlp</td><td><a href="https://arxiv.org/abs/2410.23266">2410.23266</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/daniel-cores/tvbench">TVBench</a></td><td>时间视频问答</td><td>github.com/daniel-cores</td><td><a href="https://arxiv.org/abs/2410.07752">2410.07752</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/OpenGVLab/Ask-Anything">MVBench</a></td><td>多任务视频问答</td><td>github.com/OpenGVLab</td><td><a href="https://arxiv.org/abs/2311.17005">2311.17005</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/perception_models">PerceptionLM</a></td><td>视频问答训练数据</td><td>github.com/facebookresearch</td><td><a href="https://arxiv.org/abs/2504.13180">2504.13180</a></td></tr>
+<tr><td><a class="ds" href="https://www.robots.ox.ac.uk/~vgg/data/MoCA/">MoCA</a></td><td>伪装动物视频，图 15</td><td>robots.ox.ac.uk</td><td><a href="https://arxiv.org/abs/2011.11630">2011.11630</a></td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a></td><td>OpenWAM §4.1.2 的评测基准</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2603.14482 后的整理，不是作者的官方内容。原文：Lorenzo Mur-Labadia、Matthew Muckley、Amir Bar、Mido Assran、Koustuv Sinha、Mike Rabbat、Yann LeCun、Nicolas Ballas、Adrien Bardes，《V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning》，arXiv 2603.14482v3，以 <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a> 发布。图 1 到 15 从原文 PDF 裁切，只做了裁切和格式转换，没有改内容，经站点作者决定放原图，非商业使用。表格数字照录原文；读者注、代码对照和动画是本页所加。代码对照基于 facebookresearch/vjepa2（MIT，部分文件 Apache 2.0）commit 204698b 和 OpenWAM-Official/OpenWAM commit 1dcaeea。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
