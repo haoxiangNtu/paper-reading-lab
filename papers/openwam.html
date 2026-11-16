@@ -32,6 +32,23 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 .enc-flow li span{color:var(--muted)}
 .enc-sum{margin:8px 0 0;font-size:14.5px;max-width:none}
 @media (max-width:640px){.enc-flow li{grid-template-columns:1fr;gap:2px}}
+.act-tool{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;background:var(--bg2);min-width:0;max-width:100%;box-sizing:border-box;overflow:hidden}
+.act-tool code{word-break:break-all}
+.act-tool .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.act-ctl{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.act-ctl button{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer}
+.act-ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600;border-color:var(--accent)}
+.act-row{margin:0 0 10px}
+.act-h{font-size:13px;color:var(--muted);margin:0 0 3px}.act-h b{color:var(--fg)}.act-h small{margin-left:8px;font-family:var(--font-mono);font-size:11.5px}
+.act-cells{display:grid;grid-template-columns:repeat(34,minmax(0,1fr));gap:2px}
+.act-cells.short{grid-template-columns:repeat(34,minmax(0,1fr))}
+.act-cells .cell{display:block;height:22px;border-radius:3px;transition:opacity .2s}
+.c-pos{background:#4f8fea}.c-rot{background:#a77ce8}.c-grp{background:#e8b04f}.c-hand{background:#4fc98a}.c-res{background:#8a96a8}
+.act-cells .cell.off,.c-off{background:var(--line)!important;opacity:.55}
+.act-leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin:4px 0 6px}
+.act-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.act-note{font-size:14px;margin:6px 0 0;max-width:none}
+@media (max-width:640px){.act-cells .cell{height:16px}.act-cells{gap:1px}.act-h small{display:block;margin:0}}
 </style>
 </head>
 <body>
@@ -153,6 +170,27 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <p><b>动作空间。</b>默认用基准原生空间：RoboTwin2.0 用 14 维关节或 20 维双臂末端；LIBERO 用 10 维末端。跨形态训练时用 80 维统一动作空间 \(u\in\mathbb R^{80}\)，槽位语义固定：两个镜像的 34 维手臂块（末端位置 3、6D 旋转 6、夹爪 1、灵巧手 24），再加 12 个保留槽（如 EBench 和 RoboCasa365 的移动底盘）。每个数据集声明一个从原生维度到槽位的索引映射 \(\pi\)：</p>
 <div class="eq"><div class="m">\[ u=\mathrm{Scatter}_\pi\big(\mathrm{Norm}(a)\big),\qquad a=\mathrm{Norm}^{-1}\big(\mathrm{Gather}_\pi(u)\big) \]</div><span class="no">(4)</span></div>
 <p>本体状态也走同一个映射。式 (2) 的 \(m\) 正好标出被映射的槽，没映射的坐标没有梯度，推理时停在解析的噪声路径上。</p>
+<div class="act-tool" id="act-tool">
+<p class="lab">80 维统一动作空间 · 槽位按代码画（<code>configs/dataloader/*.yaml</code> 的 <code>unify_action_map</code>）</p>
+<div class="act-ctl" role="group" aria-label="选择数据集"></div>
+<div class="act-rows" id="act-rows"></div>
+<div class="act-leg"><span><i class="c-pos"></i>末端位置 xyz（3）</span><span><i class="c-rot"></i>rot6d 旋转（6）</span><span><i class="c-grp"></i>夹爪（1）</span><span><i class="c-hand"></i>灵巧手手指（24）</span><span><i class="c-res"></i>保留：底盘、腰等（12）</span><span><i class="c-off"></i>没映射（不计损失）</span></div>
+<p class="act-note" id="act-note"></p>
+</div>
+<noscript><p>（需要 JavaScript 才能画槽位图。文字版：左臂 0–33 = 位置 0–2、rot6d 3–8、夹爪 9、手指 10–33；右臂 34–67 = 位置 34–36、rot6d 37–42、夹爪 43、手指 44–67；保留 68–79。）</p></noscript>
+<details class="tbl"><summary>每个数据集映射到哪些槽（点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>数据集</th><th>原生维度</th><th>映射到的槽</th><th>说明</th></tr></thead><tbody>
+<tr><td>LIBERO、VLABench</td><td>10</td><td>0–9</td><td>单臂：位置 3 + rot6d 6 + 夹爪 1，只占左臂</td></tr>
+<tr><td>RoboTwin2.0、RoboDojo、InternData-A1、RoboCOIN（夹爪）、AgiBotWorld（夹爪）</td><td>20</td><td>0–9、34–43</td><td>双臂夹爪：左臂 10 维、右臂 10 维</td></tr>
+<tr><td>DROID</td><td>7 → 10 → 20</td><td>0–9（34–43 补零并屏蔽）</td><td>单臂数据先补成 20 维，右半全零，<code>LEFT_ARM_DIM_MASK</code> 让它不计损失（<code>utils/eef.py</code> <code>assemble_single_arm_left</code>）</td></tr>
+<tr><td>EBench</td><td>23</td><td>0–9、34–43、68–70</td><td>双臂 + 底盘 dx/dy/dyaw；每只手的手指取平均当夹爪</td></tr>
+<tr><td>RoboCasa365</td><td>15</td><td>0–9、68–72</td><td>单臂 + 底盘 vx/vy/vyaw、躯干、控制模式</td></tr>
+<tr><td>RoboCasa-GR1（人形）</td><td>33</td><td>0–8、10–15、34–42、44–49、68–70</td><td>每臂位姿 9 + Fourier 手 6 指，夹爪槽 9/43 空着；腰 3 维进保留槽</td></tr>
+<tr><td>AgiBotWorld（灵巧手）</td><td>30（+2）</td><td>0–8、10–15、34–42、44–49（+68、70）</td><td>每只手 6 个手指值，从手指区开头对齐；有移动底盘时前进和偏航进 68、70</td></tr>
+</tbody></table></div>
+<p class="tcap">来自 OpenWAM 代码（commit 1dcaeea）的 <code>configs/dataloader/</code> 和 <code>openwam/dataloader/</code>；RoboCOIN 灵巧手的指数随机型变化（<code>_build_dex_unify_map(kL, kR)</code>，手指区宽 <code>MAX_HAND_DOF = 24</code>）。</p>
+</details>
+
 
 <h2 id="s4"><span class="no">4</span>OpenWAM-Study：设计原则</h2>
 <p><b>评测设定。</b>本节全部用 RoboTwin2.0（50 多个双臂任务），成功率为指标，两种设定：</p>
@@ -921,6 +959,33 @@ var ratio=(d.r/3072);sum.innerHTML='<b>'+d.n+'</b>：DiT 每个 token 的输入 
 document.querySelectorAll('#enc-tool button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.k===k?'true':'false');});}
 document.querySelectorAll('#enc-tool button').forEach(function(b){b.addEventListener('click',function(){show(b.dataset.k);});});
 show('wan');
+})();
+</script>
+<script>
+(function(){
+var root=document.getElementById('act-tool'); if(!root) return;
+function R(a,b){var o=[];for(var i=a;i<=b;i++)o.push(i);return o;}
+var DS=[
+{k:'libero',n:'LIBERO / VLABench',m:R(0,9),t:'单臂 10 维，只占左臂的位置、旋转、夹爪；右臂、手指、保留槽都不计损失。'},
+{k:'twin',n:'RoboTwin / RoboDojo',m:R(0,9).concat(R(34,43)),t:'双臂夹爪 20 维：原生 0–9 进左臂，10–19 进右臂（34–43）。'},
+{k:'droid',n:'DROID',m:R(0,9),t:'单臂 7 维欧拉角动作先转成 10 维，再补零成 20 维；右臂 34–43 虽然在映射里，但被 LEFT_ARM_DIM_MASK 屏蔽，等于没映射。'},
+{k:'ebench',n:'EBench',m:R(0,9).concat(R(34,43),R(68,70)),t:'双臂 + 移动底盘：底盘 dx、dy、dyaw 进保留槽 68–70。手指值取平均当夹爪。'},
+{k:'rc365',n:'RoboCasa365',m:R(0,9).concat(R(68,72)),t:'单臂 + 底盘 vx、vy、vyaw、躯干、控制模式，共 5 维进 68–72。'},
+{k:'gr1',n:'RoboCasa-GR1 人形',m:R(0,8).concat(R(10,15),R(34,42),R(44,49),R(68,70)),t:'每臂位姿 9 维 + 6 个手指；没有夹爪，所以 9 和 43 空着；腰 3 维进 68–70。'},
+{k:'agi',n:'AgiBot 灵巧手 + 底盘',m:R(0,8).concat(R(10,15),R(34,42),R(44,49),[68,70]),t:'每只手 6 个手指值，从手指区开头放；底盘前进和偏航进 68、70（侧移不支持）。'}
+];
+function part(i){ if(i>=68) return 'res'; var j=i%34; if(j<3) return 'pos'; if(j<9) return 'rot'; if(j===9) return 'grp'; return 'hand'; }
+var rows=[['左臂',0,33,'0–2 位置 · 3–8 rot6d · 9 夹爪 · 10–33 手指'],['右臂',34,67,'34–36 · 37–42 · 43 · 44–67'],['保留',68,79,'底盘、腰、躯干等']];
+var box=document.getElementById('act-rows'), note=document.getElementById('act-note'), ctl=root.querySelector('.act-ctl');
+box.innerHTML=rows.map(function(r){var cells='';for(var i=r[1];i<=r[2];i++)cells+='<span class="cell c-'+part(i)+'" data-i="'+i+'" title="槽 '+i+'"></span>';
+return '<div class="act-row"><div class="act-h"><b>'+r[0]+'</b> '+r[1]+'–'+r[2]+'<small>'+r[3]+'</small></div><div class="act-cells'+(r[0]==='保留'?' short':'')+'">'+cells+'</div></div>';}).join('');
+ctl.innerHTML='<button data-k="all" aria-pressed="true">只看布局</button>'+DS.map(function(d){return '<button data-k="'+d.k+'" aria-pressed="false">'+d.n+'</button>';}).join('');
+function show(k){var d=null;DS.forEach(function(x){if(x.k===k)d=x;});var set={};if(d)d.m.forEach(function(i){set[i]=1;});
+box.querySelectorAll('.cell').forEach(function(c){c.classList.toggle('off',!!d&&!set[+c.dataset.i]);});
+ctl.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.k===k?'true':'false');});
+note.innerHTML=d?('<b>'+d.n+'</b>：用到 '+d.m.length+' / 80 个槽。'+d.t):'每只手臂 34 维 = 位置 3 + rot6d 6 + 夹爪 1 + 灵巧手 24，左右两块结构完全相同（右臂 = 左臂下标 + 34）；最后 12 维保留给底盘、腰、躯干等。点上面的数据集看它占哪些槽，灰掉的槽在式 (2) 里被掩码 m 屏蔽，不计动作损失。';}
+ctl.addEventListener('click',function(e){var b=e.target.closest('button');if(b)show(b.dataset.k);});
+show('all');
 })();
 </script>
 </body>
