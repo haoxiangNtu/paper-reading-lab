@@ -58,6 +58,26 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 .kg-grid canvas{width:300px;max-width:100%;height:auto;background:var(--bg);border-radius:8px}
 .kg-out p{font-size:14px;margin:0 0 6px;max-width:none}
 @media (max-width:640px){.kg-grid{grid-template-columns:1fr}}
+.vd-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.vd-col{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg2);min-width:0}
+.vd-h{font-weight:600;margin:0 0 8px;font-size:14.5px;max-width:none}
+.vd-flow{list-style:none;margin:0;padding:0}
+.vd-flow li{border-left:3px solid var(--accent);background:var(--bg);border-radius:0 6px 6px 0;padding:5px 8px;margin:0 0 6px;font-size:13.5px}
+.vd-flow li b{display:block}.vd-flow li span{color:var(--muted)}
+.vd-flow li.rep{border-left-color:#e8b04f}
+.vd-n{font-size:13px;color:var(--muted);margin:6px 0 0;max-width:none}
+@media (max-width:760px){.vd-two{grid-template-columns:1fr}}
+.t4-tool{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;background:var(--bg2);min-width:0;max-width:100%;box-sizing:border-box}
+.t4-tool .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.t4-ctl{font-size:13.5px;margin:0 0 8px}.t4-ctl input{vertical-align:middle;width:180px}
+.t4-row{display:flex;flex-wrap:wrap;gap:3px}
+.fb{display:inline-block;min-width:22px;padding:3px 0;text-align:center;border-radius:4px;font:12px var(--font-mono);color:#06121e}
+.lb{font:600 13px var(--font-mono);border:2px solid transparent;border-radius:6px;padding:4px 12px;cursor:pointer;color:#06121e}
+.c0{background:#e8b04f}.c1{background:#4f8fea}.c2{background:#4fc98a}
+.fb.seen{opacity:.45}.fb.fut{background:var(--line);color:var(--muted)}.fb.on{outline:2px solid var(--fg)}
+.lb.on{border-color:var(--fg)}
+.t4-arrow{font-size:13px;color:var(--muted);margin:6px 0}
+.t4-note{font-size:14px;margin:8px 0 0;max-width:none}
 </style>
 </head>
 <body>
@@ -80,7 +100,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="note" id="n1"><span class="lab">读者注 1 · 同名项目和 Hugging Face 组织</span><p>2026-11-16 用 Hugging Face API 列出 <code>author=OpenWAM</code> 的模型：46 个，全部创建于 2026-09-04 到 09-05（在 2609.07398 提交前后），名字是 OpenWAM-Alpha-*（14 个）和 robotwin_* / pretrain_* / sft_*（32 个，对应 §4 的消融）。我读的两张模型卡都引用 2609.07398、链接 OpenWAM-Official/OpenWAM；本篇代码的下载脚本 <code>download_openwam_checkpoints.py</code> 也从 <code>OpenWAM/&lt;名字&gt;</code> 下载。2610.07922（Heng Yu 等，Stanford）的摘要页只有 GitHub 链接 OpenWAM/OpenWAM（AGPL-3.0，仓库描述写着 Stanford University），没有 Hugging Face 链接。所以 HF 的 OpenWAM 组织属于本篇。我只读了两张卡，其余 44 张没有逐张打开。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#qa-kg">问 4 KoLeo 与 Gram</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#qa-kg">问 4 KoLeo 与 Gram</a><a href="#qa-vd">问 5 ViT 与 DiT</a><a href="#qa-t4">问 6 首帧与 4 帧</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -893,7 +913,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <tr><td>能否还原像素</td><td>能，有配套解码器（Wan 用它生成视频）</td><td>不能。要看图得另训解码器（RAE 就是这么做的）</td></tr>
 <tr><td>保留什么</td><td>颜色、纹理、精确位置、光照，凡是还原需要的都要留</td><td>物体类别、部件、边界、对应关系；对识别无关的细节会被压低</td></tr>
 <tr><td>网络</td><td>因果 3D 卷积，直接处理视频</td><td>ViT（12 层，宽 768），一次处理一张图</td></tr>
-<tr><td>时间维</td><td>自带：首帧单独，之后每 4 帧学成 1 个隐帧</td><td>没有。OpenWAM 只能对逐帧特征求平均来凑 4 倍</td></tr>
+<tr><td>时间维</td><td>自带：首帧单独，之后每 4 帧学成 1 个隐帧（什么意思见<a href="#qa-t4">问 6</a>）</td><td>没有。OpenWAM 只能对逐帧特征求平均来凑 4 倍</td></tr>
 <tr><td>每个 16 × 16 位置的数字个数</td><td>48（且这 48 个数管 4 帧）</td><td>768（每帧一份）</td></tr>
 <tr><td>压缩比（每格原始像素数 ÷ 隐变量数）</td><td>4 帧 × 3 色 × 256 像素 = 3,072 → 48，<b>64 倍</b></td><td>3 × 256 = 768 → 768，<b>不压缩</b>；4 帧平均后 3,072 → 768，4 倍</td></tr>
 <tr><td>隐变量的分布</td><td>有 KL 约束，接近标准正态，适合扩散模型从噪声出发去生成</td><td>没有这类约束，高维且各方向尺度不一；OpenWAM 在后面加无参 LayerNorm 硬拉到零均值单位方差</td></tr>
@@ -936,6 +956,63 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="kg-grid"><canvas width="300" height="300" id="kg-cv2" aria-label="6 个 patch 特征方向和它们的 Gram 矩阵"></canvas><div class="kg-out" id="kg-o2"></div></div>
 </div>
 <p><b>和 OpenWAM 有什么关系。</b>OpenWAM 用的是 DINOv3 的 patch 网格特征（丢掉 CLS），所以 Gram anchoring 保住的正是它要用的那部分：每个 16 × 16 位置的特征能区分“碗”和“桌面”。这也是 DINOv3 加 S-VAE 能接近 Wan2.2-VAE 的前提之一（见<a href="#qa-rr">问 3</a>）。完整推导、原文图 5–8 和代码对照见 <a href="dinov3.html">DINOv3 精读页</a>；注意代码里的 Gram 损失是对 \(P^2\) 个元素取平均（MSE），论文式 (2) 写的是求和，两者差 \(P^2\) 倍，由权重吸收。</p>
+
+<h3 id="qa-vd">问 5：ViT 和 DiT 各是什么结构？两者有什么区别？</h3>
+<p><b>一句话：</b>两者的“身体”是同一种 Transformer 块堆起来的，区别在两头和用途。<b>ViT</b>（Vision Transformer）读一张<b>干净的图</b>，一次前向就输出每个位置的特征，用来“看懂”；<b>DiT</b>（Diffusion Transformer）读一份<b>加了噪声的隐变量</b>，外加“现在噪声有多大”（时间步 t）和条件（文字、首帧），输出“往干净方向该怎么走”，要反复调用很多步，用来“生成”。可以把 DiT 理解成：输入换成带噪隐变量、每层都被时间步调制、输出头还原回输入形状的 ViT。</p>
+
+<div class="vd-two">
+<div class="vd-col"><p class="vd-h">ViT（以 OpenWAM 用的 DINOv3 ViT-B/16 为例）</p>
+<ol class="vd-flow">
+<li><b>输入</b><span>一张 RGB 图，384 × 320</span></li>
+<li><b>切块 + 线性嵌入</b><span>每 16 × 16 像素一块 → 24 × 20 = 480 个 patch，每块映射成 768 维向量</span></li>
+<li><b>加特殊 token</b><span>1 个 CLS（代表整张图）+ 4 个 register（吸收杂讯的“草稿格”）</span></li>
+<li><b>位置信息</b><span>RoPE：按 patch 的行、列旋转 q/k</span></li>
+<li class="rep"><b>× 12 层 Transformer 块</b><span>LayerNorm → 多头自注意力（12 头）→ 残差；LayerNorm → MLP（768 → 3072 → 768）→ 残差</span></li>
+<li><b>输出</b><span>485 个 768 维向量：CLS 用于分类检索，480 个 patch 特征用于分割、深度，OpenWAM 取的是后者</span></li>
+</ol>
+<p class="vd-n">约 8600 万参数；调用 1 次；训练目标是自监督（见<a href="#qa-kg">问 4</a>）。</p></div>
+<div class="vd-col"><p class="vd-h">DiT（以 Wan2.2-TI2V-5B 为例）</p>
+<ol class="vd-flow">
+<li><b>输入</b><span>带噪隐变量 48 × 3 × 24 × 20（来自 Wan2.2-VAE，见<a href="#qa-t4">问 6</a>）+ 时间步 t + 文本</span></li>
+<li><b>切块 + 嵌入</b><span><code>Conv3d(48, 3072, 1×2×2)</code>：每 2 × 2 个隐变量位置一块 → 3 × 12 × 10 = 360 个 token，每个 3072 维</span></li>
+<li><b>条件编码</b><span>t → 正弦嵌入（256 维）→ 共享 MLP 得到调制参数；文本 → umT5 → 512 个文本 token</span></li>
+<li><b>位置信息</b><span>3D RoPE：每头 128 维拆成时间 44 + 高 42 + 宽 42</span></li>
+<li class="rep"><b>× 30 层 DiT 块</b><span>按 t 调制的 LayerNorm（adaLN：shift、scale）→ 自注意力（24 头）→ 按 t 的门控加回；交叉注意力看文本 token；adaLN → FFN（3072 → 14336 → 3072）→ 门控加回</span></li>
+<li><b>输出头</b><span>adaLN → <code>Linear(3072, 192)</code> → 拼回 48 × 3 × 24 × 20：和输入同形状的“速度”（流匹配里从噪声走向数据的方向）</span></li>
+</ol>
+<p class="vd-n">约 50 亿参数；生成时调用几十次（OpenWAM 推理用 10 步）；训练目标是流匹配。</p></div>
+</div>
+
+<div class="tablewrap"><table class="t-w"><thead><tr><th>对比</th><th>ViT</th><th>DiT</th></tr></thead><tbody>
+<tr><td>干什么</td><td>理解：把图变成特征</td><td>生成：把噪声一步步变成隐变量</td></tr>
+<tr><td>输入</td><td>干净像素</td><td>带噪的隐变量（VAE 或其他编码器的输出），加时间步 t 和条件</td></tr>
+<tr><td>输出</td><td>特征（形状和输入无关，可以是 768 维）</td><td>和输入同形状的预测（速度或噪声），再交给采样器走下一步</td></tr>
+<tr><td>时间步 t</td><td>没有</td><td>每层都用：通过 adaLN 生成 shift、scale、gate，告诉网络“现在噪声多大”</td></tr>
+<tr><td>文字等条件</td><td>通常没有（DINOv3 纯视觉）</td><td>交叉注意力（Wan 看 umT5 文本）；TI2V 的首帧条件是直接放在第 1 个隐帧</td></tr>
+<tr><td>调用次数</td><td>1 次</td><td>每生成一次要调用很多次</td></tr>
+<tr><td>和编码器的关系</td><td>它自己就是编码器</td><td>它不看像素，只在某个编码器给出的隐空间里工作；换编码器就要改输入、输出层（<a href="#qa-enc">问 2</a>）</td></tr>
+</tbody></table></div>
+<p>这就是 §4.1.2 能“换编码器”的原因：DiT 只认隐变量的形状。把 DINOv3（一个 ViT）的输出当成隐变量喂给 DiT，就相当于让生成模型去“生成 ViT 特征”而不是“生成 VAE 隐变量”。</p>
+<p class="tcap">数字出处：DINOv3 ViT-B/16 的配置（见 <a href="dinov3.html#openwam">DINOv3 页</a>）；Wan2.2-TI2V-5B 的 HF <code>config.json</code> 和 Wan 代码（见 <a href="wan.html#wan22">Wan 页</a>，3D RoPE 拆分和共享调制见该页读者注 5、13）。</p>
+
+<h3 id="qa-t4">问 6：“首帧单独，之后每 4 帧学成 1 个隐帧”到底是什么意思？</h3>
+<p><b>先说结论：</b>Wan2.2-VAE 把一段视频在时间上压缩 4 倍，但<b>第 1 帧不参与压缩、单独变成第 1 个隐帧</b>，后面的帧每 4 帧合成 1 个隐帧。所以输入 \(1+4k\) 帧，输出 \(1+k\) 个隐帧。OpenWAM 的 9 帧观测正好是 \(k=2\)：</p>
+<div class="t4-tool" id="t4-tool">
+<p class="lab">小演示 · 拖动帧数，点一个隐帧看它由哪些帧编码、能看到哪些帧</p>
+<div class="t4-ctl"><label>输入帧数 T = <b id="t4-tv">9</b> <input type="range" min="0" max="8" value="2" id="t4-k"></label></div>
+<div class="t4-row" id="t4-frames"></div>
+<div class="t4-arrow">↓ Wan2.2-VAE 编码（时间方向只往过去看）</div>
+<div class="t4-row" id="t4-lat"></div>
+<p class="t4-note" id="t4-note"></p>
+</div>
+<p><b>“每 4 帧学成 1 个”的“学”：</b>压缩不是简单求平均。VAE 编码器里有两层时间方向步长为 2 的卷积（2 × 2 = 4 倍），卷积权重是训练出来的（目标是解码后还原原视频），所以它自己学会了怎样把 4 帧里的运动、变化塞进 1 个隐帧。相比之下，DINOv3、FLUX.2-VAE 没有时间维，OpenWAM 只能把 4 帧的特征直接平均（见<a href="#n21">读者注 21</a>）。论文认为这是 Wan2.2-VAE 仍略胜 DINOv3 + S-VAE 的原因之一。</p>
+<p><b>为什么第 1 帧要单独编码：</b></p>
+<ol>
+<li><b>图片和视频共用一个隐空间。</b>一张图就是“只有第 1 帧的视频”，编码出来正好是 1 个隐帧，和视频的第 1 个隐帧是同一种东西。所以同一个 VAE、同一个 DiT 能同时处理图和视频。</li>
+<li><b>首帧可以当条件。</b>TI2V-5B 的图生视频就是把起始图编码后放在第 1 个隐帧、不加噪声，让 DiT 只生成后面的隐帧（见 <a href="wan.html#qa">Wan 页问 1</a>）。OpenWAM 也一样：当前观测 → 干净的第 1 个隐帧，未来 8 帧 → 要预测的第 2、3 个隐帧。如果首帧和后面的帧混在一个 4 帧组里，“当前”和“未来”就分不开了。</li>
+</ol>
+<p><b>“因果”指什么：</b>编码器里所有时间方向的卷积都只在前面补帧（代码 <code>CausalConv3d</code>：时间维的填充全加在前面，后面填 0 帧），所以一个隐帧只依赖它自己那组帧和之前的帧，永远看不到之后的帧。代码按块编码：先单独编第 1 帧，然后每次编 4 帧，每层卷积把上一块最后 2 帧缓存下来接到下一块前面（<code>CACHE_T = 2</code>），因此能编任意长的视频，显存不随长度增长（<code>wan/models/vae.py</code> 的 <code>encode</code> 循环：<code>iter_ = 1 + (t - 1) // 4</code>，第 0 块取 <code>x[:, :, :1]</code>，第 i 块取 <code>x[:, :, 1+4(i-1) : 1+4i]</code>）。</p>
+<p><b>在 OpenWAM 里的完整链条：</b>33 帧窗口按 <code>video_stride: 4</code> 抽出第 0、4、8 … 32 帧共 9 帧 → Wan2.2-VAE 编成 3 个隐帧：[第 0 帧]、[第 4–16 帧]、[第 20–32 帧]（括号里是原始 33 帧的编号）→ 第 1 个是干净的条件，后 2 个是 DiT 要从噪声里生成的“未来”。动作块 32 步覆盖的正是这段未来。</p>
 
 <div class="note" id="n20"><span class="lab">读者注 20 · V-JEPA 2.1 到底是 1024 维还是 1408 维</span><p>§4.1.2 写“1024-D for V-JEPA 2.1”，这是 ViT-L 的宽度（<code>vjepa21_src/vision_transformer.py</code> 的 <code>vit_large</code>：<code>embed_dim=1024</code>）。但代码的下载脚本只提供 <code>vjepa2_1_vitg_384.pt</code>，manifest 写 <code>embed_dim: 1408</code>（ViT-g，40 层，22 个头），S-VAE 的文件头注释也写“1408-d V-JEPA 2.1 latents”。图 7 用的是哪个尺寸，论文和代码对不上，标“未核实”。两种情况下不加 S-VAE 时 4C（4,096 或 5,632）都超过 DiT 宽度 3,072，上面的结论不变。</p></div>
 <div class="note" id="n21"><span class="lab">读者注 21 · “每 4 帧平均”的准确含义</span><p>论文说没有时间压缩的编码器“把每 4 个连续帧的特征平均”。代码里更具体：第 1 帧单独保留，后面每 4 帧求平均（<code>dinov3.py</code> 和 <code>flux2_vae.py</code> 的 <code>_causal_temporal_pool</code>），9 帧 → 1 + 2 = 3 帧，这样才和 Wan2.2-VAE 的因果分组对齐。另外 V-JEPA 2.1 并不是“没有时间压缩”：它的 tubelet 是 2，自带 2 倍时间压缩，代码只再做一次步长 2 的平均（<code>vjepa21.py</code> 文件头）；条件帧是把第 1 帧复制成 [f0, f0] 送进视频分支，得到 1 个隐帧；目标帧则把 [f0, f0, f1 … f8] 共 10 帧一起送进去得 5 个隐帧，丢掉第 1 个，剩下 4 个两两平均成 2 个（<code>vjepa21.py</code> 第 186–199 行）。所以每个样本要跑两次编码器。</p></div>
@@ -1095,6 +1172,22 @@ function draw2(){var A=feats(m2),G=gram(A),G0=gram(base),W=cv2.width,H=cv2.heigh
  o2.innerHTML='<p>'+lab[m2]+'</p><p>碗–桌面的相似度：<b>'+G[0][3].toFixed(2)+'</b>（锚 '+G0[0][3].toFixed(2)+'）</p><p>L<sub>Gram</sub> = ‖G − G<sub>锚</sub>‖²<sub>F</sub> = <b>'+L.toFixed(3)+'</b></p>';}
 g.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){m2=b.dataset.m;g.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});draw2();});});
 draw2();
+})();
+</script>
+<script>
+(function(){
+var k=document.getElementById('t4-k'); if(!k) return;
+var fr=document.getElementById('t4-frames'),la=document.getElementById('t4-lat'),tv=document.getElementById('t4-tv'),note=document.getElementById('t4-note'),sel=1;
+function grp(j){return j===0?0:Math.floor((j-1)/4)+1;}
+function draw(){var K=+k.value,T=1+4*K,L=1+K; tv.textContent=T; if(sel>=L) sel=L-1;
+ var f='';for(var j=0;j<T;j++){var g=grp(j),c=j===0?'c0':(g%2?'c1':'c2');var st=g===sel?' on':(g<sel?' seen':' fut');f+='<span class="fb '+c+st+'" title="第 '+j+' 帧">'+j+'</span>';}
+ fr.innerHTML=f;
+ var l='';for(var i=0;i<L;i++){var c=i===0?'c0':(i%2?'c1':'c2');l+='<button class="lb '+c+(i===sel?' on':'')+'" data-i="'+i+'">z'+i+'</button>';}
+ la.innerHTML=l;
+ var a=sel===0?0:1+4*(sel-1),b=sel===0?0:4*sel;
+ note.innerHTML=T+' 帧 → '+L+' 个隐帧（1 + ('+T+' − 1) / 4）。<b>z'+sel+'</b> 由第 '+(a===b?a:a+'–'+b)+' 帧编码'+(sel===0?'，只有首帧自己':'')+'；通过因果卷积和缓存，它还能看到前面的帧（浅色），但看不到后面的帧（灰）。'+(K===2?' 这正是 OpenWAM 的设置：z0 是当前观测（干净条件），z1、z2 是要预测的未来。':'')+(K===0?' 只有 1 帧时就是一张图片，图和视频共用同一个隐空间。':'');}
+la.addEventListener('click',function(e){var b=e.target.closest('button');if(b){sel=+b.dataset.i;draw();}});
+k.addEventListener('input',draw); draw();
 })();
 </script>
 </body>
