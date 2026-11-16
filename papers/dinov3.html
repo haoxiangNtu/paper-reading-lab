@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DINOv3 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2508.10104 DINOv3（Meta，2025）的中文精读：按原文章节逐节整理正文和附录 A 到 D，含编号公式、主要结果表、裁切原图、官方代码对照、11 幕 3D 框架动画、读者注，以及它在 OpenWAM 里怎样被用作视频编码器。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-xw{min-width:820px}.t-m{min-width:520px}.t-s{min-width:420px}.t-links{min-width:640px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+details.tbl > *:not(summary){margin-top:8px}
+.notes li{max-width:74ch}
+.flow{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg2);font-size:14px;margin:14px 0;max-width:74ch}
+.flow ol{margin:4px 0;padding-left:2.2em}
+.flow li{margin:2px 0;max-width:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/dinov3/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2508.10104 · cs.CV · v1 2025 年 8 月 13 日 · Meta 技术报告 · 中文精读</p>
+<h1>DINOv3：把自监督视觉模型做到 7B，并让稠密特征不再变差</h1>
+<p class="orig">DINOv3</p>
+<p>作者 Oriane Siméoni、Huy V. Vo、Maximilian Seitzer、Federico Baldassarre、Maxime Oquab 等 26 人（前五位为通讯作者），来自 Meta AI Research，另有 WRI 和 Inria 的作者。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2508.10104">arXiv 原文</a><a href="https://arxiv.org/pdf/2508.10104v1">PDF</a><a href="https://arxiv.org/html/2508.10104v1">HTML 版</a><a href="https://ai.meta.com/dinov3/">项目主页</a><a href="https://github.com/facebookresearch/dinov3">官方代码</a><span>正文 37 页，参考文献到第 52 页，附录到第 67 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上登记的许可是 <a href="https://arxiv.org/licenses/nonexclusive-distrib/1.0/license.html">arXiv 非独占分发许可</a>（nonexclusive-distrib 1.0），版权归作者，PDF 上没有别的版权声明。按站点的默认规则这类论文不放原图；<b>这一批（OpenWAM §4.1.2 的上游模型）站点作者决定放原图</b>，所以图 1 到图 22 都从 arXiv PDF v1 裁切（250 dpi 渲染，只做了裁切和缩放，转成 webp），没有改内容。每张图注写了出处页码和“看原图”链接；图下文字是我写的。</p>
+<p>正文第 1 到 10 节逐节覆盖，小节编号同原文；附录 A 到 D 也都覆盖，长的实验细节（D.1 到 D.13）折叠起来。公式按原文编号（式 1 到 5），结果表照录原文数字。用自己的话写，不逐字翻译。“读者注”是我核算或对照代码的结果，不属于论文，页尾有汇总。</p>
+<p><b>代码。</b>官方代码 <a class="ds" href="https://github.com/facebookresearch/dinov3">facebookresearch/dinov3</a>，许可是 Meta 自定义的 <b>DINOv3 License</b>（2025-08-19 版）：允许使用、复制、修改、再分发，但再分发须附同一协议，发表用到它的研究须注明，另有贸易管制和禁止军事用途等条款。它不是常见的开源许可，所以本页只引文件名、行号和配置键，不复制代码。我读的是提交 <a href="https://github.com/facebookresearch/dinov3/tree/6876159a11b4df116f30f667f8c9888617df0751">6876159</a>（2026-07-15），只读没跑。Hugging Face 上的 ViT-B/16 权重需要登录申请，我用 OpenWAM 下载脚本列出的 ModelScope 镜像读到了它的 <code>config.json</code>，和代码里的模型定义对上了（<a href="#n21">读者注 21</a>）。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 大规模自监督训练</a><a href="#s4">4 Gram anchoring</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 后训练</a><a href="#s6">6 结果</a><a href="#s7">7 模型家族</a><a href="#s8">8 遥感</a><a href="#s9">9 环境影响</a><a href="#s10">10 结论</a><a href="#apA">附录 A 异常值</a><a href="#apB">附录 B 补充结果</a><a href="#apC">附录 C 实现</a><a href="#apD">附录 D 评测细节</a><a href="#code">代码对照</a><a href="#openwam">在 OpenWAM 里怎么用</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>DINOv3 是 Meta 的第三代 DINO 自监督视觉模型。训练不用任何标签，只用图片本身：同一张图切出不同裁切，学生网络去对齐教师网络的输出。它要解决的是 DINOv2 往大做时遇到的三件事：数据怎么挑、训练多久事先不知道、训练越久稠密特征（每个 patch 的特征）反而越差。</p>
+<ul>
+<li><b>数据：</b>从约 170 亿张 Instagram 公开图片里，用层次 k-means 平衡采样挑出 16.89 亿张（LVD-1689M），再混入检索出来的数据和 <a class="ds" href="https://www.image-net.org/">ImageNet</a> 等公开数据集。</li>
+<li><b>模型：</b>7B 参数的 ViT 教师（40 层，宽 4096，patch 16，4 个 register token，RoPE 位置编码），常数学习率训练 100 万步。</li>
+<li><b>Gram anchoring：</b>新损失。不约束特征本身，只要求学生的 patch 两两相似度矩阵（Gram 矩阵）接近一个早期教师的。加上后稠密任务几乎立刻回升。</li>
+<li><b>后训练：</b>高分辨率适配（512/768 的大裁切），再一次蒸馏出 ViT-S/S+/B/L/H+ 和 ConvNeXt-T/S/B/L 一整个家族，另外训练文本对齐（dino.txt）。</li>
+<li><b>结果：</b>冻结骨干，线性探针 <a class="ds" href="https://github.com/CSAILVision/ADE20K">ADE20k</a> 55.9 mIoU，比 DINOv2 高 6.4；加上较重的解码器，COCO 检测 66.1 mAP、ADE20k 分割 63.0 mIoU，骨干都不微调。</li>
+</ul>
+<p>读完我认为值得记住的三点：Gram anchoring 约束的是“相似度结构”，所以特征可以整体旋转而损失不变，这是它和直接蒸馏特征的区别（第 5 幕可以当场看到）；论文里的超参和公开配置有好几处对不上（<a href="#n5">读者注 5</a>、<a href="#n8">8</a>、<a href="#n20">20</a>）；正文里几处“比别人高多少”的数字和表格对不上（<a href="#n10">读者注 10</a> 到 <a href="#n12">12</a>），表 15 和表 22 各有一处像是复制错误（<a href="#n16">读者注 16</a>、<a href="#n19">19</a>）。</p>
+<p>OpenWAM 用的是这里蒸馏出来的 <b>ViT-B/16（LVD-1689M）</b>：逐帧提 patch 特征，作为世界模型的“预测目标空间”。见本页末尾 <a href="#openwam">“在 OpenWAM 里怎么用”</a>。</p>
+
+<figure class="pfig" id="fig1">
+<img src="dinov3/fig1.webp" width="1600" height="973" alt="图 1：左上是 ImageNet 线性探针精度随年份变化，左下是相对性能柱状图，右边是自然图像和航拍图像的特征 PCA 着色" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=2">看原图 ↗</a></span>(a) 全监督（SL）、弱监督（WSL）、自监督（SSL）在 ImageNet-1k 上的最好成绩按年份画出，SSL 起步晚，到 2025 年已追到 88% 附近的平台（具体数字见附录表 21）。(b) 最好的弱监督模型相对 DINOv3 的性能：深度、跟踪、分割分别低 33%、34%、22%。(c)(d) 高分辨率图像的特征做 PCA 后映射成 RGB，(c) 是自然图像，(d) 是航拍图像，道路、房屋和植被被分开。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>结论先说：</b>作者认为自监督（SSL）的优势在于能吃下没有标注的海量图片，并且产出好的稠密特征；DINOv3 要把这个方向往大推，同时修好稠密特征随训练变差的问题。</p>
+<p>弱监督（如 CLIP）需要图文对这样的元数据，SSL 不需要，所以能用在病理、生物、遥感、天文等缺元数据的领域。DINOv2 已经显示一个冻结的 SSL 骨干可以服务很多任务。但继续放大有三个问题：怎么从无标签图片池里挑有用的数据；余弦学习率调度要求事先知道训练多长；以及超过 ViT-Large（3 亿参数）以后，训练久了特征会逐渐变差，patch 相似度图上看得很清楚。</p>
+<p>三个目标：(1) 训练跨任务、跨领域都通用的基础模型；(2) 改善 SSL 模型稠密特征的短板；(3) 发布一整套拿来就能用的模型。</p>
+<figure class="pfig" id="fig2">
+<img src="dinov3/fig2.webp" width="1600" height="511" alt="图 2：三个散点图，横轴 log-FLOPs，纵轴分别是 ADE20k mIoU、NAVI 召回、ObjectNet 精度，比较 DINOv3、AM-RADIO、DINOv2、SigLIP 2、PE 各个尺寸" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=3">看原图 ↗</a></span>每个模型家族按计算量（log-FLOPs）连成一条线。左边语义分割和中间 3D 关键点匹配，DINOv3（深蓝）整条线都在最上面；右边分布外分类（<a class="ds" href="https://objectnet.dev/">ObjectNet</a>），DINOv3 和 PE、SigLIP 2 接近，最大尺寸略低于 PE。</figcaption>
+</figure>
+<p><b>Gram anchoring。</b>高层语义目标和稠密特征质量在大模型、长训练下相互冲突，导致稠密特征“塌缩”。Gram anchoring 缓解了这个问题，见 §4。图 3 是 4096 × 4096 输入下的余弦相似度图。</p>
+<figure class="pfig" id="fig3">
+<img src="dinov3/fig3.webp" width="1600" height="1203" alt="图 3：中间是一张水果摊的大图，四周八张小图是不同红叉 patch 与所有 patch 的余弦相似度热图" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=4">看原图 ↗</a></span>输入是 4096 × 4096 的水果摊照片。每张热图以一个红叉 patch 为参照，亮的地方与它余弦相似度高。点在某一种水果上，亮起来的基本就是同一种水果（例如顶上那一排香蕉）。原图注最后一句是 “do you agree with DINOv3?”。</figcaption>
+</figure>
+<p><b>模型家族。</b>修好稠密特征后放大就有收益，于是训练了 7B 模型，再蒸馏成 ViT-S、B、L 和 ConvNeXt 等小模型。作者说 ViT-L 在多数任务上接近 7B 教师。</p>
+<p><b>四项贡献</b>：(i) 数据，§3.1；(ii) 结构和训练（自定义 7B ViT、轴向 RoPE 与防位置伪影的正则、常数超参训练 100 万步），§3.2；(iii) Gram anchoring，§4；(iv) 高分辨率后训练和单教师多学生的高效蒸馏，§5。结果上冻结骨干就拿到 COCO 检测 66.1 mAP、ADE20k 分割 63.0 mIoU，并在卫星图像上验证了通用性（§8）。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>自监督学习。</b>早期借鉴语言模型，用图像的一部分预测另一部分（相对位置、拼图、补全、上色）。ViT 出现后以补全为主的方法流行：MAE 预测像素；data2vec、I-JEPA 等预测学到的隐空间，即 JEPA，后来扩展到视频（V-JEPA）。另一条线是图像间的判别信号：实例分类、对比学习、聚类（DeepCluster、SwAV、DINO），iBOT 把判别损失和掩码重建结合。这些方法大多难以放大。</p>
+<p><b>视觉基础模型。</b>从 AlexNet、VGG、ResNet，到 JFT-300M 上的大规模监督预训练、ViT-22B。弱监督用图片的元数据：从预测标题词到 CLIP、ALIGN 的图文对比学习，再到 OpenCLIP、MetaCLIP、SigLIP、SigLIP 2 和 Perception Encoder（PE，最大一个在 860 亿样本、全局 batch 131K 上训练）。无监督预训练放大的工作少，DINOv2 是第一个在多项任务上追平开源 CLIP 的 SSL 模型；Web-DINO 不做数据筛选直接放大，Franca 用开放数据。</p>
+<p><b>稠密 Transformer 特征。</b>多模态模型、生成模型、3D、视频和机器人都在用预训练 Transformer 的稠密特征。改善局部特征的方法包括视频时空一致性、同图不同裁切的空间对齐、相邻 patch 一致性，以及聚类局部 patch。register token（Darcet 等）不改训练目标就明显改善了特征图。“聚合式”方法（AM-RADIO、PE<sub>spatial</sub>）把 SAM、CLIP、DINOv2 等蒸馏进一个骨干，用的是让学生和教师 patch 余弦相似度接近的目标；风格迁移里的 Gram 矩阵损失也类似。DINOv3 借用 Gram 目标，但<b>教师是自己训练早期的版本</b>。另有一些事后改善局部特征的方法（微调、STEGO 投影、梯度拼接、patch 加权平均）和特征上采样方法；作者强调 DINOv3 原生就给出跨分辨率稳定的特征（图 4）。</p>
+<figure class="pfig" id="fig4">
+<img src="dinov3/fig4.webp" width="1600" height="374" alt="图 4：一张小狗照片，以及 512、1024、2048、4096 分辨率下的特征 PCA 着色" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 7 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=7">看原图 ↗</a></span>特征的前三个主成分映射成 RGB，背景用背景减除去掉。512 × 512 时能看出块状的 patch，到 4096 × 4096 时轮廓很细，而同一部位的颜色在各个分辨率下保持一致。</figcaption>
+</figure>
+
+<h2 id="s3"><span class="no">3</span>无监督的大规模训练</h2>
+<p>借鉴大语言模型“放大出能力”的经验，把模型和数据都放大一个数量级。本节讲第一阶段：数据（§3.1）和自监督配方（§3.2）。第二阶段（稠密特征）在 §4。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>数据准备</h3>
+<p><b>结论：</b>聚类筛选和检索筛选各有所长，把两者和少量公开数据混在一起最好（表 1）。</p>
+<p><b>收集与筛选。</b>数据池是 Instagram 公开帖子的图片，经平台内容审核，约 170 亿张。分三部分：</p>
+<ol>
+<li><b>聚类平衡：</b>用 DINOv2 的嵌入做 5 层层次 k-means，各层簇数 2 亿、800 万、80 万、10 万、2.5 万，再按 Vo 等的平衡采样取出 16.89 亿张，称 <b>LVD-1689M</b>，目标是均衡覆盖网上出现的视觉概念。</li>
+<li><b>检索：</b>和 DINOv2 类似，从池子里检索与若干种子数据集相似的图片，覆盖下游任务相关的概念。</li>
+<li><b>公开数据：</b>ImageNet-1k、ImageNet-22k、<a class="ds" href="https://www.mapillary.com/dataset/places">Mapillary 街景序列</a>（MSLS）。</li>
+</ol>
+<p><b>采样。</b>受 Charton 和 Kempe 启发（小而高质量的同质 batch 有益），每次迭代随机选：要么整批都来自 ImageNet-1k（占训练的 10%），要么从其他所有部分按比例混合。</p>
+<p><b>消融。</b>为省算力只训 20 万步（正式是 100 万步）：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>数据</th><th class="n">IN1k k-NN</th><th class="n">IN1k 线性</th><th class="n">ObjectNet</th><th class="n">iNat 2021</th><th class="n">Paris 检索</th></tr></thead><tbody>
+<tr><td>原始数据池</td><td class="n">80.1</td><td class="n">84.8</td><td class="n">70.3</td><td class="n">70.1</td><td class="n">63.3</td></tr>
+<tr><td>聚类筛选</td><td class="n">79.4</td><td class="n">85.4</td><td class="n">72.3</td><td class="n">81.3</td><td class="n">85.2</td></tr>
+<tr><td>检索筛选</td><td class="n">84.0</td><td class="n">86.7</td><td class="n">70.7</td><td class="n">86.0</td><td class="n">82.7</td></tr>
+<tr><td>LVD-1689M（本文混合）</td><td class="n best">84.6</td><td class="n best">87.2</td><td class="n best">72.8</td><td class="n best">87.0</td><td class="n best">85.9</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 · 训练数据对特征质量的影响（20 万步短训练）。照录原文。表里“LVD-1689M (ours)”指的是整套混合数据，名字和 §3.1 里“聚类那一部分叫 LVD-1689M”有点混用。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>大规模自监督训练</h3>
+<p><b>结论：</b>沿用 DINOv2 的 DINO + iBOT + Koleo 损失，模型放大到 7B，换成 RoPE，取消所有调度，用常数超参训练。</p>
+<p><b>学习目标。</b>图像级的 DINO 损失 \(\mathcal L_{\rm DINO}\)（学生的 CLS 输出对齐教师的 CLS 输出）加 patch 级的 iBOT 隐空间重建损失 \(\mathcal L_{\rm iBOT}\)（学生看被遮住的 patch，去预测教师在这些位置的输出）。两者都把 DINO 原来的“中心化”换成 SwAV 的 Sinkhorn-Knopp。每个损失有自己的投影头。对局部和全局裁切的骨干输出各用一个专门的 LayerNorm，作者说这让后期 ImageNet k-NN 稳定（+0.2），稠密任务也变好（ADE20k +1 mIoU，NYUv2 深度 RMSE −0.02）。再加 Koleo 正则让一个 batch 内的特征在空间里均匀散开，分布式实现里按 16 个样本一小组计算。第一阶段的损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Pre}=\mathcal L_{\rm DINO}+\mathcal L_{\rm iBOT}+0.1\,\mathcal L_{\rm DKoleo} \]</div><span class="no">(1)</span></div>
+<p><b>模型结构。</b>表 2 对比 DINOv2 和 DINOv3 的教师。位置编码换成自定义的 RoPE：每个 patch 的坐标归一化到 \([-1,1]\) 的方框里，注意力里按两个 patch 的相对位置施加旋转。为了对分辨率、尺度和长宽比更鲁棒，训练时做 <b>RoPE-box jittering</b>：把方框随机缩放成 \([-s,s]\)，\(s\in[0.5,2]\)。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>教师模型</th><th>DINOv2</th><th>DINOv3</th></tr></thead><tbody>
+<tr><td>骨干</td><td>ViT-giant</td><td>ViT-7B</td></tr>
+<tr><td>参数量</td><td>1.1B</td><td>6.7B</td></tr>
+<tr><td>层数</td><td>40</td><td>40</td></tr>
+<tr><td>patch 大小</td><td>14</td><td>16</td></tr>
+<tr><td>位置编码</td><td>可学习</td><td>RoPE</td></tr>
+<tr><td>register 数</td><td>4</td><td>4</td></tr>
+<tr><td>嵌入维度</td><td>1536</td><td>4096</td></tr>
+<tr><td>FFN 类型</td><td>SwiGLU</td><td>SwiGLU</td></tr>
+<tr><td>FFN 隐层</td><td>4096</td><td>8192</td></tr>
+<tr><td>注意力头数</td><td>24</td><td>32</td></tr>
+<tr><td>每头维度</td><td>64</td><td>128</td></tr>
+<tr><td>DINO 头 MLP</td><td>4096-4096-256</td><td>8192-8192-512</td></tr>
+<tr><td>DINO 原型数</td><td>128k</td><td>256k</td></tr>
+<tr><td>iBOT 头 MLP</td><td>4096-4096-256</td><td>8192-8192-384</td></tr>
+<tr><td>iBOT 原型数</td><td>128k</td><td>96k</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · DINOv2 与 DINOv3 教师结构对比。照录原文。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 表 2 的参数量能算出来</span><p>按表 2 估算每层：注意力 \(4d^2=4\times4096^2=67.1\)M，SwiGLU 三个矩阵 \(3\times4096\times8192=100.7\)M，合计 167.8M，40 层 6.71B，和表 2 的 6.7B、图 16 的 6716M 一致。头数也对：\(32\times128=4096\)，DINOv2 \(24\times64=1536\)。代码 <code>vision_transformer.py</code> 第 407–416 行 <code>vit_7b</code> 写的是 <code>ffn_ratio=3</code>，乍看是 12288，但 <code>ffn_layers.py</code> 第 67–68 行 SwiGLU 会乘 2/3 再对齐到 64，得到 8192，和表 2 一致。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · iBOT 头的隐层：表 2 写 8192，配置写 4096</span><p>表 2 的 iBOT 头是 8192-8192-384。三个 7B 训练配置（<code>dinov3_vit7b16_pretrain.yaml</code> 第 33–37 行，以及 gram_anchor、high_res_adapt 两个）都是 <code>head_hidden_dim: 4096</code>、<code>head_bottleneck_dim: 384</code>、<code>head_n_prototypes: 98304</code>。后两项和表 2 的 384、96k 对得上（98304 = 96 × 1024），只有隐层差一倍。DINO 头 8192 / 512 / 262144（256k）三项都对得上。哪一个是实际训练用的，未核实。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · RoPE 在代码里的样子</span><p>论文说“按相对位置在注意力里加偏置”。代码（<code>rope_position_encoding.py</code>、<code>attention.py</code> 第 66–82 行）是标准的旋转式：先算每个 patch 的坐标，再把 q、k 的各维两两旋转，没有加性偏置。几个细节论文没写：(1) <code>normalize_coords="separate"</code>，高和宽各自归一化到 \([-1,1]\)，所以非正方形输入（如 OpenWAM 的 24 × 20 网格）两个方向都铺满方框；(2) 抖动由 <code>pos_embed_rope_rescale_coords: 2</code> 实现（第 92–97 行），\(s\) 是在 \([1/2,2]\) 上<b>对数均匀</b>采样，不是均匀；(3) CLS 和 4 个 register 不参与旋转，只有 patch token 旋转（<code>attention.py</code> 第 75–82 行的 prefix）。<code>base=100</code>，每头 \(D/4\) 个频率，ViT-B 每头 64 维，所以 16 个频率。</p></div>
+<p><b>优化。</b>大模型配大数据，事先无法知道该训多久，所以去掉所有调度：学习率、权重衰减、教师 EMA 动量都用常数，只对学习率和教师温度做线性预热。好处是只要下游指标还在涨就可以继续训，超参也少了。AdamW，总 batch 4096 张图，分在 256 张 GPU 上。multi-crop：每张图 2 个全局裁切（256 px）和 8 个局部裁切（112 px），加上 patch 从 14 换成 16，每张图的有效序列长度和 DINOv2 相同，每个 batch 共 370 万 token。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 370 万 token 是怎么来的</span><p>全局裁切 \(256/16=16\)，每个 \(16^2=256\) 个 patch；局部 \(112/16=7\)，每个 49 个。每张图 \(2\times256+8\times49=904\)，乘 4096 张得 3,702,784，就是 3.7M。这个数只算 patch，没算每个裁切的 1 个 CLS 和 4 个 register（算上是 \(4096\times954=3.9\)M）。DINOv2 是 \(224/14=16\)、\(98/14=7\)，网格相同，所以“序列长度与 DINOv2 相同”成立。</p></div>
+
+<h2 id="s4"><span class="no">4</span>Gram Anchoring：给稠密特征的正则</h2>
+<figure class="pfig" id="fig5">
+<img src="dinov3/fig5.webp" width="1577" height="750" alt="图 5：左边两张图在 20 万步和 100 万步时 CLS 与 patch 的余弦相似度图；右边两条曲线图显示 ViT-g 和 ViT-7B 的 VOC 分割与 IN1k 分类随训练变化" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 10 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=10">看原图 ↗</a></span>(a) CLS token 与每个输出 patch 的余弦相似度：20 万步时整张图偏暗，100 万步时花朵一圈明显变亮，说明 patch 越来越像 CLS。(b)(c) 紫红色是 IN1k 线性分类，一路上升；蓝色是 VOC 分割，在 20 万步左右到顶后下降，ViT-7B 最后跌到比开始还低。</figcaption>
+</figure>
+<p>作者想让 7B 一直训下去。全局指标确实一直在涨，但稠密任务在变差（图 5b、5c），原因是 patch 之间的一致性丢了。本节先分析现象，再提出 Gram anchoring，最后看效果。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>训练中 patch 级一致性的丧失</h3>
+<p><b>结论：</b>长训练时 patch 特征越来越像 CLS、越来越不局部，相似度图变脏，稠密任务随之下降。</p>
+<p>分类用 CLS token 在 ImageNet-1k 上训线性分类器；分割用 patch 特征在 <a class="ds" href="http://host.robots.ox.ac.uk/pascal/VOC/">Pascal VOC</a> 上训线性层。ViT-g 和 ViT-7B 的分类都单调上升，分割都在约 20 万步后下降。图 6 显示同一个参照 patch 的相似度图：20 万步时平滑、局部；60 万步以后很多无关 patch 也和参照 patch 高度相似。</p>
+<figure class="pfig" id="fig6">
+<img src="dinov3/fig6.webp" width="1600" height="592" alt="图 6：两张图在 20 万到 100 万步之间，参照 patch 的余弦相似度图逐渐变得嘈杂" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 11 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=11">看原图 ↗</a></span>上排羊群、下排黄花，红点是参照 patch。从左到右是 20 万、40 万、60 万、80 万、100 万步。早期只有参照附近和同类物体亮；越往后，背景里散落的亮点越多，花的轮廓也被噪点淹没。</figcaption>
+</figure>
+<p>这和 Darcet 等发现的“高范数 patch 异常值”不是一回事：加了 register 后 patch 范数一直稳定。变化的是 CLS 和 patch 输出之间的余弦相似度逐渐升高（图 5a）。作者说这本身是预期的，但意味着 patch 特征的局部性在减弱。脚注提到长训练还出现了别的异常值，见附录 A。</p>
+
+<h3 id="s4-2"><span class="no">4.2</span>Gram anchoring 目标</h3>
+<p><b>结论：</b>不去约束特征本身，只约束 patch 两两相似度的结构，让它接近一个早期教师；局部特征仍可以自由移动。</p>
+<p>作者观察到学强判别特征和保持局部一致性相对独立（全局和稠密指标不相关）。DINO 加 iBOT 虽然在两者间找平衡，但越往后全局目标越占上风。新损失作用在 Gram 矩阵上，即一张图所有 patch 特征两两点积组成的矩阵。设一张图有 \(P\) 个 patch，网络宽度 \(d\)，\(\mathbf X_S\)、\(\mathbf X_G\) 分别是学生和 <b>Gram 教师</b>（教师网络的一个早期迭代）的 \(P\times d\) 的 L2 归一化局部特征：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Gram}=\left\|\mathbf X_S\cdot\mathbf X_S^{\top}-\mathbf X_G\cdot\mathbf X_G^{\top}\right\|_F^2 \]</div><span class="no">(2)</span></div>
+<p>只在全局裁切上算。虽然可以从一开始就用，但为了效率从 100 万步之后才开始。有意思的是，晚加也能“修复”已经很差的局部特征。之后每 1 万步把 Gram 教师更新成当前的 EMA 教师。这第二阶段叫<b>精修（refinement）</b>，目标是：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Ref}=w_D\,\mathcal L_{\rm DINO}+\mathcal L_{\rm iBOT}+w_{DK}\,\mathcal L_{\rm DKoleo}+w_{\rm Gram}\,\mathcal L_{\rm Gram} \]</div><span class="no">(3)</span></div>
+<figure class="pfig" id="fig7">
+<img src="dinov3/fig7.webp" width="1526" height="563" alt="图 7：三条损失曲线，iBOT 损失、DINO 全局损失和 Gram 损失随训练步数变化" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 12 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=12">看原图 ↗</a></span>(a) iBOT 损失在 1M 之前缓慢上升，加入精修（绿色、底色区域）后明显下降；(b) DINO 全局损失几乎不受影响；(c) Gram 损失在 1M 到 1.05M 之间快速降到约 \(0.5\times10^{-2}\) 并持平，中间有几级台阶，对应 Gram 教师更新。</figcaption>
+</figure>
+<p>图 7：Gram 目标让 iBOT 损失下降更快，说明稳定的 Gram 教师对 iBOT 有利；对 DINO 损失没有明显影响。作者据此认为 Gram 和 iBOT 对特征的作用方向相似，DINO 不同。</p>
+<p>效果几乎立竿见影：前 1 万步稠密任务就明显提升，每次 Gram 教师更新后 ADE20k 又有一截提升（图 8）；更长的训练还让 ObjectNet 继续变好，其他全局指标受影响很小。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 (2) 和代码差一个常数，权重是按调度升上来的</span><p><code>loss/gram_loss.py</code> 第 34–84 行用的是 <code>MSELoss</code>，即对矩阵元素<b>取平均</b>，不是式 (2) 的平方和。两者差 \(P^2\) 倍：256 px 全局裁切 \(P=256\)，差 65,536 倍；而且 <code>img_level: true</code> 时还要再对 batch 平均。所以附录 C 的 \(w_{\rm Gram}=2\) 只对代码的 MSE 写法有意义。</p>
+<p>其他细节：(1) Gram 教师的特征取的是最后 LayerNorm 之后的 patch token（<code>ssl_meta_arch.py</code> 第 491 行 <code>x_norm_patchtokens</code>），学生取的也是最后 LayerNorm 之后、投影头之前的 patch 特征（第 478、570 行）；(2) 代码里有把负相似度置 0 的开关 <code>remove_neg</code>，类的默认值是开，但 7B 配置里显式关掉了（<code>dinov3_vit7b16_gram_anchor.yaml</code> 第 58 行）；(3) 权重不是一步到位：配置第 64–69 行让 \(w_{\rm Gram}\) 在前 1000 个 epoch（100 万步）为 0，然后在 1 个 epoch（1000 步）内按余弦升到 2.0。第 5 幕可以切换两种写法看数值。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 (3) 的 \(w_D\) 和 \(w_{DK}\) 论文没给值</span><p>正文和附录 C 只给了 \(w_{\rm Gram}=2\)。配置里能找到的对应：Koleo 仍是 0.1；DINO 损失总权重仍是 1，但精修配置打开了 <code>reweight_dino_local_loss</code>，局部裁切的 DINO 损失权重从 1 按余弦降到 0.5（<code>dinov3_vit7b16_gram_anchor.yaml</code> 第 25–31 行），高分辨率阶段固定 0.5。所以 \(w_D\) 很可能指局部 DINO 项降到 0.5，这是我的推断。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 精修到底训了多久</span><p>论文说从 100 万步开始、每 1 万步更新一次 Gram 教师；附录 C 补充“最多更新三次”。配置一致：<code>it_first_update: 1010000</code>、<code>update_frequency: 10000</code>、<code>max_updates: 3</code>，即在 101 万、102 万、103 万步更新。但配置的 <code>epochs: 1200</code> 意味着最多训到 120 万步，而图 7c 横轴只画到约 105 万步，表 20 的 GPU 小时也只按 100 万步算。精修的实际长度论文没写，未核实。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>利用更高分辨率的特征</h3>
+<p><b>结论：</b>Gram 教师吃 2 倍分辨率的图，再把特征图双三次下采样 2 倍，得到更平滑、更一致的 Gram 目标，ADE20k 再涨约 2 mIoU。</p>
+<p>依据有两条：对 patch 特征做加权平均可以压掉异常 patch、增强一致性（Wysoczańska 等）；高分辨率输入给出更细的特征图。所以 Gram 教师输入 2 倍分辨率，输出用双三次插值下采样到学生的大小。图 9a 显示下采样后保留了高分辨率的一致性。因为用 RoPE，模型不需要改动就能处理不同分辨率。用下采样后的特征替代 \(\mathbf X_G\)，新的精修目标记作 \(\mathcal L_{\rm HRef}\)。</p>
+<figure class="pfig" id="fig8">
+<img src="dinov3/fig8.webp" width="1587" height="490" alt="图 8：VOC、ADE20k、ObjectNet 三个指标随训练变化，原始训练、加 L_Ref、加 L_HRef 三条线" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=13">看原图 ↗</a></span>深蓝是原始训练，VOC 和 ADE20k 从峰值一路下滑到 1M。1M 之后的底色区域是精修：绿色（\(\mathcal L_{\rm Ref}\)）把 VOC 拉回约 85、ADE20k 拉回约 54；橙色（\(\mathcal L_{\rm HRef}\)）更高，VOC 约 86、ADE20k 约 55.5。ObjectNet 三条线差别不大。读数是我目测的。</figcaption>
+</figure>
+<figure class="pfig" id="fig9">
+<img src="dinov3/fig9.webp" width="1579" height="492" alt="图 9：左边是 256、下采样、512 三种分辨率的 Gram 相似度图；右边是 Gram 教师迭代和分辨率的消融表" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=14">看原图 ↗</a></span>(a) 鹦鹉和一株植物，三列分别是 256 输入、512 输入后下采样、512 输入的相似度图，中间一列和右边一样干净，但尺寸和左边一样。(b) 消融表，数字见下表。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th>Gram 教师迭代</th><th>分辨率</th><th class="n">IN1k 线性</th><th class="n">ADE mIoU</th><th class="n">NYU RMSE↓</th></tr></thead><tbody>
+<tr><td>基线</td><td>—</td><td>—</td><td class="n best">88.2</td><td class="n">50.3</td><td class="n">0.307</td></tr>
+<tr><td>GRAM</td><td>200k</td><td>×1</td><td class="n">88.0</td><td class="n">53.6</td><td class="n">0.285</td></tr>
+<tr><td>GRAM</td><td>200k</td><td>×2</td><td class="n">88.0</td><td class="n best">55.7</td><td class="n best">0.281</td></tr>
+<tr><td>GRAM</td><td>100k</td><td>×2</td><td class="n">87.9</td><td class="n best">55.7</td><td class="n">0.284</td></tr>
+<tr><td>GRAM</td><td>1M</td><td>×2</td><td class="n">88.1</td><td class="n">54.9</td><td class="n">0.290</td></tr>
+</tbody></table></div>
+<p class="tcap">图 9b · Gram 教师的迭代和分辨率消融。照录原文。×2 比 ×1 在 ADE 上高 \(55.7-53.6=2.1\)，即正文的“+2 mIoU”。</p>
+<p>Gram 教师取 10 万步还是 20 万步差别不大；取 100 万步的就变差，因为那时它自己的一致性已经不好了。图 10 在 1024 × 1024 输入上对比精修前后的相似度图。</p>
+<figure class="pfig" id="fig10">
+<img src="dinov3/fig10.webp" width="1600" height="949" alt="图 10：五张图片，中排是没有高分辨率精修的相似度图，下排是加了之后的相似度图" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 14 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=14">看原图 ↗</a></span>上排原图（黄花、鹅群、日料、海豹、羊群），中排不加 \(\mathcal L_{\rm HRef}\) 的相似度图满是颗粒噪声，下排加了之后，同一类物体（每只鹅、每只海豹）被干净地点亮，背景几乎全暗。</figcaption>
+</figure>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个流程拆成 11 幕：数据整理、ViT 结构与 RoPE、multi-crop 和 DINO/iBOT 自蒸馏、稠密特征变差、<b>当场计算的 Gram anchoring（第 5 幕）</b>、高分辨率 Gram 教师、高分辨率适配、单教师多学生蒸馏、文本对齐、稠密特征用法、<b>OpenWAM 的接法（第 11 幕）</b>。可以暂停、拖进度、旋转画面、切换开关。玩具数字是当场算的，并标明是玩具。</p>
+<iframe src="../interactives/dinov3/index.html?embed=1&amp;scene=5" title="DINOv3 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/dinov3/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>后训练</h2>
+<p>三个后训练步骤：高分辨率适配（§5.1）、蒸馏出小模型（§5.2）、文本对齐（§5.3）。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>分辨率放大</h3>
+<p><b>结论：</b>再训 1 万步混合分辨率，Gram 教师换成 7B 本身；局部特征在大分辨率下明显变好，训练没见过的 4K 也能用。</p>
+<p>主训练用 256 分辨率，patch 16 时序列长度与 DINOv2（224、patch 14）相同。但很多应用要 512 以上，而且分辨率不固定。于是加一步高分辨率适配：每个 mini-batch 采样不同尺寸的全局/局部裁切对，全局从 {512, 768} 取，局部从 {112, 168, 224, 336} 取，再训 1 万步。和主训练一样，这一步也加 Gram anchoring，Gram 教师是 7B 模型本身。作者说这一项必不可少，没有它稠密任务会显著变差。</p>
+<figure class="pfig" id="fig11">
+<img src="dinov3/fig11.webp" width="1587" height="355" alt="图 11：四个小图，比较高分辨率适配前后在不同评测分辨率下的 IN1k、ObjectNet、ADE20k、DAVIS 结果" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 15 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=15">看原图 ↗</a></span>橙色是适配前、蓝色是适配后。(a) IN1k 两条线都在 88 到 89 之间，几乎平；(b) ObjectNet 适配后低分辨率变差、高分辨率变好；(c) ADE20k 和 (d) <a class="ds" href="https://davischallenge.org/">DAVIS</a> 适配前在中等分辨率后掉头向下，适配后随分辨率单调上升。</figcaption>
+</figure>
+<p>图 11：分类小幅提升且对分辨率稳定；ObjectNet 在低分辨率略降、高分辨率提升；分割和跟踪随分辨率越大越好。适配后的模型支持远超训练最大分辨率 768 的输入，4K 以上的特征图仍稳定（图 4）。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 高分辨率适配：论文 1 万步，配置 3 万步</span><p>附录 C 给的五组（全局, 局部, Gram 教师）裁切和概率，和 <code>dinov3_vit7b16_high_res_adapt.yaml</code> 第 162–185 行完全一致：(512, 112, 768) 0.3、(768, 112, 1152) 0.3、(768, 168, 1152) 0.3、(768, 224, 1152) 0.05、(768, 336, 1152) 0.05，概率和为 1。注意这里 Gram 教师是全局裁切的 1.5 倍，不是 §4.3 的 2 倍。</p>
+<p>不一致的地方：配置 <code>epochs: 30</code> × <code>OFFICIAL_EPOCH_LENGTH: 1000</code> = 3 万步，正文写“额外训练 1 万步”；学习率在前 10 个 epoch 从 0 余弦升到 1.25e-5（再乘 batch 缩放），之后保持。Gram 权重固定 1.5（第 63–68 行），论文没给这一项。Gram 教师不再更新（<code>rep_update: false</code>），和“用 7B 作 Gram 教师”一致。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>模型蒸馏</h3>
+<p><b>结论：</b>用固定的 7B 当教师，同样的损失，一次训练同时蒸馏多个学生，共享教师推理。</p>
+<p><b>一族模型。</b>蒸馏目标和第一阶段相同，但教师不是学生的 EMA，而是固定的 7B。蒸馏时没看到 patch 一致性问题，所以不用 Gram anchoring。学生包括标准的 ViT-S（2100 万参数）、B（8600 万）、L（3 亿），以及自定义的 ViT-S+（2900 万）和 ViT-H+（8 亿）。先训 100 万步，再做 25 万步余弦学习率冷却，然后做 §5.1 的高分辨率阶段（不加 Gram）。</p>
+<figure class="pfig" id="fig12">
+<img src="dinov3/fig12.webp" width="1600" height="748" alt="图 12：多学生蒸馏的时序图，所有 GPU 共同做教师推理，然后分组训练三个学生，最后在同步屏障处等待" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 16 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=16">看原图 ↗</a></span>横轴是 GPU，纵轴是一次迭代的时间。每张卡先读 \(B/N_T\) 个样本，全部卡一起做教师推理，all-gather 把输入和教师输出发给所有卡。然后分成三组各训一个学生，组的大小不同，让三组几乎同时到达同步屏障，等待时间（红块）尽量短。</figcaption>
+</figure>
+<p><b>高效多学生蒸馏。</b>大教师的推理比学生贵几个数量级。设单个样本的教师推理代价 \(C_T\)、学生训练代价 \(C_S\)。单教师单学生时每张卡花 \(B/N\times C_T\) 和 \(B/N\times C_S\)。多学生时，学生 \(S_i\) 分到 \(N_{S_i}\) 张卡，全部 \(N_T=\sum N_{S_i}\) 张卡一起做教师推理，每卡 \(B/N_T\times C_T\)；all-gather 之后各组做 \(B/N_{S_i}\times C_{S_i}\) 的学生训练。所以多加一个学生会降低每卡的教师推理负担，总计算只多出这个学生的训练代价。按各学生的迭代时间调整 GPU 数，减少等待。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 公开的蒸馏配置</span><p><code>dinov3_vitl16_lvd1689m_distilled.yaml</code> 第 151–174 行给出四个学生和 GPU 分组：ViT-S 第 0–48 号卡，ViT-S+ 48–96，ViT-B 96–176，ViT-L 176–296，即 48、48、80、120 张，共 296 张；<code>global_batch_size: 1920</code>。学生越大分到的卡越多，符合“让每组迭代时间相近”的说法。但这个配置的 <code>epochs: 20</code> × 1250 = 2.5 万步，学习率从 0 余弦升到 5e-5，和正文的“100 万步加 25 万步冷却”对不上，路径也都是占位符，看起来是示例模板。ViT-H+ 和 ConvNeXt 不在这一组里（ConvNeXt 有单独的配置目录）。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>把 DINOv3 和文本对齐</h3>
+<p><b>结论：</b>冻结视觉骨干，按 dino.txt 的方法从头训练文本编码器做对比学习；视觉侧拼接 CLS 和 patch 均值，让局部特征也对齐到文本。</p>
+<p>CLIP 只学全局对齐，难以捕捉细粒度的局部对应。LiT 范式显示，用冻结的自监督视觉骨干也能做好图文对齐，还省算力。DINOv3 按 Jose 等（dino.txt）的方法：视觉编码器冻结，上面加两层可训练的 Transformer；把 patch 嵌入的均值和 CLS 输出拼起来再去和文本嵌入匹配，这样全局和局部都对齐到文本；数据筛选也沿用 dino.txt。代码配置 <code>eval/text/configs/dinov3_vitl_text.yaml</code> 里 <code>vision_model_num_head_blocks: 2</code>、<code>vision_model_patch_tokens_pooler_type: mean</code>、骨干冻结，与正文一致。</p>
+
+<h2 id="s6"><span class="no">6</span>结果</h2>
+<p>本节评测旗舰 7B 模型，除特别说明外骨干始终冻结，只用它的表示。§6.1 稠密特征，§6.2 全局特征，§6.3 把 DINOv3 当作复杂系统的底座。</p>
+
+<h3 id="s6-1"><span class="no">6.1</span>DINOv3 的稠密特征</h3>
+<p>都用最后一层冻结的 patch 特征，评测方式包括：定性可视化、稠密线性探针、无参数方法（3D 对应、物体发现、跟踪）、轻量注意力探针（视频分类）。</p>
+<p><b>基线。</b>弱监督：PE Core、SigLIP 2。自监督：DINOv2（带 register）、Web-DINO、Franca。聚合式：AM-RADIOv2.5（从 DINOv2、CLIP、DFN、SAM 蒸馏）和 PE<sub>spatial</sub>（把 SAM 2 蒸馏进 PE core）。每个基线取最强的公开模型。</p>
+
+<h4 id="s6-1-1"><span class="no">6.1.1</span>定性分析</h4>
+<p>把稠密特征 PCA 到 3 维映射成 RGB。PCA 有符号歧义（8 种）和主成分到颜色的任意映射（6 种），作者把所有组合都试了，报告视觉上最好的一种。DINOv3 的特征更锐利、噪声少、语义一致性好。</p>
+<figure class="pfig" id="fig13">
+<img src="dinov3/fig13.webp" width="1600" height="1518" alt="图 13：六张输入图，以及 SigLIP 2、PE Spatial、DINOv2 w/reg、DINOv3 四种骨干的特征 PCA 着色" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 18 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=18">看原图 ↗</a></span>六行输入（恐龙骨架、自行车、花园、猴子、花圃、羚羊），所有模型的特征图都是 80 × 60（patch 16 用 1280 × 960，patch 14 用 1120 × 840）。SigLIP 2 几乎是彩色噪点；PE Spatial 能看出轮廓但颗粒粗；DINOv2 带 register 好一些但背景杂；DINOv3 每个物体是一块干净的颜色。</figcaption>
+</figure>
+
+<h4 id="s6-1-2"><span class="no">6.1.2</span>稠密线性探针</h4>
+<p><b>结论：</b>只用一个线性层，DINOv3 在三个分割和两个深度数据集上都最好；ADE20k 55.9 已离当时最好成绩 63.0 不远。</p>
+<p>分割在 ADE20k、<a class="ds" href="https://www.cityscapes-dataset.com/">Cityscapes</a>、PASCAL VOC 2012 上报 mIoU；深度在 <a class="ds" href="https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html">NYUv2</a> 和 <a class="ds" href="https://www.cvlibs.net/datasets/kitti/">KITTI</a> 上报 RMSE。输入分辨率调到 1024 个 patch token（patch 14 用 448，patch 16 用 512）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>ViT</th><th class="n">ADE20k</th><th class="n">Citysc.</th><th class="n">VOC</th><th class="n">NYUv2↓</th><th class="n">KITTI↓</th></tr></thead><tbody>
+<tr class="grp"><td colspan="7">聚合式</td></tr>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">53.0</td><td class="n">78.4</td><td class="n">85.4</td><td class="n">0.340</td><td class="n">2.918</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>G/14</td><td class="n">49.3</td><td class="n">73.2</td><td class="n">82.7</td><td class="n">0.362</td><td class="n">3.082</td></tr>
+<tr class="grp"><td colspan="7">弱监督</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">42.7</td><td class="n">64.8</td><td class="n">72.7</td><td class="n">0.494</td><td class="n">3.273</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">38.9</td><td class="n">61.1</td><td class="n">69.2</td><td class="n">0.590</td><td class="n">4.119</td></tr>
+<tr class="grp"><td colspan="7">自监督</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">46.3</td><td class="n">68.7</td><td class="n">82.9</td><td class="n">0.445</td><td class="n">3.140</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">49.5</td><td class="n">75.6</td><td class="n">83.1</td><td class="n">0.372</td><td class="n">2.624</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">42.7</td><td class="n">68.3</td><td class="n">76.1</td><td class="n">0.466</td><td class="n">3.158</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n best">55.9</td><td class="n best">81.1</td><td class="n best">86.6</td><td class="n best">0.309</td><td class="n best">2.346</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 冻结骨干的稠密线性探针。照录原文。</p>
+<p>ADE20k 上比自监督基线高 6 以上、比弱监督高 13 以上、比 PE<sub>spatial</sub> 高 6 以上、比 AM-RADIO 高近 3；后两者都从重监督的 SAM 蒸馏而来。深度上同样领先，KITTI 比 DINOv2 低 0.278 RMSE。PE<sub>spatial</sub> 和 AM-RADIO 在 NYU 上强，但 KITTI 不如 DINOv2。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · Cityscapes 的“2.5 个点”</span><p>正文说 DINOv3 在 Cityscapes 上“超过 AM-RADIOv2.5 2.5 个点”，表 3 是 \(81.1-78.4=2.7\)。同一段的其他差值都对得上：ADE20k 比 DINOv2 高 \(55.9-49.5=6.4\)，比 SigLIP 2 高 13.2，比 PE<sub>spatial</sub> 高 6.6，比 AM-RADIO 高 2.9；Cityscapes 比其余骨干至少高 \(81.1-75.6=5.5\)；KITTI 比 DINOv2 低 \(2.624-2.346=0.278\)。</p></div>
+
+<h4 id="s6-1-3"><span class="no">6.1.3</span>3D 对应估计</h4>
+<p>按 <a class="ds" href="https://github.com/mbanani/probe3d">Probe3D</a> 的协议评测多视角一致性：同一关键点在不同视角下的 patch 特征是否相似。几何对应（同一物体实例）用 <a class="ds" href="https://navidataset.github.io/">NAVI</a>，语义对应（同类不同实例）用 <a class="ds" href="https://cvlab.postech.ac.kr/research/SPair-71k/">SPair</a>，都报对应召回率。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>方法</th><th>ViT</th><th class="n">NAVI（几何）</th><th class="n">SPair（语义）</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">59.4</td><td class="n">56.8</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>G/14</td><td class="n">53.8</td><td class="n">49.6</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">49.4</td><td class="n">42.6</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">39.9</td><td class="n">23.1</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">54.6</td><td class="n">51.0</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">60.1</td><td class="n">56.1</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">55.0</td><td class="n">32.2</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n best">64.4</td><td class="n best">58.7</td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · 3D 关键点对应（召回率）。照录原文；分组同表 3。</p>
+<p>几何对应比第二名 DINOv2 高 4.3。弱监督模型差，说明缺乏 3D 意识。带 SAM 蒸馏的里，AM-RADIO 接近 DINOv2，PE<sub>spatial</sub> 落后，甚至不如 Franca。作者认为自监督是这项任务的关键。语义对应同理，比 DINOv2 高 2.6、比 AM-RADIO 高 1.9。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · “PE<sub>spatial</sub> 比 DINOv2 低 11.6”</span><p>正文说 PE<sub>spatial</sub> 在 NAVI 上比 DINOv2 低 11.6，表 4 是 \(53.8-60.1=-6.3\)。按相对值算是 \(-6.3/60.1=-10.5\%\)，也不是 11.6。同一句里“比 Franca 低 0.8”（\(53.8-54.6\)）以及其他差值（+4.3、+2.6、+1.9）都对得上。11.6 的来源我找不到。</p></div>
+
+<h4 id="s6-1-4"><span class="no">6.1.4</span>无监督物体发现</h4>
+<p>任务是不用标注、不分类别地把图里的物体框出来。用非参数的图割方法 TokenCut，在 VOC 2007、VOC 2012、COCO-20k 上报 CorLoc。为公平比较不同特征分布，对 TokenCut 的相似度阈值做了搜索，且所有模型都用输出特征（原版 DINO 最好的结果用的是最后一层注意力的 key，但这个手工选择不能推广）。</p>
+<figure class="pfig" id="fig14">
+<img src="dinov3/fig14.webp" width="1576" height="609" alt="图 14：左边是无监督物体发现 CorLoc 表，右边是四张图上 DINOv3 预测的红色物体掩码" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 21 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=21">看原图 ↗</a></span>左表数字见下；右边是 1024 分辨率下 DINOv3 的掩码（大象、门后的头、盆栽、猴子），没有标注、没有后处理。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>方法</th><th>ViT</th><th class="n">VOC07</th><th class="n">VOC12</th><th class="n">COCO</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">55.0</td><td class="n">59.7</td><td class="n">45.9</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>G/14</td><td class="n">51.2</td><td class="n">56.0</td><td class="n">43.9</td></tr>
+<tr><td>SigLIPv2</td><td>g/16</td><td class="n">20.5</td><td class="n">24.7</td><td class="n">18.6</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">14.2</td><td class="n">18.2</td><td class="n">13.5</td></tr>
+<tr><td>DINO</td><td>S/16</td><td class="n">61.1</td><td class="n">66.0</td><td class="n">48.7</td></tr>
+<tr><td>DINO</td><td>B/16</td><td class="n">60.1</td><td class="n">64.4</td><td class="n">50.5</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">55.6</td><td class="n">60.4</td><td class="n">45.4</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">26.1</td><td class="n">29.7</td><td class="n">20.9</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n best">66.1</td><td class="n best">69.5</td><td class="n best">55.1</td></tr>
+</tbody></table></div>
+<p class="tcap">图 14 左表 · 无监督物体发现（CorLoc）。照录原文。</p>
+<p>原版 DINO 设了很高的标杆。DINOv2 稠密任务强，但物体发现失败，部分原因是特征里的伪影。DINOv3 超过两代前作和所有其他骨干。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · VOC 2007 上的“5.9 CorLoc”</span><p>正文说 DINOv3 在 VOC 2007 上比前作高 5.9。按表：比 DINO S/16 高 \(66.1-61.1=5.0\)，比 DINO B/16 高 6.0，比 DINOv2 高 10.5。没有一项是 5.9。最接近的是 DINO B/16 的 6.0，可能是表或正文改过一次数。未核实。</p></div>
+
+<h4 id="s6-1-5"><span class="no">6.1.5</span>视频分割跟踪</h4>
+<p>测时间一致性：给第一帧的实例掩码，把标签传播到后续帧。数据集 DAVIS 2017、<a class="ds" href="https://youtube-vos.org/">YouTube-VOS</a>、<a class="ds" href="https://henghuiding.com/MOSE/">MOSE</a>，指标 J&amp;F。按 Jabri 等用非参数的标签传播（帧间 patch 相似度）。三种分辨率：短边 420/480（S）、840/960（M）、1260/1440（L），分别对应 patch 14/16。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th rowspan="2">ViT</th><th colspan="3" class="c">DAVIS</th><th colspan="3" class="c">YouTube-VOS</th><th colspan="3" class="c">MOSE</th></tr><tr><th class="n">S</th><th class="n">M</th><th class="n">L</th><th class="n">S</th><th class="n">M</th><th class="n">L</th><th class="n">S</th><th class="n">M</th><th class="n">L</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">66.5</td><td class="n">77.3</td><td class="n">81.4</td><td class="n">70.1</td><td class="n">78.1</td><td class="n">79.2</td><td class="n">44.0</td><td class="n">52.6</td><td class="n">54.3</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>G/14</td><td class="n">68.4</td><td class="n">74.5</td><td class="n">70.5</td><td class="n">68.5</td><td class="n">67.5</td><td class="n">55.6</td><td class="n">39.3</td><td class="n">40.2</td><td class="n">34.0</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">56.1</td><td class="n">62.3</td><td class="n">62.9</td><td class="n">52.0</td><td class="n">57.3</td><td class="n">55.1</td><td class="n">28.0</td><td class="n">30.3</td><td class="n">29.2</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">48.2</td><td class="n">53.1</td><td class="n">49.8</td><td class="n">34.7</td><td class="n">33.0</td><td class="n">25.3</td><td class="n">17.8</td><td class="n">19.0</td><td class="n">15.4</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">61.8</td><td class="n">66.9</td><td class="n">66.5</td><td class="n">67.3</td><td class="n">70.5</td><td class="n">67.9</td><td class="n">40.3</td><td class="n">42.6</td><td class="n">41.9</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">63.9</td><td class="n">73.6</td><td class="n">76.6</td><td class="n">65.6</td><td class="n">73.5</td><td class="n">74.6</td><td class="n">40.4</td><td class="n">47.6</td><td class="n">48.5</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">57.2</td><td class="n">65.8</td><td class="n">69.5</td><td class="n">43.9</td><td class="n">49.6</td><td class="n">50.9</td><td class="n">24.9</td><td class="n">29.9</td><td class="n">31.1</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n best">71.1</td><td class="n best">79.7</td><td class="n best">83.3</td><td class="n best">74.1</td><td class="n best">80.2</td><td class="n best">80.7</td><td class="n best">46.0</td><td class="n best">53.9</td><td class="n best">55.6</td></tr>
+</tbody></table></div>
+<p class="tcap">表 5 · 视频分割跟踪（J&amp;F-mean）。照录原文。</p>
+<p>DAVIS-L 83.3，比 DINOv2 高 6.7；分辨率越高越好。SigLIP 2 和 PE<sub>core</sub> 随分辨率几乎不变，PE<sub>spatial</sub> 反而变差。一个只在图像上训练的模型就能跟踪视频里的物体（图 15），作者认为它适合作视频模型的嵌入。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 5 的图注写错一个分辨率</span><p>表 5 的图注写 L 对应短边 “1260/1140”，正文 §6.1.5 写 “1260/1440”。按“patch 14/16 时 token 数相同”：\(1260/14=90\)，\(1440/16=90\)，而 \(1140/16=71.25\) 不是整数。所以 1140 是笔误，应为 1440。</p></div>
+<figure class="pfig" id="fig15">
+<img src="dinov3/fig15.webp" width="1600" height="542" alt="图 15：鹅群视频的五帧，下排是传播得到的彩色实例掩码" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 22 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=22">看原图 ↗</a></span>上排是第 0、30、60、90、120 帧，下排是按 DINOv3 特征相似度传播的实例掩码，每只鹅一种颜色，走动和遮挡后颜色仍跟着各自的鹅。输入 2048 × 1536，对应 128 × 96 个 patch。</figcaption>
+</figure>
+
+<h4 id="s6-1-6"><span class="no">6.1.6</span>视频分类</h4>
+<p>仿照 V-JEPA 2：每帧单独提 patch 特征，上面训一个 4 层 Transformer 的注意力探针。可以每个视频一个片段，或用测试时增强（TTA，3 个空间 × 2 个时间裁切平均）。数据集 <a class="ds" href="https://www.crcv.ucf.edu/data/UCF101.php">UCF101</a>、<a class="ds" href="https://www.qualcomm.com/developer/software/something-something-v-2-dataset">Something-Something V2</a>、<a class="ds" href="https://github.com/google-deepmind/kinetics-i3d">Kinetics-400</a>，额外对比视频 SSL 模型 V-JEPA 2。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">方法</th><th rowspan="2">ViT</th><th colspan="2" class="c">UCF101</th><th colspan="2" class="c">SSv2</th><th colspan="2" class="c">K400</th></tr><tr><th class="n">单片段</th><th class="n">TTA</th><th class="n">单片段</th><th class="n">TTA</th><th class="n">单片段</th><th class="n">TTA</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">92.8</td><td class="n">92.5</td><td class="n">69.1</td><td class="n">70.0</td><td class="n">84.8</td><td class="n">85.2</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>G/14</td><td class="n">92.7</td><td class="n">92.8</td><td class="n">66.4</td><td class="n">68.4</td><td class="n">83.5</td><td class="n">84.8</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">93.6</td><td class="n best">94.2</td><td class="n">68.8</td><td class="n">70.2</td><td class="n">86.9</td><td class="n">87.7</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">93.1</td><td class="n">93.3</td><td class="n">69.0</td><td class="n">70.4</td><td class="n best">87.9</td><td class="n best">88.8</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">93.5</td><td class="n">93.8</td><td class="n">67.4</td><td class="n">68.4</td><td class="n">84.4</td><td class="n">85.6</td></tr>
+<tr><td>V-JEPA 2</td><td>g/16</td><td class="n best">94.0</td><td class="n">93.8</td><td class="n best">73.8</td><td class="n best">75.4</td><td class="n">83.3</td><td class="n">84.3</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">93.9</td><td class="n">94.1</td><td class="n">67.3</td><td class="n">68.1</td><td class="n">86.8</td><td class="n">87.2</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n">93.5</td><td class="n">93.5</td><td class="n">70.1</td><td class="n">70.8</td><td class="n">87.8</td><td class="n">88.2</td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · 注意力探针视频分类 top-1。照录原文；加粗是我按每列最大值标的。</p>
+<p>探针本身有好几层自注意力，模型间差距不明显。DINOv3 和 PE<sub>core</sub>、SigLIP 2 同一档，明显好于 DINOv2 和 AM-RADIO。SSv2 更依赖运动理解，专门的视频模型 V-JEPA 2 最好；在这上面 DINOv3 领先弱监督模型的幅度略大。</p>
+
+<h3 id="s6-2"><span class="no">6.2</span>全局图像描述子</h3>
+<p>线性探针分类（§6.2.1）和实例检索（§6.2.2）。基线另加 AIMv2 和 EVA-CLIP-18B。</p>
+<h4 id="s6-2-1"><span class="no">6.2.1</span>线性探针图像分类</h4>
+<p><b>结论：</b>第一次有自监督模型在图像分类上追平弱监督和监督模型；分布外鲁棒性大幅超过 DINOv2。</p>
+<p>在 ImageNet-train 上训线性分类器（用 CLS），在 val 上选超参，然后迁移到 <a class="ds" href="https://github.com/modestyachts/ImageNetV2">ImageNet-V2</a>、<a class="ds" href="https://github.com/google-research/reassessed-imagenet">ReaL</a>、<a class="ds" href="https://github.com/hendrycks/imagenet-r">Rendition</a>、<a class="ds" href="https://github.com/HaohanWang/ImageNet-Sketch">Sketch</a>、<a class="ds" href="https://github.com/hendrycks/natural-adv-examples">Adversarial</a>、ObjectNet、<a class="ds" href="https://github.com/hendrycks/robustness">Corruptions</a>（mCE，越低越好）。监督模型的数字引自 Dehghani 等，协议略有不同。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>ViT</th><th class="n">Val</th><th class="n">V2</th><th class="n">ReaL</th><th class="n">R</th><th class="n">S</th><th class="n">A</th><th class="n">C↓</th><th class="n">Obj.</th></tr></thead><tbody>
+<tr class="grp"><td colspan="10">监督（*协议不同）</td></tr>
+<tr><td>Zhai 等 (2022a)*</td><td>G/14</td><td class="n">89.0</td><td class="n">81.3</td><td class="n">90.6</td><td class="n">91.7</td><td class="n">—</td><td class="n">78.8</td><td class="n">—</td><td class="n">69.6</td></tr>
+<tr><td>Chen 等 (2023)*</td><td>e/14</td><td class="n">89.3</td><td class="n">82.5</td><td class="n">90.7</td><td class="n">94.3</td><td class="n">—</td><td class="n">81.6</td><td class="n">—</td><td class="n">71.5</td></tr>
+<tr><td>Dehghani 等 (2023)*</td><td>22B/14</td><td class="n">89.5</td><td class="n">83.2</td><td class="n">90.9</td><td class="n">94.3</td><td class="n">—</td><td class="n">83.8</td><td class="n">—</td><td class="n">74.3</td></tr>
+<tr class="grp"><td colspan="10">聚合式</td></tr>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">88.0</td><td class="n">80.2</td><td class="n">90.3</td><td class="n">83.8</td><td class="n">67.1</td><td class="n">81.3</td><td class="n">27.1</td><td class="n">68.4</td></tr>
+<tr class="grp"><td colspan="10">弱监督</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n">89.3</td><td class="n">81.6</td><td class="n">90.4</td><td class="n">92.2</td><td class="n">71.9</td><td class="n">89.0</td><td class="n">22.7</td><td class="n">80.2</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">89.1</td><td class="n">81.6</td><td class="n">90.5</td><td class="n">92.2</td><td class="n">71.8</td><td class="n">84.6</td><td class="n">30.0</td><td class="n">78.6</td></tr>
+<tr><td>AIMv2</td><td>3B/14</td><td class="n">87.9</td><td class="n">79.5</td><td class="n">89.7</td><td class="n">82.3</td><td class="n">67.1</td><td class="n">74.5</td><td class="n">29.5</td><td class="n">69.0</td></tr>
+<tr><td>EVA-CLIP</td><td>18B/14</td><td class="n">87.9</td><td class="n">79.3</td><td class="n">89.5</td><td class="n">85.2</td><td class="n">64.0</td><td class="n">81.6</td><td class="n">33.0</td><td class="n">71.9</td></tr>
+<tr class="grp"><td colspan="10">自监督</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">85.9</td><td class="n">77.1</td><td class="n">88.6</td><td class="n">75.6</td><td class="n">64.0</td><td class="n">71.6</td><td class="n">31.2</td><td class="n">69.7</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">84.8</td><td class="n">75.3</td><td class="n">89.2</td><td class="n">67.6</td><td class="n">49.5</td><td class="n">56.5</td><td class="n">40.0</td><td class="n">54.5</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">87.3</td><td class="n">79.5</td><td class="n">89.9</td><td class="n">81.1</td><td class="n">65.4</td><td class="n">81.7</td><td class="n">24.1</td><td class="n">66.4</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n">88.4</td><td class="n">81.4</td><td class="n">90.4</td><td class="n">91.1</td><td class="n">71.3</td><td class="n">86.9</td><td class="n best">19.6</td><td class="n">79.0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 7 · ImageNet-1k 线性探针及迁移。输入调到 1024 个 patch token。照录原文。</p>
+<p>比 DINOv2：R +10、Sketch +6、ObjectNet +13。最强的弱监督模型（SigLIP 2、PE）在 A 和 ObjectNet 上已超过监督的 ViT-22B；DINOv3 在 R、Sketch 上与之相当，A 和 ObjectNet 紧跟 PE、超过 SigLIP 2。ImageNet val 落后 SigLIP 2 和 PE 0.7 到 0.9，但更“干净”的 V2 和 ReaL 几乎一样。Corruptions 最好。</p>
+<p><b>细粒度分类（表 8）。</b>Places205、<a class="ds" href="https://github.com/visipedia/inat_comp">iNaturalist</a> 2018/2021，以及 12 个小数据集的平均（Fine-S，逐项见附录表 22）。DINOv3 超过以前所有 SSL 方法，与弱监督相当；iNat21 达到 89.8，高于 PE<sub>core</sub> 的 87.0。</p>
+<h4 id="s6-2-2"><span class="no">6.2.2</span>实例识别</h4>
+<p>非参数检索：按 CLS 的余弦相似度给库里的图排序。数据集：<a class="ds" href="https://github.com/filipradenovic/revisitop">Oxford、Paris</a>（地标，mAP）、<a class="ds" href="https://cmp.felk.cvut.cz/met/">Met</a>（大都会博物馆艺术品，GAP）、<a class="ds" href="https://github.com/seyrankhademi/AmsterTime">AmsterTime</a>（阿姆斯特丹街景对老照片，mAP）。DINOv3 全面最好，比第二名 DINOv2 在 Met 上高 10.8、AmsterTime 高 7.6；弱监督模型远远落后，除了从 DINOv2 蒸馏的 AM-RADIO。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>ViT</th><th class="n">Fine-S</th><th class="n">Places</th><th class="n">iNat18</th><th class="n">iNat21</th><th class="n">Oxford-H</th><th class="n">Paris-H</th><th class="n">Met (GAP)</th><th class="n">AmsterTime</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">93.9</td><td class="n">70.2</td><td class="n">79.0</td><td class="n">83.7</td><td class="n">47.5</td><td class="n">85.7</td><td class="n">30.5</td><td class="n">23.1</td></tr>
+<tr><td>SigLIP 2</td><td>g/16</td><td class="n">93.7</td><td class="n">70.5</td><td class="n">80.7</td><td class="n">82.7</td><td class="n">25.1</td><td class="n">60.9</td><td class="n">13.9</td><td class="n">15.5</td></tr>
+<tr><td>PE<sub>core</sub></td><td>G/14</td><td class="n best">94.5</td><td class="n best">71.3</td><td class="n best">86.6</td><td class="n">87.0</td><td class="n">32.7</td><td class="n">68.9</td><td class="n">10.6</td><td class="n">23.1</td></tr>
+<tr><td>AIMv2</td><td>3B/14</td><td class="n">92.9</td><td class="n">70.7</td><td class="n">80.8</td><td class="n">83.2</td><td class="n">28.8</td><td class="n">71.4</td><td class="n">29.5</td><td class="n">14.6</td></tr>
+<tr><td>EVA CLIP</td><td>18B/14</td><td class="n">92.9</td><td class="n">71.1</td><td class="n">80.7</td><td class="n">83.5</td><td class="n">27.1</td><td class="n">65.6</td><td class="n">0.5</td><td class="n">18.9</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">87.7</td><td class="n">64.6</td><td class="n">61.4</td><td class="n">70.6</td><td class="n">14.3</td><td class="n">51.6</td><td class="n">27.2</td><td class="n">21.1</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">92.6</td><td class="n">68.2</td><td class="n">80.7</td><td class="n">86.1</td><td class="n">58.2</td><td class="n">84.6</td><td class="n">44.6</td><td class="n">48.9</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">90.2</td><td class="n">69.6</td><td class="n">65.3</td><td class="n">74.1</td><td class="n">31.2</td><td class="n">80.3</td><td class="n">35.2</td><td class="n">30.6</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n">93.0</td><td class="n">70.0</td><td class="n">85.6</td><td class="n best">89.8</td><td class="n best">60.7</td><td class="n best">87.1</td><td class="n best">55.4</td><td class="n best">56.5</td></tr>
+</tbody></table></div>
+<p class="tcap">表 8（前四列，细粒度分类）和表 9（后四列，实例识别）合在一起。照录原文。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 正文里核对过、对得上的差值</span><p>为免逐条写，这里列出我核过且一致的：§6.2.1 比 DINOv2 的 R \(91.1-81.1=10.0\)、Sketch \(71.3-65.4=5.9\)（“+6”）、ObjectNet \(79.0-66.4=12.6\)（“+13”）；val 落后 \(89.1-88.4=0.7\) 和 \(89.3-88.4=0.9\)；iNat21 89.8 对 87.0。§6.2.2 Met \(55.4-44.6=10.8\)、AmsterTime \(56.5-48.9=7.6\)。§6.1.5 DAVIS-L \(83.3-76.6=6.7\)。§7.1 ViT-L ADE \(54.9-48.8=6.1\)（“超过 6”），ViT-B \(51.8-48.4=3.4\)（“约 3”）。§7.2 CNX-T \(42.7-24.8=17.9\)、CNX-L \(47.8-33.3=14.5\)、IN-ReAL \(86.6-87.3=-0.7\)。§8.2 MAE 2.4→2.2、3.4→3.2、2.42→2.02。</p></div>
+
+<h3 id="s6-3"><span class="no">6.3</span>作为复杂视觉系统的底座</h3>
+<p>前两节是“探针”式评测，排除了干扰但不足以展示上限。本节在冻结的 DINOv3 上训练较重的解码器，和专门的最强方法比：检测（Plain-DETR）、分割（Mask2Former）、单目深度（Depth Anything）、3D 理解（VGGT）。作者说这些只是探索。</p>
+<h4 id="s6-3-1"><span class="no">6.3.1</span>目标检测</h4>
+<p>在 <a class="ds" href="https://cocodataset.org/">COCO</a> val2017 上报 mAP，并在 <a class="ds" href="https://github.com/alibaba/easyrobust/tree/main/benchmarks/coco_o">COCO-O</a>（6 种分布偏移）上报 mAP 和有效鲁棒性 ER。COCO 只有 11.8 万张训练图，所以先在 <a class="ds" href="https://www.objects365.org/">Objects365</a> 上预训练解码器。改动：不把 Transformer 编码器融进骨干，而像原版 DETR 那样单独放，这样骨干训练和推理都完全冻结；作者说这是第一个用冻结骨干的有竞争力检测模型。训练：Objects365 上 1536 分辨率 22 个 epoch，再 2048 分辨率 1 个 epoch，然后 COCO 上 2048 分辨率 12 个 epoch；推理 2048；可选 TTA（1536 到 2880 多分辨率）。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>模型</th><th>检测器</th><th class="n">编码器</th><th class="n">解码器</th><th class="n">可训练</th><th class="n">COCO 单尺度</th><th class="n">COCO TTA</th><th class="n">COCO-O mAP</th><th class="n">ER</th></tr></thead><tbody>
+<tr><td>EVA-02</td><td>Cascade</td><td class="n">300M</td><td class="n">—</td><td class="n">300M</td><td class="n">64.1</td><td class="n">—</td><td class="n">63.6</td><td class="n">34.7</td></tr>
+<tr><td>InternImage-G</td><td>DINO</td><td class="n">6B</td><td class="n">—</td><td class="n">6B</td><td class="n">65.1</td><td class="n">65.3</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>EVA-02</td><td>Co-DETR</td><td class="n">300M</td><td class="n">—</td><td class="n">300M</td><td class="n">65.4</td><td class="n">65.9</td><td class="n">63.7</td><td class="n">34.3</td></tr>
+<tr><td>PE<sub>spatial</sub></td><td>DETA</td><td class="n">1.9B</td><td class="n">50M</td><td class="n">2B</td><td class="n">65.3</td><td class="n">66.0</td><td class="n">64.0</td><td class="n">34.7</td></tr>
+<tr><td>DINOv3</td><td>Plain-DETR</td><td class="n">7B</td><td class="n">100M</td><td class="n">100M</td><td class="n best">65.6</td><td class="n best">66.1</td><td class="n best">66.4</td><td class="n best">36.8</td></tr>
+</tbody></table></div>
+<p class="tcap">表 10 · 目标检测。照录原文。原表的 “FT”（是否微调骨干）一列只是勾选标记，PDF 文本层没有勾号，这里省去；按正文只有 DINOv3 不微调。InternImage-G 未发布，无法算 COCO-O。</p>
+<p>100M 参数的轻量检测器就到了最好水平，COCO-O 的优势更明显，可训练参数比所有对手都少（对手最少也 3 亿）。作者强调，一次骨干前向就能支撑多个任务，省算力。</p>
+<h4 id="s6-3-2"><span class="no">6.3.2</span>语义分割</h4>
+<p>ADE20k（150 类，2 万训练 / 2 千验证），训练时额外用 <a class="ds" href="https://github.com/nightrome/cocostuff">COCO-Stuff</a>（16.4 万张，171 类）和 <a class="ds" href="https://github.com/apple/ml-hypersim">Hypersim</a>（7.7 万张，40 类）。解码器是 ViT-Adapter + Mask2Former，但骨干冻结；为了不改骨干特征，去掉 ViT-Adapter 的 injector；嵌入维度从 1024 提到 2048 以接 4096 维输出。COCO-Stuff 8 万步 → Hypersim 1 万步 → ADE20k 2 万步，全程 896 分辨率。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">编码器</th><th class="n">解码器</th><th class="n">可训练</th><th class="n">单尺度</th><th class="n">TTA</th></tr></thead><tbody>
+<tr><td>BEIT3</td><td class="n">1.0B</td><td class="n">550M</td><td class="n">1.6B</td><td class="n">62.0</td><td class="n">62.8</td></tr>
+<tr><td>InternImage-H</td><td class="n">1.1B</td><td class="n">230M</td><td class="n">1.3B</td><td class="n">62.5</td><td class="n">62.9</td></tr>
+<tr><td>ONE-PEACE</td><td class="n">1.5B</td><td class="n">710M</td><td class="n">2.2B</td><td class="n">62.0</td><td class="n best">63.0</td></tr>
+<tr><td>DINOv3</td><td class="n">7B</td><td class="n">927M</td><td class="n">927M</td><td class="n best">62.6</td><td class="n best">63.0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 11 · ADE20k 语义分割（mIoU，896 分辨率）。照录原文。</p>
+<p>与 ONE-PEACE 并列 63.0，并在 COCO-Stuff 和 VOC 2012 上超过以前所有模型（附录表 24）。作者指出 16 像素的 patch 让预测粒度偏粗，所以才需要 ViT-Adapter；DINOv3 在 4096 输入下能给出 512 token 宽的特征图，希望以后能不靠重解码器。</p>
+<h4 id="s6-3-3"><span class="no">6.3.3</span>单目深度估计</h4>
+<p>沿用 Depth Anything V2（DAv2）：DPT 头接 DINOv3 四个等间隔层的特征，在 DAv2 的合成数据上用 DAv2 的损失训练，分辨率提到 1024 × 768。与 DAv2 不同，骨干冻结；DPT 头放大以发挥 7B 的大特征。零样本尺度不变设置，在 NYUv2、KITTI、<a class="ds" href="https://www.eth3d.net/">ETH3D</a>、<a class="ds" href="http://www.scan-net.org/">ScanNet</a>、<a class="ds" href="https://diode-dataset.org/">DIODE</a> 上报 ARel（↓）和 δ1（↑）。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="2" class="c">NYUv2</th><th colspan="2" class="c">KITTI</th><th colspan="2" class="c">ETH3D</th><th colspan="2" class="c">ScanNet</th><th colspan="2" class="c">DIODE</th></tr><tr><th class="n">ARel↓</th><th class="n">δ1↑</th><th class="n">ARel↓</th><th class="n">δ1↑</th><th class="n">ARel↓</th><th class="n">δ1↑</th><th class="n">ARel↓</th><th class="n">δ1↑</th><th class="n">ARel↓</th><th class="n">δ1↑</th></tr></thead><tbody>
+<tr><td>MiDaS</td><td class="n">11.1</td><td class="n">88.5</td><td class="n">23.6</td><td class="n">63.0</td><td class="n">18.4</td><td class="n">75.2</td><td class="n">12.1</td><td class="n">84.6</td><td class="n">33.2</td><td class="n">71.5</td></tr>
+<tr><td>LeReS</td><td class="n">9.0</td><td class="n">91.6</td><td class="n">14.9</td><td class="n">78.4</td><td class="n">17.1</td><td class="n">77.7</td><td class="n">9.1</td><td class="n">91.7</td><td class="n">27.1</td><td class="n">76.6</td></tr>
+<tr><td>Omnidata</td><td class="n">7.4</td><td class="n">94.5</td><td class="n">14.9</td><td class="n">83.5</td><td class="n">16.6</td><td class="n">77.8</td><td class="n">7.5</td><td class="n">93.6</td><td class="n">33.9</td><td class="n">74.2</td></tr>
+<tr><td>DPT</td><td class="n">9.8</td><td class="n">90.3</td><td class="n">10.0</td><td class="n">90.1</td><td class="n">7.8</td><td class="n">94.6</td><td class="n">8.2</td><td class="n">93.4</td><td class="n best">18.2</td><td class="n">75.8</td></tr>
+<tr><td>Marigold</td><td class="n">5.5</td><td class="n">96.4</td><td class="n">9.9</td><td class="n">91.6</td><td class="n">6.5</td><td class="n">96.0</td><td class="n">6.4</td><td class="n">95.1</td><td class="n">30.8</td><td class="n">77.3</td></tr>
+<tr><td>DAv2 (ViT-g)</td><td class="n">4.4</td><td class="n">97.9</td><td class="n">7.5</td><td class="n">94.7</td><td class="n">13.1</td><td class="n">86.5</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>DINOv3</td><td class="n best">4.3</td><td class="n best">98.0</td><td class="n best">7.3</td><td class="n best">96.7</td><td class="n best">5.4</td><td class="n best">97.5</td><td class="n best">4.4</td><td class="n best">98.1</td><td class="n">25.6</td><td class="n best">82.2</td></tr>
+</tbody></table></div>
+<p class="tcap">表 12 · 相对单目深度估计。照录原文。</p>
+<p>除 DIODE 的 ARel 不如 DPT 外全部最好，而且只有它的骨干冻结。这也说明 DINOv3 继承了 DINOv2 从合成数据迁移到真实数据的能力。</p>
+<h4 id="s6-3-4"><span class="no">6.3.4</span>VGGT 换上 DINOv3</h4>
+<p>VGGT 在大量 3D 标注数据上训练，一次前向估计相机内外参、点图和深度。原版用 DINOv2 ViT-L/14，这里换成 DINOv3 ViT-L/16，跑同样的训练流程（包括微调骨干），分辨率从 518 改成 592 以适配 patch 16。评测：<a class="ds" href="https://google.github.io/realestate10k/">Re10K</a> 和 <a class="ds" href="https://github.com/facebookresearch/co3d">CO3Dv2</a> 相机位姿（AUC@30）、<a class="ds" href="https://roboimagedata.compute.dtu.dk/">DTU</a> 多视图深度（Acc、Comp、Overall，越低越好）、ScanNet-1500 双视图匹配（AUC@5/@10）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th class="n">Re10K</th><th class="n">CO3Dv2</th><th>方法</th><th class="n">DTU Acc↓</th><th class="n">Comp↓</th><th class="n">Overall↓</th><th>方法</th><th class="n">AUC@5</th><th class="n">AUC@10</th></tr></thead><tbody>
+<tr><td>DUSt3R</td><td class="n">67.7</td><td class="n">76.7</td><td>Gipuma*</td><td class="n">0.283</td><td class="n">0.873</td><td class="n">0.578</td><td>SuperGlue</td><td class="n">16.2</td><td class="n">33.8</td></tr>
+<tr><td>MASt3R</td><td class="n">76.4</td><td class="n">81.8</td><td>CIDER*</td><td class="n">0.417</td><td class="n">0.437</td><td class="n">0.427</td><td>LoFTR</td><td class="n">22.1</td><td class="n">40.8</td></tr>
+<tr><td>VGGSfM v2</td><td class="n">78.9</td><td class="n">83.4</td><td>MASt3R*</td><td class="n">0.403</td><td class="n">0.344</td><td class="n">0.374</td><td>DKM</td><td class="n">29.4</td><td class="n">50.7</td></tr>
+<tr><td>CUT3R</td><td class="n">75.3</td><td class="n">82.8</td><td>GeoMVSNet*</td><td class="n">0.331</td><td class="n">0.259</td><td class="n">0.295</td><td>CasMTR</td><td class="n">27.1</td><td class="n">47.0</td></tr>
+<tr><td>FLARE</td><td class="n">78.8</td><td class="n">83.3</td><td>DUSt3R</td><td class="n">2.677</td><td class="n">0.805</td><td class="n">1.741</td><td>Roma</td><td class="n">31.8</td><td class="n">53.4</td></tr>
+<tr><td>VGGT</td><td class="n">85.3</td><td class="n">88.2</td><td>VGGT</td><td class="n">0.389</td><td class="n">0.374</td><td class="n">0.382</td><td>VGGT</td><td class="n">33.9</td><td class="n">55.2</td></tr>
+<tr><td>DINOv3</td><td class="n best">86.3</td><td class="n best">89.6</td><td>DINOv3</td><td class="n">0.375</td><td class="n">0.361</td><td class="n">0.368</td><td>DINOv3</td><td class="n best">35.2</td><td class="n best">56.1</td></tr>
+</tbody></table></div>
+<p class="tcap">表 13 · VGGT 中换用 DINOv3 ViT-L。三个子表 (a)(b)(c) 并排。* 表示使用真值相机。照录原文。</p>
+<p>三类任务都超过原 VGGT。作者预期换成 7B 还会更好。</p>
+
+<h2 id="s7"><span class="no">7</span>评测整个 DINOv3 模型家族</h2>
+<p>家族包括 ViT 和 ConvNeXt（CNX）两类，参数量和推理计算量见图 16a。§7.1 ViT，§7.2 ConvNeXt，§7.3 文本对齐的 ViT-L。</p>
+<figure class="pfig" id="fig16">
+<img src="dinov3/fig16.webp" width="1562" height="666" alt="图 16：左边是模型家族参数量和 GFLOPs 表，右边是 ViT-H+ 和 ViT-7B 在五个指标上的柱状对比" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 30 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=30">看原图 ↗</a></span>(a) 表格，数字录在下面。(b) 浅蓝 ViT-H+、深蓝 ViT-7B 的成对柱子：IN1k 87.9 / 88.4，ObjectNet 78.6 / 78.9，ReaL 90.3 / 90.3，ADE20k 54.8 / 55.9，Cityscapes 80.6 / 81.1（柱顶标注读数）。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>模型</th><th class="n">参数</th><th class="n">GFLOPs@256</th><th class="n">GFLOPs@512</th></tr></thead><tbody>
+<tr><td>CNX-Tiny</td><td class="n">29M</td><td class="n">5</td><td class="n">20</td></tr>
+<tr><td>CNX-Small</td><td class="n">50M</td><td class="n">11</td><td class="n">46</td></tr>
+<tr><td>CNX-Base</td><td class="n">89M</td><td class="n">20</td><td class="n">81</td></tr>
+<tr><td>CNX-Large</td><td class="n">198M</td><td class="n">38</td><td class="n">152</td></tr>
+<tr><td>ViT-S</td><td class="n">21M</td><td class="n">12</td><td class="n">63</td></tr>
+<tr><td>ViT-S+</td><td class="n">29M</td><td class="n">16</td><td class="n">79</td></tr>
+<tr><td><b>ViT-B</b>（OpenWAM 用的）</td><td class="n">86M</td><td class="n">47</td><td class="n">216</td></tr>
+<tr><td>ViT-L</td><td class="n">300M</td><td class="n">163</td><td class="n">721</td></tr>
+<tr><td>ViT-H+</td><td class="n">840M</td><td class="n">450</td><td class="n">1903</td></tr>
+<tr><td>ViT-7B</td><td class="n">6716M</td><td class="n">3550</td><td class="n">14515</td></tr>
+</tbody></table></div>
+<p class="tcap">图 16a · DINOv3 家族的参数量和推理 GFLOPs。照录原文。</p>
+
+<h3 id="s7-1"><span class="no">7.1</span>各种用途的 ViT</h3>
+<p>和同尺寸的 DINOv2、SigLIP 2、PE 比，输入 token 数对齐（patch 16 用 512，patch 14 用 448）。稠密任务上 DINOv3 一致更好：ViT-L 的 ADE20k 比 DINOv2 高 6 以上，ViT-B 比第二名高约 3，深度也一致更好；全局任务上也有竞争力。最大的学生 ViT-H+ 与 8 倍大的 7B 教师接近（图 16b）。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>尺寸</th><th>模型</th><th class="n">IN-ReaL</th><th class="n">IN-R</th><th class="n">Obj.</th><th class="n">Ox.-H</th><th class="n">ADE20k</th><th class="n">NYU↓</th><th class="n">DAVIS</th><th class="n">NAVI</th><th class="n">SPair</th></tr></thead><tbody>
+<tr><td>S</td><td>DINOv2</td><td class="n">87.3</td><td class="n">54.0</td><td class="n">47.8</td><td class="n">39.5</td><td class="n">45.5</td><td class="n">0.446</td><td class="n">73.6</td><td class="n">53.4</td><td class="n">51.6</td></tr>
+<tr><td>S</td><td>DINOv3</td><td class="n">87.0</td><td class="n">60.4</td><td class="n">50.9</td><td class="n">49.5</td><td class="n">47.0</td><td class="n">0.403</td><td class="n">72.7</td><td class="n">56.3</td><td class="n">50.4</td></tr>
+<tr><td>S+</td><td>DINOv3</td><td class="n">88.0</td><td class="n">68.8</td><td class="n">54.6</td><td class="n">50.0</td><td class="n">48.8</td><td class="n">0.399</td><td class="n">75.5</td><td class="n">57.1</td><td class="n">55.2</td></tr>
+<tr><td>B</td><td>PE<sub>core</sub></td><td class="n">87.5</td><td class="n">68.4</td><td class="n">57.9</td><td class="n">20.2</td><td class="n">37.4</td><td class="n">0.641</td><td class="n">44.5</td><td class="n">41.8</td><td class="n">13.7</td></tr>
+<tr><td>B</td><td>SigLIP 2</td><td class="n">89.3</td><td class="n">80.6</td><td class="n">66.9</td><td class="n">20.2</td><td class="n">41.6</td><td class="n">0.512</td><td class="n">63.2</td><td class="n">45.4</td><td class="n">32.8</td></tr>
+<tr><td>B</td><td>DINOv2</td><td class="n">89.0</td><td class="n">68.4</td><td class="n">57.3</td><td class="n">51.0</td><td class="n">48.4</td><td class="n">0.416</td><td class="n">72.9</td><td class="n">56.9</td><td class="n">57.1</td></tr>
+<tr><td><b>B</b></td><td><b>DINOv3</b></td><td class="n">89.3</td><td class="n">76.7</td><td class="n">64.1</td><td class="n">58.5</td><td class="n">51.8</td><td class="n">0.373</td><td class="n">77.2</td><td class="n">58.8</td><td class="n">57.2</td></tr>
+<tr><td>L</td><td>PE<sub>core</sub></td><td class="n">90.1</td><td class="n">87.7</td><td class="n">74.9</td><td class="n">25.6</td><td class="n">39.7</td><td class="n">0.650</td><td class="n">48.2</td><td class="n">42.1</td><td class="n">19.2</td></tr>
+<tr><td>L</td><td>SigLIP 2</td><td class="n">90.1</td><td class="n">89.2</td><td class="n">75.0</td><td class="n">21.4</td><td class="n">43.6</td><td class="n">0.484</td><td class="n">66.3</td><td class="n">47.8</td><td class="n">41.9</td></tr>
+<tr><td>L</td><td>DINOv2</td><td class="n">89.7</td><td class="n">79.1</td><td class="n">64.7</td><td class="n">55.7</td><td class="n">48.8</td><td class="n">0.394</td><td class="n">73.4</td><td class="n">59.9</td><td class="n">57.0</td></tr>
+<tr><td>L</td><td>DINOv3</td><td class="n">90.2</td><td class="n">88.1</td><td class="n">74.8</td><td class="n">63.1</td><td class="n">54.9</td><td class="n">0.352</td><td class="n">79.9</td><td class="n">62.3</td><td class="n">61.2</td></tr>
+<tr><td>SO400m</td><td>SigLIP 2</td><td class="n">90.3</td><td class="n">90.4</td><td class="n">76.2</td><td class="n">23.0</td><td class="n">44.0</td><td class="n">0.402</td><td class="n">64.8</td><td class="n">48.8</td><td class="n">38.7</td></tr>
+<tr><td>H+</td><td>DINOv3</td><td class="n">90.3</td><td class="n">90.0</td><td class="n">78.6</td><td class="n">64.5</td><td class="n">54.8</td><td class="n">0.352</td><td class="n">79.3</td><td class="n">63.3</td><td class="n">56.3</td></tr>
+</tbody></table></div>
+<p class="tcap">表 14 · DINOv3 家族与同尺寸开源模型。DAVIS 用 960 px。照录原文。ViT-B 这一组和 OpenWAM 相关，加粗。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 图 16 的数字能算出来；“近 10 倍”其实是 8 倍</span><p>GFLOPs 按“每个参数每个 token 2 次浮点运算，加注意力 \(4N^2d\) 每层”估算：ViT-B 在 256 输入时 \(N=256+5=261\)，\(2\times86{\rm M}\times261+12\times4\times261^2\times768=47.4\) GFLOPs；512 输入 \(N=1029\)，得 216.0。7B 在 256 和 512 时得 3550 和 14515。四个数都和图 16a 吻合，说明这里的 token 数包含 CLS 和 4 个 register。</p>
+<p>图 16 的图注说 ViT-H+“参数少了近 10 倍”，正文说 7B “大 8 倍”，按图 16a 是 \(6716/840=8.0\) 倍。另外图 16b 里 7B 的 ObjectNet 78.9、ReaL 90.3，和表 7 的 79.0、90.4 各差 0.1，可能是不同评测轮次。</p></div>
+<figure class="pfig" id="fig17">
+<img src="dinov3/fig17.webp" width="1491" height="1097" alt="图 17：ViT-S 到 ViT-H+ 五个模型在四种分辨率下猫的特征 PCA 着色" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 31 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=31">看原图 ↗</a></span>每行一个模型（S、S+、B、L、H+），每列一个分辨率（896 × 512 到 7168 × 4096）。PCA 在 1792 × 1024（112 × 64 个 token）上算，取第 5 到 7 主成分着色，再把所有分辨率投影上去。小模型到最大分辨率时颜色开始漂移（S+ 最明显），L 只在最右一列略有漂移，H+ 全程稳定。</figcaption>
+</figure>
+
+<h3 id="s7-2"><span class="no">7.2</span>资源受限场景的 ConvNeXt</h3>
+<p>ConvNeXt 计算量小，适合卷积硬件，也更容易量化。蒸馏出 T、S、B、L 四个尺寸，和在 ImageNet-22k 上有监督训练的原版 ConvNeXt 比。全局任务在 256 和 512 两种分辨率下测，ADE20k 用 512，NYU 用 640。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">尺寸</th><th rowspan="2">模型</th><th colspan="2" class="c">IN-ReaL</th><th colspan="2" class="c">IN-R</th><th colspan="2" class="c">Obj.</th><th rowspan="2" class="n">ADE20k</th><th rowspan="2" class="n">NYU↓</th></tr><tr><th class="n">256</th><th class="n">512</th><th class="n">256</th><th class="n">512</th><th class="n">256</th><th class="n">512</th></tr></thead><tbody>
+<tr><td>T</td><td>监督</td><td class="n">87.3</td><td class="n">83.0</td><td class="n">45.0</td><td class="n">33.0</td><td class="n">44.5</td><td class="n">27.1</td><td class="n">24.8</td><td class="n">0.666</td></tr>
+<tr><td>T</td><td>DINOv3</td><td class="n">86.6</td><td class="n">87.7</td><td class="n">73.7</td><td class="n">74.1</td><td class="n">52.6</td><td class="n">58.7</td><td class="n">42.7</td><td class="n">0.448</td></tr>
+<tr><td>S</td><td>监督</td><td class="n">88.9</td><td class="n">86.8</td><td class="n">52.8</td><td class="n">39.1</td><td class="n">50.8</td><td class="n">40.0</td><td class="n">22.6</td><td class="n">0.630</td></tr>
+<tr><td>S</td><td>DINOv3</td><td class="n">87.9</td><td class="n">88.7</td><td class="n">73.7</td><td class="n">74.1</td><td class="n">52.6</td><td class="n">58.7</td><td class="n">44.8</td><td class="n">0.432</td></tr>
+<tr><td>B</td><td>监督</td><td class="n">89.3</td><td class="n">87.8</td><td class="n">57.3</td><td class="n">46.2</td><td class="n">53.6</td><td class="n">46.5</td><td class="n">26.5</td><td class="n">0.596</td></tr>
+<tr><td>B</td><td>DINOv3</td><td class="n">88.5</td><td class="n">89.2</td><td class="n">77.2</td><td class="n">78.2</td><td class="n">56.2</td><td class="n">61.3</td><td class="n">46.3</td><td class="n">0.420</td></tr>
+<tr><td>L</td><td>监督</td><td class="n">89.6</td><td class="n">88.1</td><td class="n">58.4</td><td class="n">46.6</td><td class="n">55.0</td><td class="n">47.7</td><td class="n">33.3</td><td class="n">0.567</td></tr>
+<tr><td>L</td><td>DINOv3</td><td class="n">88.9</td><td class="n">89.4</td><td class="n">81.3</td><td class="n">82.4</td><td class="n">59.3</td><td class="n">65.2</td><td class="n">47.8</td><td class="n">0.403</td></tr>
+</tbody></table></div>
+<p class="tcap">表 15 · 蒸馏出的 ConvNeXt 与监督 ConvNeXt。照录原文。</p>
+<p>256 分辨率下分布内分类略落后监督版，512 时反过来：监督版明显退化，DINOv3 版随分辨率变好。分布外分类全面大幅领先，稠密任务提升很大（CNX-T +17.9 mIoU，CNX-L +14.5）。从有 CLS 的 Transformer 蒸馏到没有 CLS 的卷积网络，作者认为说明了蒸馏流程的通用性。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表 15 里 CNX-T 和 CNX-S 有四格一模一样</span><p>DINOv3 CNX-T 和 CNX-S 两行的 IN-R（256 / 512）和 ObjectNet（256 / 512）都是 73.7、74.1、52.6、58.7，逐格相同；而 IN-ReaL、ADE20k、NYU 三列两行都不同，B 和 L 也都随尺寸上升。四个数完全重合的概率很低，我认为其中一行是复制错误。正文没有引用这几格。</p></div>
+
+<h3 id="s7-3"><span class="no">7.3</span>基于 DINOv3 的 dino.txt 零样本推理</h3>
+<p>按 §5.3 给蒸馏出的 ViT-L 训练文本编码器，同时对齐 CLS 和输出 patch。全局评测：CLIP 协议的零样本分类（IN1k、A、R、ObjectNet）和 COCO2017 图文检索（Recall@1）。patch 级评测：开放词汇分割（ADE20k、Cityscapes，mIoU）。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th class="n">IN1k</th><th class="n">A</th><th class="n">R</th><th class="n">Obj.</th><th class="n">I→T</th><th class="n">T→I</th><th class="n">ADE20k</th><th class="n">Cityscapes</th></tr></thead><tbody>
+<tr><td>CLIP</td><td class="n">76.6</td><td class="n">77.5</td><td class="n">89.0</td><td class="n">72.3</td><td class="n">57.9</td><td class="n">37.1</td><td class="n">6.0</td><td class="n">11.5</td></tr>
+<tr><td>EVA-02-CLIP</td><td class="n">80.4</td><td class="n">82.9</td><td class="n">93.2</td><td class="n">78.5</td><td class="n">64.1</td><td class="n">47.9</td><td class="n">10.9</td><td class="n">14.1</td></tr>
+<tr><td>dino.txt</td><td class="n">81.6</td><td class="n">83.2</td><td class="n">88.8</td><td class="n">74.5</td><td class="n">62.5</td><td class="n">45.0</td><td class="n">19.2</td><td class="n">27.4</td></tr>
+<tr><td>SigLIP 2</td><td class="n">83.1</td><td class="n">84.3</td><td class="n best">95.7</td><td class="n">84.4</td><td class="n">71.4</td><td class="n">55.3</td><td class="n">10.8</td><td class="n">16.3</td></tr>
+<tr><td>PE</td><td class="n best">83.5</td><td class="n best">89.0</td><td class="n">95.2</td><td class="n best">84.7</td><td class="n best">75.9</td><td class="n best">57.1</td><td class="n">17.6</td><td class="n">21.4</td></tr>
+<tr><td>DINOv3 dino.txt</td><td class="n">82.3</td><td class="n">85.4</td><td class="n">93.0</td><td class="n">80.5</td><td class="n">63.7</td><td class="n">45.6</td><td class="n best">24.7</td><td class="n best">36.9</td></tr>
+</tbody></table></div>
+<p class="tcap">表 16 · 文本对齐的 ViT-L（序列长度都是 576）。照录原文。</p>
+<p>相比对齐 DINOv2 的 dino.txt 全面更好；全局对齐好于 CLIP 和 EVA-02-CLIP，略逊于 SigLIP 2 和 PE；稠密对齐明显最好。</p>
+
+<h2 id="s8"><span class="no">8</span>DINOv3 用于遥感数据</h2>
+<p>同一配方训练卫星图像版 7B，验证通用性。</p>
+<h3 id="s8-1"><span class="no">8.1</span>预训练数据和基准</h3>
+<p>SAT-493M：从 Maxar 0.6 米分辨率的正射 RGB 影像随机采 4.93 亿张 512 × 512 图块。超参与网页版相同，只改了 RGB 均值方差和训练长度：10 万步初始预训练（256 全局裁切）、1 万步 Gram 正则、8 千步 512 高分辨率微调，再蒸馏出 ViT-L。评测：冠层高度（自建 SatLidar，100 万张带 LiDAR 真值的 512 图块，8/1/1 划分，含 Tolan 等用过的 Neon 和圣保罗；以及 <a class="ds" href="https://github.com/fajwel/Open-Canopy">Open-Canopy</a>，覆盖法国 8.7 万平方公里的 SPOT 6-7 影像加 LiDAR，4 通道，所以把 patch 嵌入层三个通道权重的均值复制成第 4 通道）；语义任务用 <a class="ds" href="https://github.com/ServiceNow/geo-bench">GEO-Bench</a>（6 个分类 + 6 个分割）、<a class="ds" href="https://github.com/Junjue-Wang/LoveDA">LoveDA</a>、<a class="ds" href="https://captain-whu.github.io/iSAID/">iSAID</a>、<a class="ds" href="https://gcheng-nwpu.github.io/">DIOR</a>。</p>
+<h3 id="s8-2"><span class="no">8.2</span>冠层高度估计</h3>
+<p>冻结骨干上训 DPT 头。卫星版 7B 在 SatLidar 验证、测试和 Open-Canopy 上创新高（MAE 2.4→2.2、3.4→3.2、2.42→2.02）；蒸馏的卫星 ViT-L 与 7B 相当，在 Neon 上反而最好（2.4，7B 2.6，Tolan 等 2.9）。网页版 7B 也不错，但不如卫星版，作者认为物理量估计这类任务受益于领域专门预训练。</p>
+<details class="tbl"><summary>表 17 · 冠层高度预测（点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th rowspan="2">结构</th><th colspan="2" class="c">SatLidar Val</th><th colspan="2" class="c">SatLidar Test</th><th colspan="2" class="c">Neon Test</th><th colspan="2" class="c">São Paulo</th><th class="n">Open-Canopy</th></tr><tr><th class="n">MAE↓</th><th class="n">R²↑</th><th class="n">MAE↓</th><th class="n">R²↑</th><th class="n">MAE↓</th><th class="n">R²↑</th><th class="n">MAE↓</th><th class="n">R²↑</th><th class="n">MAE↓</th></tr></thead><tbody>
+<tr><td>Tolan 等 (2024)*</td><td>ViT-L</td><td class="n">2.8</td><td class="n">0.86</td><td class="n">4.0</td><td class="n">0.61</td><td class="n">2.7</td><td class="n">0.73</td><td class="n">5.4</td><td class="n">0.42</td><td class="n">—</td></tr>
+<tr><td>Tolan 等 (2024)</td><td>ViT-L</td><td class="n">2.4</td><td class="n">0.90</td><td class="n">3.4</td><td class="n">0.81</td><td class="n">2.9</td><td class="n">0.69</td><td class="n">5.4</td><td class="n">0.48</td><td class="n">2.42</td></tr>
+<tr><td>DINOv3 Web</td><td>ViT-7B</td><td class="n">2.4</td><td class="n">0.90</td><td class="n">3.6</td><td class="n">0.74</td><td class="n">2.7</td><td class="n">0.75</td><td class="n">5.9</td><td class="n">0.34</td><td class="n">2.17</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-L</td><td class="n">2.2</td><td class="n">0.91</td><td class="n">3.2</td><td class="n">0.81</td><td class="n">2.4</td><td class="n">0.81</td><td class="n">5.8</td><td class="n">0.42</td><td class="n">2.07</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-7B</td><td class="n">2.2</td><td class="n">0.92</td><td class="n">3.2</td><td class="n">0.82</td><td class="n">2.6</td><td class="n">0.74</td><td class="n">5.5</td><td class="n">0.51</td><td class="n">2.02</td></tr>
+</tbody></table></div>
+<p class="tcap">* 为 Tolan 等原版在 Neon 上训练的解码器。照录原文。</p>
+</details>
+<h3 id="s8-3"><span class="no">8.3</span>与遥感前沿方法比较</h3>
+<p>冻结的卫星版和网页版 DINOv3 在 15 项分类、分割、水平框检测任务中的 12 项上创新高。GEO-Bench 上超过使用 6 个以上波段并做任务微调的 Prithvi-v2 和 DOFA，而 DINOv3 只用 RGB、骨干冻结。网页版 7B 在多数 GEO-Bench 任务和高分辨率分割、检测上也很强，LoveDA 和 DIOR 上领先。作者的结论：度量类任务（如冠层高度）领域专门预训练有利，语义类任务通用模型更好。</p>
+<figure class="pfig" id="fig18">
+<img src="dinov3/fig18.webp" width="1600" height="366" alt="图 18：一张 Chesapeake 航拍图，DINOv2 与 DINOv3 的 PCA、分割结果和冠层高度图" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 35 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=35">看原图 ↗</a></span>同一张航拍图：DINOv2 的 PCA 有大片噪点，DINOv3 的 PCA 边界更细；分割只用 GEO-Bench chesapeake 的标签训练；冠层高度解码器在 Open-Canopy（RGB + 红外）上训练，推理只给 RGB。</figcaption>
+</figure>
+<details class="tbl"><summary>表 18、表 19 · GEO-Bench 和高分辨率遥感任务（点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>结构</th><th>波段</th><th class="n">m-BEnet</th><th class="n">m-brick-kiln</th><th class="n">m-eurosat</th><th class="n">m-forestnet</th><th class="n">m-pv4ger</th><th class="n">m-so2sat</th><th class="n">均值</th></tr></thead><tbody>
+<tr><td>DOFA</td><td>ViT-L</td><td>all</td><td class="n">68.7</td><td class="n">98.4</td><td class="n">96.6</td><td class="n">55.7</td><td class="n">98.2</td><td class="n">61.6</td><td class="n">79.9</td></tr>
+<tr><td>Prithvi-v2 最佳</td><td>ViT-L/H</td><td>all</td><td class="n">71.2</td><td class="n best">98.8</td><td class="n">96.4</td><td class="n">54.1</td><td class="n">98.1</td><td class="n">59.1</td><td class="n">79.6</td></tr>
+<tr><td>Tolan 等</td><td>ViT-L</td><td>RGB</td><td class="n">66.0</td><td class="n">97.1</td><td class="n">95.2</td><td class="n">56.3</td><td class="n">94.3</td><td class="n">58.1</td><td class="n">77.8</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-L</td><td>RGB</td><td class="n">73.0</td><td class="n">96.5</td><td class="n">94.1</td><td class="n">60.6</td><td class="n">96.0</td><td class="n">57.4</td><td class="n">79.6</td></tr>
+<tr><td>DINOv3 Sat</td><td>7B</td><td>RGB</td><td class="n">74.0</td><td class="n">97.2</td><td class="n">94.8</td><td class="n best">62.3</td><td class="n">96.1</td><td class="n">62.1</td><td class="n">81.1</td></tr>
+<tr><td>DINOv3 Web</td><td>7B</td><td>RGB</td><td class="n best">74.6</td><td class="n">97.7</td><td class="n best">97.0</td><td class="n">57.9</td><td class="n best">98.3</td><td class="n best">63.8</td><td class="n best">81.6</td></tr>
+</tbody></table></div>
+<p class="tcap">表 18a · GEO-Bench 分类。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>结构</th><th>波段</th><th class="n">m-cashew*</th><th class="n">m-chesapeake</th><th class="n">m-NeonTree</th><th class="n">m-nz-cattle</th><th class="n">m-pv4ger-seg</th><th class="n">m-SA-crop</th><th class="n">均值</th></tr></thead><tbody>
+<tr><td>DOFA</td><td>ViT-L</td><td>all</td><td class="n">81.2</td><td class="n">61.6</td><td class="n">58.5</td><td class="n">77.4</td><td class="n">95.1</td><td class="n">35.7</td><td class="n">68.3</td></tr>
+<tr><td>Prithvi-v2 最佳</td><td>ViT-L/H</td><td>all</td><td class="n">90.2</td><td class="n">69.4</td><td class="n">59.1</td><td class="n">81.0</td><td class="n">95.3</td><td class="n best">41.9</td><td class="n">72.8</td></tr>
+<tr><td>Tolan 等</td><td>ViT-L</td><td>RGB</td><td class="n">92.8</td><td class="n">73.7</td><td class="n">58.1</td><td class="n">83.1</td><td class="n">94.7</td><td class="n">35.1</td><td class="n">72.9</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-L</td><td>RGB</td><td class="n">94.2</td><td class="n">75.6</td><td class="n">61.8</td><td class="n best">83.7</td><td class="n">95.2</td><td class="n">36.8</td><td class="n">74.5</td></tr>
+<tr><td>DINOv3 Sat</td><td>7B</td><td>RGB</td><td class="n">94.1</td><td class="n best">76.6</td><td class="n">62.6</td><td class="n">83.4</td><td class="n">95.5</td><td class="n">37.6</td><td class="n">75.0</td></tr>
+<tr><td>DINOv3 Web</td><td>7B</td><td>RGB</td><td class="n best">96.0</td><td class="n">76.5</td><td class="n best">66.4</td><td class="n best">83.7</td><td class="n best">95.9</td><td class="n">36.8</td><td class="n best">75.9</td></tr>
+</tbody></table></div>
+<p class="tcap">表 18b · GEO-Bench 分割。* 按 Szwarcman 等转换成 6 类。照录原文；均值我逐行重算过，都对得上（四舍五入差 0.05 以内）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>结构</th><th class="n">LoveDA</th><th class="n">iSAID</th><th class="n">DIOR</th></tr></thead><tbody>
+<tr><td>此前最好</td><td>—</td><td class="n">54.4（BillionFM, ViT-G）</td><td class="n best">71.9（SkySense V2, Swin-G*）</td><td class="n">79.5（SkySense V2, Swin-G*）</td></tr>
+<tr><td>解码器</td><td>—</td><td class="n">UPerNet</td><td class="n">UPerNet</td><td class="n">Faster-RCNN</td></tr>
+<tr><td>Prithvi-v2</td><td>ViT-H</td><td class="n">52.2</td><td class="n">62.8</td><td class="n">—</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-L</td><td class="n">54.4</td><td class="n">62.9</td><td class="n">72.7</td></tr>
+<tr><td>DINOv3 Sat</td><td>ViT-7B</td><td class="n">55.3</td><td class="n">64.8</td><td class="n">76.6</td></tr>
+<tr><td>DINOv3 Web</td><td>ViT-7B</td><td class="n best">56.2</td><td class="n">71.4</td><td class="n best">80.5</td></tr>
+</tbody></table></div>
+<p class="tcap">表 19 · 高分辨率遥感语义任务（LoveDA 1024、iSAID 896 mIoU，DIOR 800 mAP）。* 用了改进的 DINOv2 SSL 加 OpenStreetMap 监督对齐，iSAID 上报告 +0.8 mIoU。照录原文。</p>
+</details>
+<div class="note" id="n17"><span class="lab">读者注 17 · “15 项中 12 项”数得出来</span><p>逐列取 DINOv3 三个版本中最好的和对手最好的比：GEO-Bench 分类 6 项赢 5 项（m-brick-kiln 97.7 &lt; Prithvi 98.8）；分割 6 项赢 5 项（m-SA-crop 37.6 &lt; 41.9）；LoveDA、iSAID、DIOR 赢 2 项（iSAID 71.4 &lt; 71.9）。合计 12/15，和正文一致。“卫星版在 6 个分割任务中赢 5 个”也成立（同样只输 SA-crop）。</p></div>
+<figure class="pfig" id="fig19">
+<img src="dinov3/fig19.webp" width="1600" height="444" alt="图 19：Open-Canopy 一张影像，Tolan 等的改进模型、DINOv3 卫星模型的冠层高度预测和真值" loading="lazy">
+<figcaption><span class="lab">图 19 · 原文第 36 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=36">看原图 ↗</a></span>一块有赛马场的乡村影像。两个模型的解码器都在 448 × 448 上训练。作者指出 DINOv3 卫星模型对田间零星树木的高度更准，更接近右边的 LiDAR 真值。</figcaption>
+</figure>
+
+<h2 id="s9"><span class="no">9</span>环境影响</h2>
+<p>沿用 Touvron 等的方法：PUE 1.1，美国平均碳强度 0.385 kg CO₂eq/kWh，GPU 功耗按热设计功耗（A100 400 W，H100 700 W）。训练一个 DINOv3 7B 约 47 MWh，相当于一辆普通电动车开 24 万公里。整个项目粗估 900 万 GPU 小时，约 2600 吨 CO₂eq，大约是巴黎到纽约一天全部航班（按每天 12 班波音 777 往返、每班约 560 吨）的一半；只算 GPU 用电，不含制冷、制造和报废。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th>结构</th><th>GPU</th><th class="n">功率</th><th class="n">步数</th><th class="n">GPU 小时</th><th class="n">PUE</th><th class="n">电量 (MWh)</th><th class="n">排放 (tCO₂eq)</th></tr></thead><tbody>
+<tr><td>MetaCLIP</td><td>ViT-G</td><td>A100-40GB</td><td class="n">400W</td><td class="n">390k</td><td class="n">368,640</td><td class="n">1.1</td><td class="n">160</td><td class="n">62</td></tr>
+<tr><td>DINOv2</td><td>ViT-g</td><td>A100-40GB</td><td class="n">400W</td><td class="n">625k</td><td class="n">22,016</td><td class="n">1.1</td><td class="n">9.7</td><td class="n">3.7</td></tr>
+<tr><td>DINOv3</td><td>ViT-7B</td><td>H100-SXM5</td><td class="n">700W</td><td class="n">1,000k</td><td class="n">61,440</td><td class="n">1.1</td><td class="n">47</td><td class="n">18</td></tr>
+</tbody></table></div>
+<p class="tcap">表 20 · 复现一次完整预训练的碳排放。照录原文。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 表 20 的算术</span><p>DINOv3：\(61{,}440\times0.7\,{\rm kW}\times1.1=47.3\) MWh，\(\times0.385=18.2\) t；DINOv2：9.7 MWh、3.7 t；MetaCLIP：162.2 MWh、62.4 t（表里写 160）。全项目：\(9\times10^6\times0.7\times1.1\times0.385=2668\) t（按全部 H100 算），对应“约 2600 t”。按 §3.2 的 256 张 GPU，61,440 GPU 小时是 240 小时、约 10 天跑完 100 万步，约每秒 1.16 步（我的推算，假设全程 256 张 H100）。注意 61,440 只覆盖第一阶段的 100 万步，不含 Gram 精修、高分辨率适配和蒸馏。</p></div>
+
+<h2 id="s10"><span class="no">10</span>结论</h2>
+<p>作者总结：通过数据、规模和优化的细致设计，DINOv3 展示了无需人工标注的自监督学习的能力；Gram anchoring 缓解了长训练下稠密特征退化；配合高分辨率后训练和蒸馏，在不微调图像编码器的前提下在大量视觉任务上达到最好，并提供适应不同资源约束的一整套模型。</p>
+
+<h2 id="apA">附录 A　大规模训练中的伪影和异常值</h2>
+<p>借用 An 等（LLM 领域）的定义：异常值是明显偏离分布均值的激活。DINOv3 训练中在 patch 层面和特征维度层面都看到了异常值。</p>
+<h3 id="apA-1">A.1　高范数 patch 异常值</h3>
+<p><b>结论：</b>试了三种办法，4 个 register 最好，于是全文采用。</p>
+<p>Darcet 等发现 DINOv2 里有高范数 patch，多在低信息的背景区域，承担 patch 和 CLS 之间的内部通信；CLIP 等也有。放大到 7B 时同样出现。这里用训练 15 万步的 7B 做初步比较（图 20）。</p>
+<p><b>Register token。</b>在输入序列里加几个额外 token 接管这份通信。按 Darcet 等的结论用 4 个，因成本高没做更多消融。</p>
+<p><b>在注意力里加偏置。</b>从 An 等的方案里选了两个改动小的：value gating（在注意力输出上加可学习偏置 \(\mathbf v'\in\mathbb R^d\)）和 attention bias（给 key、value 各拼一个可学习向量）：</p>
+<div class="eq"><div class="m">\[ \mathrm{Attn}(Q,K,V;\mathbf k',\mathbf v')=\mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt d}\right)V+\mathbf v' \]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[ \mathrm{Attn}(Q,K,V;\mathbf k',\mathbf v')=\mathrm{softmax}\!\left(\frac{Q\,[K^{\top}\ \mathbf k']}{\sqrt d}\right)\begin{bmatrix}V\\ \mathbf v'^{\top}\end{bmatrix} \]</div><span class="no">(5)</span></div>
+<p>value gating 让 patch 范数整体变高、明显异常值消失；attention bias 缓解但没根除。表现最好的是 register。</p>
+<figure class="pfig" id="fig20">
+<img src="dinov3/fig20.webp" width="1600" height="702" alt="图 20：左边是不同异常值处理策略下的 patch 范数分布和范数热图，右边是 IN1k 和 ADE20k 的数值" loading="lazy">
+<figcaption><span class="lab">图 20 · 原文第 54 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=54">看原图 ↗</a></span>(a) 第一行是三张图输出 patch 范数排序后的分布，下面两行是每个 patch 的范数热图（每行共用色标）。不处理（∅）时天空等背景里有黄色高范数点，4 个 register 时消失，value gating 整体变亮。(b) 右表：IN1k 线性 / ADE20k mIoU 分别是 ∅ 86.4 / 53.2，4 Registers 86.6 / 53.0，Attention Bias 86.5 / 52.7，Value Gating 86.3 / 52.2。</figcaption>
+</figure>
+<div class="note" id="n20b"><span class="lab">读者注 · 图 20b 并不支持“register 全面最好”</span><p>图 20b 里 ADE20k 最高的是不做任何处理的 ∅（53.2），4 Registers 是 53.0；register 只在 IN1k 上最高（86.6 对 86.4）。正文说“最好的表现来自 register”，只对分类成立。差距都在 0.2 以内，而且只训了 15 万步，作者自己也说只是初步信号。（这条不编号，因为只是对图表的读法。）</p></div>
+<h3 id="apA-2">A.2　特征维度异常值</h3>
+<p><b>结论：</b>少数通道数值特别大，用最后的 LayerNorm（或 BatchNorm）处理后再用；中间层要另行归一化。</p>
+<p>加 register 解决了高范数 patch，但 7B 训练中又出现另一类：少数特征维度在所有 patch、所有图片上都异常大，随层数加深而变大，在输出层最大，并随训练变大。训练时用 L2 正则压制它们会掉性能，说明训练中有用；推理时删掉影响不大，说明携带的信息很少。最后的 LayerNorm 学会了大幅压低这些维度，所以<b>建议下游用最后一层特征时先过最后的 LayerNorm</b>；因为这些维度跨 patch 和图片一致，BatchNorm 也能压掉。用中间层时要小心：最后的 LayerNorm 的参数不一定适合中间层，作者在部分任务上看到性能下降，这时用 BatchNorm 或 PCA 之类的标准缩放更好；他们的分割（§6.3.2）和深度（§6.3.3）就是对中间层加了 BatchNorm。</p>
+
+<h2 id="apB">附录 B　补充结果</h2>
+<h3 id="apB-1">B.1　历年演进</h3>
+<details class="tbl"><summary>表 21 · 图 1a 用到的数字（点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>年份</th><th class="n">监督</th><th>出处</th><th class="n">弱监督</th><th>出处</th><th class="n">自监督</th><th>出处</th></tr></thead><tbody>
+<tr><td>2012</td><td class="n">59.3</td><td>Krizhevsky 等</td><td class="n"></td><td></td><td class="n"></td><td></td></tr>
+<tr><td>2015</td><td class="n">78.6</td><td>He 等 (2016)</td><td class="n">34.9</td><td>Joulin 等</td><td class="n"></td><td></td></tr>
+<tr><td>2017</td><td class="n">80.9</td><td>Xie 等</td><td class="n"></td><td></td><td class="n"></td><td></td></tr>
+<tr><td>2018</td><td class="n"></td><td></td><td class="n">83.6</td><td>Mahajan 等</td><td class="n">38.2</td><td>Caron 等 (2018)</td></tr>
+<tr><td>2019</td><td class="n">84.3</td><td>Tan 和 Le</td><td class="n"></td><td></td><td class="n">68.6</td><td>He 等 (2020)</td></tr>
+<tr><td>2020</td><td class="n">87.5</td><td>Kolesnikov 等</td><td class="n"></td><td></td><td class="n">75.3</td><td>Caron 等 (2020)</td></tr>
+<tr><td>2021</td><td class="n">88.6</td><td>Dosovitskiy 等</td><td class="n">88.4</td><td>Radford 等</td><td class="n">82.3</td><td>Zhou 等 (2021)</td></tr>
+<tr><td>2023</td><td class="n">89.5</td><td>Dehghani 等</td><td class="n"></td><td></td><td class="n">86.5</td><td>Oquab 等 (2024)</td></tr>
+<tr><td>2025</td><td class="n"></td><td></td><td class="n">89.3</td><td>Bolya 等</td><td class="n">88.4</td><td>本文</td></tr>
+</tbody></table></div>
+<p class="tcap">表 21 · 每种范式最大模型的 ImageNet top-1（弱监督和自监督为线性探针），年份按 arXiv 首次出现。原表 2013、2014、2016、2022、2024 行为空，这里省去。照录原文。</p>
+</details>
+<h3 id="apB-2">B.2　逐层分析</h3>
+<p>用 7B 各层特征测分类、分割、深度、跟踪、3D 对应。分类和分割随层数平滑上升；深度、跟踪、3D 对应在第 32 层附近达到峰值，几何类任务用较早的层可能更好。但中间层只比最后一层好一点，最后一层是好的默认选择。</p>
+<figure class="pfig" id="fig21">
+<img src="dinov3/fig21.webp" width="1600" height="892" alt="图 21：五个子图，分类、分割、深度、跟踪、3D 对应随层数变化" loading="lazy">
+<figcaption><span class="lab">图 21 · 原文第 56 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=56">看原图 ↗</a></span>(a) 三条分类曲线从第 0 层的个位数一路升到 40 层，ObjectNet 起步最晚；(b) ADE20k 从 0 升到约 55；(c) NYU RMSE 在约第 30 层最低（约 0.28），最后几层略回升；(d) DAVIS 在 30 到 35 层最高约 85，最后一层降到约 83；(e) NAVI 在约 33 层最高约 65。读数是我目测的。</figcaption>
+</figure>
+<h3 id="apB-3">B.3　主结果的补充</h3>
+<details class="tbl"><summary>表 22（Fine-S 逐数据集）、表 23（实例识别全指标）、表 24（其他分割数据集）（点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>ViT</th><th class="n">Food</th><th class="n">C10</th><th class="n">C100</th><th class="n">SUN</th><th class="n">Cars</th><th class="n">Aircr.</th><th class="n">VOC</th><th class="n">DTD</th><th class="n">Pets</th><th class="n">Cal101</th><th class="n">Flowers</th><th class="n">CUB</th><th class="n">Avg</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/14</td><td class="n">96.5</td><td class="n">99.5</td><td class="n">95.0</td><td class="n">82.8</td><td class="n">95.4</td><td class="n">91.7</td><td class="n">90.3</td><td class="n">88.6</td><td class="n">96.7</td><td class="n">98.8</td><td class="n">99.7</td><td class="n">91.5</td><td class="n">93.9</td></tr>
+<tr><td>SigLIP</td><td>g/16</td><td class="n">97.7</td><td class="n">99.3</td><td class="n">92.7</td><td class="n">85.1</td><td class="n">96.5</td><td class="n">88.7</td><td class="n">91.0</td><td class="n">87.7</td><td class="n">98.7</td><td class="n">90.3</td><td class="n">99.7</td><td class="n">90.3</td><td class="n">93.7</td></tr>
+<tr><td>PE-core</td><td>G/14</td><td class="n">97.8</td><td class="n">99.5</td><td class="n">95.3</td><td class="n">85.2</td><td class="n">96.5</td><td class="n">92.0</td><td class="n">90.5</td><td class="n">88.2</td><td class="n">98.7</td><td class="n">93.3</td><td class="n">99.5</td><td class="n">93.3</td><td class="n">94.5</td></tr>
+<tr><td>AIMv2</td><td>3B/14</td><td class="n">96.6</td><td class="n">99.3</td><td class="n">93.3</td><td class="n">83.4</td><td class="n">95.6</td><td class="n">84.2</td><td class="n">90.5</td><td class="n">87.4</td><td class="n">96.8</td><td class="n">90.7</td><td class="n">99.7</td><td class="n">90.7</td><td class="n">92.9</td></tr>
+<tr><td>EVA CLIP</td><td>18B/14</td><td class="n">96.9</td><td class="n">99.5</td><td class="n">95.4</td><td class="n">85.0</td><td class="n">95.4</td><td class="n">81.6</td><td class="n">90.2</td><td class="n">87.1</td><td class="n">98.4</td><td class="n">90.6</td><td class="n">99.6</td><td class="n">90.6</td><td class="n">92.9</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">89.2</td><td class="n">98.6</td><td class="n">90.4</td><td class="n">73.7</td><td class="n">89.7</td><td class="n">74.1</td><td class="n">89.4</td><td class="n">80.6</td><td class="n">93.2</td><td class="n">97.6</td><td class="n">97.8</td><td class="n">78.4</td><td class="n">87.7</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">95.6</td><td class="n">99.5</td><td class="n">94.5</td><td class="n">78.9</td><td class="n">94.6</td><td class="n">88.5</td><td class="n">88.4</td><td class="n">86.8</td><td class="n">96.8</td><td class="n">95.9</td><td class="n">99.7</td><td class="n">91.6</td><td class="n">92.6</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">96.1</td><td class="n">99.5</td><td class="n">93.4</td><td class="n">77.5</td><td class="n">95.0</td><td class="n">88.8</td><td class="n">87.0</td><td class="n">79.9</td><td class="n">92.9</td><td class="n">93.1</td><td class="n">99.6</td><td class="n">78.9</td><td class="n">90.2</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n">96.9</td><td class="n">99.6</td><td class="n">96.0</td><td class="n">81.1</td><td class="n">95.0</td><td class="n">88.2</td><td class="n">88.2</td><td class="n">87.2</td><td class="n">97.0</td><td class="n">94.8</td><td class="n">99.7</td><td class="n">92.4</td><td class="n">93.0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 22 · Fine-S 12 个数据集逐项（线性探针）。照录原文，包括下面读者注 19 指出的可疑格。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>ViT</th><th class="n">Oxford M</th><th class="n">Oxford H</th><th class="n">Paris M</th><th class="n">Paris H</th><th class="n">Met GAP</th><th class="n">GAP-</th><th class="n">ACC</th><th class="n">AmsterTime mAP</th></tr></thead><tbody>
+<tr><td>AM-RADIOv2.5</td><td>g/16</td><td class="n">72.8</td><td class="n">50.7</td><td class="n">93.3</td><td class="n">85.3</td><td class="n">30.5</td><td class="n">65.9</td><td class="n">69.0</td><td class="n">46.7</td></tr>
+<tr><td>SigLIPv2</td><td>g/16</td><td class="n">49.3</td><td class="n">25.1</td><td class="n">79.3</td><td class="n">60.9</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">0.2</td><td class="n">15.5</td></tr>
+<tr><td>PE-core</td><td>G/14</td><td class="n">57.4</td><td class="n">32.7</td><td class="n">83.6</td><td class="n">68.9</td><td class="n">10.6</td><td class="n">34.8</td><td class="n">44.9</td><td class="n">23.1</td></tr>
+<tr><td>AIMv2</td><td>3B/14</td><td class="n">55.0</td><td class="n">28.8</td><td class="n">85.6</td><td class="n">71.4</td><td class="n">29.5</td><td class="n">67.3</td><td class="n">69.9</td><td class="n">23.1</td></tr>
+<tr><td>EvaCLIP</td><td>18B/14</td><td class="n">55.2</td><td class="n">27.1</td><td class="n">81.8</td><td class="n">65.6</td><td class="n">0.5</td><td class="n">4.3</td><td class="n">11.0</td><td class="n">18.9</td></tr>
+<tr><td>Franca</td><td>g/14</td><td class="n">44.6</td><td class="n">14.3</td><td class="n">73.8</td><td class="n">51.6</td><td class="n">27.2</td><td class="n">54.3</td><td class="n">57.7</td><td class="n">21.1</td></tr>
+<tr><td>DINOv2</td><td>g/14</td><td class="n">78.2</td><td class="n">58.2</td><td class="n">92.7</td><td class="n">84.6</td><td class="n">44.6</td><td class="n">73.0</td><td class="n">75.2</td><td class="n">48.9</td></tr>
+<tr><td>Web-DINO</td><td>7B/14</td><td class="n">64.1</td><td class="n">31.2</td><td class="n">89.8</td><td class="n">80.3</td><td class="n">35.2</td><td class="n">67.3</td><td class="n">71.3</td><td class="n">30.6</td></tr>
+<tr><td>DINOv3</td><td>7B/16</td><td class="n">81.1</td><td class="n">60.7</td><td class="n">93.3</td><td class="n">87.1</td><td class="n">55.4</td><td class="n">77.7</td><td class="n">80.7</td><td class="n">56.5</td></tr>
+</tbody></table></div>
+<p class="tcap">表 23 · 实例识别全指标。照录原文。注意这里 AM-RADIOv2.5 写作 g/16，表 9 写 g/14；AIMv2 的 AmsterTime 是 23.1，表 9 是 14.6。两处表间不一致，原文如此。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th class="n">COCO-Stuff 单</th><th class="n">TTA</th><th class="n">Cityscapes 单</th><th class="n">TTA</th><th class="n">VOC 2012 单</th><th class="n">TTA</th></tr></thead><tbody>
+<tr><td>此前最好</td><td class="n">53.7</td><td class="n">53.7</td><td class="n best">86.3</td><td class="n best">87.0</td><td class="n">—</td><td class="n">90.0</td></tr>
+<tr><td>DINOv3（冻结）</td><td class="n best">53.8</td><td class="n best">54.0</td><td class="n">86.1</td><td class="n">86.7</td><td class="n best">90.1</td><td class="n best">90.4</td></tr>
+</tbody></table></div>
+<p class="tcap">表 24 · 其他分割数据集（输入 1280 / 1280 / 1024），对手都微调了骨干。照录原文。</p>
+</details>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 22 的 Caltech101 列对 4 个弱监督模型像是抄了 CUB 列</span><p>SigLIP、PE-core、AIMv2、EVA CLIP 四行的 Cal101 和 CUB 两格完全相同（90.3/90.3、93.3/93.3、90.7/90.7、90.6/90.6），其他五行都不同。再按 12 列重算平均：SigLIP 93.14（表里 93.7）、PE-core 94.15（94.5）、AIMv2 92.35（92.9）、EVA CLIP 92.53（92.9）都对不上；其余五行（AM-RADIO 93.88、Franca 87.73、DINOv2 92.57、Web-DINO 90.14、DINOv3 93.01）都对得上。反推让平均值成立的 Cal101 分别约 97.0、97.5、97.3、95.1，和其他模型 94 到 99 的 Cal101 同一量级。所以很可能是这一列填错，平均值是按正确数算的。表 8 的 Fine-S 引用的是表里的平均值。</p></div>
+<div class="note" id="n23b"><span class="lab">读者注 · 表 23 与表 9 的两处出入</span><p>见表 23 下方说明：AIMv2 的 AmsterTime 在表 9 是 14.6，表 23 是 23.1（23.1 恰好也是 AM-RADIO 和 PE-core 的值，像是串行）；AM-RADIOv2.5 的 patch 在表 9 是 14、表 23 是 16。不影响 DINOv3 的结论。（这条不编号。）</p></div>
+<h3 id="apB-4">B.4　文字密集的分类数据集</h3>
+<p>街道标志、商标、商品分类需要认字。7B 用 512 分辨率，其他按 patch 大小对齐序列长度。DINOv3 远好于 DINOv2，但和弱监督的 PE-core 仍差很多，因为没有图文数据，学不到字形关联；作者把它留给以后。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">GTSRB</th><th class="n">Logo-2K+</th><th class="n">FlickrLogos-32</th><th class="n">RP2K</th><th class="n">Products-10K</th><th class="n">SOProducts</th></tr></thead><tbody>
+<tr><td>DINOv2 ViT-g</td><td class="n">78.2</td><td class="n">52.9</td><td class="n">83.6</td><td class="n">91.4</td><td class="n">70.8</td><td class="n">57.6</td></tr>
+<tr><td>PE-core ViT-G</td><td class="n best">94.8</td><td class="n best">93.2</td><td class="n best">99.0</td><td class="n">93.1</td><td class="n best">80.6</td><td class="n best">80.7</td></tr>
+<tr><td>DINOv3 ViT-7B</td><td class="n">87.5</td><td class="n">86.0</td><td class="n">86.3</td><td class="n best">94.7</td><td class="n">74.5</td><td class="n">65.2</td></tr>
+</tbody></table></div>
+<p class="tcap">表 25 · 文字密集数据集分类。照录原文。</p>
+<h3 id="apB-5">B.5　公平性分析</h3>
+<p>按 Goyal 等的协议看不同收入和地区。DINOv3 在各收入段较一致，但低收入段比高收入段低约 23%；地区间欧洲和非洲的相对差超过 14%，比 DINOv2 的 17% 有改善。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>结构</th><th class="n">低收入</th><th class="n">中</th><th class="n">高</th><th class="n">非洲</th><th class="n">亚洲</th><th class="n">美洲</th><th class="n">欧洲</th></tr></thead><tbody>
+<tr><td>SEERv2</td><td>RG-10B</td><td class="n">59.7</td><td class="n">78.5</td><td class="n">86.6</td><td class="n">65.9</td><td class="n">76.3</td><td class="n">81.1</td><td class="n">85.6</td></tr>
+<tr><td>DINOv2</td><td>ViT-g/14</td><td class="n">67.4</td><td class="n">83.3</td><td class="n">90.5</td><td class="n">74.0</td><td class="n">81.6</td><td class="n">86.2</td><td class="n">89.7</td></tr>
+<tr><td>DINOv3</td><td>ViT-7B</td><td class="n">69.6</td><td class="n">85.7</td><td class="n">90.9</td><td class="n">76.7</td><td class="n">83.0</td><td class="n">88.0</td><td class="n">90.7</td></tr>
+</tbody></table></div>
+<p class="tcap">表 26 · 地理公平性。照录原文。按表算：\(1-69.6/90.9=23.4\%\)；欧洲对非洲 \(1-76.7/90.7=15.4\%\)，DINOv2 \(1-74.0/89.7=17.5\%\)，与正文“超过 14%”“超过 17%”相符。</p>
+
+<h2 id="apC">附录 C　实现细节</h2>
+<p>multi-crop：学生看 2 个全局（256）和 8 个局部（112）裁切，共 370 万 token；教师（学生的 EMA）只看全局裁切。\(\mathcal L_{\rm DINO}\) 作用在学生所有局部裁切的 CLS 与教师两个全局裁切之间，以及两个模型不同全局裁切之间。学生的全局裁切以 50% 概率遮住 [0.1, 0.5] 比例的 patch，\(\mathcal L_{\rm iBOT}\) 作用在这些被遮 patch 和教师看到的对应可见 patch 之间。\(\mathcal L_{\rm DKoleo}\) 作用在学生第一个全局裁切的 CLS 上，16 个一小组。训练 100 万步，PyTorch 全分片数据并行，bfloat16 加 8 位浮点矩阵乘。常数学习率 0.0004，预热 10 万步，权重衰减 0.04，逐层学习率衰减 0.98，随机深度 0.4，教师 EMA 0.999。Gram 阶段 \(w_{\rm Gram}=2\)，每 1 万步更新 Gram 教师，最多 3 次。高分辨率适配的裁切组合见<a href="#n8">读者注 8</a>。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 附录 C 和 7B 预训练配置逐项对照</span><p>对得上的：学习率 \(5\times10^{-5}\times4\times\sqrt{4096/1024}=4\times10^{-4}\)（<code>train.py</code> 第 169–171 行的 <code>sqrt_wrt_1024</code> 规则，配置第 152–157 行，每卡 16 × 256 卡 = 4096）；预热 100 个 epoch × 1000 步 = 10 万步；总长 1000 × 1000 = 100 万步；权重衰减 0.04；逐层衰减 0.98；drop path 0.4；fp8 只用在 blocks（<code>fp8_enabled: true</code>）；掩码比例 [0.1, 0.5]、概率 0.5。</p>
+<p>对不上的：教师 EMA，附录 C 写 0.999，预训练配置第 168–172 行是 <b>0.994</b>，Gram 和高分辨率配置才是 0.999。另外预训练配置里 <code>horizontal_flips: false</code>、<code>adamw_beta2: 0.99</code>、<code>clip_grad: 30</code>、<code>qkv_bias: false</code>，论文都没提。</p></div>
+
+<h2 id="apD">附录 D　评测细节</h2>
+<p>各项评测的数据集、指标和协议。下面按小节简述，细节折叠。</p>
+<details class="tbl"><summary>D.1 到 D.13 逐节（点开）</summary>
+<p><b>D.1 语义分割线性探针。</b>ADE20k、VOC12、Cityscapes，mIoU。线性层接在冻结骨干的 patch 输出（过 LayerNorm）上，再加一个训练的 BatchNorm。AdamW，学习率在 {1e-4, 3e-4, 1e-3}、权重衰减在 {1e-4, 1e-3} 中搜索。</p>
+<p><b>D.2 深度线性探针。</b>NYUv2、KITTI，RMSE。设置同 D.1。</p>
+<p><b>D.3 3D 关键点匹配。</b>NAVI 图像边长 448/512（patch 14/16），SPair 896/1024。NAVI 按 Probe3D：取 1/4 视角，每个源视角配一个旋转不超过 120° 的目标视角，物体内每个 patch 匹配到目标图的 patch，保留余弦相似度最高的 1000 对，用已知位姿和深度算 3D 误差，阈值 1、2、5 cm 的召回取平均。每个骨干用最后一层特征，加与不加最后的 LayerNorm 都试，取较好的（有些模型加了反而差）。</p>
+<p><b>D.4 无监督物体发现。</b>VOC07、VOC12、COCO20K（COCO2014 trainval 中随机 19,817 张），每张图一个框，CorLoc（与任一真值框 IoU &gt; 0.5 即正确）。TokenCut：patch 全连接图、边为特征相似度、Normalized Cut 找显著物体再拟合框。全分辨率输入，相似度阈值 0 到 0.4 每 0.05 搜索。</p>
+<p><b>D.5 视频分割跟踪。</b>DAVIS 2017（训练 60、验证 30 个视频）；YouTube-VOS 只有训练集公开，随机取 2758 个（80%）当训练、690 个当验证；MOSE 分成 1206 个验证、301 个测试。只跟踪第一帧出现的物体。非参数标签传播：当前帧每个 patch 与第一帧和若干过去帧的 patch 算余弦相似度，在空间邻域内取 k 个最相似的，标签加权平均；预测作为下一帧的软标签。缩放到短边为目标值并按 patch 大小取整（例：DAVIS 480 × 854 处理到 960，patch 16 时缩到 960 × 1712，得 60 × 107 特征图；patch 14 时 966 × 1708，得 69 × 122）。超参在 DAVIS 训练集上从表 27 的 18 组里选，用于全部数据集。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th class="n">上下文帧数</th><th class="n">邻域大小</th><th>形状</th><th class="n">Top-K</th><th class="n">温度</th></tr></thead><tbody>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>圆形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">5</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">24</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">∞</td><td>—</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.01</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.1</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.7</td></tr>
+<tr><td class="n">4</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">10</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">15</td><td class="n">12</td><td>方形</td><td class="n">5</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">3</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">10</td><td class="n">0.2</td></tr>
+<tr><td class="n">7</td><td class="n">12</td><td>方形</td><td class="n">15</td><td class="n">0.2</td></tr>
+<tr><td class="n">15</td><td class="n">12</td><td>圆形</td><td class="n">10</td><td class="n">0.1</td></tr>
+<tr><td class="n">15</td><td class="n">24</td><td>圆形</td><td class="n">10</td><td class="n">0.1</td></tr>
+<tr><td class="n">15</td><td class="n">36</td><td>圆形</td><td class="n">10</td><td class="n">0.1</td></tr>
+<tr><td class="n">15</td><td class="n">∞</td><td>—</td><td class="n">10</td><td class="n">0.1</td></tr>
+</tbody></table></div>
+<p class="tcap">表 27 · 跟踪超参候选。原文高亮了被选中的一组，PDF 文本层不带高亮，所以这里没法标出是哪一行。</p>
+<p><b>D.6 视频分类。</b>训练：每个视频随机取 16 帧（记下时间戳），空间裁切覆盖 40% 到 100% 面积且所有帧共用；每帧作为独立 256 × 256 图像过 DINOv3，得 16 × 16 个 patch，丢掉 CLS；patch 特征线性投影到 1024 维，拼成 16 × 16 × 16 = 4096 长的序列，过 4 个自注意力块（位置信息用加性 sin-cos 和带随机空间旋转的 3D 分解 RoPE），再用一个无位置的可学习 query 做交叉注意力汇总，线性层出 logits。20 个 epoch，batch 64，交叉熵；学习率 6 个值 × 权重衰减 3 个值并行训练，90% 训练集更新、10% 选超参。推理：取首帧、末帧和中间均匀的共 16 帧，中心最大正方形缩到 256；TTA 按 V-JEPA 2 取多组帧和三个空间裁切（左中右）平均概率。基线 patch 16 用 256、patch 14 用 224，token 数一致；V-JEPA 2 喂整段视频，因其时间减半，把每个 token 复制一份对齐长度。</p>
+<figure class="pfig" id="fig22">
+<img src="dinov3/fig22.webp" width="1383" height="1006" alt="图 22：视频分类的时间采样和空间采样示意，训练随机、推理确定" loading="lazy">
+<figcaption><span class="lab">图 22 · 原文第 62 页 · Siméoni 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2508.10104v1#page=62">看原图 ↗</a></span>上：训练时在 2.5 秒视频里随机挑帧（橙点不等距）。中：推理时两组等距帧（橙、绿）交错，覆盖尽量多的视频。下：训练时一个随机矩形裁切；推理时左、中、右三个最大正方形。</figcaption>
+</figure>
+<p><b>D.7 线性探针图像分类。</b>ImageNet 及其变体（ImageNet-C 报 mCE），Fine-S 12 个数据集，Places205、iNat2018/2021。大数据集：CLS（过 LayerNorm）上训线性层，SGD 动量 0.9，10 个 epoch，batch 1024，学习率从 1e-4 到 5 共 15 个值、权重衰减 {0, 1e-5} 搜索，Inception 式随机裁切增强。Fine-S 按 DINOv2 用 scikit-learn 的 L-BFGS 逻辑回归。分辨率对齐到 1024 个 patch token，短边缩放后取中心正方形。</p>
+<p><b>D.8 实例识别。</b>Oxford、Paris 长边缩到 224 再中心裁成 224 × 224；AmsterTime 短边 256 再中心裁 224；Met 接近原分辨率（长边 508/512）。CLS 余弦相似度；Met 还要网格搜索 k 和 τ，并用 Met 训练集估计的 PCA 白化。</p>
+<p><b>D.9 目标检测。</b>COCO（80 类，11.8 万训练 / 5 千验证）、COCO-O（只评测），Objects365（250 万张、365 类）用于预训练。从 7B 的第 10、20、30、40 层取特征按通道拼接得 16384 维；编码器 6 个自注意力块、宽 768；解码器 6 个交叉注意力块，1500 个一对一 query 加 1500 个一对多 query。窗口策略：图像切成 3 × 3 窗口分别过骨干（如 1536 × 2304 切成 512 × 768 的窗，每窗 32 × 48 个 token，拼成 96 × 144），整图缩到 512 × 768 也过一遍再上采样到 96 × 144，两者通道拼接成 32768 维、96 × 144 个 token 送入编码器。三阶段：Objects365 1536 分辨率 22 epoch（batch 32，32 卡，学习率 5e-5，第 20 epoch 后除以 10）；Objects365 2048 分辨率 4 epoch（2.5e-5）；COCO 2048 分辨率 12 epoch（余弦从 2.5e-5 到 2.5e-6，改用 IA-BCE 损失，GIoU 权重升到 4）。Focal 2、L1 1、GIoU 2。测试短边 1536 或 2048 时 mAP 65.4 和 65.6；TTA 用 1536 到 2880 共 8 个分辨率加翻转、SoftNMS 合并，66.1。</p>
+<p class="note" style="margin:6px 0"><span class="lab">小核对</span>§6.3.1 正文说“Objects365 上 2048 分辨率 1 个 epoch”，D.9 第二阶段写“4 个 epoch”。两处不一致，原文如此。</p>
+<p><b>D.10 语义分割。</b>ADE20k、Cityscapes、COCO-Stuff、VOC 2012；COCO-Stuff 和 Hypersim 用于预训练（Hypersim 一半以上图像有 21 个以上物体）。去掉 ViT-Adapter 的 injector，Mask2Former 嵌入维度 2048；取第 10、20、30、40 层，都过最后的 LayerNorm 并加训练的 BatchNorm。COCO-Stuff 8 万步（余弦，预热 6 千，峰值 1.5e-5，1280 分辨率）；其他数据集先在 COCO-Stuff 上 8 万步，再 Hypersim 1 万步（2.5e-5），再 ADE20k 2 万步（3e-5）；Cityscapes 1.5e-5、VOC 1e-5；batch 16，AdamW。推理用滑窗（ADE20k 缩到 896，896 × 896 窗口、步长 596）；TTA 为 0.9 到 1.1 五个比例加翻转共 10 个预测，COCO-Stuff 只加翻转，Cityscapes 用 1.0、1.5、2.0 倍。</p>
+<p><b>D.11 单目深度。</b>与 DAv2 的区别：768 × 1024 分辨率，骨干冻结，DPT 头末尾 dropout 0.05；第 10、20、30、40 层过最后的 LayerNorm 加 BatchNorm；输出离散成 0.001 到 100 m 的 256 个均匀 bin；基础学习率 1e-3，PolyLR（幂 3.5），预热 1.2 万步；增强包括高斯模糊、噪声、自动对比度、均衡、颜色抖动、旋转、左右翻转。训练数据为 DAv2 的合成集（IRS、TartanAir、BlendedMVS、Hypersim、VKITTI2）。</p>
+<p><b>D.12 VGGT。</b>三处改动：图像 592 而非 518（作者说是为了和 DINOv2 的 patch token 数一致）；学习率 2e-4 降到 1e-4；用 ViT-L 四个中间层拼接，而不是只用最后一层。四层拼接对 DINOv3 有用、对 DINOv2 没用。接近原设置的未调版本（512、原学习率、最后一层）也已在所有基准上超过原 VGGT。</p>
+<p class="note" style="margin:6px 0"><span class="lab">小核对</span>“592 是为了和 DINOv2 的 token 数一致”：\(518/14=37\)，\(592/16=37\)，对得上。D.12 末尾写“image size 512”，按同样逻辑 \(512/16=32\)，token 数就不同了，这里的 512 可能是 518 之误，未核实。</p>
+<p><b>D.13 遥感。</b>骨干都冻结。GEO-Bench 分类训线性层 2400 步、batch 32、SGD 余弦，学习率在 1e-5 到 1 之间选；分割默认 DPT 解码器，学习率在四个值里选。LoveDA、iSAID 用 UPerNet，8 万步，batch 8，预热 1500；冠层高度用 DPT 头；检测用 Faster R-CNN 训 12 epoch。SatLidar 由 10 个子数据集组成（表 28）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>子数据集</th><th class="n">图块数</th><th>用途</th></tr></thead><tbody>
+<tr><td>Kalimantan</td><td class="n">86</td><td>训练/验证/测试</td></tr>
+<tr><td>OpenDC</td><td class="n">68</td><td>训练/验证/测试</td></tr>
+<tr><td>Brazil</td><td class="n">37</td><td>训练/验证/测试</td></tr>
+<tr><td>Mozambique</td><td class="n">144</td><td>训练/验证/测试</td></tr>
+<tr><td>Neon</td><td class="n">5366</td><td>训练/验证/测试</td></tr>
+<tr><td>CA20Graup</td><td class="n">99</td><td>训练/验证/测试</td></tr>
+<tr><td>CA17Duvall</td><td class="n">56</td><td>训练/验证/测试</td></tr>
+<tr><td>Netherlands</td><td class="n">13</td><td>训练/验证/测试</td></tr>
+<tr><td>Sao Paulo</td><td class="n">4</td><td>测试</td></tr>
+<tr><td>CA brande</td><td class="n">1</td><td>测试</td></tr>
+</tbody></table></div>
+<p class="tcap">表 28 · SatLidar 的组成（数据来源网址见原文第 67 页）。照录原文。</p>
+</details>
+
+<h2 id="code">代码对照</h2>
+<p>代码 facebookresearch/dinov3 提交 6876159（2026-07-15），DINOv3 License。只读未运行。和本页相关的位置：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>论文里的东西</th><th>代码位置</th><th>对照结果</th></tr></thead><tbody>
+<tr><td>ViT 结构，CLS + register + patch 顺序</td><td><code>models/vision_transformer.py</code> 第 112–115、190–220 行</td><td>序列是 [CLS, 4 个 storage（register）, patch]；输出字典把三者分开（第 249–259 行）</td></tr>
+<tr><td>最后的 LayerNorm（附录 A.2 建议用）</td><td>同上第 163、249–251 行</td><td>默认一个 norm 同时作用于 CLS、register 和 patch</td></tr>
+<tr><td>ViT-B/16 超参</td><td><code>hub/backbones.py</code> 第 277–313 行 <code>dinov3_vitb16</code></td><td>768 宽、12 层、12 头、MLP 比 4（GELU）、4 个 register、<code>mask_k_bias=True</code>、LayerScale 1e-5、RoPE base 100、rescale 2</td></tr>
+<tr><td>ViT-7B 超参</td><td>同文件 <code>dinov3_vit7b16</code>，<code>vision_transformer.py</code> 第 407–416 行</td><td>4096 宽、40 层、32 头、SwiGLU 隐层 8192（<a href="#n2">读者注 2</a>）</td></tr>
+<tr><td>RoPE 与 box jittering</td><td><code>layers/rope_position_encoding.py</code>；<code>layers/attention.py</code> 第 66–82 行</td><td>见<a href="#n4">读者注 4</a></td></tr>
+<tr><td>Gram 损失 式 (2)</td><td><code>loss/gram_loss.py</code> 第 34–84 行；<code>train/ssl_meta_arch.py</code> 第 476–515、651–665 行</td><td>MSE 平均而非平方和；教师特征双三次下采样（第 500 行）（<a href="#n5">读者注 5</a>）</td></tr>
+<tr><td>精修和高分辨率配置</td><td><code>configs/train/dinov3_vit7b16_gram_anchor.yaml</code>、<code>..._high_res_adapt.yaml</code></td><td><a href="#n6">读者注 6</a>、<a href="#n7">7</a>、<a href="#n8">8</a></td></tr>
+<tr><td>多学生蒸馏</td><td><code>train/multidist_meta_arch.py</code>；<code>configs/train/dinov3_vitl16_lvd1689m_distilled.yaml</code></td><td><a href="#n9">读者注 9</a></td></tr>
+<tr><td>dino.txt</td><td><code>eval/text/</code>，<code>configs/dinov3_vitl_text.yaml</code></td><td>2 个头部块、CLS 与 patch 均值拼接、骨干冻结，和 §5.3 一致</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · ViT-B/16（LVD-1689M）的配置：HF 镜像和代码一致</span><p>Hugging Face 上 <code>facebook/dinov3-vitb16-pretrain-lvd1689m</code> 需要申请，脚本访问返回 401；我没有绕过。OpenWAM 的下载脚本（<code>scripts/download_assets/download_visual_encoder.py</code> 第 97–105 行）把 ModelScope 列为另一个来源，那里的 <code>config.json</code> 公开可读：<code>hidden_size 768</code>、<code>num_hidden_layers 12</code>、<code>num_attention_heads 12</code>、<code>intermediate_size 3072</code>、<code>num_register_tokens 4</code>、<code>patch_size 16</code>、<code>rope_theta 100</code>、<code>pos_embed_rescale 2.0</code>、<code>key_bias false</code>、<code>use_gated_mlp false</code>、<code>layer_norm_eps 1e-5</code>，和 <code>dinov3_vitb16</code> 的定义逐项对得上（<code>key_bias false</code> 对应 <code>mask_k_bias=True</code>，<code>layernormbf16</code> 的 eps 是 1e-5）。参数量按 \(12\times(4\times768^2+2\times768\times3072)+768\times3\times16^2\approx85.5\)M，加上偏置、LayerScale 和 5 个特殊 token 约 86M，与图 16a 一致。ModelScope 镜像与 HF 原件是否逐字节相同，未核实。</p></div>
+
+<h2 id="openwam">在 OpenWAM 里怎么用</h2>
+<p><a href="openwam.html">OpenWAM</a> §4.1.2 比较“世界模型预测哪种隐变量”时，DINOv3 是两个表示式编码器之一。这里只说它用的是哪个检查点、怎么接上去；形状和结果的完整讲解在 <a href="openwam.html#qa-enc">OpenWAM 页的读者问答 问 2</a>，不重抄。</p>
+<div class="flow"><ol>
+<li><b>检查点：</b><code>dinov3-vitb16-pretrain-lvd1689m</code>，即本文 §5.2 从 7B 蒸馏出的 ViT-B/16（8600 万参数，宽 768），冻结不训。</li>
+<li><b>逐帧：</b>RoboTwin 每个样本 9 帧 384 × 320，ImageNet 均值方差归一化后逐帧过 ViT，取 HF 模型的 <code>last_hidden_state</code>（已经过 DINOv3 自己的最后 LayerNorm）。</li>
+<li><b>丢特殊 token：</b>每帧输出 \(1+4+480\) 个 token，丢掉 CLS 和 4 个 register，留 \(24\times20=480\) 个 patch，每个 768 维。</li>
+<li><b>时间压缩：</b>首帧单独保留，其余每 4 帧取平均，9 帧 → 3 个隐帧，形状 \(768\times3\times24\times20\)，模仿 Wan2.2-VAE 的因果分组。</li>
+<li><b>无参 LayerNorm：</b>每个 token 在通道维上做一次不带 γ、β 的 LayerNorm，让扩散目标接近零均值单位方差。</li>
+<li><b>可选 S-VAE：</b>先在训练集特征上单独训练一个 S-VAE，把每个 token 从 768 维压到 48 维（和 Wan2.2-VAE 相同），用均值 μ，再做上一步的 LayerNorm。</li>
+<li><b>接 DiT：</b>Wan2.2-TI2V-5B 结构、随机初始化；patch 嵌入 <code>Conv3d(C, 3072, 1×2×2)</code>，每个 token 输入 4C：不加 S-VAE 时 3072，加了 192。结果 76.42% 对 90.18%（OpenWAM 图 7）。</li>
+</ol></div>
+<p>出处：OpenWAM 代码 commit 1dcaeea 的 <code>openwam/model/video_backbone/encoder/dinov3.py</code>（第 84–102 行时间池化，第 154 行无参 LayerNorm，第 232–250 行丢 token 与重排）。第 11 幕动画可以切换 S-VAE 看形状。</p>
+<div class="note" id="n22"><span class="lab">读者注 22 · 和 OpenWAM 页的说法逐项核对</span><p>OpenWAM 页说的 768 维、24 × 20 网格、丢 CLS 和 register、首帧单独其余每 4 帧平均、4C = 3072 恰等于 DiT 宽度，和本文、DINOv3 代码、OpenWAM 代码都一致，我没找到矛盾。补两点：(1) OpenWAM 用的是经过 DINOv3 最后 LayerNorm 的输出，正好符合附录 A.2 的建议（最后一层特征先过最后的 LayerNorm 以压掉特征维度异常值），之后再叠一个无参 LayerNorm（transformers 的 <code>modeling_dinov3_vit.py</code> 里 <code>last_hidden_state</code> 就是 <code>self.norm</code> 的输出；OpenWAM 代码 <code>dinov3.py</code> 第 146–153 行的注释也说这一步“在常见情况下近似恒等”）。(2) 384 × 320 不是正方形，DINOv3 的 RoPE 用 <code>separate</code> 归一化，高宽各自铺满 \([-1,1]\)，所以非正方形输入不需要插值位置编码；384 和 320 介于预训练的 256 与高分辨率适配的 512/768 之间，局部裁切也训练过 112 到 336。</p></div>
+<div class="note" id="n23"><span class="lab">读者注 23 · DINOv3 变体的 shift：配置注释写 12，OpenWAM 页写 5</span><p>OpenWAM 页读者问答原先写视频流的 shift = 5，“对所有编码器相同”（2026-11-16 已改正）（依据 <code>wan22_ti2v_5b.yaml</code> 第 12 行）。但 OpenWAM 的 <code>configs/model/video_backbone/encoder/dinov3.yaml</code> 第 2 行（以及 <code>vjepa21.yaml</code>）在注释里给的启用命令是 <code>model.video_backbone.from_scratch=true model.video_backbone.shift_video=12.0 model/video_backbone/encoder=dinov3</code>，即建议 DINOv3 和 V-JEPA 2.1 用 shift = 12。这与 RAE 论文“shift 应随维度增大”的建议方向一致。论文图 7 的 DINOv3 变体实际用 5 还是 12，论文和代码都没直接说，标“未核实”。如果用了 12，OpenWAM 页“所有编码器都用 shift = 5，可能拖累高维变体”这句推测就不成立。OpenWAM 页现已改成“默认 5，表示式编码器的示例命令用 12，图 7 用哪个未核实”，并补了按 RAE 公式算的值（DINOv3 约 13.4）。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">370 万 token 是怎么来的</a>：\(4096\times(2\times256+8\times49)=3{,}702{,}784\)，只算 patch。</li>
+<li><a href="#n2">表 2 的参数量能算出来</a>：6.71B；代码 ffn_ratio 3 经 SwiGLU 的 2/3 得 8192。</li>
+<li><a href="#n3">iBOT 头的隐层</a>：表 2 写 8192，三个 7B 配置都是 4096。</li>
+<li><a href="#n4">RoPE 在代码里的样子</a>：旋转式、高宽分别归一化、\(s\) 对数均匀、CLS 和 register 不旋转。</li>
+<li><a href="#n5">式 (2) 和代码差一个常数</a>：代码是 MSE 平均，差 \(P^2=65{,}536\) 倍；权重在 100 万步后 1000 步内升到 2。</li>
+<li><a href="#n6">式 (3) 的 \(w_D\)、\(w_{DK}\) 没给值</a>：配置里局部 DINO 项降到 0.5（推断）。</li>
+<li><a href="#n7">精修训了多久</a>：配置最多 120 万步，图 7c 画到约 105 万，未核实。</li>
+<li><a href="#n8">高分辨率适配</a>：裁切组合一致；论文 1 万步，配置 3 万步；Gram 权重 1.5 论文未写。</li>
+<li><a href="#n9">公开的蒸馏配置</a>：48/48/80/120 张卡共 296；步数和论文对不上，像模板。</li>
+<li><a href="#n10">Cityscapes 的“2.5 个点”</a>：表里是 2.7。</li>
+<li><a href="#n11">PE<sub>spatial</sub> 的“−11.6”</a>：表里是 −6.3。</li>
+<li><a href="#n12">VOC07 的“5.9 CorLoc”</a>：表里没有这个差值（5.0、6.0、10.5）。</li>
+<li><a href="#n13">表 5 图注的 1140</a>：应为 1440。</li>
+<li><a href="#n14">核对过、对得上的差值</a>：§6.2、§6.1.5、§7、§8.2 共十几处。</li>
+<li><a href="#n15">图 16 的数字能算出来</a>：GFLOPs 四个数吻合；“近 10 倍”其实是 8.0 倍；7B 的 Obj./ReaL 与表 7 差 0.1。</li>
+<li><a href="#n16">表 15 有四格重复</a>：CNX-T 和 CNX-S 的 IN-R 与 ObjectNet 完全相同。</li>
+<li><a href="#n17">“15 项中 12 项”</a>：数出来一致。</li>
+<li><a href="#n18">表 20 的算术</a>：47.3 MWh、18.2 t；全项目 2668 t；256 卡约 10 天。</li>
+<li><a href="#n19">表 22 的 Caltech101 列</a>：4 个弱监督模型抄了 CUB 列，平均值对不上，反推约 95 到 97.5。</li>
+<li><a href="#n20">附录 C 和配置</a>：学习率 4e-4 对得上；EMA 0.999 对 0.994 对不上。</li>
+<li><a href="#n21">ViT-B/16 配置</a>：ModelScope 镜像的 config.json 与代码定义一致，约 86M。</li>
+<li><a href="#n22">和 OpenWAM 页的说法</a>：一致；OpenWAM 用的正是过了最后 LayerNorm 的特征。</li>
+<li><a href="#n23">shift 12 对 5</a>：OpenWAM 的 dinov3.yaml 注释建议 shift 12，OpenWAM 页原先“全部用 5”的说法已改正；图 7 用哪个仍未核实。</li>
+</ol>
+<p>另有三条不编号的小核对：图 20b 的 ADE20k 其实是“不处理”最高（<a href="#n20b">见此</a>）；表 23 与表 9 有两格出入（<a href="#n23b">见此</a>）；D.9 和 §6.3.1 的 epoch 数、D.12 的 512 各有一处出入（见附录 D 折叠部分）。</p>
+<p>论文没写、我也没找到的：LVD-1689M 之外检索数据和公开数据在混合里的具体比例；精修阶段的确切长度；ViT-H+ 和 ConvNeXt 的蒸馏配置；表 27 被选中的那一组超参。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和方法。链接在 2026 年 11 月 16 日用脚本核对：除标注的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://ai.meta.com/dinov3/">DINOv3</a></td><td>本文</td><td><a href="https://github.com/facebookresearch/dinov3">代码</a></td><td><a href="https://arxiv.org/abs/2508.10104">2508.10104</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/dinov2">DINOv2</a></td><td>前作</td><td>github.com/facebookresearch/dinov2</td><td><a href="https://arxiv.org/abs/2304.07193">2304.07193</a></td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>预训练数据之一、分类评测（脚本访问超时，浏览器可开）</td><td>image-net.org</td><td>Deng 等，CVPR 2009</td></tr>
+<tr><td><a class="ds" href="https://www.mapillary.com/dataset/places">Mapillary SLS</a></td><td>预训练数据之一</td><td>mapillary.com</td><td>Warburg 等，CVPR 2020</td></tr>
+<tr><td><a class="ds" href="https://github.com/CSAILVision/ADE20K">ADE20k</a></td><td>语义分割（官方站脚本超时，用 GitHub）</td><td>github.com/CSAILVision/ADE20K</td><td><a href="https://arxiv.org/abs/1608.05442">1608.05442</a></td></tr>
+<tr><td><a class="ds" href="https://www.cityscapes-dataset.com/">Cityscapes</a></td><td>街景分割</td><td>cityscapes-dataset.com</td><td><a href="https://arxiv.org/abs/1604.01685">1604.01685</a></td></tr>
+<tr><td><a class="ds" href="http://host.robots.ox.ac.uk/pascal/VOC/">PASCAL VOC</a></td><td>分割、物体发现</td><td>host.robots.ox.ac.uk</td><td>Everingham 等，IJCV 2010</td></tr>
+<tr><td><a class="ds" href="https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html">NYUv2</a></td><td>室内深度</td><td>cs.nyu.edu</td><td>Silberman 等，ECCV 2012</td></tr>
+<tr><td><a class="ds" href="https://www.cvlibs.net/datasets/kitti/">KITTI</a></td><td>室外深度</td><td>cvlibs.net</td><td>Geiger 等，IJRR 2013</td></tr>
+<tr><td><a class="ds" href="https://github.com/mbanani/probe3d">Probe3D</a></td><td>3D 对应评测协议</td><td>github.com/mbanani/probe3d</td><td><a href="https://arxiv.org/abs/2404.08636">2404.08636</a></td></tr>
+<tr><td><a class="ds" href="https://navidataset.github.io/">NAVI</a></td><td>几何对应</td><td>navidataset.github.io</td><td><a href="https://arxiv.org/abs/2306.09109">2306.09109</a></td></tr>
+<tr><td><a class="ds" href="https://cvlab.postech.ac.kr/research/SPair-71k/">SPair-71k</a></td><td>语义对应</td><td>cvlab.postech.ac.kr</td><td><a href="https://arxiv.org/abs/1908.10543">1908.10543</a></td></tr>
+<tr><td><a class="ds" href="https://cocodataset.org/">COCO</a></td><td>检测、物体发现、检索</td><td>cocodataset.org</td><td><a href="https://arxiv.org/abs/1405.0312">1405.0312</a></td></tr>
+<tr><td><a class="ds" href="https://davischallenge.org/">DAVIS 2017</a></td><td>视频分割跟踪</td><td>davischallenge.org</td><td><a href="https://arxiv.org/abs/1704.00675">1704.00675</a></td></tr>
+<tr><td><a class="ds" href="https://youtube-vos.org/">YouTube-VOS</a></td><td>视频分割跟踪</td><td>youtube-vos.org</td><td><a href="https://arxiv.org/abs/1809.03327">1809.03327</a></td></tr>
+<tr><td><a class="ds" href="https://henghuiding.com/MOSE/">MOSE</a></td><td>复杂场景视频分割</td><td>henghuiding.com/MOSE</td><td><a href="https://arxiv.org/abs/2302.01872">2302.01872</a></td></tr>
+<tr><td><a class="ds" href="https://www.crcv.ucf.edu/data/UCF101.php">UCF101</a></td><td>视频分类</td><td>crcv.ucf.edu</td><td><a href="https://arxiv.org/abs/1212.0402">1212.0402</a></td></tr>
+<tr><td><a class="ds" href="https://www.qualcomm.com/developer/software/something-something-v-2-dataset">SSv2</a></td><td>动作理解视频分类</td><td>qualcomm.com</td><td><a href="https://arxiv.org/abs/1706.04261">1706.04261</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-deepmind/kinetics-i3d">Kinetics-400</a></td><td>视频分类</td><td>github.com/google-deepmind/kinetics-i3d</td><td><a href="https://arxiv.org/abs/1705.06950">1705.06950</a></td></tr>
+<tr><td><a class="ds" href="https://objectnet.dev/">ObjectNet</a></td><td>分布外分类</td><td>objectnet.dev</td><td>Barbu 等，NeurIPS 2019</td></tr>
+<tr><td><a class="ds" href="https://github.com/modestyachts/ImageNetV2">ImageNet-V2</a></td><td>ImageNet 新测试集</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1902.10811">1902.10811</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-research/reassessed-imagenet">ImageNet-ReaL</a></td><td>重新标注的标签</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2006.07159">2006.07159</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/hendrycks/imagenet-r">ImageNet-R</a></td><td>风格化版本</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2006.16241">2006.16241</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/HaohanWang/ImageNet-Sketch">ImageNet-Sketch</a></td><td>素描版本</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1905.13549">1905.13549</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/hendrycks/natural-adv-examples">ImageNet-A</a></td><td>自然对抗样本</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1907.07174">1907.07174</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/hendrycks/robustness">ImageNet-C</a></td><td>常见损坏</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1903.12261">1903.12261</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/visipedia/inat_comp">iNaturalist</a></td><td>物种细粒度分类</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1707.06642">1707.06642</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/filipradenovic/revisitop">Revisited Oxford/Paris</a></td><td>地标检索</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1803.11285">1803.11285</a></td></tr>
+<tr><td><a class="ds" href="https://cmp.felk.cvut.cz/met/">Met</a></td><td>艺术品检索</td><td>cmp.felk.cvut.cz/met</td><td><a href="https://arxiv.org/abs/2202.01747">2202.01747</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/seyrankhademi/AmsterTime">AmsterTime</a></td><td>新旧街景检索</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2203.16291">2203.16291</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/alibaba/easyrobust/tree/main/benchmarks/coco_o">COCO-O</a></td><td>分布外检测</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2307.12730">2307.12730</a></td></tr>
+<tr><td><a class="ds" href="https://www.objects365.org/">Objects365</a></td><td>检测预训练</td><td>objects365.org</td><td>Shao 等，ICCV 2019</td></tr>
+<tr><td><a class="ds" href="https://github.com/nightrome/cocostuff">COCO-Stuff</a></td><td>分割预训练</td><td>GitHub</td><td><a href="https://arxiv.org/abs/1612.03716">1612.03716</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/apple/ml-hypersim">Hypersim</a></td><td>合成室内场景</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2011.02523">2011.02523</a></td></tr>
+<tr><td><a class="ds" href="https://www.eth3d.net/">ETH3D</a></td><td>深度评测</td><td>eth3d.net</td><td>Schöps 等，CVPR 2017</td></tr>
+<tr><td><a class="ds" href="http://www.scan-net.org/">ScanNet</a></td><td>深度评测、双视图匹配</td><td>scan-net.org</td><td><a href="https://arxiv.org/abs/1702.04405">1702.04405</a></td></tr>
+<tr><td><a class="ds" href="https://diode-dataset.org/">DIODE</a></td><td>深度评测</td><td>diode-dataset.org</td><td><a href="https://arxiv.org/abs/1908.00463">1908.00463</a></td></tr>
+<tr><td><a class="ds" href="https://google.github.io/realestate10k/">RealEstate10K</a></td><td>相机位姿</td><td>google.github.io/realestate10k</td><td><a href="https://arxiv.org/abs/1805.09817">1805.09817</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/co3d">CO3Dv2</a></td><td>相机位姿</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2109.00512">2109.00512</a></td></tr>
+<tr><td><a class="ds" href="https://roboimagedata.compute.dtu.dk/">DTU</a></td><td>多视图深度</td><td>roboimagedata.compute.dtu.dk</td><td>Jensen 等，CVPR 2014</td></tr>
+<tr><td><a class="ds" href="https://github.com/ServiceNow/geo-bench">GEO-Bench</a></td><td>遥感基准</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2306.03831">2306.03831</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/fajwel/Open-Canopy">Open-Canopy</a></td><td>冠层高度</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2407.09392">2407.09392</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Junjue-Wang/LoveDA">LoveDA</a></td><td>土地覆盖分割</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2110.08733">2110.08733</a></td></tr>
+<tr><td><a class="ds" href="https://captain-whu.github.io/iSAID/">iSAID</a></td><td>遥感实例分割</td><td>captain-whu.github.io/iSAID</td><td><a href="https://arxiv.org/abs/1905.12886">1905.12886</a></td></tr>
+<tr><td><a class="ds" href="https://gcheng-nwpu.github.io/">DIOR</a></td><td>遥感检测（作者主页）</td><td>gcheng-nwpu.github.io</td><td><a href="https://arxiv.org/abs/1909.00133">1909.00133</a></td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin</a></td><td>OpenWAM §4.1.2 用的双臂仿真基准</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+<tr><td><a href="openwam.html">OpenWAM</a></td><td>本站精读，DINOv3 在那里当视频编码器</td><td>本站</td><td>arXiv 2609.07398</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2508.10104 后的整理，不是作者的官方内容。原文：Oriane Siméoni、Huy V. Vo、Maximilian Seitzer、Federico Baldassarre、Maxime Oquab 等，《DINOv3》，Meta AI Research，2025，在 arXiv 以非独占分发许可（nonexclusive-distrib 1.0）发布，版权归作者。图 1 到 22 从原文 PDF 裁切，只做了裁切和缩放，经站点作者决定放原图。表格数字照录原文；读者注、代码对照和动画是本页所加。代码对照基于 facebookresearch/dinov3（DINOv3 License），只引文件名、行号和配置键。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
