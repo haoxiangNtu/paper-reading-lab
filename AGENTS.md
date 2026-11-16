@@ -58,6 +58,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 
 **例外和已有决定：**
 - **SuperMimic** 是非独占许可，但用户明确要求放原图，这只对这一篇有效。
+- **OpenWAM 上游模型批（2026-11-16）**：`wan`、`dinov3`、`vjepa21`、`svae`、`rae` 五页，用户明确要求不论许可都放原图（理由是“只有我们会读”；已告知站点是公开的）。图注写原文许可和“经站点作者决定放原图”。只对这五页有效，其他新页仍按上表。
 - **SONIC、GraspGen** 的 arXiv 许可是 CC BY-SA，但 PDF 页脚写着 “NVIDIA. All rights reserved”。用户决定保留原图，页面上已写明这个矛盾。
 - **MaskedMimic** 的 arXiv 许可是 CC BY-NC-SA，PDF 上有 ACM 版权声明，处理方式同上（读者注 1 里写明）。
 
