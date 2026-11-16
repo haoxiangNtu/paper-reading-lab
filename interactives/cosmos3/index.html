@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 3 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2606.02800 Cosmos 3 做成 11 幕 3D 动画：两塔 MoT 总览、五种编码器和 token 数、统一动作表示、token 排列和生成模式、正逆动力学和策略、注意力掩码和参数量、3D MRoPE 绝对时间轴、训练阶段、流匹配和 shift、DROID / LIBERO 策略部署、结果和 OpenWAM 接口。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos3.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos3.html">返回精读</a><a href="../../papers/cosmos3.html#s2-3">原文 §2.3</a><a href="../../papers/cosmos3.html#openwam">和 OpenWAM 的关系</a><a href="https://arxiv.org/abs/2606.02800">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2606.02800 · Cosmos 3 技术报告</p>
+<h1>一个全模态世界模型，从编码到部署</h1>
+<p class="lead">一共 11 幕。第 1 幕总览两座塔；第 2 幕五种编码器各产生多少 token；<b>第 3 幕统一动作表示，可以切换六种实体</b>；第 4、5 幕是 token 排列、七种生成模式和三种动作模式；<b>第 6 幕是双塔 MoT 和注意力掩码，当场算参数量</b>；第 7 幕是按真实秒数走的 3D MRoPE；第 8 幕是训练阶段；第 9 幕是流匹配和 shift；<b>第 10 幕是 DROID 和 LIBERO 的策略部署</b>；第 11 幕是结果和 OpenWAM 接口。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结构数字来自论文、官方代码（NVIDIA/cosmos-framework 提交 e40831f）和 HF 配置及 safetensors 文件头；标“现算”的数是页面按公式当场算的。没有任何 Cosmos 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码 / 配置”分开写。代码是 NVIDIA/cosmos-framework 提交 e40831f（2026-11-16），OpenMDW-1.1，只读未运行。参数量是 HF 上 safetensors 文件头逐张量相加的结果。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / 配置</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">编码器</td></tr>
+<tr><td>E1</td><td>文本</td><td>AR 段，下一 token 预测</td><td>Edge 词表 131,072（Nemotron-3）；Nano / Super 151,936（Qwen3-VL）</td></tr>
+<tr><td>E2</td><td>理解视觉</td><td>ViT patch 16，2 × 2 合并，DeepStack，和主干一起训</td><td>Edge ViT 1152 维、489M；Nano 576M；Super 595M</td></tr>
+<tr><td>E3</td><td>生成视觉</td><td>Wan2.2-TI2V-5B 的 VAE，4 × 16 × 16，再 patch 2；冻结</td><td>latent_downsample_factor 16，patch_spatial 2，state_ch 48 → 192 维；704,688,668 个参数</td></tr>
+<tr><td>E4</td><td>音频</td><td>48 kHz 立体声，hop 1920，25 token / 秒；冻结</td><td>sound_latent_fps 25；Edge 无音频头（sound_gen False）</td></tr>
+<tr><td>E5</td><td>动作</td><td>每域一对线性层，式 (1)(2)；自我位姿 9D + 末端 9D + 抓取</td><td>DomainAwareLinear，32 域，max_action_dim 64；libero 5、droid 8、robotwin 17、robocasa 30</td></tr>
+<tr class="grp"><td colspan="4">主干</td></tr>
+<tr><td>M1</td><td>序列</td><td>AR（文本、ViT、EOS、BOG）在前，DM（干净条件、带噪目标；视觉 → 音频 → 动作）在后</td><td>—</td></tr>
+<tr><td>M2</td><td>双塔 MoT</td><td>每层两套 LN、QKV、FFN；AR 因果只看 AR，DM 双向看全部</td><td>joint_attn_implementation "two_way"</td></tr>
+<tr><td>M3</td><td>Edge</td><td>28 层，2048，16 头，8 KV，FFN 9216；去 QK norm、ReLU²</td><td>transformer 3,369,657,024 + ViT = 3,858,999,728</td></tr>
+<tr><td>M4</td><td>Nano</td><td>36 层，4096，32 头，8 KV，FFN 12288（Qwen3-VL-8B）</td><td>15,173,669,120 + ViT = 15,750,057,456</td></tr>
+<tr><td>M5</td><td>Super</td><td>64 层，5120，64 头，8 KV，FFN 25600（Qwen3-VL-32B）</td><td>64,019,736,832 + ViT = 64,615,003,632</td></tr>
+<tr><td>M6</td><td>位置编码</td><td>3D MRoPE；AR / DM 间隔 15,000；δt = 6 / TPS</td><td>margin 15000，base_fps 24，enable_fps_modulation；Edge mrope_section [24, 20, 20]，rope_theta 1e8</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>理解塔</td><td>预训练 2,200 万 2 轮；SFT 220 万、8,200 步、batch 512</td><td>—</td></tr>
+<tr><td>T2</td><td>生成塔目标</td><td>x_σ = σε + (1 − σ)x₀，预测 ε − x₀；视频众数采样、其余 logit-normal</td><td>"waver"（s = 1.29）/ "logitnormal"；σ = s·t / (1 + (s − 1)t)</td></tr>
+<tr><td>T3</td><td>shift</td><td>预训练 1 / 3 / 5，中训练 3 / 5 / 10</td><td>shift {"256": 3, "480": 5, "720": 10}</td></tr>
+<tr><td>T4</td><td>中训练</td><td>图像 10%、视频 32%、音视频 8%、动作 25%、迁移 25%；动作损失 × 10</td><td>action_loss_weight 10.0；动作沿用视觉 σ</td></tr>
+<tr><td>T5</td><td>打包</td><td>74,000 token</td><td>基线 45,056；LIBERO 配方和 HF Nano 74,000</td></tr>
+<tr class="grp"><td colspan="4">推理和部署</td></tr>
+<tr><td>I1</td><td>音视频</td><td>50 步，guidance 6，shift 10</td><td>调度器 UniPC</td></tr>
+<tr><td>I2</td><td>动力学</td><td>50 步，guidance 1，shift 5</td><td>—</td></tr>
+<tr><td>I3</td><td>DROID 策略</td><td>540 × 640 三视角画布 + 本体状态 → 32 步绝对关节位置 @ 15 Hz；4 步，shift 5，CFG 3，两卡</td><td>joint_pos 8 维，use_state，chunk 32，lr 2e-4，全局 batch 8,192；--cfg-parallel</td></tr>
+<tr><td>I4</td><td>LIBERO-10</td><td>表 20：MT-init 2000 步 97.4%</td><td>10 维相对 rot6d，chunk 16 @ 20 Hz，192 × 320 画布，lr 5e-5，batch 2,048，max_iter 2000；服务端 30 步 guidance 1</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕</b>文本 token 数 200 是示意；视频、音频、动作的 token 数按公式现算，条长按对数画。</li>
+<li><b>第 3 幕</b>左边坐标系的路径是手画的，只演示“相邻两帧的相对变换”。</li>
+<li><b>第 4、5 幕</b>每段 token 的个数是示意；“带噪 → 干净”的颜色和抖动过渡是示意。</li>
+<li><b>第 6 幕</b>塔画成 8 层，掩码画成 6 个 AR 和 8 个 DM token；参数量按表 2 的结构现算，和 HF 文件头一致。</li>
+<li><b>第 7 幕</b>音频 token 每 4 个画 1 个；文本长度示意。</li>
+<li><b>第 9 幕</b>中间的二维点是玩具；直方图是 4,000 个固定种子样本现算。</li>
+<li><b>第 10 幕</b>机械臂轨迹手画；DROID 画布最终落到哪个分辨率档未核实。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2606.02800 和 NVIDIA/cosmos-framework 代码后的理解，不是作者的官方图。原图见<a href="../../papers/cosmos3.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和读者注也在精读页。</p></footer>
+</div>
+</body>
+</html>

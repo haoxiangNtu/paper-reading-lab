@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos-Predict2.5 精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.00062（Cosmos-Predict2.5 / Cosmos-Transfer2.5）中文逐节精读：数据管线、流匹配和时间偏移、Wan2.1 VAE + Cosmos-Reason1 文本编码 + DiT、渐进预训练、SFT 与模型合并、RL 后训练、蒸馏、Transfer2.5 控制分支、机器人与驾驶后训练；对照 cosmos-predict2.5 官方代码和 HF 权重；和 OpenWAM 的关系；11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:820px}.t-links{min-width:660px}.t-wb{min-width:760px}
+.t-xw td,.t-xw th,.t-wb td,.t-wb th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+figure.pfig.half img{max-width:420px}
+figure.pfig.tall img{max-width:560px}
+.warnbox{border-left:3px solid var(--warn,#ff7a59);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.warnbox p{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos-predict25/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2511.00062 · cs.CV · v2 2026 年 2 月 24 日 · NVIDIA 技术报告 · 中文精读</p>
+<h1>用视频基础模型做物理 AI 的世界模拟（Cosmos-Predict2.5 / Transfer2.5）</h1>
+<p class="orig">World Simulation with Video Foundation Models for Physical AI</p>
+<p>作者署名 NVIDIA，附录 A.1 按字母顺序列出 88 位贡献者（Arslan Ali 到 Yuke Zhu）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2511.00062">arXiv 原文</a><a href="https://arxiv.org/pdf/2511.00062v2">PDF</a><a href="https://arxiv.org/html/2511.00062v2">HTML 版</a><a href="https://github.com/nvidia-cosmos/cosmos-predict2.5">Predict2.5 代码</a><a href="https://github.com/nvidia-cosmos/cosmos-transfer2.5">Transfer2.5 代码</a><a href="https://huggingface.co/nvidia/Cosmos-Predict2.5-2B">HF 2B 权重</a><span>正文 36 页，附录 A 是贡献者名单，参考文献到第 44 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇在 arXiv 摘要页登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，但 PDF 首页页脚印着 “© 2026 NVIDIA. All rights reserved”，两者矛盾（和本站 <a href="sonic.html">SONIC</a>、<a href="graspgen.html">GraspGen</a> 的情况一样，见<a href="#n1">读者注 1</a>）。<b>这一批 NVIDIA Cosmos / GR00T 论文由站点作者决定都放原图</b>，所以下面 20 张图从 arXiv PDF（v2）裁切，只做了裁切、缩放和格式转换，没有改内容，版权归原作者。每张图注写明出处和“看原图”链接。</p>
+<p>按原文顺序覆盖第 1 到 8 节和附录 A，小节编号和原文一致，用自己的话整理，不逐字翻译。公式按原文编号，表格数字照录。“读者注”是我核算或对照时发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b><a href="https://github.com/nvidia-cosmos/cosmos-predict2.5">nvidia-cosmos/cosmos-predict2.5</a> 读的是提交 <a href="https://github.com/nvidia-cosmos/cosmos-predict2.5/tree/a2c298b0a3df3778b973fe65e9e58877b292d8a7">a2c298b</a>（2026-06-08），<a href="https://github.com/nvidia-cosmos/cosmos-transfer2.5">cosmos-transfer2.5</a> 读的是 <a href="https://github.com/nvidia-cosmos/cosmos-transfer2.5/tree/2ff49d0717af02057ae79bc75c00fbff9da1b4e7">2ff49d0</a>（2026-06-07）。两个仓库的代码是 Apache-2.0，权重按 <a href="https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/">NVIDIA Open Model License</a> 发布。只读，没有运行。仓库里有训练配置（实验名、超参）和网络定义，所以论文里不少训练设定能和代码对上。HF 上的权重是 PyTorch <code>.pt</code>，没有 safetensors 文件头可读；我用 HF API 给的文件大小（bf16 每个参数 2 字节）核对参数量。</p>
+<p><b>本页的位置。</b><a href="openwam.html">OpenWAM</a> §4.1.1 比较的四个视频骨干里有 Cosmos-Predict2.5-2B（91.64），OpenWAM 仓库也支持它当视频骨干。末尾一节 <a href="#openwam">和 OpenWAM 的关系</a> 对照了 OpenWAM 的接法。同批的 <a href="cosmos.html">Cosmos（Predict1）</a>、<a href="cosmos-transfer1.html">Cosmos-Transfer1</a>、<a href="cosmos-reason1.html">Cosmos-Reason1</a>、<a href="cosmos-policy.html">Cosmos Policy</a>、<a href="cosmos3.html">Cosmos 3</a> 各有一页。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 数据</a><a href="#s3-1">3.1 流匹配</a><a href="#s3-2">3.2 网络结构</a><a href="#i3d">3D 框架动画</a><a href="#s4-1">4.1 预训练</a><a href="#s4-2">4.2 后训练</a><a href="#s4-3">4.3 基础设施</a><a href="#s5">5 结果</a><a href="#s6-1">6.1 Transfer2.5</a><a href="#s6-2">6.2 机器人策略</a><a href="#s6-3">6.3 驾驶</a><a href="#s6-4">6.4 多视角相机控制</a><a href="#s6-5">6.5 VLA 合成数据</a><a href="#s6-6">6.6 动作条件</a><a href="#s7">7 相关工作</a><a href="#s8">8 结论</a><a href="#sA">A 贡献者</a><a href="#code">代码对照</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>Cosmos-Predict2.5 是 NVIDIA Cosmos 世界基础模型的第二代视频生成模型（第一代是 <a href="cosmos.html">Cosmos-Predict1</a>）。结构仍是“视频 tokenizer + 文本编码器 + DiT”，但三处都换了：训练目标从 EDM 换成流匹配；视频 tokenizer 直接用 Wan2.1 的 VAE；文本编码器从 T5 换成自家的视觉语言模型 Cosmos-Reason1。一个模型同时做 Text2World、Image2World、Video2World。发布 2B 和 14B 两个尺寸。</p>
+<ul>
+<li><b>数据：</b>3,500 万小时原始视频切出 60 多亿段，过滤后留约 2 亿段做预训练；另有机器人、驾驶、智能空间、人体动作、物理五个领域的精选数据。</li>
+<li><b>结构：</b>Wan2.1 VAE（4 × 8 × 8，16 通道）+ patch 1 × 2 × 2；DiT 用 AdaLN-LoRA 调制，去掉了绝对位置编码，只留 3D RoPE；Cosmos-Reason1 的各层输出拼接后投影到 1024 维，经交叉注意力注入。</li>
+<li><b>训练：</b>流匹配，logit-normal 采样时间后再做 shift（β 从 1 升到 5）；256p → 480p → 720p 渐进预训练；五个领域分别 SFT，再做模型合并；用 VideoAlign 奖励做 GRPO 式的 RL；再蒸馏到 4 步。</li>
+<li><b>结果：</b>PAI-Bench 上 2B 后训练模型 T2W 0.768、I2W 0.810，和 Wan2.2-27B-A14B（0.769 / 0.806）相当。</li>
+<li><b>应用：</b>Cosmos-Transfer2.5（ControlNet 式，边缘 / 模糊 / 分割 / 深度控制）、真机策略数据增强（24/30 对 5/30）、7 路相机驾驶模拟、相机可控的多视角生成、GR1 人形的 VLA 合成数据、动作条件的世界模型。</li>
+</ul>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li><b>2B 是 28 层，不是表 3 写的 32 层。</b>官方配置、OpenWAM 的接入代码、HF 权重文件大小三方一致：按 28 层算 2,059,174,912 个参数，权重文件 4,118,575,006 字节除以 2 是 2,059,287,503（<a href="#n4">读者注 4</a>）。</li>
+<li><b>文本编码器确实是 Cosmos-Reason1。</b>代码取 Reason1-7B（Qwen2.5-VL-7B 结构）全部 28 层的隐状态，每层按 token 做均值方差归一化后拼成 28 × 3584 = 100,352 维，再用一个 Linear + GELU 压到 1024 维；这个投影层有 1.03 亿参数，占 2B 的 5%（<a href="#n5">读者注 5</a>）。</li>
+<li><b>对 OpenWAM 最要紧的一点：</b>官方流匹配配置里 DiT 的 <code>timestep_scale = 0.001</code>（时间嵌入看到的是 0 到 1），而 OpenWAM 构建网络时没有传这个参数（默认 1.0），喂进去的是 0 到 1000。这是只读代码得出的，没跑过，建议复现时先打印核对（<a href="#n20">读者注 20</a>）。</li>
+</ol>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>物理 AI（带传感器和执行器的具身智能体）直接在真实世界里训练又慢又贵又危险，能按智能体动作生成逼真画面的世界模拟器可以当安全的替身。Cosmos-Predict2.5 相对 Predict1 有三处改进：数据过滤更严，加了物理 AI 的后训练数据；结构简化，三种生成模式合到一个模型；训练流程加了模型合并和新的 RL 算法，文本编码器从 T5 换成 Cosmos-Reason1。下游用途是给 VLA 训练造合成数据、做动作条件的策略评估、驾驶多视角模拟和机器人多视角生成。另外把它扩展成 ControlNet 式的 Cosmos-Transfer2.5，比 Transfer1 小 3.5 倍、质量更高。表 1 是发布的模型清单。</p>
+<details class="tbl"><summary>表 1 · 发布的模型和输入（展开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th>能力</th><th>输入</th></tr></thead><tbody>
+<tr class="grp"><th colspan="3">Cosmos-Predict2.5 基础模型</th></tr>
+<tr><td>Predict2.5-2B / 14B pre-trained</td><td>预训练基础模型</td><td>文本 + 图像或视频</td></tr>
+<tr><td>Predict2.5-2B / 14B post-trained</td><td>后训练基础模型</td><td>文本 + 图像或视频</td></tr>
+<tr class="grp"><th colspan="3">Cosmos-Predict2.5 领域专用</th></tr>
+<tr><td>2B/auto/multiview</td><td>驾驶，7 路相机</td><td>文本 + 图像或视频</td></tr>
+<tr><td>2B/robot/action-cond</td><td>机器人，动作条件</td><td>动作</td></tr>
+<tr><td>2B/robot/multiview-agibot</td><td>机器人，AgiBot 数据，3 路相机</td><td>文本 + 图像</td></tr>
+<tr><td>14B/robot/gr00tdream-gr1</td><td>机器人，GR00T GR1 数据</td><td>文本 + 图像或视频</td></tr>
+<tr class="grp"><th colspan="3">Cosmos-Transfer2.5</th></tr>
+<tr><td>2B/general</td><td>ControlNet</td><td>边缘、模糊、分割、深度</td></tr>
+<tr><td>2B/auto/multiview</td><td>驾驶，多视角 ControlNet</td><td>世界场景图</td></tr>
+<tr><td>2B/robot/multiview</td><td>机器人，3 路相机</td><td>文本 + 第三人称视频</td></tr>
+<tr><td>2B/robot/multiview-agibot</td><td>机器人，AgiBot 数据，3 路相机</td><td>文本 + 头部视角视频</td></tr>
+</tbody></table></div>
+<p>HF 的 2B 仓库里还有表 1 没列的 <code>base/distilled</code>（4.2.3 节的蒸馏模型）和 <code>robot/policy/libero</code>、<code>robot/policy/robocasa</code>（这是 <a href="cosmos-policy.html">Cosmos Policy</a> 的权重）。</p>
+</details>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可的三处说法</span><p>(1) arXiv 摘要页登记 CC BY 4.0（<code>licenses/by/4.0</code>）；(2) PDF 首页页脚印着 “© 2026 NVIDIA. All rights reserved.”，和 CC BY 矛盾，原文没解释，处理同本站 SONIC、GraspGen 页：图注写明 arXiv 登记的许可，并说明是站点作者决定放原图；(3) 摘要说“源代码、预训练检查点和基准按 NVIDIA Open Model License 发布”，但两个代码仓库的 LICENSE 实际是 Apache-2.0，README 写明“源代码 Apache 2，模型按 NVIDIA Open Model License”。HF 的 2B 仓库是需要登录同意条款的 gated 仓库（API 返回 <code>gated: auto</code>），14B 不是。</p></div>
+
+<h2 id="s2"><span class="no">2</span>数据</h2>
+<p>两处改进：通用数据管线的各个组件升级；另外专门整理了一批物理 AI 领域的高质量数据。</p>
+<h3 id="s2-1"><span class="no">2.1</span>视频整理管线</h3>
+<p><b>结论：</b>处理 3,500 万小时原始视频（Predict1 是 2,000 万小时），切出 60 多亿段 5 到 60 秒的片段，只有约 4% 通过全部过滤，得到约 2 亿段预训练片段（Predict1 的通过率是 30%）。</p>
+<figure class="pfig" id="fig1">
+<img src="cosmos-predict25/fig1.webp" width="1260" height="742" alt="图 1：视频整理管线，左列按镜头切分、GPU 转码、裁黑边，中列七个过滤器，右列描述、语义去重、分片" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 5 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（PDF 页脚另有版权声明，见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S2.F1">看原图 ↗</a></span>七个阶段：按镜头切分、GPU 转码、裁剪、过滤、描述、语义去重、分片。过滤器依次是美学、运动、OCR、感知质量、语义瑕疵、VLM、内容类型分类。</figcaption>
+</figure>
+<p><b>切分和过滤。</b>先用镜头边界检测切开长视频，转码并裁掉黑边，丢掉 5 秒以下的片段。过滤器按代价从低到高排：美学打分；运动量；OCR（去掉文字叠加多的）；感知质量（类似 DOVER，去技术失真）；“语义瑕疵”（类似 VTSS，去画中画、生硬转场）；最后用 VLM（Qwen2.5-VL）做高精度复查。通过的片段再用内容类型分类器分类，并去掉游戏、合成图案、动画、卡通等不符合物理世界分布的内容。</p>
+<p><b>描述。</b>每段按 5 秒窗口切开，用 Qwen2.5-VL-7B 生成短、中、长三种长度的描述，提示词强调主要物体、运动和关键细节。</p>
+<p><b>去重和分片。</b>先按嵌入相似度聚类，类内两两比较，保留分辨率最高的版本；采用在线去重，新片段和已保留的比较，平局时保留更早、分辨率更高的。再用 26 类的内容类型分类器打标签，按内容类型、分辨率、宽高比、时长分片，方便课程式训练和领域配比。基础设施升级到 PB 级，接入 Delta Lake 做 SQL 分析、Milvus 做向量检索。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 漏斗的算术</span><p>“6 亿多段里约 4% 通过、得到约 2 亿段”：2 亿 / 60 亿 = 3.3%，按“60 多亿”算还会更低；要到 4% 需要原始片段只有 50 亿。两个数大致对得上，但“约 4%”偏高。另外 2.1 节开头说“处理了 2 亿多个原始视频”，和最终“2 亿段可训练片段”恰好是同一个量级，读的时候别混：前者是原始长视频，后者是切分过滤后的片段。表 5 后训练各领域合计 10.4 + 1.0 + 1.6 + 3.1 + 0.73 + 0.388 = 17.2M 段。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>领域数据</h3>
+<p>五个领域：机器人、自动驾驶、智能空间、人体动作、物理。流程和图 1 相似，区别是不用 VLM 过滤器、改用领域相关的过滤器子集和阈值，描述用更大的 VLM 和领域定制的提示词。产出并入通用预训练数据。</p>
+<h4 id="s2-2-1"><span class="no">2.2.1</span>机器人</h4>
+<p>去掉低分辨率和近乎静止的视频；动作太慢的视频加快播放，统一节奏。描述提示词要求先列初始场景，再按时间顺序描述动作（直线、旋转）、用到的部件（手臂、手腕、夹爪）、相机运动和物体属性；并把数据集自带的元信息塞进提示词减少幻觉，例如 GR00T 的任务描述和人工成功评分、Bridge 的分步指令、AgiBot 的初始场景描述。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>数据集</th><th>本体</th><th class="n">中间视角</th><th class="n">左视角</th><th class="n">右视角</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot-Beta</a>（<a href="https://arxiv.org/abs/2503.06669">论文</a>）</td><td>双臂</td><td class="n">194k</td><td class="n">30k</td><td class="n">30k</td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">Bridge</a>（<a href="https://arxiv.org/abs/2308.12952">论文</a>）</td><td>单臂</td><td class="n">36k</td><td class="n">-</td><td class="n">-</td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a>（<a href="https://arxiv.org/abs/2403.12945">论文</a>）</td><td>单臂</td><td class="n">39k（腕部）</td><td class="n">51k</td><td class="n">51k</td></tr>
+<tr><td>GR00T（<a href="gr00t.html">本站 GR00T 页</a>）</td><td>双臂</td><td class="n">3k</td><td class="n">-</td><td class="n">-</td></tr>
+<tr><td><a class="ds" href="https://www.1x.tech/">1X</a></td><td>双臂</td><td class="n">17k</td><td class="n">-</td><td class="n">-</td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer-x.github.io/">OpenX</a>（<a href="https://arxiv.org/abs/2310.08864">论文</a>）</td><td>单臂</td><td class="n">500</td><td class="n">-</td><td class="n">-</td></tr>
+<tr><td><a class="ds" href="https://x-humanoid-robomind.github.io/">RoboMIND</a>（<a href="https://arxiv.org/abs/2412.13877">论文</a>）</td><td>双臂 / 人形</td><td class="n">16k</td><td class="n">6k</td><td class="n">7k</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · 机器人数据集按视角的视频数。中间视角合计约 305.5k，左 87k，右 88k（我加的合计）。</p>
+<h4 id="s2-2-2"><span class="no">2.2.2</span>自动驾驶</h4>
+<p>NVIDIA 内部平台采集的约 310 万段 20 秒环视视频，7 路同步相机（前广角、前长焦、左、右、后、左后、右后）。按地域、车流密度、自车速度和加速度、机动、道路类型、少见结构（隧道、收费站）、能见度、天气、光照等属性从大库里抽样。描述关注需要注意的交通参与者和交通元素、天气路况、自车和他车的纵横向元动作、速度、其他物体的状态变化、关键物体之间的交互，也写短中长三种。</p>
+<h4 id="s2-2-3"><span class="no">2.2.3</span>智能空间</h4>
+<p>仓库、工厂、工地等场景。用关键词搜视频，VLM 判断相关性，切分过滤后约 4 万段，再用 VLM 按工业场景的语气写描述。</p>
+<h4 id="s2-2-4"><span class="no">2.2.4</span>人体动作</h4>
+<p>保留 5 秒以上的片段，用 YOLOX 检测人、RTMPose 估计全身关键点和面部点。入选条件：40% 以上的帧有人，任一帧不超过 8 人，至少一人占画面 3% 以上。描述强调人体动作细节。</p>
+<h4 id="s2-2-5"><span class="no">2.2.5</span>物理</h4>
+<p>先定一个可视物理现象的分类体系（经典力学、流体力学等，例如玻璃破碎、球相撞、水流），按它收集视频，并让 VLM 写清物理过程和物体交互。</p>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<h3 id="s3-1"><span class="no">3.1</span>流匹配</h3>
+<p><b>结论：</b>Predict1 用 EDM，Predict2.5 改用流匹配（FM）。两者前向和反向过程在数学上等价，差别在网络的参数化：EDM 让网络输入输出都接近标准高斯，FM 让网络直接预测扩散轨迹的速度，作者说后者优化更平滑、样本质量更好。</p>
+<p>给定数据 \(\mathbf{x}\)、噪声 \(\boldsymbol\epsilon\sim\mathcal N(0,I)\)、时间 \(t\in[0,1]\)（从 logit-normal 分布采样）：</p>
+<div class="eq">\[\mathbf{x}_t=(1-t)\,\mathbf{x}+t\,\boldsymbol\epsilon \tag{1}\]</div>
+<div class="eq">\[\mathbf{v}_t=\boldsymbol\epsilon-\mathbf{x} \tag{2}\]</div>
+<div class="eq">\[\mathcal L(\theta)=\mathbb E_{\mathbf{x},\boldsymbol\epsilon,\mathbf{c},t}\big\|\mathbf{u}(\mathbf{x}_t,t,\mathbf{c};\theta)-\mathbf{v}_t\big\|^2 \tag{3}\]</div>
+<p>这里 \(t=0\) 是数据、\(t=1\) 是噪声（和 <a href="wan.html">Wan 报告</a> 的约定正好相反，Wan 的 \(t=1\) 是数据）；\(\mathbf c\) 是文本嵌入、参考帧等条件。</p>
+<p><b>为什么要偏向高噪声。</b>高分辨率内容相邻像素高度相关，噪声太小时模型“打不散”这种相关性，学不到结构。所以采用 SD3 的 shifted logit-normal：先从 logit-normal 采 \(t\)，再做单调变换</p>
+<div class="eq">\[t_s=\frac{\beta t}{1+(\beta-1)t} \tag{4}\]</div>
+<p>\(\beta\) 越大，\(t_s\) 越偏向高噪声；\(\beta=1\) 时不变。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · shift 5 到底推了多少；“高噪声 5%”在代码里</span><p><b>算一下。</b>代码里 logit-normal 是 <code>sigmoid(randn)</code>，即均值 0、标准差 1（<code>schedulers/rectified_flow.py</code> 第 67-68 行）。\(t\) 的中位数是 0.5，\(\beta=5\) 后变成 \(5\times0.5/(1+4\times0.5)=0.833\)；\(t=0.1,0.25,0.75,0.9\) 分别变成 0.357、0.625、0.938、0.978。我用 40 万个样本算：\(\beta=5\) 时 \(t_s\ge0.98\) 的比例只有 1.1%（\(\beta=1\) 时 0.005%）。</p>
+<p><b>和 4.1 节的“高噪声补丁”对照。</b>4.1 节说为了消除帧间突变，让 5% 的样本专门从噪声最高的 2% 里抽。代码 <code>text2world_model_rectified_flow.py</code> 第 104-107 行正是 <code>high_sigma_ratio = 0.05</code>、<code>high_sigma_timesteps_min = 980</code>、<code>max = 1000</code>（1000 步里的最高 2%）。按上面的数，这相当于把这一段的采样比例从约 1.1% 提到约 6%。但公开代码里这个分支开头就是 <code>raise NotImplementedError("High sigma strategy is buggy when using CP")</code>（第 755 行），发布的 2B 预训练配置（<code>model_2B_reason_1p1_rectified_flow.py</code>）也没有打开它，只是实验名里带 “high_sigma”。发布的权重训练时到底有没有用，从公开代码看不出来，未核实。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>网络结构</h3>
+<p><b>结论：</b>DiT 大体沿用 Predict1，主要改动是<b>去掉绝对位置编码，只留相对位置编码（3D RoPE）</b>，好在后训练时外推到更高分辨率和更长序列。tokenizer 换成 Wan2.1 VAE，文本编码器换成 Cosmos-Reason1。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>配置</th><th class="n">2B</th><th class="n">14B</th></tr></thead><tbody>
+<tr><td>层数</td><td class="n">32（代码 28，见读者注 4）</td><td class="n">36</td></tr>
+<tr><td>模型宽度</td><td class="n">2,048</td><td class="n">5,120</td></tr>
+<tr><td>FFN 隐层</td><td class="n">8,192</td><td class="n">20,480</td></tr>
+<tr><td>AdaLN-LoRA 维度</td><td class="n">256</td><td class="n">256</td></tr>
+<tr><td>注意力头数</td><td class="n">16</td><td class="n">40</td></tr>
+<tr><td>头维度</td><td class="n">128</td><td class="n">128</td></tr>
+<tr><td>MLP 激活</td><td colspan="2" class="c">GELU</td></tr>
+<tr><td>位置编码</td><td colspan="2" class="c">3D RoPE</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · Cosmos-Predict2.5 的配置（括号里是我加的代码核对）。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 2B 是 28 层，不是 32 层</span><p><b>代码。</b><code>configs/video2world/defaults/net.py</code> 第 82-87 行：<code>COSMOS_V1_2B_NET_MININET.num_blocks = 28</code>（14B 是 36）；发布的 2B 实验配置用的就是这个 <code>cosmos_v1_2B</code>。动作条件、多视角、Transfer 的 2B 配置也全是 28。OpenWAM 的接入代码（<code>cosmos_predict25/pipeline_builder.py</code> 第 39-53 行）写着“和探查过的 <code>*_ema_bf16.pt</code> 一致：28 块，宽 2048，头维 128，上下文 1024”。</p>
+<p><b>权重文件。</b>我按 <code>minimal_v4_dit.py</code> 的层定义逐项算（每块：自注意力 4d² 加 q/k 的 RMSNorm；交叉注意力 2d² + 2 × 1024d；MLP 8d²；三组 AdaLN-LoRA 各 256d + 256 × 3d；外加 patch 嵌入 72 × d、时间嵌入 d² + 3d² + d、输出层、文本投影 100352 × 1024 + 1024）：每块 69,206,528 个参数，28 层合计 <b>2,059,174,912</b>，32 层会是 2,336,001,024。HF 上 <code>base/post-trained/…_ema_bf16.pt</code> 是 4,118,575,006 字节，除以 2 得 2,059,287,503，比 28 层的算数只多 11 万（约 0.2 MB，是 pickle 的键名和元数据），32 层则差 2.8 亿。14B 按 36 层算 14,368,047,104，文件 28,736,391,006 字节 / 2 = 14,368,195,503，同样对上。</p>
+<p><b>论文自己的旁证。</b>6.1 节说 Transfer2.5 “每 7 个主干块后插一个控制块，共 4 个”：28 / 7 = 4 正好；32 层按每 7 块一个会是 5 个。代码里 <code>control_layers = range(0, num_blocks, 7)</code> = [0, 7, 14, 21]。所以表 3 的 32 应是笔误。</p></div>
+<figure class="pfig" id="fig2">
+<img src="cosmos-predict25/fig2.webp" width="1261" height="666" alt="图 2：左边 Cosmos-Reason1 的多个 transformer 块输出拼接后投影成文本嵌入，右边 DiT 块：LayerNorm、scale+shift、自注意力、门控，交叉注意力，前馈" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 10 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S3.F2">看原图 ↗</a></span>左边：文本经 tokenizer 进 Cosmos-Reason1，每个 transformer 块的输出都拿出来拼接，再投影成文本嵌入（Reason1 的视觉编码器也能接图像 / 视频，留作以后）。右边：DiT 块由自注意力、交叉注意力、前馈三段组成，每段前面 LayerNorm 再按时间嵌入做 scale + shift，后面乘门控。条件图像或视频直接替换开头的噪声 token。</figcaption>
+</figure>
+<p><b>视觉 tokenizer。</b>用 <a href="wan.html#s4-1">Wan2.1 VAE</a>：因果 VAE，时间、高、宽压缩 4 × 8 × 8。在其上再做 1 × 2 × 2 的 patch 化。一次生成 93 帧（24 个隐帧），16 fps，约 5.8 秒。</p>
+<p><b>文本编码器。</b>用 Cosmos-Reason1 代替 T5。不只取某一层的输出，而是把多个块的激活按 token 拼起来，投影到 1024 维（参考 Wang 等人对仅解码器 LLM 做文生图编码器的研究），经交叉注意力注入。Reason1 的视觉编码器还能接收图像、视频做风格控制，留作以后。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 核对：文本编码器确实是 Cosmos-Reason1，拼的是全部 28 层</span><p>用户特别问过这一点。代码核对结果：</p>
+<ul>
+<li>发布的 2B 预训练配置 <code>model_2B_reason_1p1_rectified_flow.py</code> 第 339-343 行：<code>text_encoder_class = "reason1p1_7B"</code>，<code>embedding_concat_strategy = FULL_CONCAT</code>，<code>compute_online = True</code>，权重指向内部的 Reason1 SFT 检查点。检查点注册表（<code>packages/cosmos-oss/cosmos_oss/checkpoints.py</code> 第 59-70 行）把它登记为 “nvidia/Cosmos-Reason1.1-7B”，下载地址是 HF 的 <code>nvidia/Cosmos-Reason1-7B</code>（修订 3210bec）。论文说 Reason1，代码里是内部叫 1.1 的版本，HF 上用同一个仓库名。</li>
+<li>拼法（<code>text_encoders/text_encoder.py</code> 第 189-202 行）：取 <code>hidden_states[1:]</code>，即 28 个 transformer 层的输出（去掉词嵌入层），每层每个 token 做 \((h-\mu)/(\sigma+10^{-8})\)，再沿通道拼接：28 × 3584 = <b>100,352</b> 维。论文“多个块”实际是全部块。</li>
+<li>投影（<code>minimal_v4_dit.py</code> 第 1565-1569 行）：<code>crossattn_proj = Linear(100352, 1024, bias=True) + GELU</code>，参数 100,352 × 1024 + 1024 = <b>102,761,472</b>，占 2B 总数的 5.0%。它属于 DiT，跟着 DiT 一起训练；Reason1 本身冻结。</li>
+<li>提示词套上系统提示 “You are a helpful assistant who will provide prompts to an image generator.”，补齐或截断到 512 个 token。训练时文本 dropout 0.2（用于 CFG）。</li>
+</ul></div>
+<p><b>三种模式。</b>Text2World 只给文本；Image2World 加一张参考图；Video2World 给一段视频，做连续续写或变换。图像和视频条件都用<b>帧替换</b>：生成序列开头的帧一律替换成条件帧。好处是条件帧数可调，也让开头的帧忠实于条件，视觉线索能顺畅传到后面的帧。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>从数据到推理拆成 11 幕：总览、数据漏斗、VAE 和 patch 化（可切换三个分辨率阶段，现算 token 数）、Reason1 文本编码（28 层拼接再投影）、DiT 块和参数量（可切换 2B / 14B、28 / 32 层）、流匹配和 shift（可切换 β，现抽样）、帧替换条件（T2W / I2W / V2W）、后训练流水线（SFT → 合并 → RL → 蒸馏）、Transfer2.5 控制分支、领域后训练（驾驶多视角 / 相机控制 / 动作条件）、结果和 OpenWAM。下面嵌的是第 5 幕。</p>
+<iframe src="../interactives/cosmos-predict25/index.html?embed=1&amp;scene=5" title="Cosmos-Predict2.5 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos-predict25/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>训练</h2>
+<p>渐进式：多阶段预训练（分辨率和任务难度逐步加）→ 分领域 SFT → 模型合并 → RL。</p>
+<h3 id="s4-1"><span class="no">4.1</span>预训练</h3>
+<p><b>结论：</b>先 256p 文生图，再加 Image2World / Video2World 联合训练，分辨率 256p → 480p → 720p，最后加 Text2World。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>任务</th><th>分辨率</th><th>帧数</th><th class="n">每样本 token 数（我算的）</th></tr></thead><tbody>
+<tr><td>Text2Image</td><td>256p（320 × 192）</td><td>1</td><td class="n">240</td></tr>
+<tr><td>Text2Image | Video2World</td><td>256p（320 × 192）</td><td>1 | 93</td><td class="n">240 | 5,760</td></tr>
+<tr><td>Text2Image | Video2World</td><td>480p（832 × 480）</td><td>1 | 93</td><td class="n">1,560 | 37,440</td></tr>
+<tr><td>Text2Image | Video2World</td><td>720p（1280 × 704）</td><td>1 | 93</td><td class="n">3,520 | 84,480</td></tr>
+<tr><td>Text2Image | Video2World | Text2World</td><td>720p（1280 × 704）</td><td>1 | 93 | 93</td><td class="n">3,520 | 84,480</td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · 渐进预训练各阶段（最后一列是我按 VAE 8 倍、patch 2 倍、93 帧 → 24 个隐帧算的）。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 帧数和 token 数</span><p>93 帧经 4 倍时间压缩：\(1+(93-1)/4=24\) 个隐帧，和正文一致；93 / 16 fps = 5.81 秒，对上“约 5.8 秒”。720p 一个样本：隐变量 24 × 88 × 160，patch 后 24 × 44 × 80 = <b>84,480</b> 个 token。4.3 节说“单个序列可以有几十万个 token”，单视角 93 帧 720p 到不了；6.3 节的 7 路驾驶（每路 8 个隐帧）是 56 × 44 × 80 = 197,120，才接近 20 万。</p></div>
+<p><b>联合训练。</b>Image2World / Video2World 阶段随机取 1 或 5 帧条件，生成其余 92 或 88 帧。条件帧和带噪帧拼在一起送进 DiT；每个输入 token 再拼一个二值掩码，标明它是不是条件。去噪损失只算在要生成的帧上。每个分辨率阶段等模型收敛、画质不再提升再进下一阶段。最后加 Text2World，条件帧数按 0 / 1 / 2 取，概率 0.5 / 0.25 / 0.25。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · “1 或 5 帧”和“0、1、2 帧”说的是同一件事</span><p>前者是像素帧，后者是隐帧。Wan2.1 VAE 首帧单独编码、之后每 4 帧一个隐帧，所以 1 个隐帧 = 1 个像素帧，2 个隐帧 = 1 + 4 = 5 个像素帧。代码里写的就是隐帧：<code>min_num_conditional_frames = 0</code>、<code>max = 2</code>、<code>conditional_frames_probs = {0: 0.5, 1: 0.25, 2: 0.25}</code>（<code>model_2B_reason_1p1_rectified_flow.py</code> 第 303-305 行）。</p>
+<p><b>掩码怎么拼。</b><code>MinimalV1LVGDiT</code>（<code>networks/minimal_v1_lvg_dit.py</code>）把输入通道加 1 放条件掩码，<code>MiniTrainDIT</code> 又加 1 放 padding 掩码，所以 patch 嵌入的输入是 (16 + 1 + 1) × 1 × 2 × 2 = 72 维，线性映射到 2048。</p>
+<p><b>“只在生成帧上算损失”的实现。</b><code>video2world_model_rectified_flow.py</code> 第 130-135 行：网络输出在条件帧位置被替换成真值速度 \(\boldsymbol\epsilon-\mathbf x\)，这些位置的误差恒为 0。损失仍然是对全部位置取平均，所以条件帧越多，单样本损失的数值越小（我的推断，代码没有按非条件帧数重新归一）。条件帧的时间步：基础配置里条件帧和其余帧用同一个 \(t\)（<code>conditional_frame_timestep = -1</code> 表示不启用），后训练权重对应的实验把它设成 0.1（见<a href="#code">代码对照</a>）。</p></div>
+<p><b>时间步。</b>从 logit-normal 采样，shift 随分辨率递增：256p 时 \(\beta=1\)，到 720p 时 \(\beta=5\)。这样仍会出现帧间突变，作者认为是高噪声区样本太少，于是让 5% 的训练样本专门从噪声最高的 2% 里抽，突变明显减少（代码情况见<a href="#n3">读者注 3</a>）。</p>
+<p><b>优化器。</b>AdamW，\(\beta_1=0.9\)、\(\beta_2=0.999\)；学习率 2B 为 \(3\times10^{-5}\)、14B 为 \(1.3\times10^{-5}\)；权重衰减 0.001；线性衰减的学习率，前 2000 步预热。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 训练配置和论文的对照</span><p>发布的 2B 预训练权重（<code>d20b7120…</code>）对应实验 <code>…T2V_high_sigma_loss_reweighted_1_1_rectified_flow_only_resume2</code>，它继承 <code>…_rectified_flow_only</code>（<code>model_2B_reason_1p1_rectified_flow.py</code> 第 263-432 行）。逐项对照：</p>
+<ul>
+<li>对上的：lr 3e-5、wd 1e-3、betas (0.9, 0.999)、shift 5、logit-normal、24 个隐帧、条件帧概率、上下文并行 2（和表 9 一致）。</li>
+<li>论文没写的：梯度裁剪 0.1；文本 dropout 0.2；RoPE 的高、宽外推比 3.0、时间 1.0，关掉帧率调制；<code>timestep_scale = 0.001</code>（见<a href="#n20">读者注 20</a>）；图像和视频按 1 : 3 混合，图像 batch 12、视频 batch 1（每卡）。</li>
+<li>不一致的：这一段的预热是 100 步，学习率因子从 0.99 线性降到 0.4（周期 40 万步），不是降到 0。论文的“预热 2000 步”出现在同文件的 <code>_standalone</code> 实验（第 117-119 行，预热 2000，因子 0.5 → 0.2）。可能不同阶段设定不同，论文只写了一种，未核实。</li>
+<li>训练谱系（我从实验名和加载路径读出来的，未核实）：<code>_rectified_flow_only</code> 从 <code>…T2V_high_sigma_loss_reweighted</code> 第 1 万步的检查点开始；后者用的是 EDM 类的模型代码（<code>text2world_model.py</code>）但设了 <code>scaling = "rectified_flow"</code>，HF 上 <code>base/pre-trained/308eb96c…</code> 就是它。也就是说 2B 是先在 EDM 框架里以流匹配的损失权重训练，再切到纯流匹配的代码继续训练。论文只说“采用流匹配”。</li>
+</ul></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>后训练</h3>
+<h4 id="s4-2-1"><span class="no">4.2.1</span>监督微调</h4>
+<p><b>结论：</b>每个领域单独微调一个模型，比混在一起训练省去配比调参；各自在本领域明显变好，通用领域只略降，再用模型合并补回来。</p>
+<p>在 InternVideo2 嵌入上训练多头分类器，把样本分到五个领域：物体恒存、高运动、复杂场景、驾驶、机器人操作。每个领域模型训练 3 万步、batch 256，超参同预训练最后阶段。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>领域</th><th class="n">物体恒存</th><th class="n">高运动</th><th class="n">复杂场景</th><th class="n">驾驶</th><th class="n">机器人操作</th><th class="n">4K</th></tr></thead><tbody>
+<tr><td>视频数</td><td class="n">10.4M</td><td class="n">1.0M</td><td class="n">1.6M</td><td class="n">3.1M</td><td class="n">730K</td><td class="n">388K</td></tr>
+</tbody></table></div>
+<p class="tcap">表 5 · 后训练各领域的视频数。</p>
+<figure class="pfig narrow" id="fig3">
+<img src="cosmos-predict25/fig3.webp" width="1068" height="468" alt="图 3：五个领域上 SFT 模型对预训练模型的人工偏好，堆叠柱，绿色 SFT 胜、浅蓝基础模型胜、灰色平" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 12 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S4.F3">看原图 ↗</a></span>SFT 胜 / 基础模型胜 / 平：物体恒存 50.9 / 21.4 / 27.7，高运动 44.0 / 21.3 / 34.7，复杂场景 42.6 / 22.0 / 35.4，驾驶 47.9 / 23.3 / 28.8，机器人操作 72.6 / 19.0 / 8.3（%）。每个领域 SFT 都胜，机器人操作最明显。</figcaption>
+</figure>
+<p><b>4K 冷却。</b>另外在预训练模型上用精选 4K 视频做一段冷却训练，学习率线性降到 0，细节和运动更好。</p>
+<p><b>模型合并。</b>把各领域 SFT 模型和冷却模型合成一个。试了 model soup、TIES、DARE-Linear、DARE-TIES 四种，每种扫超参得到 20 多个候选，先在一小组难例上挑，再用更大的评测集做人工投票确认。一个发现：直接网格搜索超参，比按各 SFT 模型胜率启发式地定权重更好。除 DARE-Linear 外几种方法差不多，最终选最简单的 model soup。</p>
+<figure class="pfig narrow half" id="fig4">
+<img src="cosmos-predict25/fig4.webp" width="621" height="647" alt="图 4：六个维度的雷达图，比较 Model Soup、Ties、Dare Ties 和基础模型的胜率" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 12 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S4.F4">看原图 ↗</a></span>六个维度：物体恒存、高运动、复杂场景、驾驶、机器人操作、通用。黑色内圈是基础模型（三组比较的平均胜率），标的数 36.7、45.7、48.0、41.3、43.2、48.1；外圈三种合并方法，图上另一组数 66.8、56.8、54.6、59.4、63.7、52.5 按位置看是 Model Soup（我的读法，图没逐点注明）。合并模型在通用维度也不比基础模型差。</figcaption>
+</figure>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 3 到图 7 的读数</span><p>堆叠柱三段之和：图 3 物体恒存 50.9 + 21.4 + 27.7 = 100.0，高运动 100.0，复杂场景 100.0，驾驶 100.0，机器人操作 72.6 + 19.0 + 8.3 = 99.9（取整）；图 5 两根 100.0；图 6、图 7 各两根都是 100.0。正文引用的数（30.0 对 26.2、33.0 对 34.8、48.6 对 31.8、38.1 对 35.9）和图一致。几处平局比例很高：图 5 合并 + RL 46.7%，图 6 对 Wan2.2-5B 43.8%，“更受偏好”多是几个百分点的差。图 4 的雷达图没有逐点标注所属方法，我只能按位置推断哪组数属于 Model Soup。</p></div>
+
+<h4 id="s4-2-2"><span class="no">4.2.2</span>强化学习</h4>
+<p><b>结论：</b>把条件看作状态、整条去噪轨迹看作动作，用 VLM 奖励模型 VideoAlign（评文本对齐、运动质量、画面质量）按 GRPO 的方式做 RL，奖励和人工偏好都提升。</p>
+<p>每个条件生成 8 个样本（20 步去噪），在组内对奖励做归一化得到优势。显存不够算整条轨迹的概率，就把轨迹概率拆成每一步条件概率之和，每两步算一次梯度、累积整条轨迹（共 10 次）再更新一次参数。训练 256 步、batch 32。用微调数据上的扩散损失做正则，缓解奖励作弊（细节在 Ye 等人 2025，arXiv 2512.04332）。在合并模型上做完 RL 后的 EMA 权重就是发布的 post-trained 检查点。</p>
+<figure class="pfig narrow half" id="fig5">
+<img src="cosmos-predict25/fig5.webp" width="676" height="643" alt="图 5：RL 前后的人工投票，两根堆叠柱" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 13 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S4.F5">看原图 ↗</a></span>RL 后胜 / RL 前胜 / 平：预训练 + RL 41.1 / 18.9 / 40.0；合并 + RL 37.0 / 16.3 / 46.7（%）。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-wb"><thead><tr><th rowspan="2">模型</th><th colspan="4" class="c">Text2World</th><th colspan="4" class="c">Image2World</th></tr><tr><th class="n">文本对齐</th><th class="n">运动质量</th><th class="n">画面质量</th><th class="n">和</th><th class="n">文本对齐</th><th class="n">运动质量</th><th class="n">画面质量</th><th class="n">和</th></tr></thead><tbody>
+<tr><td>2B 预训练</td><td class="n">1.55</td><td class="n">-0.43</td><td class="n">-0.05</td><td class="n">1.08</td><td class="n">1.48</td><td class="n">-0.76</td><td class="n">-0.49</td><td class="n">0.23</td></tr>
+<tr><td>+ RL</td><td class="n">1.69</td><td class="n">-0.19</td><td class="n">0.19</td><td class="n">1.69</td><td class="n">1.57</td><td class="n">-0.70</td><td class="n">-0.45</td><td class="n">0.42</td></tr>
+<tr><td>2B 合并</td><td class="n">1.69</td><td class="n">-0.46</td><td class="n">-0.01</td><td class="n">1.23</td><td class="n">1.57</td><td class="n">-0.82</td><td class="n">-0.52</td><td class="n">0.24</td></tr>
+<tr><td>+ RL</td><td class="n">1.75</td><td class="n">-0.18</td><td class="n">0.18</td><td class="n">1.74</td><td class="n">1.57</td><td class="n">-0.68</td><td class="n">-0.44</td><td class="n">0.45</td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · VideoAlign 奖励（PAI-Bench 上），RL 前后。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 6 的和、RL 的步数和代码里的名字</span><p><b>和。</b>逐行相加：1.07、1.69、1.22、1.75；0.23、0.42、0.23、0.45。和表里差 0.01 的有三处（1.08、1.23、1.74、0.24），是各项四舍五入的结果，不算错。RL 的提升主要在运动和画面质量（T2W 运动 −0.43 → −0.19），I2W 合并模型的文本对齐 1.57 → 1.57 没变。</p>
+<p><b>步数。</b>“20 步、每两步算一次梯度”：20 / 2 = 10，和“共 10 次”一致。发布的 post-trained 检查点在代码里登记的 S3 路径是 <code>Stage-c_GRPO-…-posttrain_data-HQ_V7_RF_MERGE_LOCAL_ag_every2_guidance0_scorekeyoverall_reward_databeta0.01_mincon0/checkpoints/iter_000000288</code>（<code>packages/cosmos-oss/cosmos_oss/checkpoints_predict2.py</code> 第 107-126 行）。从名字看：在合并模型上做的 GRPO，每 2 步算梯度（ag_every2），采样不用 CFG（guidance0），奖励取 VideoAlign 的 overall 分，数据正则系数 0.01；第 288 步，比论文的 256 步多 32 步。这些是按名字推断，RL 训练代码不在仓库里，未核实。</p></div>
+
+<h4 id="s4-2-3"><span class="no">4.2.3</span>时间步蒸馏</h4>
+<p>用 rCM（前向 + 反向联合蒸馏，把连续时间一致性蒸馏和分布匹配蒸馏结合起来）把采样压到 <b>4 步</b>。为此做了支持雅可比-向量积（JVP）的融合 flash attention，并适配 FSDP2 和上下文并行。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th>基准</th><th class="n">领域分</th><th class="n">质量分</th><th class="n">总分</th></tr></thead><tbody>
+<tr><td>2B 教师</td><td>T2W</td><td class="n">0.804</td><td class="n">0.732</td><td class="n">0.768</td></tr>
+<tr><td>2B 蒸馏（4 步）</td><td>T2W</td><td class="n">0.797</td><td class="n">0.731</td><td class="n">0.764</td></tr>
+<tr><td>2B 教师</td><td>I2W</td><td class="n">0.840</td><td class="n">0.779</td><td class="n">0.810</td></tr>
+<tr><td>2B 蒸馏（4 步）</td><td>I2W</td><td class="n">0.842</td><td class="n">0.790</td><td class="n">0.816</td></tr>
+</tbody></table></div>
+<p class="tcap">表 7、表 8 · PAI-Bench 上蒸馏前后（两张表合并）。I2W 上蒸馏模型反而略高。</p>
+
+<h3 id="s4-3"><span class="no">4.3</span>基础设施</h3>
+<ul>
+<li><b>FSDP2 混合分片：</b>按参数分片（FSDP1 是按桶），显存释放更及时；加上 TorchTitan 的异步分布式检查点和 meta 设备初始化。</li>
+<li><b>灵活的上下文并行：</b>用 Ulysses 式（节点内 all-to-all），替代 Predict1 的 ring attention，更简单、通信更省，也更方便支持 NATTEN 稀疏注意力和带 JVP 的融合注意力。图像迭代时临时关掉上下文并行，视频迭代再打开。</li>
+<li><b>选择性激活重算：</b>优先重算逐元素和归一化这类便宜的算子；还不够就扩展到部分线性层。</li>
+<li><b>弹性奖励服务：</b>RL 时把隐变量发给外部服务（比视频小），服务端解码和多个奖励模型流水线并行，进程间用 CUDA IPC 零拷贝；入队立即返回 UUID，奖励存 Redis，之后再取。</li>
+</ul>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>模型</th><th class="n">上下文并行</th><th class="n">MFU</th></tr></thead><tbody>
+<tr><td>Predict2.5-2B</td><td class="n">2</td><td class="n">36.49%</td></tr>
+<tr><td>Predict2.5-14B</td><td class="n">8</td><td class="n">33.08%</td></tr>
+</tbody></table></div>
+<p class="tcap">表 9 · 4096 张 H100，720p、93 帧的训练效率。14B 的 MFU 低，原因是上下文并行更大、通信更多。</p>
+
+<h2 id="s5"><span class="no">5</span>结果</h2>
+<p><b>基准。</b>用 <a class="ds" href="https://github.com/SHI-Labs/physical-ai-bench">PAI-Bench</a>（<a href="https://arxiv.org/abs/2512.01989">论文</a>）的 predict 任务。质量分来自 8 个改编自 <a class="ds" href="https://vchitect.github.io/VBench-project/">VBench</a>（<a href="https://arxiv.org/abs/2311.17982">论文</a>）的 T2V / I2V 指标；领域分用 VQA 方式在 7 个领域（av、common、human、industry、misc、physics、robotics）上评；总分 = 两者平均。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">T2W 领域</th><th class="n">T2W 质量</th><th class="n">T2W 总分</th><th class="n">I2W 领域</th><th class="n">I2W 质量</th><th class="n">I2W 总分</th></tr></thead><tbody>
+<tr><td>Predict2.5-2B 预训练</td><td class="n">0.782</td><td class="n">0.720</td><td class="n">0.751</td><td class="n">0.824</td><td class="n">0.775</td><td class="n">0.799</td></tr>
+<tr><td>Predict2.5-2B 后训练</td><td class="n">0.804</td><td class="n">0.732</td><td class="n">0.768</td><td class="n">0.840</td><td class="n">0.779</td><td class="n">0.810</td></tr>
+<tr><td>Predict2.5-14B 预训练</td><td class="n">0.791</td><td class="n">0.722</td><td class="n">0.757</td><td class="n">0.835</td><td class="n">0.777</td><td class="n">0.806</td></tr>
+<tr><td>Predict2.5-14B 后训练</td><td class="n">0.803</td><td class="n">0.732</td><td class="n">0.768</td><td class="n">0.838</td><td class="n">0.781</td><td class="n">0.810</td></tr>
+<tr><td>Wan2.1-1.3B</td><td class="n">0.786</td><td class="n">0.726</td><td class="n">0.756</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>Wan2.1-14B</td><td class="n">0.794</td><td class="n">0.727</td><td class="n">0.761</td><td class="n">0.827</td><td class="n">0.768</td><td class="n">0.797</td></tr>
+<tr><td>Wan2.2-5B</td><td class="n">0.797</td><td class="n">0.730</td><td class="n">0.764</td><td class="n">0.834</td><td class="n">0.774</td><td class="n">0.804</td></tr>
+<tr><td>Wan2.2-27B-A14B</td><td class="n">0.810</td><td class="n">0.728</td><td class="n">0.769</td><td class="n">0.841</td><td class="n">0.772</td><td class="n">0.806</td></tr>
+</tbody></table></div>
+<p class="tcap">表 10、表 11 · PAI-Bench T2W 和 I2W（两张表合并；I2W 表没有 Wan2.1-1.3B）。</p>
+<p>T2W 上 2B、14B 后训练和 Wan2.2-27B-A14B 相当；I2W 上两者并列最高。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 总分的取整；蒸馏表的教师行</span><p>总分 = (领域 + 质量) / 2，逐行复算：T2W 八行都对上（0.7565、0.7605、0.7635、0.7675 都按四舍五入进位）。I2W 有三行是舍去而不是进位：2B 预训练 (0.824 + 0.775) / 2 = 0.7995 → 表 0.799；Wan2.1-14B 0.7975 → 0.797；Wan2.2-27B 0.8065 → 0.806；而 2B 后训练 0.8095 → 0.810。可能是用未取整的分量算的，不影响排名。表 7、8 的“教师”行和表 10、11 的 2B 后训练行完全相同，说明蒸馏的教师就是发布的 post-trained 模型。</p></div>
+<p><b>人工评测。</b>标注者两两比较，看真实感、画质、时间一致性和条件对齐。</p>
+<figure class="pfig narrow half" id="fig6">
+<img src="cosmos-predict25/fig6.webp" width="676" height="639" alt="图 6：Predict2.5-2B 对 Wan2.2-5B 和 Wan2.1-14B 的人工偏好堆叠柱" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 17 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S5.F6">看原图 ↗</a></span>2B 胜 / Wan 胜 / 平：对 Wan2.2-5B 30.0 / 26.2 / 43.8，对 Wan2.1-14B 33.0 / 34.8 / 32.2（%）。</figcaption>
+</figure>
+<figure class="pfig narrow half" id="fig7">
+<img src="cosmos-predict25/fig7.webp" width="676" height="635" alt="图 7：Predict2.5-14B 对 Wan2.1-14B 和 Wan2.2-27B-A14B 的人工偏好堆叠柱" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 17 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S5.F7">看原图 ↗</a></span>14B 胜 / Wan 胜 / 平：对 Wan2.1-14B 48.6 / 31.8 / 19.6，对 Wan2.2-27B-A14B 38.1 / 35.9 / 26.0（%）。同样对 Wan2.1-14B，2B 的胜率是 33.0%，14B 是 48.6%。</figcaption>
+</figure>
+<div class="note" id="n12"><span class="lab">读者注 12 · “小 60.0% 和 85.7%”“只有一半参数”</span><p>“比 Wan2.2-5B、Wan2.1-14B 小 60.0% 和 85.7%”是按标称 2 / 5 / 14 算的：1 − 2/5 = 60.0%，1 − 2/14 = 85.7%。按精确参数（2B 为 2.059B，含 1.03 亿的文本投影；Wan2.2-TI2V-5B 为 4.9998B，Wan2.1-14B 为 14.288B，见 <a href="wan.html#n6">Wan 页读者注 6</a>）是 58.8% 和 85.6%，差别不大。“14B 只有 Wan2.2-27B-A14B 的一半参数”是总参数比（14.37 / 28.58 ≈ 50%）；但 A14B 每一步只激活一个 14.29B 的专家，所以每步计算量和 Cosmos 14B（14.37B）几乎一样。人工评测的平局比例很高（对 Wan2.2-5B 是 43.8%），“更受偏好”是 30.0 对 26.2 的小幅领先。</p></div>
+<p><b>定性样例。</b>图 8 是 2B 后训练模型在 PAI-Bench 上的样例：驾驶、工业、机器人和人体运动。</p>
+<figure class="pfig" id="fig8">
+<img src="cosmos-predict25/fig8.webp" width="1320" height="913" alt="图 8：六行样例，每行一张输入帧和四张预测帧，包括驾驶、焊接、机械臂、厨房和冲浪" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 18 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S5.F8">看原图 ↗</a></span>每行最左是输入帧，右边四张是预测帧。</figcaption>
+</figure>
+
+<h2 id="s6"><span class="no">6</span>应用</h2>
+<p>六个下游应用：Transfer2.5（6.1）；用它给机器人策略做真实到真实的数据增强（6.2）；驾驶的多视角世界模型和场景图控制（6.3）；相机可控的多视角生成（6.4）；VLA 合成数据（6.5）；动作条件的世界模型（6.6）。</p>
+
+<h3 id="s6-1"><span class="no">6.1</span>Cosmos-Transfer2.5</h3>
+<p><b>结论：</b>在 Predict2.5-2B 上加 ControlNet 式的控制分支，输入可以是边缘、模糊视频、分割图、深度图（来自 IsaacSim 之类的仿真器或真实视频）。整体沿用 <a href="cosmos-transfer1.html">Transfer1-7B</a> 的设计，唯一结构改动是控制块的位置：Transfer1 把 4 个控制块连续放在主干开头，Transfer2.5 每隔 7 个主干块插一个，同样 4 个，条件信息逐步注入。</p>
+<p><b>训练数据。</b>从预训练视频里挑物理 AI 领域（驾驶、机器人、智能空间、物理）：用 Video Depth Anything 给 1000 万段做深度，SAMv2 给 300 万段做分割，沿用 Transfer1 的流程做 1400 万段边缘和模糊。每种模态的控制分支单独训练 10 万步，有效 batch 64，其余超参同 Predict2.5-2B。</p>
+<div class="tablewrap"><table class="t-wb"><thead><tr><th>模型</th><th class="n">模糊 SSIM ↑</th><th class="n">边缘 F1 ↑</th><th class="n">深度 si-RMSE ↓</th><th class="n">分割 mIoU ↑</th><th class="n">质量分 ↑</th></tr></thead><tbody>
+<tr><td>Transfer1-7B [Blur]</td><td class="n">0.89</td><td class="n">0.20</td><td class="n">0.66</td><td class="n">0.73</td><td class="n">6.56</td></tr>
+<tr><td>Transfer1-7B [Edge]</td><td class="n">0.77</td><td class="n">0.38</td><td class="n">0.85</td><td class="n">0.73</td><td class="n">6.76</td></tr>
+<tr><td>Transfer1-7B [Depth]</td><td class="n">0.67</td><td class="n">0.15</td><td class="n">0.76</td><td class="n">0.71</td><td class="n">6.89</td></tr>
+<tr><td>Transfer1-7B [Seg]</td><td class="n">0.62</td><td class="n">0.11</td><td class="n">1.13</td><td class="n">0.70</td><td class="n">6.02</td></tr>
+<tr><td>Transfer1-7B 均匀权重</td><td class="n">0.82</td><td class="n">0.26</td><td class="n">0.70</td><td class="n">0.74</td><td class="n">9.24</td></tr>
+<tr><td>Transfer2.5-2B [Blur]</td><td class="n">0.90</td><td class="n">0.26</td><td class="n">0.59</td><td class="n">0.75</td><td class="n">9.75</td></tr>
+<tr><td>Transfer2.5-2B [Edge]</td><td class="n">0.79</td><td class="n">0.49</td><td class="n">0.76</td><td class="n">0.75</td><td class="n">8.73</td></tr>
+<tr><td>Transfer2.5-2B [Depth]</td><td class="n">0.71</td><td class="n">0.19</td><td class="n">0.70</td><td class="n">0.73</td><td class="n">8.85</td></tr>
+<tr><td>Transfer2.5-2B [Seg]</td><td class="n">0.68</td><td class="n">0.14</td><td class="n">1.02</td><td class="n">0.71</td><td class="n">8.81</td></tr>
+<tr><td>Transfer2.5-2B 均匀权重</td><td class="n">0.87</td><td class="n">0.41</td><td class="n">0.67</td><td class="n">0.76</td><td class="n">9.31</td></tr>
+</tbody></table></div>
+<p class="tcap">表 12 · PAI-Bench-Transfer（600 段视频）上的控制对齐和质量。单模态模型只用一种控制；“均匀权重”四种控制各占 0.25。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 控制块在代码里；“小 3.5 倍”</span><p><code>cosmos-transfer2.5</code> 的 <code>minimal_v4_lvg_dit_control_vace.py</code> 第 593 行：<code>control_layers = [i for i in range(0, num_blocks, vace_block_every_n)]</code>，配置 <code>vace_block_every_n = 7</code>，28 层得到 [0, 7, 14, 21] 四个位置（读者注 4）。控制块是一个 DiT 块加前后两个零初始化的线性层（<code>before_proj</code>、<code>after_proj</code>，第 283-294 行），输出按 <code>control_context_scale</code> 加回主干对应块（第 233 行）。HF 上 Transfer2.5-2B 单模态权重 4,716,357,097 字节，约 23.6 亿参数，比 Predict2.5-2B 多约 3 亿，即 4 个控制块的量级。“小 3.5 倍”是标称的 7B / 2B。表 12 逐行和同配置的 Transfer1 比（Blur 对 Blur、Edge 对 Edge……），25 个格子全部是 Transfer2.5 更好或相等；质量分在单模态上高 2.0 到 3.2 分，均匀权重只高 0.07（9.31 对 9.24）。另一个看点：深度对齐最好的不是深度控制模型（0.70），而是模糊控制模型（Transfer2.5 0.59、Transfer1 0.66），大概因为模糊视频本身保留了整体几何（我的推断）。</p></div>
+
+<h4 id="s6-1-1"><span class="no">6.1.1</span>结果</h4>
+<p>两个维度（控制跟随、整体质量）上 Transfer2.5-2B 都超过 Transfer1-7B。作者归因于更强的基础模型和更贴近物理 AI 的训练数据。</p>
+<figure class="pfig" id="fig9">
+<img src="cosmos-predict25/fig9.webp" width="1304" height="706" alt="图 9：Transfer1-7B 和 Transfer2.5-2B 在提示词对齐、幻觉和误差累积、控制跟随三方面的样例对比" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 20 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F9">看原图 ↗</a></span>上排 Transfer1-7B，下排 Transfer2.5-2B。左：提示词要求红色亮面橱柜，Transfer2.5 做对了；中：长视频里的幻觉和误差累积；右：边缘控制的跟随。</figcaption>
+</figure>
+
+<h4 id="s6-1-2"><span class="no">6.1.2</span>长视频生成</h4>
+<p>DiT 上下文有限，长视频只能一段一段自回归生成，误差会累积。作者挑了 17 段 30 到 120 秒的视频，提出“平均相对归一化 DOVER 分数”（RNDS）：</p>
+<div class="eq">\[\mathrm{RNDS}[i]=\left(\frac{\mathrm{DOVER}[i]}{\mathrm{DOVER}_{GT}[i]}\right)\Big/\left(\frac{\mathrm{DOVER}[1]}{\mathrm{DOVER}_{GT}[1]}\right) \tag{5}\]</div>
+<p>\(i\) 是段号，DOVER 是视频质量评分，GT 是真实视频对应段。曲线从 (1, 1) 出发，再对所有视频取平均。</p>
+<figure class="pfig" id="fig10">
+<img src="cosmos-predict25/fig10.webp" width="1311" height="915" alt="图 10：四个小图，边缘、模糊、深度、分割控制下 RNDS 随段号的变化，蓝线 Transfer1-7B，绿线 Transfer2.5-2B" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 21 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F10">看原图 ↗</a></span>每段 93 帧。四种控制下，蓝线（Transfer1-7B）随段号下降明显，绿线（Transfer2.5-2B）基本平稳，深度和分割甚至高于 1。</figcaption>
+</figure>
+<div class="note" id="n14"><span class="lab">读者注 14 · 图 10 的读数，以及 RNDS 大于 1 的含义</span><p>我用 <code>pdftocairo -svg</code> 导出第 21 页，按每个小图的纵轴刻度标定（每条曲线的第 1 点都落在 1.0 刻度上，可作校验），读出每条曲线 20 个点（重画读数，不是原文给的数）：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>控制</th><th class="n">T1 最后一段</th><th class="n">T1 最低</th><th class="n">T2.5 最后一段</th><th class="n">T2.5 范围</th><th class="n">T2.5 平均</th></tr></thead><tbody>
+<tr><td>边缘</td><td class="n">0.778</td><td class="n">0.749</td><td class="n">0.972</td><td class="n">0.954–1.038</td><td class="n">0.998</td></tr>
+<tr><td>模糊</td><td class="n">0.766</td><td class="n">0.766</td><td class="n">0.903（第 19 段）</td><td class="n">0.886–1.072</td><td class="n">0.980</td></tr>
+<tr><td>深度</td><td class="n">0.773</td><td class="n">0.697</td><td class="n">1.195</td><td class="n">0.987–1.211</td><td class="n">1.109</td></tr>
+<tr><td>分割</td><td class="n">0.504</td><td class="n">0.401</td><td class="n">1.236</td><td class="n">1.000–1.328</td><td class="n">1.180</td></tr>
+</tbody></table></div>
+<p>除模糊控制的绿线只画到第 19 段外，其余曲线都到第 20 段。两点读后感：(1) 深度和分割下 Transfer2.5 的 RNDS 升到 1.2 以上，按式 (5) 意思是“后面的段相对真值的 DOVER 比第 1 段还好”，这不代表画质在提高，更可能是第 1 段相对真值偏低、或真值视频本身后段 DOVER 下降；RNDS 只衡量相对趋势。(2) 20 段 × 93 帧（段间若重叠 1 帧则 20 × 92 + 1 = 1,841 帧）在 16 fps 下约 115 秒，而评测视频只有 30 到 120 秒，短视频到不了第 20 段；所以越往后平均的视频越少，后段曲线噪声更大（我的推断，论文没说怎样处理长度不齐）。</p></div>
+
+<h3 id="s6-2"><span class="no">6.2</span>Transfer2.5 用于机器人策略学习</h3>
+<p><b>问题：</b>能不能用 Transfer2.5 生成视觉增强数据，让策略在没见过的视觉场景下也能工作？</p>
+<p><b>结论：</b>100 条真机示教，每条用 Transfer2.5 生成 5 个视觉变体，训出的策略在 10 种测试场景里 24/30 成功；只用原始数据 1/30，用常规图像增强 5/30。</p>
+<h4 id="s6-2-1"><span class="no">6.2.1</span>系统和任务</h4>
+<p>半人形平台：两条 7 自由度 Kinova Gen3 手臂，Robotiq 2F-140 夹爪，头部一台 RealSense D455 做第一人称观测，底座固定。遥操作用 Meta Quest 2 手柄跟踪左右末端的 6D 位姿，经 cuRobo 的 GPU MPC 转成关节目标，由关节阻抗控制器执行。</p>
+<p>任务：桌上随机放一个苹果和一个碗；一只手拿苹果、另一只手拿碗，把苹果放进碗里，再把碗放回桌上。只变苹果和碗的位置，物体（灰色苹果和碗）、桌面、背景都不变。采 100 条示教，训练 UNet 结构的 Diffusion Policy：输入单张图（小 ViT 编码）和夹爪关节状态，输出 8 步动作块（10 FPS，两臂的末端目标位姿和夹爪指令）。</p>
+<figure class="pfig" id="fig11">
+<img src="cosmos-predict25/fig11.webp" width="1328" height="272" alt="图 11：两条示教的第一人称观测序列" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 22 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F11">看原图 ↗</a></span>两条示教的头部相机画面，只有苹果和碗的位置不同。</figcaption>
+</figure>
+<h4 id="s6-2-2"><span class="no">6.2.2</span>增强策略</h4>
+<p>全图用边缘控制，模糊控制只作用在机器人像素上（用 Grounding DINO + SAMv2 分割出机器人）。边缘阈值中等，模糊阈值很低，CFG 3，其他默认。提示词流程：先让 VLM 给示例视频写描述，再反复用 Transfer2.5 生成、检查是否还像原视频来修描述；然后把描述做成模板，标出可变部分（桌面、苹果颜色、碗颜色、光照句、背景句），让 LLM 生成候选替换。每条原始示教随机生成 5 个变体，动作和关节状态不变，只换图像。</p>
+<figure class="pfig" id="fig12">
+<img src="cosmos-predict25/fig12.webp" width="1330" height="411" alt="图 12：上排是常规图像增强样例，下两排是 Transfer2.5 生成的增强样例" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 23 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F12">看原图 ↗</a></span>上排：常规图像增强（亮度、对比度、饱和度、色调、伽马、椒盐噪声、直方图均衡、模糊或锐化）。下两排：Transfer2.5 生成的变体，苹果和碗的颜色、桌面纹理、光照和阴影、背景都变了。</figcaption>
+</figure>
+<h4 id="s6-2-3"><span class="no">6.2.3</span>实验和结果</h4>
+<p>除了和训练一致的基础场景，还测 9 种新场景：(1) 苹果换成紫色山竹；(2) 灰碗换成橙碗；(3) 米色桌布；(4) 黑色桌布；(5) 左侧加聚光灯；(6) 桌上放干扰物；(7) 左边背景柜子换成黑色；(8) 打开背景的抽屉和烤箱门；(9) 前三项组合。作者说前五种可能落在提示词增强的范围内，(6) 到 (8) 是明显的分布外，(9) 最难。每个场景 3 次，物体位置和环境固定。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>策略</th><th class="n">基础</th><th class="n">山竹</th><th class="n">橙碗</th><th class="n">米色桌</th><th class="n">黑桌</th><th class="n">开灯</th><th class="n">干扰物</th><th class="n">黑柜</th><th class="n">开抽屉</th><th class="n">组合</th><th class="n">合计</th></tr></thead><tbody>
+<tr><td>Base（只用 100 条示教）</td><td class="n">1/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">1/30</td></tr>
+<tr><td>Baseline（常规图像增强）</td><td class="n">3/3</td><td class="n">0/3</td><td class="n">2/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">0/3</td><td class="n">5/30</td></tr>
+<tr><td>Proposed（Transfer2.5 增强）</td><td class="n">3/3</td><td class="n">3/3</td><td class="n">3/3</td><td class="n">1/3</td><td class="n">1/3</td><td class="n">2/3</td><td class="n">3/3</td><td class="n">2/3</td><td class="n">3/3</td><td class="n">3/3</td><td class="n">24/30</td></tr>
+</tbody></table></div>
+<p class="tcap">表 13 · 真机测试。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 13 的合计和几句正文</span><p>Proposed 逐项相加 3 + 3 + 3 + 1 + 1 + 2 + 3 + 2 + 3 + 3 = 24，对上；Baseline 3 + 2 = 5。正文说“常规增强只在一种情况下成功”，指 9 个新场景里只有橙碗（2/3），基础场景不算。Base 在训练场景本身也只有 1/3，作者解释为人眼察觉不到的场景细微变化。每格只有 3 次试验，24/30 的 95% 置信区间大约是 63% 到 90%（Wilson 区间，我算的），而 Proposed 在两种桌布上只有 1/3，组合场景反倒是 3/3，单格之间的差别不宜细读。</p></div>
+<figure class="pfig" id="fig13">
+<img src="cosmos-predict25/fig13.webp" width="1329" height="1275" alt="图 13：十种测试场景下 Transfer2.5 增强策略的成功执行序列" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 24 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F13">看原图 ↗</a></span>从上到下：基础、山竹、橙碗、米色桌、黑桌、开灯、干扰物、黑柜、开抽屉、组合，每行是一次成功执行。</figcaption>
+</figure>
+
+<h3 id="s6-3"><span class="no">6.3</span>Transfer2.5 用于驾驶模拟</h3>
+<p>先把 Predict2.5-2B 从单视角扩展成多视角（Predict2.5-2B/auto/multiview），再像 6.1 那样加控制分支，得到 Transfer2.5-2B/auto/multiview。</p>
+<h4 id="s6-3-1"><span class="no">6.3.1</span>模型结构</h4>
+<p>为了在 720p 下生成多个视角，把多个视角<b>沿隐变量的时间维拼接</b>，当成连续的帧。为放进显存（同时用 FSDP 和上下文并行），每个视角的隐帧数降到 8，最多 7 个视角。每个视角由 tokenizer 单独编码、解码；编码后在通道维拼一个 7 维的可学习视角嵌入，再进 DiT。RoPE 虽然整体拼在时间维上，但按视角分别构造。每个视角可以用一帧或多帧做条件；Transfer 版每个视角还可以有自己的控制信号。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">FVD StyleGAN ↓</th><th class="n">FVD I3D ↓</th><th class="n">FID ↓</th><th class="n">TSE ↓</th><th class="n">CSE ↓</th></tr></thead><tbody>
+<tr><td>Predict2.5-2B/auto/mv</td><td class="n">23.060</td><td class="n">25.308</td><td class="n">12.095</td><td class="n">0.948</td><td class="n">1.903</td></tr>
+<tr><td>Predict1-7B-Sample-AV</td><td class="n">63.685</td><td class="n">69.613</td><td class="n">25.341</td><td class="n">0.930</td><td class="n">2.631</td></tr>
+<tr><td>Transfer2.5-2B/auto/multiview</td><td class="n">24.222</td><td class="n">25.692</td><td class="n">20.022</td><td class="n">1.246</td><td class="n">2.310</td></tr>
+<tr><td>Transfer1-7B-Sample-AV</td><td class="n">56.606</td><td class="n">60.660</td><td class="n">22.633</td><td class="n">1.017</td><td class="n">1.835</td></tr>
+<tr><td>真实视频（参考）</td><td class="n">-</td><td class="n">-</td><td class="n">-</td><td class="n">1.193</td><td class="n">1.832</td></tr>
+</tbody></table></div>
+<p class="tcap">表 14 · RDS-HQ-HL 上多视角视频的画质（FVD、FID）和多视角一致性（时间 / 跨相机 Sampson 误差 TSE / CSE）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">LET-AP ↑</th><th class="n">LET-APL ↑</th><th class="n">LET-APH ↑</th><th class="n">车道 F1 ↑</th><th class="n">远处 x 误差 ↓</th><th class="n">类别准确率 ↑</th></tr></thead><tbody>
+<tr><td>Transfer2.5-2B/auto/multiview</td><td class="n">0.394</td><td class="n">0.254</td><td class="n">0.383</td><td class="n">0.637</td><td class="n">0.487</td><td class="n">0.904</td></tr>
+<tr><td>Transfer1-7B-Sample-AV</td><td class="n">0.243</td><td class="n">0.154</td><td class="n">0.236</td><td class="n">0.604</td><td class="n">0.524</td><td class="n">0.899</td></tr>
+<tr><td>真实视频（参考）</td><td class="n">0.476</td><td class="n">0.319</td><td class="n">0.462</td><td class="n">0.637</td><td class="n">0.480</td><td class="n">0.905</td></tr>
+</tbody></table></div>
+<p class="tcap">表 15 · 在生成视频上跑 3D 框检测（BEVFormer）和车道检测（LATR），和真值标注比。</p>
+<figure class="pfig" id="fig14">
+<img src="cosmos-predict25/fig14.webp" width="1318" height="1567" alt="图 14：左上是三维矢量地图和交通参与者，其余是 7 路相机的控制视频和生成画面" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 26 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F14">看原图 ↗</a></span>多视角 720p 的控制视频（“世界场景图”）包括车道线、路面标线、杆、交通标志和带状态的红绿灯，能表示立交等复杂道路；交通参与者画成长方体，按粗类别着色、前后用明暗区分。下方是 Transfer2.5-2B/auto/multiview 的生成结果。</figcaption>
+</figure>
+<figure class="pfig" id="fig15">
+<img src="cosmos-predict25/fig15.webp" width="1383" height="1027" alt="图 15：两个驾驶例子，Transfer1-7B-Sample-AV 和 Transfer2.5 的生成对比，以及控制视频" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 27 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F15">看原图 ↗</a></span>例 (1)：Transfer1 在银色车后面幻觉出一辆变形的黑车，也没跟上草坡后停放车辆的控制；例 (2)：Transfer1 让中间车道的车逆行、朝向错，还把人行道边的行人画成卡车。Transfer2.5 都没有这些问题。</figcaption>
+</figure>
+<h4 id="s6-3-2"><span class="no">6.3.2</span>训练数据</h4>
+<p>Predict2.5-2B/auto/multiview：150 万段多视角片段，每段 20 秒、7 路同步相机、30 FPS（前广角、前长焦、前左、前右、后左、后右、后长焦）；每 150 帧用 Qwen2.5-7B-Instruct 写短中长三种描述。Transfer 版：把高清地图和动态物体投影到 7 个相机上作控制输入，称为“世界场景图”：地图元素（车道线、杆、路沿、红绿灯等）加上标明车辆和行人位置的动态 3D 框，按类型着色、按运动方向明暗。控制网络用 <a class="ds" href="https://research.nvidia.com/labs/toronto-ai/cosmos_drive_dreams/">RDS-HQ</a>（<a href="https://arxiv.org/abs/2506.09042">论文</a>）训练：14 万段 20 秒的多视角驾驶场景和高清地图。相比 Transfer1 用的控制视频，新的场景图有细分的车道线类型（虚线、点线、双黄线），框会考虑遮挡和朝向。</p>
+<h4 id="s6-3-3"><span class="no">6.3.3</span>实验和结果</h4>
+<p>Predict2.5-2B/auto/multiview 在 150 万段上训 2 个 epoch，全局 batch 64，上下文并行 8；30 FPS 下一次去噪 203 帧（每视角 29 帧）。Transfer 版把视频和控制降到 10 FPS。评测用 RDS-HQ 里另外 1000 段带高清地图和人工标注车道、框的片段（和训练集不重叠）。表 14：FVD / FID 最多提升约 2.3 倍，时间和跨相机 Sampson 误差仍有竞争力。表 15：检测指标最多提升约 60%。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表 14、15 的倍数和几处不一致</span><ul>
+<li><b>帧数。</b>7 × 29 = 203，对上；29 帧 → 1 + 28/4 = 8 个隐帧，和 6.3.1 的“降到 8”一致。</li>
+<li><b>“最多 2.3 倍”。</b>Transfer 对比：FVD StyleGAN 56.606 / 24.222 = 2.34，FVD I3D 60.660 / 25.692 = 2.36，FID 22.633 / 20.022 = 1.13。Predict 对比更大：63.685 / 23.060 = 2.76，69.613 / 25.308 = 2.75，FID 25.341 / 12.095 = 2.10。所以“2.3 倍”指的是 Transfer 那组，Predict 那组其实到 2.8 倍。</li>
+<li><b>“一致性仍有竞争力”。</b>Transfer2.5 的 TSE 1.246、CSE 2.310 都比 Transfer1（1.017、1.835）差，也比真实视频（1.193、1.832）高；Predict2.5 的 CSE 1.903 比 Predict1 的 2.631 好。说“有竞争力”对 Transfer 一组偏宽松。</li>
+<li><b>“最多 60%”。</b>LET-AP 0.394 / 0.243 = +62%，LET-APL 0.254 / 0.154 = +65%，LET-APH 0.383 / 0.236 = +62%；车道 F1 已和真实视频持平（0.637）。实际是 62% 到 65%。</li>
+<li><b>其他。</b>2.2.2 节说驾驶数据 310 万段，相机叫“左、右、后”；6.3.2 节是 150 万段，相机叫“前左、前右、后长焦”，两处的相机名单不一样（可能是两套不同的采集配置，原文没解释）。6.3.3 节的 “RQS-HQ” 应是 RDS-HQ 的笔误；最后一句的 “Cosmos-Transfer-7B-AV-Sample” 和表里的 “Transfer1-7B-Sample-AV” 是同一个模型。</li>
+</ul></div>
+
+<h3 id="s6-4"><span class="no">6.4</span>带相机控制的多视角生成</h3>
+<p><b>结论：</b>Transfer2.5-2B/robot/multiview 给定一个参考视角的视频和 N 条目标相机轨迹（内外参），生成 N 段对应视角的视频；比如把人形机器人的头部视角映射到两只手的腕部视角，补出头部看不到的区域。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th class="n">相机视角数</th><th>条件</th><th>类型</th><th>分辨率</th></tr></thead><tbody>
+<tr><td>Cosmos-Predict1</td><td class="n">1</td><td>文本 + 图像</td><td>预测未来</td><td>720p</td></tr>
+<tr><td>Cosmos-Predict2.5</td><td class="n">3</td><td>文本 + 视频</td><td>视频重渲染</td><td>720p</td></tr>
+</tbody></table></div>
+<p class="tcap">表 16 · 相机控制：Predict2.5 和 Predict1 对比。</p>
+<p><b>结构。</b>源视频和目标视频都 tokenize 后沿时间维拼接。VAE 时间压缩 4 倍，所以相机参数也每 4 帧取一次，和隐帧对齐。目标相机表示成 Plücker 射线图（每个像素一个 6D 射线），patch 化后经一个相机投影层对齐到隐变量维度，在自注意力之前<b>加</b>到视频 token 上。训练时只训自注意力层和相机投影层，其余冻结。</p>
+<p><b>数据。</b><a class="ds" href="https://agibot-world.com/">AgiBot</a>：约 100 万条里抽 145,820 条，每条 3 个视角，带精确相机位姿；<a class="ds" href="https://jianhongbai.github.io/ReCamMaster/">MultiCamVideo</a>（<a href="https://arxiv.org/abs/2503.11647">论文</a>）：13.6 万条合成的人体运动，动态相机；<a class="ds" href="https://jianhongbai.github.io/SynCamMaster/">SynCamVideo</a>（<a href="https://arxiv.org/abs/2412.07760">论文</a>）：3.4 万条，内容类似但相机固定在新视角。</p>
+<p><b>两个变体</b>（都 720p，用上下文并行解决显存）：multiview-agibot 在 AgiBot 上微调，输入头部视频，生成左右腕部视频（图 16）；multiview 在 MultiCamVideo 和 SynCamVideo 上微调，输入第三人称视频，生成两段做基本相机变换的视频（左右转、弧线、推拉、方位角、仰角、距离，焦距也可变，图 17）。</p>
+<figure class="pfig tall" id="fig16">
+<img src="cosmos-predict25/fig16.webp" width="1259" height="1769" alt="图 16：四组例子，每组上排是头部视角输入，下两排是生成的左右夹爪视角" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 29 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F16">看原图 ↗</a></span>四个任务（抓牛仔裤腰、开微波炉、用勺舀豌豆、拿玩具火车），由头部视角生成时间同步的左右夹爪视角。</figcaption>
+</figure>
+<figure class="pfig tall" id="fig17">
+<img src="cosmos-predict25/fig17.webp" width="1255" height="1770" alt="图 17：一段第三人称机器人视频在多种相机变换下生成的同步视频" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 30 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F17">看原图 ↗</a></span>第一行是输入，下面依次是右转、左弧线、上仰、下移（带旋转）、50 mm 和 24 mm 焦距的推拉、仰角大小变化、方位角左右。</figcaption>
+</figure>
+<p><b>评测。</b>两个维度：相机轨迹误差（用 ViPE 从生成视频估相机位姿，和真值比旋转、平移）；跨视角一致性（生成视角两两之间的 Sampson 误差）。80 段验证视频 × 16 条相机轨迹。基线是只生成一个目标视角的 singleview 版。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th class="n">平移误差 ↓</th><th class="n">旋转误差（rad）↓</th><th class="n">Sampson 误差（px）↓</th></tr></thead><tbody>
+<tr><td>Transfer2.5-2B/robot/singleview</td><td class="n">0.08</td><td class="n">0.19</td><td class="n">26.61</td></tr>
+<tr><td>Transfer2.5-2B/robot/multiview</td><td class="n">0.08</td><td class="n">0.20</td><td class="n">19.73</td></tr>
+</tbody></table></div>
+<p class="tcap">表 17 · 多相机视频生成。多视角版一致性好（Sampson 误差低 26%），相机精度相当。</p>
+<figure class="pfig" id="fig18">
+<img src="cosmos-predict25/fig18.webp" width="1256" height="727" alt="图 18：多视角版和单视角版的生成对比，红框标出不一致的地方" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 32 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F18">看原图 ↗</a></span>左边多视角版，右边单视角版；红色虚线框是视角之间不一致的部分（衣物形状、刷子、熨衣板等）。</figcaption>
+</figure>
+<p>另外还有 Predict2.5-2B/robot/multiview-agibot：输入三张单帧图（两个夹爪视角和头部视角）和各自的相机轨迹，生成三段操作视频，结构同上，在 AgiBot 上训练，用来给策略造数据（图 19）。</p>
+<figure class="pfig" id="fig19">
+<img src="cosmos-predict25/fig19.webp" width="1220" height="850" alt="图 19：两组三视角（头部、左夹爪、右夹爪）的输入和预测帧" loading="lazy">
+<figcaption><span class="lab">图 19 · 原文第 33 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F19">看原图 ↗</a></span>从三视角各一帧出发，生成同步的三段视频：拿起装瓶子的透明塑料袋；把装白色物体的透明包装放进纸箱。</figcaption>
+</figure>
+
+<h3 id="s6-5"><span class="no">6.5</span>为 VLA 训练造合成数据</h3>
+<p>在真实示教视频上后训练后，Predict2.5 能按没见过的语言指令生成机器人执行视频；再用潜动作模型或逆动力学模型（IDM）从视频里提取伪动作，就得到“视觉 + 语言 + 动作”的样本，用来扩充 VLA 训练数据（DreamGen 的流程）。作者后训练 Predict2.5-14B，在 <a class="ds" href="https://research.nvidia.com/labs/gear/dreamgen/">DreamGen Bench</a>（<a href="https://arxiv.org/abs/2505.12705">论文</a>）上评测：看生成视频是否按指令完成涉及新物体、新行为、新环境的任务，由 Qwen2.5-VL 和 GPT-4o 自动打分。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">模型</th><th colspan="2" class="c">物体</th><th colspan="2" class="c">行为</th><th colspan="2" class="c">环境</th></tr><tr><th class="n">GPT</th><th class="n">Qwen</th><th class="n">GPT</th><th class="n">Qwen</th><th class="n">GPT</th><th class="n">Qwen</th></tr></thead><tbody>
+<tr><td>Hunyuan</td><td class="n">38.0</td><td class="n">26.0</td><td class="n">38.3</td><td class="n">10.6</td><td class="n">27.6</td><td class="n">27.6</td></tr>
+<tr><td>CogVideoX</td><td class="n">72.0</td><td class="n">38.0</td><td class="n">44.0</td><td class="n">28.0</td><td class="n">55.2</td><td class="n">41.4</td></tr>
+<tr><td>WAN2.1</td><td class="n">72.0</td><td class="n">58.0</td><td class="n">72.3</td><td class="n">55.3</td><td class="n">48.3</td><td class="n">65.5</td></tr>
+<tr><td>Cosmos-Predict2-14B/robot/gr00tdream-gr1</td><td class="n">90.0</td><td class="n">62.0</td><td class="n">59.6</td><td class="n">61.7</td><td class="n">69.0</td><td class="n">65.5</td></tr>
+<tr><td>Cosmos-Predict2.5-14B/robot/gr00tdream-gr1</td><td class="n">91.8</td><td class="n">69.4</td><td class="n">70.2</td><td class="n">59.6</td><td class="n">69.0</td><td class="n">69.0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 18 · DreamGen Bench 上 GR1 人形的指令跟随（全部是 SFT 模型）。Cosmos-Predict2-14B 是早一版，文本嵌入没用 Reason1。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 18 并非每列都最好</span><p>正文说 Predict2.5-14B “指令跟随得分最高，尤其物体和环境泛化”。逐列看：物体两列最高（91.8、69.4）；环境 GPT 69.0 和 Predict2 并列，环境 Qwen 69.0 最高；<b>行为</b>两列都不是最高：GPT 70.2 低于 WAN2.1 的 72.3，Qwen 59.6 低于 Predict2 的 61.7。六列平均：Predict2.5 71.5，Predict2 68.0，WAN2.1 61.9，CogVideoX 46.4，Hunyuan 28.0。整体最好的结论成立，“尤其物体和环境”的措辞也准确，只是行为维度没领先。GR1 数据和 RoboCasa-GR1 基准的来历见 <a href="gr00t.html">GR00T 页</a>。</p></div>
+
+<h3 id="s6-6"><span class="no">6.6</span>动作条件的世界生成</h3>
+<p><b>结论：</b>Predict2.5-2B/robot/action-cond 输入一张条件图和一串机器人动作，生成跟随动作的未来帧；长轨迹按块自回归生成，每块以上一块最后一帧为条件。动作是预训练里没有的模态，所以加了一个动作嵌入 MLP，把动作映射成张量<b>加到 DiT 的时间嵌入上</b>，而不是作为 token 输入。</p>
+<p><b>实验。</b>公开 <a class="ds" href="https://rail-berkeley.github.io/bridgedata/">Bridge</a> 数据（按 IRASim 的设置）：约 2 万条厨房场景第三人称视频，320 × 256，5 FPS；每帧动作是夹爪坐标系下的 7 维向量 (Δx, Δy, Δz, Δθr, Δθp, Δθy, 夹爪宽度)。官方测试集随机抽 100 条生成并和真值比，基线是 Predict1-7B-Video2World-Sample-ActionCond。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th class="n">PSNR ↑</th><th class="n">SSIM ↑</th><th class="n">隐空间 L2 ↓</th><th class="n">FVD ↓</th></tr></thead><tbody>
+<tr><td>Predict1-7B-Video2World-Sample-ActionCond</td><td class="n">21.14</td><td class="n">0.82</td><td class="n">0.32</td><td class="n">190</td></tr>
+<tr><td>Predict2.5-2B/robot/action-cond（时间嵌入，采用）</td><td class="n">24.95</td><td class="n">0.85</td><td class="n">0.28</td><td class="n">146</td></tr>
+<tr><td>同上，交叉注意力注入</td><td class="n">24.41</td><td class="n">0.84</td><td class="n">0.28</td><td class="n">159</td></tr>
+<tr><td>同上，通道拼接</td><td class="n">23.11</td><td class="n">0.78</td><td class="n">0.35</td><td class="n">267</td></tr>
+</tbody></table></div>
+<p class="tcap">表 19、表 20 · Bridge 上的动作条件视频预测和注入方式消融（两张表合并）。</p>
+<figure class="pfig" id="fig20">
+<img src="cosmos-predict25/fig20.webp" width="1320" height="755" alt="图 20：Bridge 上动作条件预测，三排分别是 Predict2.5、Predict1 和真值" loading="lazy">
+<figcaption><span class="lab">图 20 · 原文第 34 页 · NVIDIA，arXiv 2511.00062，CC BY 4.0（见读者注 1）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2511.00062v2#S6.F20">看原图 ↗</a></span>上：Predict2.5-2B/robot/action-cond；中：Predict1-7B 动作条件版；下：真值。绿色虚线框标出物体恒存出问题的地方，Predict2.5 更好。</figcaption>
+</figure>
+<div class="note" id="n18"><span class="lab">读者注 18 · 动作嵌入在代码里，和权重文件大小对上</span><p>示例配置 <code>cosmos_predict2/experiments/base/action.py</code> 用 <code>ActionChunkConditionedMinimalV1LVGDiT</code>：<code>action_dim = 7</code>，每段 12 个动作，<code>state_t = 1 + 12/4 = 4</code> 个隐帧（1 帧条件 + 12 帧预测 = 13 帧），图像 256 × 320，batch 8，lr 3.2e-4，wd 0.1。网络（<code>action/networks/action_conditioned_minimal_v1_lvg_dit.py</code> 第 189-233 行定义，第 266-309 行前向）按每个隐帧对应的 4 个动作拼成 7 × 4 = 28 维，经两个 MLP：28 → 8192 → 2048 加到时间嵌入，28 → 8192 → 6144 加到 AdaLN-LoRA 的输入（第 308-309 行）；条件帧那一个隐帧补零。两个 MLP 合计 2 × (28 × 8192 + 8192) + (8192 × 2048 + 2048) + (8192 × 6144 + 6144) = <b>67,592,192</b> 个参数。HF 上 <code>robot/action-cond</code> 权重 4,253,761,926 字节，减去基础模型 4,118,575,006 字节后除以 2 是 67,593,460，只差 1,268，对上。也就是说动作同时调制每一块的 scale、shift、gate，这正是“加到时间嵌入”比交叉注意力、通道拼接好的一个可能原因（我的推断）。</p></div>
+
+<h2 id="s7"><span class="no">7</span>相关工作</h2>
+<p><b>世界模型。</b>两条主线：在抽象隐空间里预测（World Models、Dreamer、V-JEPA 2 等）；直接在像素空间做高保真视频预测（Sora、Cosmos、Genie 3），本文属于后者，好处是保留丰富信息、适合给策略造合成数据、也方便加相机、动作、场景图等控制。第三条新方向是原生 3D / 4D 表示（神经场景表示或物理仿真器）。</p>
+<p><b>视频生成。</b>闭源的 Sora、可灵、Gen-3、海螺、MovieGen、Seedance、Veo、Waver 很强但不能微调；开源的 Wan、LTX、Hunyuan 透明可用，但大多面向通用内容创作，缺物理 AI 需要的细粒度控制。Predict1 是第一个面向物理 AI 的开源视频模型，本文在它基础上用领域数据训练并接入 Reason1 文本编码。</p>
+<p><b>物理 AI 世界基础模型。</b>Predict1 / Transfer1 推动了通用世界生成和物理、具身领域的评测基准，被后训练出相机控制、轨迹控制、重打光等能力，也被用作机器人策略（DreamGen、GR00T）和自动驾驶的数据引擎。</p>
+
+<h2 id="s8"><span class="no">8</span>结论</h2>
+<p>Predict2.5 和 Transfer2.5 靠大规模精选数据、流匹配、更好的文本嵌入、领域后训练和 RL，在物理 AI 基准上领先，并在机器人和自动驾驶里验证了用处。作者希望通过开放模型和代码，让 Cosmos 成为“先仿真”的物理 AI 平台。</p>
+
+<h2 id="sA"><span class="no">A</span>贡献者与致谢</h2>
+<p>A.1 列 88 位贡献者，A.2 列致谢名单，都按字母顺序，没有分工说明。</p>
+
+<h2 id="code">代码对照：论文写的和代码里的</h2>
+<p>代码是 <code>nvidia-cosmos/cosmos-predict2.5</code> 提交 a2c298b（2026-06-08，Apache-2.0）。OpenWAM 的子模块钉的是更早的 441b897，我没有单独检出那个版本。下表的“代码”列指发布的 2B 权重对应的实验配置（<code>model_2B_reason_1p1_rectified_flow.py</code>、<code>specialized_model/SFT_2B_RF.py</code>）和网络定义。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项目</th><th>论文</th><th>代码 / 权重</th></tr></thead><tbody>
+<tr><td>2B 结构</td><td>32 层，宽 2048，FFN 8192，16 × 128</td><td>28 层（<code>num_blocks = 28</code>），其余一致；2,059,174,912 个参数，和权重文件大小一致（读者注 4）</td></tr>
+<tr><td>14B 结构</td><td>36 层，宽 5120，40 × 128</td><td>一致；14,368,047,104 个参数</td></tr>
+<tr><td>位置编码</td><td>去掉绝对位置编码，只留 3D RoPE</td><td><code>extra_per_block_abs_pos_emb = False</code>（7B 的 Predict1 配置是 True）；RoPE 头维 128 按高 42、宽 42、时间 44 分；高宽外推比 3.0</td></tr>
+<tr><td>VAE</td><td>Wan2.1 VAE，4 × 8 × 8</td><td><code>wan2pt1_tokenizer</code>；HF 上 <code>tokenizer.pth</code> 507,609,880 字节，和 Wan2.1 的 <code>Wan2.1_VAE.pth</code> 同样大小；检查点注册表登记名就是 “Wan2.1/vae”</td></tr>
+<tr><td>文本</td><td>Reason1，多块拼接 → 1024</td><td>Reason1(.1)-7B，28 层全拼 100,352 维 → Linear + GELU → 1024；512 token（读者注 5）</td></tr>
+<tr><td>条件</td><td>帧替换 + 掩码</td><td>输入 16 + 1（条件掩码）+ 1（padding 掩码）通道；条件帧处输出替换成真值速度</td></tr>
+<tr><td>时间步</td><td>logit-normal + shift，β 到 5；高噪声 5%</td><td><code>shift = 5</code>，<code>logitnormal</code>，均匀损失权重；高噪声分支在公开代码里会报错（读者注 3）；<code>timestep_scale = 0.001</code></td></tr>
+<tr><td>优化</td><td>lr 3e-5，wd 1e-3，预热 2000，线性衰减</td><td>720p 段预热 100、因子 0.99 → 0.4；独立训练配置预热 2000（读者注 8）；梯度裁剪 0.1</td></tr>
+<tr><td>后训练权重</td><td>合并模型 + RL 的 EMA</td><td>实验 <code>…rf_with_edm_ckpt</code>：条件帧时间步 0.1，推理用 Karras 式 σ 网格；权重来自 GRPO 第 288 步。14B 是另一条 GRPO（steps20、every2、lr 3e-6）第 128 步</td></tr>
+<tr><td>推理默认</td><td>未给</td><td><code>config.py</code>：35 步（FlowUniPC），CFG 7，输出 77 帧，shift 5，固定的英文负提示（“The video captures a series of frames showing ugly scenes…”）</td></tr>
+<tr><td>Transfer2.5</td><td>每 7 块一个控制块，共 4 个</td><td>control_layers [0, 7, 14, 21]，零初始化投影（读者注 13）</td></tr>
+<tr><td>动作条件</td><td>动作 MLP 加到时间嵌入</td><td>7 × 4 = 28 维 → 两个 MLP 加到时间嵌入和 AdaLN-LoRA（读者注 18）</td></tr>
+</tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 推理默认值和训练的差别</span><p>训练是 93 帧（24 个隐帧），推理命令行默认输出 77 帧（20 个隐帧，<code>config.py</code> 第 447 行），默认 35 步、CFG 7（第 449、473 行；同文件的通用参数默认 CFG 3，第 304 行）。后训练实验打开了 <code>use_kerras_sigma_at_inference</code>（<code>SFT_2B_RF.py</code> 第 767 行），推理的 σ 网格按 EDM 的 Karras 式生成（σ 从 200 到 0.01，ρ = 7，再换算成 σ / (1 + σ)，即从 0.995 到 0.0099），这时 shift 参数不起作用（<code>models/fm_solvers_unipc.py</code> 第 170-189 行）。论文没有写推理设置。长视频用 <code>enable_autoregressive</code>，默认每块 77 帧、块间重叠 1 帧。</p></div>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><a href="openwam.html">OpenWAM</a> 是一个世界-动作模型（WAM）框架：视频骨干预测未来画面，动作骨干（ActionDiT）和它逐层做联合注意力来出动作。它支持五种视频骨干，Cosmos-Predict2.5-2B 是其中之一。OpenWAM 仓库（提交 1dcaeea，只读）里对应的是 <code>configs/model/video_backbone/cosmos_predict25_2b.yaml</code> 和 <code>openwam/model/video_backbone/cosmos_predict25_backbone.py</code> 加 <code>cosmos_predict25/</code> 目录。</p>
+<p><b>§4.1.1 的结果。</b><a href="openwam.html#s4-1-1">OpenWAM §4.1.1</a> 在 <a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a>（<a href="https://arxiv.org/abs/2506.18088">论文</a>）Full 上比较四个预训练视频骨干（双系统、联合自注意力，视频模块拷贝预训练权重）：Wan2.1-VACE-1.3B 90.14，<b>Cosmos-Predict2.5-2B 91.64</b>，Wan2.2-TI2V-5B 92.39，Wan2.1-I2V-14B 93.79。Cosmos 2B 比 TI2V-5B 低 0.75 点，参数是它的 2.06 / 5.00 = 41%。OpenWAM 后面的实验都用 TI2V-5B（见 <a href="wan.html#openwam">Wan 页</a>）。</p>
+
+<h3 id="ow-wire">OpenWAM 怎样接这个骨干</h3>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项目</th><th>Cosmos-Predict2.5-2B（OpenWAM 里）</th><th>Wan2.2-TI2V-5B（OpenWAM 默认）</th></tr></thead><tbody>
+<tr><td>权重</td><td><code>model_variant: base/post-trained</code>，glob <code>&lt;uuid&gt;_ema_bf16.pt</code>；下载脚本只取 <code>base/post-trained/*</code> 和 <code>tokenizer.pth</code>（约 4.6 GB）</td><td>HF Wan2.2-TI2V-5B</td></tr>
+<tr><td>VAE</td><td><code>vae: wan2pt1</code>（注释写“stride 4x8x8, z_dim=16”），冻结</td><td>Wan2.2-VAE，4 × 16 × 16，48 通道</td></tr>
+<tr><td>时间压缩</td><td>4 倍，首帧单独（<code>_COSMOS25_TEMPORAL_COMPRESSION = 4</code>，<code>_CAUSAL_TEMPORAL = True</code>）</td><td>同样 4 倍，首帧单独</td></tr>
+<tr><td>patch</td><td>(1, 2, 2)，每个 token 覆盖 4 帧 × 16 × 16 像素</td><td>(1, 2, 2)，每个 token 覆盖 4 帧 × 32 × 32 像素</td></tr>
+<tr><td>DiT</td><td>28 层，宽 2048，16 头 × 128</td><td>30 层，宽 3072，24 头 × 128</td></tr>
+<tr><td>文本</td><td><code>text_encoder_path</code> 指向 Cosmos-Reason1-7B（约 16.6 GB），训练时在线跑、冻结；上下文 1024 维（<code>text_dim</code> 自动推出）</td><td>umT5，4096 维</td></tr>
+<tr><td>shift</td><td><code>shift_video: 5.0</code>，注释“flow-matching α-shift for the video scheduler (train + deploy single source of truth)”</td><td>5</td></tr>
+<tr><td>首帧条件</td><td>条件掩码通道第 0 个隐帧置 1，该帧时间步置 0（<code>dit_forward.py</code> 第 94-99 行）</td><td>首帧替换，t = 0</td></tr>
+<tr><td>动作骨干</td><td>ActionDiT 宽 1024，层数跟视频骨干（28）；联合自注意力要求每层 16 × 128 对齐</td><td>层数 30</td></tr>
+</tbody></table></div>
+<p><b>token 数。</b>OpenWAM 的画布是 384 × 320，9 帧观测编码成 3 个隐帧。Wan2.1 VAE 下一个隐帧是 48 × 40，patch 后 24 × 20 = <b>480</b> 个 token，3 个隐帧 1,440 个；Wan2.2-VAE 下是 12 × 10 = 120 个、共 360 个。也就是说 Cosmos 2B 每层更窄（2048 对 3072）、少两层，但视频 token 是 TI2V-5B 的 4 倍。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 时间嵌入的尺度：OpenWAM 没有设 timestep_scale（只读代码得出，未运行验证）</span><p><b>上游。</b>发布的 2B 权重对应的流匹配实验在网络里设了 <code>timestep_scale = 0.001</code>（<code>model_2B_reason_1p1_rectified_flow.py</code> 第 318 行；14B、动作条件、多视角的流匹配配置也都是 0.001）。训练和推理时传给网络的时间步是 σ × 1000（0 到 1000），<code>MinimalV1LVGDiT.forward</code> 先乘 0.001，所以时间嵌入的正弦编码看到的是 0 到 1。</p>
+<p><b>OpenWAM。</b><code>cosmos_predict25/pipeline_builder.py</code> 第 44-71 行的 <code>_COSMOS25_2B_NET_KWARGS</code> 里没有 <code>timestep_scale</code>，构建 <code>MinimalV1LVGDiT</code> 时用默认值 1.0（<code>minimal_v1_lvg_dit.py</code> 第 25 行）。而 OpenWAM 的调度器给出的时间步也是 σ × 1000（<code>scheduler.py</code> 第 65 行），<code>dit_forward.py</code> 第 68-72 行乘上 <code>net.timestep_scale</code>（= 1.0）后直接送进时间嵌入。按代码读，预训练时嵌入看到 0 到 1，OpenWAM 里看到 0 到 1000，差 1000 倍。OpenWAM 会微调整个 DiT，这个偏差可能被训练吸收，但起点上预训练的时间条件是错位的。</p>
+<p><b>建议。</b>复现时在 <code>prepare_block_loop</code> 里打印一次 <code>net.timestep_scale</code> 和送进 <code>t_embedder</code> 的数值范围；若确认是 1.0，可在 <code>_COSMOS25_2B_NET_KWARGS</code> 加 <code>timestep_scale=0.001</code> 对比。OpenWAM 论文 §4.1.1 的 91.64 是用哪个版本的代码跑的，不知道，未核实。</p></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 训练时间步分布：OpenWAM 是“均匀再 shift”，上游是“logit-normal 再 shift”</span><p>OpenWAM 的 <code>base.py</code> 第 1139-1147 行在 1000 个已经 shift 过的 σ 里均匀抽下标；上游是 <code>sigmoid(randn)</code> 再 shift。两者中位数都是 0.833（shift 5），但尾部不同：OpenWAM 下 \(\sigma\ge0.98\) 要求均匀的 \(u\ge0.98/(5-4\times0.98)=0.907\)，概率 9.3%；上游 logit-normal 只有 1.1%（读者注 3）。OpenWAM 抽到极高噪声的比例约是上游的 8 倍，抽到 \(\sigma\le0.2\)（\(u\le0.048\)）的比例是 4.8%，上游约 0.14%。损失权重两边都是均匀的（OpenWAM <code>scheduler.py</code> 第 73-88 行的注释也说明了对齐上游），这一点一致。<code>scheduler.py</code> 注释提到的 “rectified_flow_shift5_high_sigma” 检查点家族名，我在上游代码里没找到。</p></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · OpenWAM 接入的其他细节</span><ul>
+<li><b>文本编码器的实现照搬上游。</b>OpenWAM 的 <code>text_encoder.py</code> 用同一句系统提示、补到 512 token、取 <code>hidden_states[1:]</code> 的 28 层逐层归一化后拼 100,352 维，再用 DiT 自带的 <code>crossattn_proj</code> 投到 1024，和读者注 5 一致。它还在 <code>_validate_geometry</code> 里强制检查 28 层、3584 宽，只认 Reason1-7B / Qwen2.5-VL-7B。</li>
+<li><b>检查点会很大。</b>Reason1 的 16 GB 权重注册为 <code>reason1</code> 子模块，跟着 OpenWAM 的统一 safetensors 一起保存（<code>component_specs.py</code> 的说明）；部署时不需要另外的 Reason1 路径，但每个检查点都多出约 16 GB。</li>
+<li><b>条件帧时间步。</b>OpenWAM 把首个隐帧的时间步置 0；上游基础配置不改条件帧时间步，后训练权重的实验设为 0.1（乘 0.001 后约 \(10^{-4}\)）。量级都接近“干净”，差别不大。</li>
+<li><b>只接了 2B。</b><code>pipeline_builder.py</code> 遇到其他名字直接报错（“14B config is registered but not wired up yet”）。</li>
+<li><b>上游版本。</b>OpenWAM 的子模块钉在 cosmos-predict2.5 的 441b897，本页读的是 a2c298b，两者之间的差别我没有逐一核对；上面引用的上游行号以 a2c298b 为准。</li>
+</ul></div>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa-wan">问 1：Cosmos-Predict2.5 和 Wan 是什么关系？</h3>
+<p><b>只共用 VAE。</b>Predict2.5 的视觉 tokenizer 就是 Wan2.1 的 VAE（同样的 4 × 8 × 8、16 通道，HF 上的 <code>tokenizer.pth</code> 和 Wan2.1 的 VAE 文件一样大，507,609,880 字节），所以 Wan 页 <a href="wan.html#s4-1">§4.1</a> 讲的因果分块、首帧单独、特征缓存都适用。DiT 是 Cosmos 自己的，和 Wan 的 DiT 不同：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th>Cosmos-Predict2.5-2B</th><th>Wan2.1-1.3B</th><th>Wan2.2-TI2V-5B</th></tr></thead><tbody>
+<tr><td>VAE</td><td>Wan2.1 VAE（4 × 8 × 8，16 通道）</td><td>Wan2.1 VAE</td><td>Wan2.2-VAE（4 × 16 × 16，48 通道）</td></tr>
+<tr><td>DiT 层 × 宽</td><td>28 × 2048，FFN 8192</td><td>30 × 1536，FFN 8960</td><td>30 × 3072，FFN 14336</td></tr>
+<tr><td>时间调制</td><td>每块三组 AdaLN-LoRA（d → 256 → 3d），共享的时间 MLP 另给一个 3d 的 LoRA 偏置</td><td>共享 MLP 出 6d，每块只学 (6, d) 偏置</td><td>同 Wan2.1，但每个 token 一个 t</td></tr>
+<tr><td>交叉注意力</td><td>受调制（scale、shift、gate）</td><td>不受调制</td><td>不受调制</td></tr>
+<tr><td>文本</td><td>Reason1-7B 28 层拼接 → 1024</td><td>umT5-XXL，4096</td><td>umT5-XXL，4096</td></tr>
+<tr><td>条件方式</td><td>帧替换 + 条件掩码通道</td><td>（I2V 版用 36 通道拼接）</td><td>首帧替换 + 该帧 t = 0</td></tr>
+<tr><td>参数</td><td>2,059,174,912</td><td>1,418,996,800</td><td>4,999,787,712</td></tr>
+</tbody></table></div>
+<p>另外，cosmos-predict2.5 的代码里还登记了 Wan2.1 的 1.3B 和 14B 网络（<code>configs/video2world/defaults/net.py</code> 的 <code>WAN2PT1_1PT3B</code>、<code>WAN2PT1_14B</code>），说明 NVIDIA 的训练框架也能训 Wan 结构；但发布的 Predict2.5 用的是自家的 <code>MinimalV1LVGDiT</code>。表 10、11 和图 6、7 的 Wan 都是作为外部对照模型。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可矛盾</a>：arXiv 登记 CC BY 4.0，PDF 页脚写 “All rights reserved”；摘要说代码和权重都按 NVIDIA Open Model License，实际代码是 Apache-2.0。</li>
+<li><a href="#n2">漏斗算术</a>：2 亿 / 60 亿 = 3.3%，比“约 4%”低；表 5 合计 17.2M。</li>
+<li><a href="#n3">shift 和高噪声</a>：β = 5 时 t ≥ 0.98 只占 1.1%；“5% 抽最高 2%”的代码分支会报错，发布配置没开。</li>
+<li><a href="#n4">2B 是 28 层</a>：配置、OpenWAM、权重文件大小（2,059,287,503 对算的 2,059,174,912）、控制块 4 个，四处一致；表 3 的 32 是笔误。</li>
+<li><a href="#n5">文本编码器</a>：确实是 Reason1（代码里叫 1.1）；28 层全拼 100,352 维 → 1024，投影 1.03 亿参数。</li>
+<li><a href="#n6">帧数和 token</a>：93 帧 → 24 隐帧；720p 一个样本 84,480 token，不到“几十万”。</li>
+<li><a href="#n7">条件帧</a>：1 / 5 像素帧 = 1 / 2 隐帧；输入 18 通道；条件帧误差强制为 0。</li>
+<li><a href="#n8">训练配置</a>：lr、wd、shift 都对上；预热 100（论文 2000）；先 EDM 框架后纯流匹配。</li>
+<li><a href="#n9">图 3 到图 7 的读数</a>：三段之和都是 100%；平局比例很高。</li>
+<li><a href="#n10">表 6 与 RL</a>：和差 0.01 属取整；发布权重是 GRPO 第 288 步，论文写 256 步。</li>
+<li><a href="#n11">PAI-Bench 取整</a>：I2W 三行舍去；蒸馏的教师就是发布的后训练模型。</li>
+<li><a href="#n12">“小 60%”“一半参数”</a>：精确是 58.8%、85.6%；A14B 每步激活参数和 Cosmos 14B 几乎一样。</li>
+<li><a href="#n13">Transfer2.5 控制块</a>：[0, 7, 14, 21]，零初始化；表 12 的 25 格全部优于同配置 Transfer1。</li>
+<li><a href="#n14">图 10 读数</a>：分割第 20 段 Transfer1 0.504、Transfer2.5 1.236；RNDS &gt; 1 不代表画质变好；短视频到不了后段。</li>
+<li><a href="#n15">表 13</a>：24/30 的 95% 区间约 63%–90%；单格只有 3 次。</li>
+<li><a href="#n16">驾驶表</a>：“2.3 倍”只对 Transfer 组，Predict 组 2.8 倍；Transfer2.5 的 TSE、CSE 变差；“60%”实为 62%–65%。</li>
+<li><a href="#n17">DreamGen 表</a>：行为两列不是最高；六列平均 71.5 最高。</li>
+<li><a href="#n18">动作嵌入</a>：7 × 4 维动作同时加到时间嵌入和 AdaLN-LoRA；多出 67,592,192 参数，和文件差 67,593,460 对上。</li>
+<li><a href="#n19">推理默认</a>：77 帧、35 步、CFG 7；后训练权重用 Karras 式 σ 网格，shift 不起作用。</li>
+<li><a href="#n20">OpenWAM 的 timestep_scale</a>：上游 0.001，OpenWAM 没设（1.0），时间嵌入输入差 1000 倍；只读代码，未运行验证。</li>
+<li><a href="#n21">OpenWAM 的时间步分布</a>：均匀再 shift，σ ≥ 0.98 占 9.3%，上游 1.1%。</li>
+<li><a href="#n22">OpenWAM 其他细节</a>：文本编码照搬上游；检查点含 16 GB Reason1；只接了 2B；子模块版本 441b897。</li>
+</ol>
+<p><b>和用户手上数字的关系。</b>这一页不涉及 LIBERO。和 OpenWAM 相关、需要复现时注意的是读者注 20（时间嵌入尺度可能错位）和 21（时间步分布和上游不同）；OpenWAM 页里 Cosmos 2B 的 91.64 本页照录，没有发现矛盾。</p>
+<p>论文没写、我也没找到的：RL 的训练代码和完整超参、模型合并的最终权重、14B 的 FFN 实际是否 20,480（代码里 mlp_ratio 4 × 5120 = 20,480，一致）以外的 14B 训练细节、各领域 SFT 的具体数据清单、PAI-Bench 各子项分数。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、代码和权重。链接在 2026 年 11 月 16 日用脚本检查过，都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/nvidia-cosmos/cosmos-predict2.5">cosmos-predict2.5</a></td><td>本文代码（Apache-2.0）</td><td><a href="https://huggingface.co/nvidia/Cosmos-Predict2.5-2B">HF 2B</a> · <a href="https://huggingface.co/nvidia/Cosmos-Predict2.5-14B">HF 14B</a></td><td><a href="https://arxiv.org/abs/2511.00062">2511.00062</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/nvidia-cosmos/cosmos-transfer2.5">cosmos-transfer2.5</a></td><td>Transfer2.5 代码</td><td><a href="https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B">HF Transfer2.5-2B</a></td><td>同上</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/nvidia/Cosmos-Reason1-7B">Cosmos-Reason1-7B</a></td><td>文本编码器</td><td><a href="https://github.com/nvidia-cosmos/cosmos-reason1">github</a></td><td><a href="https://arxiv.org/abs/2503.15558">2503.15558</a>（<a href="cosmos-reason1.html">本站</a>）</td></tr>
+<tr><td><a class="ds" href="https://github.com/SHI-Labs/physical-ai-bench">PAI-Bench</a></td><td>物理 AI 生成与理解基准，第 5 节、6.1.1</td><td>github.com/SHI-Labs/physical-ai-bench</td><td><a href="https://arxiv.org/abs/2512.01989">2512.01989</a></td></tr>
+<tr><td><a class="ds" href="https://vchitect.github.io/VBench-project/">VBench</a></td><td>PAI-Bench 质量分的来源</td><td>vchitect.github.io/VBench-project</td><td><a href="https://arxiv.org/abs/2311.17982">2311.17982</a></td></tr>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/gear/dreamgen/">DreamGen Bench</a></td><td>6.5 节，VLA 合成数据的指令跟随</td><td>research.nvidia.com/labs/gear/dreamgen</td><td><a href="https://arxiv.org/abs/2505.12705">2505.12705</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>表 2、6.4 节</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a></td><td>表 2、6.6 节</td><td>rail-berkeley.github.io/bridgedata</td><td><a href="https://arxiv.org/abs/2308.12952">2308.12952</a></td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>表 2</td><td>droid-dataset.github.io</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></td><td>表 2</td><td>robotics-transformer-x.github.io</td><td><a href="https://arxiv.org/abs/2310.08864">2310.08864</a></td></tr>
+<tr><td><a class="ds" href="https://x-humanoid-robomind.github.io/">RoboMIND</a></td><td>表 2</td><td>x-humanoid-robomind.github.io</td><td><a href="https://arxiv.org/abs/2412.13877">2412.13877</a></td></tr>
+<tr><td><a class="ds" href="https://www.1x.tech/">1X</a></td><td>表 2</td><td>1x.tech</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/toronto-ai/cosmos_drive_dreams/">RDS-HQ（Cosmos-Drive-Dreams）</a></td><td>6.3 节驾驶控制训练和评测</td><td>research.nvidia.com/labs/toronto-ai/cosmos_drive_dreams</td><td><a href="https://arxiv.org/abs/2506.09042">2506.09042</a></td></tr>
+<tr><td><a class="ds" href="https://jianhongbai.github.io/ReCamMaster/">MultiCamVideo（ReCamMaster）</a></td><td>6.4 节</td><td>jianhongbai.github.io/ReCamMaster</td><td><a href="https://arxiv.org/abs/2503.11647">2503.11647</a></td></tr>
+<tr><td><a class="ds" href="https://jianhongbai.github.io/SynCamMaster/">SynCamVideo（SynCamMaster）</a></td><td>6.4 节</td><td>jianhongbai.github.io/SynCamMaster</td><td><a href="https://arxiv.org/abs/2412.07760">2412.07760</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/KwaiVGI/VideoAlign">VideoAlign</a></td><td>RL 的奖励模型</td><td>github.com/KwaiVGI/VideoAlign</td><td><a href="https://arxiv.org/abs/2501.13918">2501.13918</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/VQAssessment/DOVER">DOVER</a></td><td>视频质量评分，RNDS 的基础</td><td>github.com/VQAssessment/DOVER</td><td><a href="https://arxiv.org/abs/2211.04894">2211.04894</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/rcm">rCM</a></td><td>4.2.3 节的蒸馏方法</td><td>github.com/NVlabs/rcm</td><td><a href="https://arxiv.org/abs/2510.08431">2510.08431</a></td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a></td><td>OpenWAM 比较骨干的基准</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+<tr><td><a class="ds" href="https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/">NVIDIA Open Model License</a></td><td>权重许可</td><td>nvidia.com</td><td>—</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2511.00062 后的整理，不是作者的官方内容。原文：NVIDIA（Arslan Ali 等 88 位作者），《World Simulation with Video Foundation Models for Physical AI》，arXiv 2511.00062v2，arXiv 登记许可为 CC BY 4.0（PDF 页脚另印 “© 2026 NVIDIA. All rights reserved”，见读者注 1）；文中原图从 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图，版权归原作者。表格数字照录原文；读者注、代码对照、图 10 的读数和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

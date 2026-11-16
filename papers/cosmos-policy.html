@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos Policy 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2601.16163 Cosmos Policy 的中文精读：把 Cosmos-Predict2-2B 视频模型不改结构地微调成策略、世界模型和价值函数，动作、本体、价值写进隐帧；best-of-N 规划；LIBERO、RoboCasa、ALOHA 结果；官方代码对照、LIBERO 训练和评测设置、和 OpenWAM 的对比、11 幕 3D 动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-s{min-width:420px}.t-m{min-width:560px}.t-w{min-width:720px}.t-xw{min-width:860px}.t-links{min-width:640px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+details.tbl{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg2)}
+details.tbl summary{cursor:pointer;font-size:14px;color:var(--fg)}
+details.tbl[open] summary{margin-bottom:6px}
+.seq{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0;font-size:12.5px;font-family:var(--font-mono)}
+.seq span{border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:var(--panel)}
+.seq .c{border-color:#4fc98a}.seq .t{border-color:#f0963c}.seq .b{opacity:.65}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos-policy/index.html">3D 框架动画</a><a href="#repro">LIBERO 设置</a><a href="#openwam">和 OpenWAM 的关系</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2601.16163 · cs.AI · v1 2026 年 1 月 22 日 · 中文精读</p>
+<h1>Cosmos Policy：不改结构，把视频生成模型微调成机器人策略、世界模型和价值函数</h1>
+<p class="orig">Cosmos Policy: Fine-Tuning Video Models for Visuomotor Control and Planning</p>
+<p>作者 Moo Jin Kim、Yihuai Gao、Tsung-Yi Lin、Yen-Chen Lin、Yunhao Ge、Grace Lam、Percy Liang、Shuran Song、Ming-Yu Liu、Chelsea Finn、Jinwei Gu，来自 NVIDIA 和斯坦福大学。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2601.16163">arXiv 原文</a><a href="https://arxiv.org/pdf/2601.16163v1">PDF</a><a href="https://arxiv.org/html/2601.16163v1">HTML 版</a><a href="https://research.nvidia.com/labs/dir/cosmos-policy/">项目主页</a><a href="https://github.com/NVlabs/cosmos-policy">官方代码</a><a href="https://huggingface.co/collections/nvidia/cosmos-policy">模型和数据</a><span>正文 10 页，附录到第 22 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布，PDF 里没有和它矛盾的版权声明（检查过全文，没有 “All rights reserved”）。论文没有写会议。这里按原文顺序覆盖正文 7 节和附录 A.1 到 A.4.2，小节编号和原文一致，用自己的话整理，不是逐字翻译。原文公式都没有编号，这里也不编号。表格数字照录原文。</p>
+<p><b>原图。</b>图 1 到图 12 从 arXiv PDF（v1）裁切，只做了裁切、缩放和格式转换，没有改内容。CC BY 本来允许这样用；这一批论文统一由站点作者决定放原图，图注里照样写明作者、出处和许可。图下文字是我写的。本页的“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码 <a href="https://github.com/NVlabs/cosmos-policy">NVlabs/cosmos-policy</a>，Apache-2.0 许可。我读的是 <a href="https://github.com/NVlabs/cosmos-policy/tree/18a2accadf4e7a3531e56754102af5a24d2316da">18a2acc</a>（2026-01-22，和 arXiv v1 同一天），只读，没有运行。注意<b>模型权重是另一个许可</b>：Hugging Face 上的 Cosmos-Policy-*-Predict2-2B 写的是 NVIDIA One-Way Noncommercial License（NSCLv1），只能非商业使用。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 预备知识</a><a href="#s4">4 方法</a><a href="#s4-1">4.1 隐帧注入</a><a href="#s4-2">4.2 联合训练</a><a href="#s4-3">4.3 规划</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 实验</a><a href="#s5-2">5.2 不带规划</a><a href="#s5-3">5.3 带规划</a><a href="#s6">6 讨论</a><a href="#s7">7 可复现性</a><a href="#apA1">A.1 注入细节</a><a href="#apA2">A.2 训练</a><a href="#apA3">A.3 评测</a><a href="#apA4">A.4 补充实验</a><a href="#code">代码对照</a><a href="#repro">LIBERO 设置</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>想用视频生成模型做机器人策略，以往的做法通常要两段训练（先微调视频模型，再训练一个动作模块），或者加新部件（单独的动作扩散头、逆动力学模型）。这篇的做法最省事：拿 <b>Cosmos-Predict2-2B-Video2World</b>（NVIDIA 的 2B 隐空间视频扩散模型），<b>一行网络结构都不改</b>，只在机器人演示上微调一段。</p>
+<p>关键是“隐帧注入”（latent frame injection）：视频模型的输入本来是一串 VAE 隐帧。作者在图像序列里插入几张全零图占位，VAE 编码后把这些占位隐帧整块改写成<b>本体状态、动作块、价值</b>（各自缩放到 [−1, 1]，重复铺满一个隐帧）。多个相机的画面也只是多插几帧。于是“当前观测 → 动作 → 未来观测 → 未来价值”成了一段视频，视频扩散的去噪目标就同时学到了策略、世界模型和价值函数。</p>
+<ul>
+<li><b>直接当策略用：</b><a class="ds" href="https://libero-project.github.io/">LIBERO</a> 四个套件平均 98.5%（三个种子，共 6,000 回合）；<a class="ds" href="https://robocasa.ai/">RoboCasa</a> 24 个任务平均 67.1%，每任务只用 50 条人工演示；<a class="ds" href="https://tonyzhaozh.github.io/aloha/">ALOHA</a> 真机四个双臂任务平均 93.6 分，高于 π0.5 的 88.6。</li>
+<li><b>加上规划：</b>用策略采 N = 8 个动作块，用“规划模型”想象每个动作块之后的画面和价值，选价值最高的执行。在两个难的 ALOHA 任务、较难的初始条件下平均分从 59.5 到 72.0（+12.5）。规划要先收集 648 条策略回放来微调世界模型和价值函数，每个动作块约 4.9 秒（8 张 H100）。</li>
+<li><b>消融：</b>LIBERO 上不用视频预训练权重掉 3.9 点；去掉辅助目标掉 1.5 点。RoboCasa 上只预测动作、不预测未来状态时从 67.1 掉到 44.4，掉得最多。</li>
+</ul>
+<p>读完我认为最值得记住的三点：一是“不改结构”靠的是 Cosmos 原本就有的“按帧决定哪些是干净条件、哪些要去噪”的掩码，三种功能只是三种掩码（<a href="#fig12">图 12</a>）；二是让策略同时预测未来画面这个辅助目标贡献很大（表 5 第 4 行）；三是 LIBERO 的数据和评测细节和 OpenVLA 版很像但不完全一样：它自己重生成了数据（1,700 条成功演示，不是 1,693 条），图像只上下翻转而不是旋转 180°（<a href="#n15">读者注 15</a>、<a href="#repro">LIBERO 设置</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="cosmos-policy/fig1.webp" width="1600" height="450" alt="图 1：左边当前状态和任务描述，中间 Cosmos 扩散 Transformer，右边输出动作块、未来状态和价值" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S0.F1">看原图 ↗</a></span>左边是输入：当前状态 s（本体 \(q_t\) 加左腕、右腕、俯视三张图）和任务描述 “put candies in bowl”。中间是没改过的 Cosmos 扩散 Transformer（自注意力、交叉注意力、前馈，重复 N 块；文本经文本编码器进交叉注意力，去噪时间步进调制）。右边三个输出：动作块 \(a_t,\dots,a_{t+H-1}\in\mathbb R^{H\times d_{act}}\)（图里块长写成 \(H\)，正文写 \(K\)），未来状态 s′（未来本体 \(q_{t+H}\) 和未来三张图），未来状态价值 \(V(s')\)。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>动机。</b>大视频生成模型（Cosmos、Wan、CogVideoX、HunyuanVideo 等）能生成物理上合理、时间上连贯的视频。VLA 的骨干是视觉-语言模型，学的是静态图文对里的语义；视频模型从海量视频里学到的是时间因果、隐含的物理和运动规律。作者认为这些时空先验对机器人更有用。</p>
+<p><b>已有做法的问题。</b>把视频模型用到操作上的工作很多，但通常要多段训练（先在机器人视频上微调，再训动作模块），还要加新部件，比如单独的动作扩散器或逆动力学模型。另一类工作训练统一的视频-动作模型（UVA、UWM），但结构是自己设计的，用不上预训练视频模型的权重。</p>
+<p><b>做法。</b>Cosmos Policy 从 Cosmos-Predict2-2B 出发，只在目标平台的演示上做一段后训练，不改结构，直接用视频模型自己的扩散目标去学动作分布。理由是视频模型擅长建模高维、多峰的分布，又能生成几百帧连贯视频，那么把动作当成序列里的“一帧”应该也学得动。模型同时生成动作、未来状态图像和未来状态价值（期望累积奖励），三者都编码成隐帧。有了未来状态和价值，就能做 best-of-N：采样多个候选动作，想象各自的结果，按价值排序，执行最好的那个。</p>
+<p><b>结果摘要。</b>直接当策略用时，LIBERO 98.5%、RoboCasa 67.1%，超过从头训练的扩散策略、基于视频的策略（UVA、Video Policy）和微调过的 VLA（π0.5、OpenVLA-OFT、CogVLA、UniVLA、DP-VLA、GR00T-N1.5）；ALOHA 真机平均 93.6 分最高。加上模型规划后，两个难的真机任务平均任务完成度高 12.5 个百分点。作者还比较了基于模型（世界模型 + 状态价值）和无模型（直接学 Q 值）两种规划。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>基于视频的机器人策略。</b>一类先在机器人数据上微调视频模型，再训单独的动作模块从生成的画面里出动作（Video Policy、FlowVLA、VPP、Genie Envisioner、UnifoLM-WMA、Vidar 等）；另一类训统一的视频-动作模型同时预测未来帧和动作（UVA、UWM），但不用预训练视频模型。本文是单阶段微调，直接让预训练视频模型在自己的隐扩散过程里生成动作，以及本体和价值。</p>
+<p><b>视觉-语言-动作模型。</b>RT-2、OpenVLA、π0.5、UniVLA、CogVLA 在大规模模仿数据上微调视觉-语言模型，语义泛化强，但骨干主要在静态图文上训练。本文换成从视频预测里学到时空动态的骨干，假设它更适合做底层控制。</p>
+<p><b>世界模型和价值函数。</b>Dyna、MBPO、<a href="td-mpc.html">TD-MPC</a>、<a href="dreamer.html">Dreamer</a> 系列展示了把规划和学习结合的好处。较新的有 FLARE（在扩散 Transformer 序列里加可学习的未来 token，预测未来状态的紧凑表示）、SAILOR（单独的世界模型和奖励模型，用 MPPI 搜索）、Latent Policy Steering（用光流作动作表示预训练世界模型，再单独训价值函数引导策略）。这些工作的策略、世界模型、价值函数是分开的模块，而且多数从头训练；本文用一个从视频模型初始化的网络同时当三者。</p>
+
+<h2 id="s3"><span class="no">3</span>预备知识</h2>
+<p><b>Cosmos 视频模型。</b>初始化用的是 Cosmos-Predict2-2B-Video2World：输入一张起始图和一段文字，预测后续帧。它在 Wan2.1 时空 VAE 的连续隐变量上工作，用 EDM 的去噪得分匹配训练。去噪器 \(D_\theta\) 在噪声水平 \(\sigma\) 下的目标是</p>
+<div class="eq"><div class="m">\[ \mathcal L(D_\theta,\sigma)=\mathbb E_{x_0,c,n}\Big[\big\|D_\theta(x_0+n;\sigma,c)-x_0\big\|_2^2\Big] \]</div><span class="no">（原文无编号）</span></div>
+<p>\(x_0\) 是 VAE 编码后的干净图像序列，\(c\) 是 T5-XXL 编码的文本，\(n\sim\mathcal N(0,\sigma^2I)\)。\(D_\theta\) 是扩散 Transformer（DiT），用交叉注意力读文本，用自适应层归一化读 \(\sigma\)。</p>
+<p>Wan2.1 VAE 把 \((1+T)\times H\times W\times3\) 的视频压成 \((1+T')\times H'\times W'\times16\)，其中 \(T'=T/4\)，\(H'=H/8\)，\(W'=W/8\)。第一帧单独编码、不做时间压缩，方便用一张图做条件；之后每 4 帧压成 1 个隐帧。训练时用条件掩码让第一帧保持干净，后面的帧加噪声。</p>
+<p><b>MDP 和模仿学习。</b>操作任务写成有限时域 MDP \(\langle S,A,T,R,H\rangle\)。奖励是稀疏的：\(t<H\) 时 \(R=0\)，终止奖励 \(R(s_H,a_H)\in[0,1]\)。策略用专家演示做模仿学习，所有策略都按 ACT 的做法预测动作块（连续多步的动作）。</p>
+<figure class="pfig" id="fig2">
+<img src="cosmos-policy/fig2.webp" width="1600" height="639" alt="图 2：三行，图像、注入后的隐帧、部分加噪的隐帧；左边绿色是条件子序列，右边红色是目标子序列" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S3.F2">看原图 ↗</a></span>第一行：当前的左腕、右腕、俯视图和未来的三张图。第二行：编码成隐帧后，在占位位置注入本体（当前和未来）、动作块、价值，画成条纹方块。第三行：左边绿色的“条件子序列”（当前 s）保持干净，右边红色的“目标子序列”（a、s′、V(s′)）加了噪声，模型要把它们还原。图注说明这张图省略了实现细节，详细版是图 8。</figcaption>
+</figure>
+<p><b>世界模型和价值函数。</b>世界模型 \(\hat T:S\times A\to\Pi(S)\) 由当前状态和动作预测未来状态。策略 \(\pi\) 在状态 \(s\) 的价值，在稀疏奖励下化简为</p>
+<div class="eq"><div class="m">\[ V^\pi(s)=\mathbb E_{\tau\sim\pi}\Big[\textstyle\sum_{k=t}^{H}\gamma^{k-t}R(s_k,a_k)\,\Big|\,s_t=s\Big]=\mathbb E_{\tau\sim\pi}\big[\gamma^{H-t}R(s_H,a_H)\,\big|\,s_t=s\big] \]</div><span class="no">（原文无编号）</span></div>
+<p>作者直接用蒙特卡洛回报：回放里每个转移标上观测到的 \(\gamma^{H-t}R(s_H,a_H)\)。论文也说明，真实状态不完全可观测，世界模型预测的其实是未来观测（本体和图像），为了好读仍叫“状态”。</p>
+
+<h2 id="s4"><span class="no">4</span>Cosmos Policy：把视频模型改造成控制和规划</h2>
+<h3 id="s4-1"><span class="no">4.1</span>隐帧注入：加入新模态</h3>
+<p><b>结论：</b>不加任何网络部件，所有新东西都以“隐帧”的形式插进视频扩散序列。</p>
+<p>原版 Cosmos-Predict2 只接一张图和一段文字，生成单视角短视频；不支持本体输入，也不输出动作或价值，也没有多视角。作者在隐帧序列里插入新帧：本体、动作块、价值这些新模态在隐空间插入；额外相机的画面更简单，直接在图像层面插入，再靠微调让模型适应。</p>
+<p>例子：两个固定第三人称相机加一个腕部相机的平台，序列一共 11 个隐帧：</p>
+<div class="seq"><span class="b">1 空白占位</span><span class="c">2 本体</span><span class="c">3 腕部图</span><span class="c">4 第三人称图 1</span><span class="c">5 第三人称图 2</span><span class="t">6 动作块</span><span class="t">7 未来本体</span><span class="t">8 未来腕部图</span><span class="t">9 未来第三人称 1</span><span class="t">10 未来第三人称 2</span><span class="t">11 未来价值</span></div>
+<p>其中 2、6、7、11 是新模态，3、5、8、10 是额外视角（第三人称 1 算主相机）。新模态的写法：把 \(H'\times W'\times C'\) 的隐帧体积用归一化到 [−1, +1] 的数值重复填满。这个顺序就是 \((s,a,s',V(s'))\)，从左往右可以自回归地依次生成动作、未来状态、价值。\(s\) 和 \(s'\) 只是时刻 \(t\) 和 \(t+K\) 的观测（\(K\) 是动作块长度）：<b>不用历史帧，也不预测多个未来时刻</b>。只有一个第三人称相机、没有腕部相机的机器人，去掉对应帧，剩 7 个隐帧。第一个空白帧是 VAE“首帧单独编码”造成的实现细节，见附录 A.1。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · LIBERO 用的是 9 个隐帧，不是 11 个</span><p>LIBERO 只有一个第三人称相机（agentview）和一个腕部相机。代码 <code>cosmos_policy_experiment_configs.py</code> 第 116 行 <code>state_t=9</code>，注释列出“空白、本体、腕部、主相机、动作、未来本体、未来腕部、未来主相机、价值”；第 123 行 <code>chunk_duration=33</code> = 1 张空白 + 8 个模态 × 4 张复制。核算：\(1+32/4=9\)。RoboCasa 和 ALOHA 都是 <code>state_t=11</code>、<code>chunk_duration=41</code>（\(1+40/4=11\)）；RoboCasa 是左右两个第三人称加腕部，ALOHA 是一个俯视加两个腕部。论文正文的 11 帧例子对应后两者。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 隐帧有多大，动作被复制多少次</span><p>论文没写分辨率。代码里 <code>resolution="224"</code>：224 × 224 的图经 VAE 8 倍下采样得 28 × 28，16 通道，一个隐帧有 \(28\times28\times16=12{,}544\) 个数。DiT 的 patch 是 2 × 2（<code>patch_spatial=2</code>），每个隐帧 \(14\times14=196\) 个 token，LIBERO 9 帧共 1,764 个 token，RoboCasa / ALOHA 11 帧共 2,156 个。</p>
+<p>复制次数 = 12,544 ÷ 元素数：LIBERO 动作块 16 × 7 = 112 → 正好 112 份；RoboCasa 32 × 7 = 224 → 56 份；ALOHA 50 × 14 = 700 → 17.92，<b>不是整数</b>；LIBERO 本体 9 维 → 1,393.8，也不是整数。附录 A.1 的公式默认能整除。代码（<code>policy_text2world_model.py</code> 的 <code>replace_latent_with_action_chunk</code>）是向上取整重复再截断；读出时（<code>cosmos_utils.py</code> 的 <code>extract_action_chunk_from_latent_sequence</code>）只对完整的 ⌊12,544/700⌋ = 17 份取平均，多出的半份丢掉。价值是一个标量，整块 12,544 个数取平均。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>联合训练策略、世界模型和价值函数</h3>
+<p><b>结论：</b>同一条序列，换“哪些帧当干净条件、哪些帧要去噪”，就分别在训练策略、世界模型、价值函数。</p>
+<p>每步训练抽一批 \((s,a,s',V(s'))\) 四元组（严格说是经验回报 \(G_t=\gamma^{H-t}R\)）。一半来自<b>演示集</b>，训练策略 \(p(a,s',V(s')\mid s)\)；另一半来自<b>回放集</b>，再对半分：一半训世界模型 \(p(s',V(s')\mid s,a)\)，一半训价值函数 \(p(V(s')\mid s,a,s')\)（图 12）。一开始“回放集”就是演示集加上失败的演示：LIBERO 和 RoboCasa 的演示在仿真里重放时约有 10% 到 20% 失败（遥操作时人的失误）；ALOHA 的数据收得仔细，没有失败演示，两个集合相同。</p>
+<p>注意策略和世界模型都带<b>辅助目标</b>：策略不只学 \(p(a\mid s)\)，还要一起生成 \(s'\) 和 \(V(s')\)；世界模型也顺带生成 \(V(s')\)。§5.2 显示这些辅助监督能提高策略成绩。初始训练时价值以整个前缀 \((s,a,s')\) 为条件；之后在回放上精调时，可以用输入掩码只保留一部分：只看 \(s'\) 就是状态价值 \(V(s')\)，只看 \((s,a)\) 就是 \(Q(s,a)\)。</p>
+<p><b>并行还是自回归解码。</b>因为模型既学了联合分布也学了条件分布，推理时既可以一次并行生成 \((a,s',V)\)，也可以从左到右分三次生成。并行更快；自回归质量可能更好，还允许策略和世界模型/价值用不同的检查点。直接当策略用时只需要动作，用并行解码，另两个输出丢掉；规划时用自回归。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码里的批次构成比论文多一层</span><p>论文说 50% 演示、25% 世界模型、25% 价值。代码 <code>libero_dataset.py</code> 的数据集参数是 <code>demonstration_sampling_prob=0.5</code>、<code>success_rollout_sampling_prob=0.5</code>：回放那一半里，<b>成功和失败回放再按 1:1 重采样</b>（<code>dataset_common.py</code> 第 196–215 行通过放大计数来平衡）。然后每个回放样本以 0.5 的概率当世界模型样本、否则当价值样本（<code>libero_dataset.py</code> 第 549–558 行）。所以期望比例是 50/25/25，但失败样本被大幅过采样：LIBERO 2,000 条里只有 300 条失败（按 HF 元数据算，<a href="#n15">读者注 15</a>），代码却让它们占回放样本的一半。论文没提这一点。</p></div>
+
+<figure class="pfig" id="fig3">
+<img src="cosmos-policy/fig3.webp" width="1600" height="461" alt="图 3：四个 ALOHA 任务的执行画面，放东西到盘子、叠衬衫、捡糖果进碗、把糖放进密封袋" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 6 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S4.F3">看原图 ↗</a></span>四个真机双臂任务各取三四帧：put X on plate（按指令把茄子或鸡翅放到盘子上）、fold shirt（多步叠 T 恤）、put candies in bowl（把散落的糖逐个放进碗）、put candy in ziploc bag（拉开密封袋滑块，把糖放进去）。</figcaption>
+</figure>
+
+<h3 id="s4-3"><span class="no">4.3</span>用世界模型和价值函数规划</h3>
+<p><b>结论：</b>先用自己的回放数据精调出一个“规划模型”，再做一层 best-of-N 搜索。</p>
+<p>只在演示上训练不够做规划：演示几乎都是成功的，世界模型和价值函数只见过很窄的状态-动作分布。所以要部署策略收集回放（记录轨迹和结果：成功/失败，或分数），再精调。精调时把权重压向世界模型和价值：每批 90% 平分给世界模型和价值，10% 给策略。</p>
+<p><b>双部署。</b>原来的检查点当“策略模型”，精调后的检查点当“规划模型”（世界模型 + 价值）。这样规划模型是在原策略自己产生的同策略数据上训练的。</p>
+<p><b>best-of-N。</b>(1) 从策略采 N 个动作候选；(2) 规划模型为每个候选预测未来状态和价值；(3) 执行预测价值最高的那个。为了更准、也为了表达可能多峰的未来，每个动作查询世界模型 3 次，每个未来状态查询价值 5 次，每个候选共 15 个价值。聚合用“多数均值”：先按固定阈值看多数预测成功还是失败，再在多数那一组里求平均。这比直接平均更不怕离群值，尤其在价值预测两极分化时。用 N 张 GPU 并行，执行整个动作块（不做滚动时域的部分执行），以免再增加计算。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 价值目标的尺度，以及“固定阈值”是多少</span><p><b>回报怎么算。</b><code>dataset_common.py</code> 的 <code>compute_monte_carlo_returns</code>：最后一步奖励为 1（成功）或 0（失败），往前每步乘 \(\gamma\)，再线性映射 \(2G-1\) 到 [−1, 1]。取的是第 \(t+K\) 帧（未来帧）的回报。LIBERO 和 RoboCasa 用 \(\gamma=0.99\)：离结束 100 步时 \(G=0.99^{100}=0.366\)，200 步时 0.134，LIBERO-Long 最长演示开头（约 488 步外）只有 0.0074。所以对于全是成功的演示，价值更像“离完成还有多远”，不是成功概率。ALOHA 规划模型改用 \(\gamma=0.998\)（配置注释：回合可达 1,500 到 2,000 步）。</p>
+<p><b>阈值。</b><code>cosmos_utils.py</code> 第 794–814 行：阈值 <code>success_threshold = 0.05</code>（在 [0, 1] 尺度上），超过阈值的票数 ≥ 一半才算“多数成功”，返回成功组的均值，否则返回 0。论文只说“固定阈值”。用 \(\gamma=0.998\) 时，成功前 \(n\) 步的价值低于 0.05 要求 \(n>\ln0.05/\ln0.998\approx1{,}496\) 步；两个做规划的任务上限都是 1,100 步（\(0.998^{1100}=0.11\)），所以成功轨迹上的状态不会被这个阈值误判成失败。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、LIBERO 一步数据怎样变成 33 张图和 9 个隐帧、隐帧注入（第 3 幕当场算复制次数）、DiT 和逐帧噪声、三种训练掩码（第 5 幕，对应图 12）、噪声分布（当场算）、并行解码、回放和价值、best-of-N 规划（第 9 幕）、LIBERO 评测协议、结果表。可以暂停、拖进度、旋转画面、切换开关。</p>
+<iframe src="../interactives/cosmos-policy/index.html?embed=1&amp;scene=5" title="Cosmos Policy 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos-policy/index.html">全屏打开，还有完整设置表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>四个问题：(Q1) 直接当策略用，和最好的模仿学习策略比怎样？(Q2) 各部件多重要？(Q3) 能不能从回放里学到准确的世界模型和价值并有效规划？(Q4) 用世界模型 + 状态价值搜索，还是直接用 Q 值（无模型）搜索更好？</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>实验设置</h3>
+<p><b>LIBERO。</b>单臂 Franka Panda。四个套件 Spatial、Object、Goal、Long（也叫 LIBERO-10），分别考空间布局、物体、语言目标、长时域。每个套件 10 个任务 × 50 条演示 = 500 条。按 OpenVLA 的做法，<b>策略训练只用成功演示，世界模型和价值用全部演示</b>。（完整设置见<a href="#repro">LIBERO 设置</a>。）</p>
+<p><b>RoboCasa。</b>24 个厨房静态操作任务，单臂 Franka。沿用 GR00T N1、FLARE 等的协议：每个任务在 5 个不同户型和风格的场景里各测 10 次，共 50 次；24 个任务平均，3 个种子，共 3,600 次。评测只用没见过的物体实例，5 个场景里有 2 个的风格训练时没出现过。基准给每个任务 50 条人工遥操作演示，另有 1,000 条 <a class="ds" href="https://mimicgen.github.io/">MimicGen</a> 生成的演示；以往工作表明数据越多分数越高，但这里为了比数据效率<b>只用 50 条人工演示</b>。预处理同 LIBERO。</p>
+<p><b>ALOHA 真机。</b>两只 ViperX 300 S 臂，三个相机（一个俯视、两个腕部）。控制频率从 50 Hz 降到 25 Hz 以省算力。所有策略都输入 14 个关节角、三张图和任务描述，预测 50 步动作块（2 秒），整块执行完再查询（Diffusion Policy 例外，用 48 步，因为实现要求 4 的倍数）。四个任务：put X on plate（80 条演示，考语言跟随）、fold shirt（15 条，长时域、接触多）、put candies in bowl（45 条，考多峰的抓取顺序）、put candy in ziploc bag（45 条，毫米级精度）。分域内和域外两种条件，每个方法共 101 次试验，所有方法用同一组固定初始状态。</p>
+
+<h3 id="s5-2"><span class="no">5.2</span>和最好的模仿策略比（不带规划）</h3>
+<p><b>结论：</b>三个场景都是总分第一；LIBERO 和 RoboCasa 刷新纪录；真机上胜过 π0.5 和 OpenVLA-OFT+，虽然它们在大量机器人数据上预训练过，Cosmos Policy 没有。</p>
+<p>对比方法：从头训练的扩散策略（Diffusion Policy、Dita），基于视频模型的策略（UVA、UWM、Video Policy），微调的 VLA（π0、π0.5、OpenVLA-OFT、CogVLA、UniVLA、DP-VLA、GR00T-N1.5）。真机只比在双臂任务上表现好的一组：Diffusion Policy、OpenVLA-OFT+、π0、π0.5。</p>
+<p class="tcap" id="t1">表 1 · LIBERO 成功率 %（照录原文）。Cosmos Policy 每个套件 500 回合（10 任务 × 50），3 个种子，共 6,000 回合。· <a href="https://arxiv.org/html/2601.16163v1#S5.T2">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th class="n">Spatial</th><th class="n">Object</th><th class="n">Goal</th><th class="n">Long</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Diffusion Policy</td><td class="n">78.3</td><td class="n">92.5</td><td class="n">68.3</td><td class="n">50.5</td><td class="n">72.4</td></tr>
+<tr><td>Dita</td><td class="n">97.4</td><td class="n">94.8</td><td class="n">93.2</td><td class="n">83.6</td><td class="n">92.3</td></tr>
+<tr><td>π0</td><td class="n">96.8</td><td class="n">98.8</td><td class="n">95.8</td><td class="n">85.2</td><td class="n">94.2</td></tr>
+<tr><td>UVA</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">90.0</td><td class="n">–</td></tr>
+<tr><td>UniVLA</td><td class="n">96.5</td><td class="n">96.8</td><td class="n">95.6</td><td class="n">92.0</td><td class="n">95.2</td></tr>
+<tr><td>π0.5</td><td class="n">98.8</td><td class="n">98.2</td><td class="n">98.0</td><td class="n">92.4</td><td class="n">96.9</td></tr>
+<tr><td>Video Policy</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">94.0</td><td class="n">–</td></tr>
+<tr><td>OpenVLA-OFT</td><td class="n">97.6</td><td class="n">98.4</td><td class="n">97.9</td><td class="n">94.5</td><td class="n">97.1</td></tr>
+<tr><td>CogVLA</td><td class="n">98.6</td><td class="n">98.8</td><td class="n">96.6</td><td class="n">95.4</td><td class="n">97.4</td></tr>
+<tr><td><b>Cosmos Policy</b></td><td class="n">98.1</td><td class="n best">100.0</td><td class="n">98.2</td><td class="n best">97.6</td><td class="n best">98.5</td></tr>
+</tbody></table></div>
+<p class="tcap" id="t2">表 2 · RoboCasa 24 任务平均成功率 %（照录原文）。Cosmos Policy 每任务 50 次、3 个种子，共 3,600 次。· <a href="https://arxiv.org/html/2601.16163v1#S5.T2">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th class="n">每任务训练演示</th><th class="n">平均成功率</th></tr></thead><tbody>
+<tr><td>GR00T-N1</td><td class="n">300</td><td class="n">49.6</td></tr>
+<tr><td>UVA</td><td class="n">50</td><td class="n">50.0</td></tr>
+<tr><td>DP-VLA</td><td class="n">3000</td><td class="n">57.3</td></tr>
+<tr><td>GR00T-N1 + DreamGen</td><td class="n">300（+10000 合成）</td><td class="n">57.6</td></tr>
+<tr><td>GR00T-N1 + DUST</td><td class="n">300</td><td class="n">58.5</td></tr>
+<tr><td>UWM</td><td class="n">1000</td><td class="n">60.8</td></tr>
+<tr><td>π0</td><td class="n">300</td><td class="n">62.5</td></tr>
+<tr><td>GR00T-N1.5</td><td class="n">300</td><td class="n">64.1</td></tr>
+<tr><td>Video Policy</td><td class="n">300</td><td class="n">66.0</td></tr>
+<tr><td>FLARE</td><td class="n">300</td><td class="n">66.4</td></tr>
+<tr><td>GR00T-N1.5 + HAMLET</td><td class="n">300</td><td class="n">66.4</td></tr>
+<tr><td><b>Cosmos Policy</b></td><td class="n">50</td><td class="n best">67.1</td></tr>
+</tbody></table></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 表 1 的平均和格子</span><p>平均是四个套件的简单平均：Cosmos Policy \((98.1+100.0+98.2+97.6)/4=98.475\to98.5\)；其余各行也都对得上（Dita 92.25 → 92.3，π0 94.15 → 94.2，UniVLA 95.225 → 95.2，π0.5 96.85 → 96.9，CogVLA 97.35 → 97.4）。Cosmos Policy 每个套件是 3 × 500 = 1,500 回合，格子是 1/15 ≈ 0.067 个百分点：98.1 ≈ 1,472/1,500（98.13），98.2 = 1,473，97.6 = 1,464，100.0 = 1,500，都能凑出来。和 OpenWAM 的单种子 500 回合（格子 0.2 点）不同。表 2 的 RoboCasa 一行只有总平均，没有逐任务数字。</p></div>
+
+<figure class="pfig" id="fig4">
+<img src="cosmos-policy/fig4.webp" width="1516" height="417" alt="图 4：ALOHA 四个任务和平均分的分组柱状图，五种方法" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 8 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S5.F4">看原图 ↗</a></span>四个任务加平均，每组五根柱：Diffusion Policy（灰）、OpenVLA-OFT+（蓝）、π0（紫）、π0.5（橙）、Cosmos Policy（绿）。柱顶数字就是表 3 的“Full”行，平均分依次是 33.6、62.0、77.9、88.6、93.6。Cosmos Policy 在三个任务上最高；put candies in bowl 上 π0.5 的 95.2 高于它的 89.6。</figcaption>
+</figure>
+<p>定性看，微调的 VLA 在前两个任务上很强，后两个任务（多峰抓取顺序、高精度抓取）上吃力。π0.5 前三个任务都很有竞争力，但在密封袋上经常第一下没抓住滑块（右臂），或者左臂没夹牢袋子左边；OpenVLA-OFT+ 经常伸到两颗糖中间而不是对准一颗，作者猜是 L1 回归动作不能表达多峰分布。Cosmos Policy 在多峰和高精度两方面都稳得多。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos-policy/fig5.webp" width="1600" height="418" alt="图 5：左边 π0.5 在密封袋任务上抓不稳，右边 OpenVLA-OFT+ 伸到两颗糖之间" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 9 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S5.F5">看原图 ↗</a></span>左边三帧：π0.5 精确抓取不到位，袋子从夹爪里滑出（黄色感叹号、红叉）。右边三帧：OpenVLA-OFT+ 的夹爪落在两颗糖之间，什么都没夹到。</figcaption>
+</figure>
+<p><b>消融（Q2）。</b>两个独立消融，梯度步数和完整版相同：(1) 去掉辅助目标（对辅助目标的损失加掩码：策略只学 \(p(a\mid s)\)，世界模型只学 \(p(s'\mid s,a)\)，价值不变），LIBERO 平均掉 1.5 点；(2) 从随机初始化训练，掉 3.9 点（表 4）。在 ALOHA 上从头训练的版本叠衬衫只得 80.8 分，比完整版低 18.7 分，动作还发抖，长期跑可能伤机器人，所以没测其他任务。更多消融在附录 A.4.1。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 消融数字的核对</span><p>表 4：去辅助 \((97.6+99.8+96.7+94.0)/4=97.025\to97.0\)，\(98.5-97.0=1.5\)；从头 \((94.7+98.9+96.3+88.6)/4=94.625\to94.6\)，\(98.5-94.6=3.9\)。掉得最多的都是 Long（−3.6、−9.0）。ALOHA：完整版叠衬衫 Full 是 99.5，\(99.5-18.7=80.8\)，对得上。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>带模型规划的评测</h3>
+<p><b>结论：</b>基于模型的 \(V(s')\) 规划在两个难任务上都有提升，平均 +12.5 分；无模型的 \(Q(s,a)\) 只略好于不规划。</p>
+<p>LIBERO 和前两个 ALOHA 任务已经很高了，所以只在后两个任务、并且挑较难的初始条件（难的域内条件和域外条件）上测规划。</p>
+<p><b>回放数据。</b>前面直接策略评测本来就产生了所有方法的 505 条回放，再为密封袋任务多收 143 条 Cosmos Policy 的回放（这个任务相机被自身遮挡、动力学随机性大、差一毫米就成败不同，世界模型尤其难学），共 648 条。用它们精调基础检查点，得到规划模型。</p>
+<figure class="pfig" id="fig6">
+<img src="cosmos-policy/fig6.webp" width="1286" height="455" alt="图 6：上排基础模型预测的未来腕部画面和真实结果不一致，下排精调后的模型预测一致" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 9 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S5.F6">看原图 ↗</a></span>上排：基础模型只见过演示，预测未来画面时没料到夹爪会从密封袋滑块上滑脱，真实结果（右，红圈）不一样（≠、红叉）。下排：在回放上精调后，预测和真实结果一致（≈、绿勾），规划就能避开这个失误。</figcaption>
+</figure>
+<p><b>三种价值形式。</b>精调时用输入掩码让价值只依赖一部分输入：\(V(s')\)（掩掉 \((s,a)\)）或 \(Q(s,a)\)（掩掉 \(s'\)）。\(V(s')\) 要先由世界模型预测未来状态；\(Q(s,a)\) 不需要未来状态，是无模型规划。（原文说“三种独立形式”，但只列了两种，另一种大概是初始训练时的 \(V(s,a,s')\)，原文没明说。）</p>
+<figure class="pfig narrow" id="fig7">
+<img src="cosmos-policy/fig7.webp" width="1250" height="484" alt="图 7：两个任务加平均，三根柱：基础策略、无模型规划、基于模型规划" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 10 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#S5.F7">看原图 ↗</a></span>三根柱依次是 Cosmos Policy（灰）、+ 无模型规划 Q(s, a)（蓝）、+ 基于模型规划 V(s′)（紫）。put candies in bowl：49.0、52.0、60.0；put candy in ziploc bag：70.0、70.7、84.0；平均：59.5、61.3、72.0。</figcaption>
+</figure>
+<p><b>结果。</b>\(V(s')\) 规划在两个任务上都提高了分数，平均 +12.5 分；考虑到用于精调的回放并不多，这是可观的提升。精调后的规划模型预测得更准（图 6），能避开基础策略犯的错误，比如开袋时滑块脱手。\(V(s')\) 好于 \(Q(s,a)\)，作者归因于它能利用学到的环境动力学，样本效率更高；回放少时 Q 函数难学，输入维度更高也可能过拟合。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 图 7 的数字和隐含的试验次数</span><p>平均：\((49+70)/2=59.5\)，\((52+70.7)/2=61.35\to61.3\)，\((60+84)/2=72.0\)，\(72.0-59.5=12.5\)，和正文一致。图 7 的基础策略在密封袋上只有 70.0，比表 3 的 85.4 低，说明这里确实换了更难的初始条件。</p>
+<p>论文没写规划实验每个任务试了几次。两个任务每个子步都是 20 分，平均分必须是 \(20k/n\)。我枚举 \(n\le60\)：糖果碗的 49.0、52.0、60.0 同时成立要求 \(n\) 是 20 的倍数；密封袋的 70.0 和 70.7 同时成立要求 \(n\) 是 30 的倍数（例如 \(n=30\)：2,100/30 = 70.0，2,120/30 = 70.67）。所以最可能是糖果碗 20 次、密封袋 30 次。这是推断，未核实。</p></div>
+
+<h2 id="s6"><span class="no">6</span>讨论</h2>
+<p>Cosmos Policy 在 LIBERO、RoboCasa、ALOHA 上都很强，加入回放精调世界模型和价值后，模型规划有效。<b>局限：</b>规划时推理很慢（一个动作块约 5 秒），不适合动态任务，加速搜索是重要方向；有效规划需要大量回放数据，能少用回放会更实用；目前只是一层的 best-of-N，延长世界模型的预测范围、搜得更深可能更有效。</p>
+
+<h2 id="s7"><span class="no">7</span>可复现性声明</h2>
+<p>项目网站发布了模型检查点、训练数据和代码（含训练和评测脚本）。训练和评测细节在附录 A.2、A.3。实际情况：LIBERO、RoboCasa、ALOHA 三个基础策略检查点和 LIBERO、RoboCasa 数据集都在 Hugging Face；ALOHA 规划模型用的 648 条回放<b>没有公开</b>（配置文件注释：“This rollouts dataset is not released”）。</p>
+
+<h2 id="apA1"><span class="no">A.1</span>隐帧注入的实现细节</h2>
+<p>先准备图像序列：各相机的画面，加上全零图作为新模态的占位。VAE 编码后，把占位对应的隐帧整块覆盖成归一化、复制过的本体、动作块和价值。以动作块为例：形状 \(K\times d_{act}\)，每一维先缩放到 [−1, +1]，展平成 \(K d_{act}\) 维向量，复制 \(\frac{H'W'C'}{K d_{act}}\) 次，reshape 成 \(H'\times W'\times C'\)，覆盖目标隐帧。本体和价值同理。</p>
+<p>注入后给一部分隐帧加噪声（噪声水平见 A.2.1），模型在干净部分的条件下去噪。尽管这些模态预训练时没见过，微调后模型能学会生成它们。推理时反过来：对动作隐帧里所有副本取平均，再反归一化；价值是标量，对整个隐帧取平均，再映射回 [0, 1]。这些非图像模态不需要 VAE 解码。</p>
+<figure class="pfig" id="fig8">
+<img src="cosmos-policy/fig8.webp" width="1596" height="591" alt="图 8：图 2 的详细版，顶行每个观测复制四份，占位图是黑色，第一张是单独的空白图" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 16 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#A1.F8">看原图 ↗</a></span>图 2 的详细版。顶行：最前面单独一张空白图；之后每个模态或视角都是<b>四张一样的图</b>（占位用黑图），因为 VAE 首帧单独编码、之后每 4 帧压成一个隐帧。这样每 4 张对应一个隐帧，且当前观测和未来观测的隐表示结构相同（都在空白首帧之后）。中行：占位隐帧被本体、动作、价值完全覆盖。底行：条件部分干净，目标部分加噪。每组 4 张是同一个时刻，不是 4 个时刻。</figcaption>
+</figure>
+
+<h2 id="apA2"><span class="no">A.2</span>训练细节</h2>
+<h3 id="apA2-1"><span class="no">A.2.1</span>噪声分布</h3>
+<p><b>结论：</b>训练时多给高噪声一些权重，推理时不走到最低噪声。</p>
+<p>基础模型的 \(\sigma\) 采样是对数正态：\(\ln\sigma\sim\mathcal N(P_{mean},P_{std}^2)\)，\(P_{mean}=1.39\)，\(P_{std}=1.2\)。生成从 \(\sigma_{max}=80\) 的纯噪声开始，逐步降到接近 0。对数正态把权重集中在低噪声，模型在生成起点的高 \(\sigma\) 区信号不足，第一步去噪不准，误差一路累积。视频生成里问题不大，动作必须精确，就很有害。</p>
+<p>所以训练时改用混合分布：0.7 的概率按原对数正态采，0.3 的概率在 [1.0, 85.0] 上均匀采。0.7/0.3 没有调过，只是想离原分布近一点、把高 \(\sigma\) 的尾巴拉长。推理时还发现 \(\sigma\approx0\) 的最后几步反而不如前面准（信噪比太低），于是把下限设为 \(\sigma_{min}=4\)（EDM 原本是 0.002），\(\sigma_{max}\) 仍是 80；在训练和验证样本上的 L1 误差确实更低。</p>
+<figure class="pfig" id="fig9">
+<img src="cosmos-policy/fig9.webp" width="1588" height="514" alt="图 9：两幅直方图，左边原始对数正态噪声分布，右边加了均匀尾巴的混合分布" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 16 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#A1.F9">看原图 ↗</a></span>左：基础模型训练时采到的 \(\sigma\) 直方图，峰在很低的 \(\sigma\)，长尾很快消失。右：Cosmos Policy 的混合分布，峰相同，但在大约 1 到 85 之间多了一层平台。</figcaption>
+</figure>
+<div class="note" id="n8"><span class="lab">读者注 8 · 混合分布到底多给了多少高噪声</span><p>\(P_{mean}=1.39\) 就是 \(\ln4=1.386\)（代码 <code>p_mean=1.3862943611198906</code>，注释“Copied from base model config”），即中位数 \(\sigma=4\)。用正态分布函数算：原分布 \(P(\sigma>20)=9.0\%\)，混合后 \(0.7\times9.0\%+0.3\times\frac{85-20}{84}=29.5\%\)；\(P(\sigma>40)\) 从 2.8% 到 18.0%；\(P(\sigma>80)\) 从 0.6% 到 2.2%。也就是说高噪声样本多了三到六倍。</p>
+<p>代码 <code>hybrid_edm_sde.py</code> 和论文一致（0.7 / 0.3，均匀 [1, 85]）。训练配置里 <code>sigma_max=200</code>、<code>sigma_min=0.01</code> 沿用基础模型；推理配置 <code>__inference_only</code> 改成 <code>sigma_max=80</code>、<code>sigma_min=4</code>，和论文一致。推理默认采样器是 <code>2ab</code>（二阶 Adams–Bashforth 多步法，<code>cosmos_sampler.py</code>），论文没提。</p></div>
+
+<h3 id="apA2-2"><span class="no">A.2.2</span>LIBERO 训练</h3>
+<p>40K 步，64 张 H100，全局 batch 1,920，共 48 小时。全参数微调。动作块 16 步，测试时整块执行再查询。40K 步时的单步训练 L1 损失：动作 0.012、未来本体 0.007、未来腕部图隐变量 0.068、未来第三人称图隐变量 0.036、价值 0.007。非图像模态都归一化到 [−1, 1]。这些是给定随机 \(\sigma\) 的单步损失，不是多步采样后的误差。数量级说明动作、本体、价值学得比图像快。</p>
+<h3 id="apA2-3"><span class="no">A.2.3</span>RoboCasa 训练</h3>
+<p>45K 步，32 张 H100，全局 batch 800，48 小时，全参数微调。动作块 32 步，执行 16 步再查询。损失：动作 0.016、未来本体 0.007、未来腕部 0.084、未来第三人称 0.048、价值 0.007。</p>
+<h3 id="apA2-4"><span class="no">A.2.4</span>ALOHA 训练</h3>
+<p>所有方法都在四个任务合在一起的 185 条演示上训一个策略。Cosmos Policy：50K 步，8 张 H100，全局 batch 200，48 小时，全参数微调；动作块 50 步（25 Hz 下 2 秒），整块执行。损失：动作 0.010、未来本体 0.008、未来腕部 0.097、未来第三人称 0.085、价值 0.007。</p>
+<p>基线用同样的算力预算（8 张 H100，48 小时）。因为各自训练速度不同，步数差别很大：π0.5 和 π0 是 400K 步（batch 256），OpenVLA-OFT+ 是 32K 步（batch 96，梯度累积 4）。训练损失一直在降、执行质量一直在升，所以都训了这么久。Diffusion Policy 只有约 150M 参数（其他是 2B 到 7B），在 1 张 H100 上从头训 48 小时，190 个 epoch，相当于 72K 步（batch 350）。除 Diffusion Policy 是 48 步外，动作块都是 50 步、整块执行。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 训练规模的几笔账</span><p>batch：LIBERO 每卡 30 × 64 卡 = 1,920；RoboCasa 25 × 32 = 800；ALOHA 25 × 8 = 200，和配置里的 <code>batch_size</code> 一致。README 给的 8 卡复现方案是每卡 30 × 8 卡 × 梯度累积 8 = 1,920。演示 80 + 15 + 45 + 45 = 185。</p>
+<p>同样 48 小时 × 8 卡，样本数差很多：π0/π0.5 看了 400K × 256 = 1.02 亿个样本，Cosmos Policy 50K × 200 = 1,000 万个，OpenVLA-OFT+ 32K × 96 = 307 万个。“算力相同”指墙钟时间，不是样本数。</p>
+<p>LIBERO 上 40K × 1,920 = 7,680 万个样本，一半是演示样本。若演示帧数和 OpenVLA 版的 273,465 帧同量级（Cosmos 版的帧数我没下载核对），相当于每帧演示被看了约 140 次。</p></div>
+
+<h2 id="apA3"><span class="no">A.3</span>评测细节</h2>
+<h3 id="apA3-1"><span class="no">A.3.1</span>通用设置</h3>
+<p>直接当策略用时，动作、未来状态、价值一起并行生成，后两者丢掉（也可以存下来看策略“想”什么、估计进度）。LIBERO 和 RoboCasa 用 5 步去噪，ALOHA 用 10 步。带规划时依次自回归生成动作、未来状态、价值；真机规划实验里动作 10 步、未来状态 5 步、价值 5 步，未来状态集成 3 个、价值集成 5 个。</p>
+<h3 id="apA3-2"><span class="no">A.3.2</span>ALOHA 真机评测</h3>
+<p>每个方法 101 次：put X on plate 30 次（20 域内 + 10 域外，时限 350 步 = 14 秒）、fold shirt 20 次（12 + 8，1,600 步 = 64 秒）、put candies in bowl 25 次（15 + 10，1,100 步 = 44 秒）、put candy in ziploc bag 26 次（20 + 6，1,100 步 = 44 秒）。</p>
+<details class="tbl"><summary>各任务的域内 / 域外条件和评分细则（点开）</summary>
+<ul>
+<li><b>put X on plate：</b>域内是茄子和鸡翅在桌上同一横排，纵向位置变化；域外不限同一排，位置更分散。碰到正确物体 50 分，放上盘子 50 分。</li>
+<li><b>fold shirt：</b>域内用三件见过的 T 恤（蓝白条纹、纯白、棕色迷彩），四个固定初始位置（后、前、左中、右中），每件 5 条演示共 15 条；域外前四次用没见过的粉色 T 恤，其余用见过的蓝白条纹加上桌上的干扰物（叠好的其他衣服）。10 个阶段各 10 分：抓下摆、对折、抓两袖、袖子折进、再抓下摆、再对折、抓右边、再对折、松手、推到桌子中央；最后有一部分（如袖子）露在外面扣 10 分。</li>
+<li><b>put candies in bowl：</b>域内是 5 颗糖放在大金属碗前面，左右大致平衡；域外是糖在碗前或碗后、左右不平衡，或换成没见过的小橙碗。每颗糖放进碗 20 分。</li>
+<li><b>put candy in ziploc bag：</b>域内是半满的粉色密封袋放在桌子中间，纵向位置变化，右边一颗糖；域外换成没见过的蓝色袋子、约 75% 满（比训练时满），要抓得更牢。5 个阶段各 20 分：右臂抓住滑块、左臂抓住袋子左上角、右臂把袋子拉开至少一半、右臂抓糖、糖放进袋里。</li>
+</ul>
+<p>用分数而不是二元成功率，是为了反映完成到哪一步。</p>
+</details>
+<figure class="pfig" id="fig10">
+<img src="cosmos-policy/fig10.webp" width="1551" height="1160" alt="图 10：四个任务的域内初始条件示例照片" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 19 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#A1.F10">看原图 ↗</a></span>四个任务各若干张域内初始摆放的俯视照片：同一排的茄子和鸡翅、三种 T 恤和四个位置、碗前五颗糖、桌子中间的粉色袋子和右侧一颗糖。</figcaption>
+</figure>
+<figure class="pfig" id="fig11">
+<img src="cosmos-policy/fig11.webp" width="1554" height="760" alt="图 11：四个任务的域外初始条件示例照片" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 20 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#A1.F11">看原图 ↗</a></span>域外初始条件：物体不在同一排；粉色 T 恤；小橙碗和不平衡的糖；蓝色更满的密封袋。</figcaption>
+</figure>
+<p>表 3 是图 4 的明细：Cosmos Policy 总分最高，但在域外条件上 π0.5（92.5）略高于它（89.3）。</p>
+<details class="tbl"><summary>表 3 · ALOHA 域内 / 域外 / 全部分数（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th class="n">put X on plate</th><th class="n">fold shirt</th><th class="n">candies in bowl</th><th class="n">candy in ziploc bag</th><th class="n">平均</th></tr></thead><tbody>
+<tr class="grp"><th colspan="6">域内</th></tr>
+<tr><td>Diffusion Policy</td><td class="n">85.0</td><td class="n">23.3</td><td class="n">37.3</td><td class="n">11.0</td><td class="n">39.2</td></tr>
+<tr><td>OpenVLA-OFT+</td><td class="n">87.5</td><td class="n">99.2</td><td class="n">22.7</td><td class="n">59.0</td><td class="n">67.1</td></tr>
+<tr><td>π0</td><td class="n">97.5</td><td class="n">98.3</td><td class="n">73.3</td><td class="n">56.0</td><td class="n">81.3</td></tr>
+<tr><td>π0.5</td><td class="n">97.5</td><td class="n">99.2</td><td class="n">98.7</td><td class="n">56.0</td><td class="n">87.8</td></tr>
+<tr><td>Cosmos Policy</td><td class="n">100.0</td><td class="n">99.2</td><td class="n">100.0</td><td class="n">86.0</td><td class="n">96.3</td></tr>
+<tr class="grp"><th colspan="6">域外</th></tr>
+<tr><td>Diffusion Policy</td><td class="n">20.0</td><td class="n">23.8</td><td class="n">26.0</td><td class="n">26.7</td><td class="n">24.1</td></tr>
+<tr><td>OpenVLA-OFT+</td><td class="n">30.0</td><td class="n">100.0</td><td class="n">20.0</td><td class="n">56.7</td><td class="n">51.7</td></tr>
+<tr><td>π0</td><td class="n">60.0</td><td class="n">98.8</td><td class="n">68.0</td><td class="n">60.0</td><td class="n">71.7</td></tr>
+<tr><td>π0.5</td><td class="n">100.0</td><td class="n">100.0</td><td class="n">90.0</td><td class="n">80.0</td><td class="n">92.5</td></tr>
+<tr><td>Cosmos Policy</td><td class="n">100.0</td><td class="n">100.0</td><td class="n">74.0</td><td class="n">83.3</td><td class="n">89.3</td></tr>
+<tr class="grp"><th colspan="6">全部（域内 + 域外）</th></tr>
+<tr><td>Diffusion Policy</td><td class="n">63.3</td><td class="n">23.5</td><td class="n">32.8</td><td class="n">14.6</td><td class="n">33.6</td></tr>
+<tr><td>OpenVLA-OFT+</td><td class="n">68.3</td><td class="n">99.5</td><td class="n">21.6</td><td class="n">58.5</td><td class="n">62.0</td></tr>
+<tr><td>π0</td><td class="n">85.0</td><td class="n">98.5</td><td class="n">71.2</td><td class="n">56.9</td><td class="n">77.9</td></tr>
+<tr><td>π0.5</td><td class="n">98.3</td><td class="n">99.5</td><td class="n">95.2</td><td class="n">61.5</td><td class="n">88.6</td></tr>
+<tr><td>Cosmos Policy</td><td class="n">100.0</td><td class="n">99.5</td><td class="n">89.6</td><td class="n">85.4</td><td class="n">93.6</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 3 三块之间完全自洽</span><p>“全部”是按每个任务的试验次数加权（域内 20/12/15/20、域外 10/8/10/6）。例：Cosmos Policy 糖果碗 \((15\times100+10\times74)/25=89.6\)，密封袋 \((20\times86+6\times83.3)/26=85.38\to85.4\)，叠衬衫 \((12\times99.2+8\times100)/20=99.52\to99.5\)。五个方法 × 四个任务的 20 格全部对得上（脚本核对）。各块的“平均”是四个任务的简单平均（Cosmos 全部 \((100+99.5+89.6+85.4)/4=93.625\)），不是按 101 次加权；按 101 次加权是 93.57，排名不变。图 4 的柱顶数字就是“全部”这一块。</p>
+<p>回放计数也对得上：5 个方法 × 101 次 = 505 条，加 143 条 = 648 条。</p></div>
+
+<h2 id="apA4"><span class="no">A.4</span>补充实验和细节</h2>
+<p class="tcap" id="t4">表 4 · LIBERO 消融，成功率 %（照录原文）· <a href="https://arxiv.org/html/2601.16163v1#A1.T4">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th></th><th class="n">Spatial</th><th class="n">Object</th><th class="n">Goal</th><th class="n">Long</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Cosmos Policy</td><td class="n">98.1</td><td class="n">100.0</td><td class="n">98.2</td><td class="n">97.6</td><td class="n">98.5</td></tr>
+<tr><td>(1) 去掉辅助损失</td><td class="n">97.6</td><td class="n">99.8</td><td class="n">96.7</td><td class="n">94.0</td><td class="n">97.0</td></tr>
+<tr><td>(2) 不用预训练权重</td><td class="n">94.7</td><td class="n">98.9</td><td class="n">96.3</td><td class="n">88.6</td><td class="n">94.6</td></tr>
+</tbody></table></div>
+<h3 id="apA4-1"><span class="no">A.4.1</span>更多消融（RoboCasa）</h3>
+<p><b>结论：</b>价值样本贡献很小，世界模型样本有用，<b>策略样本里的“未来状态”辅助目标最关键</b>。</p>
+<p>每批 50/25/25 分给策略、世界模型、价值；同一条序列，掩码不同（图 12）。作者在 RoboCasa 上一次去掉一个部件，直到只剩一个只预测动作的“光杆”策略。每个版本超参和算力都一样，3,600 次评测。</p>
+<figure class="pfig" id="fig12">
+<img src="cosmos-policy/fig12.webp" width="1600" height="1372" alt="图 12：四行，干净序列，以及策略、世界模型、价值三种训练时的条件和目标划分" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 21 页 · Moo Jin Kim 等，CC BY 4.0，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2601.16163v1#A1.F12">看原图 ↗</a></span>第一行是不加噪的隐帧序列。下面三行同一条序列、三种划分：50% 的批次训练策略 \(\pi(a,s',V(s')\mid s)\)，条件是当前本体和三张当前图；25% 训练世界模型 \(p(s',V(s')\mid s,a)\)，条件再加上动作块；25% 训练价值 \(p(V(s')\mid s,a,s')\)，只有最后的价值帧是目标。图注补充：在回放上精调做规划时，价值训练会掩掉当前状态和动作，只依赖 \(s'\)；掩掉未来状态则得到 \(Q(s,a)\)，可用于无模型规划。</figcaption>
+</figure>
+<p class="tcap" id="t5">表 5 · RoboCasa 消融和补充实验，24 任务平均成功率 %（照录原文）· <a href="https://arxiv.org/html/2601.16163v1#A1.T5">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>版本</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Cosmos Policy（5 步去噪）</td><td class="n">67.1</td></tr>
+<tr><td>(1) 去掉价值样本（50% 策略 + 50% 世界模型）</td><td class="n">66.6</td></tr>
+<tr><td>(2) 再去掉世界模型样本（100% 策略）</td><td class="n">64.0</td></tr>
+<tr><td>(3) 再去掉策略样本里的价值辅助目标，学 π(a, s′ | s)</td><td class="n">62.5</td></tr>
+<tr><td>(4) 再去掉未来状态辅助目标，只学 π(a | s)</td><td class="n">44.4</td></tr>
+<tr><td>Cosmos Policy，1 步去噪</td><td class="n">66.4</td></tr>
+</tbody></table></div>
+<p>逐级差值：−0.5、−2.6、−1.5、−18.1。最后一步最大，说明让策略同时预测未来状态是 Cosmos Policy 有效的关键。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 代码里“掩掉”是什么意思</span><p>论文说 \(V(s')\) 是“掩掉 \((s,a)\)”。代码（<code>policy_video2world_model.py</code> 第 176–270 行）的做法不是把这些帧删掉，而是把它们的条件掩码设成 0：这些帧<b>和目标一样被加噪</b>，不再作为干净条件；同时 <code>policy_text2world_model.py</code> 的损失掩码只保留价值帧的损失。推理时这些帧从噪声开始，和价值一起被去噪，所以价值只能依据 \(s'\)。</p>
+<p>我的理解（未核实）：训练时 \(\sigma\) 是随机抽的，低噪声时被“掩掉”的 \(s,a\) 帧其实还看得清，价值头在低 \(\sigma\) 样本上仍能偷看 \((s,a)\)。这不影响推理（推理时那些帧从纯噪声开始），但意味着“只依赖 \(s'\)”在训练分布里不是严格成立的。</p></div>
+
+<h3 id="apA4-2"><span class="no">A.4.2</span>推理延迟</h3>
+<p>1 张 H100 上并行生成动作、未来状态、价值：5 步去噪 0.61 秒（LIBERO、RoboCasa），10 步 0.95 秒（ALOHA），1 步 0.16 秒。RoboCasa 上 1 步去噪仍有 66.4%（表 5 底行），比 5 步快近 4 倍（0.61 / 0.16 = 3.8），只掉 0.7 点。这是生成一个动作块的时间：ALOHA 上机器人停 0.95 秒，换来 2 秒的动作。</p>
+<p>真机规划用 N = 8，8 张 H100 各跑一个分支：每个分支先生成动作块（10 步），再生成 3 个未来状态（各 5 步），再为每个未来状态生成 5 个价值（各 5 步），共 4.9 秒。慢的推理在这些任务里没妨碍执行，但限制了动态操作或行走类任务。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 一处小出入和一笔去噪账</span><p>表 5 图注写 1 步去噪“只掉 0.5%”，但 \(67.1-66.4=0.7\)。表 5 第 (1) 行正好是 −0.5，可能是串了。</p>
+<p>规划的每个分支要做 \(10+3\times5+3\times5\times5=100\) 次网络前向，是直接策略（10 次）的 10 倍；4.9 秒对 0.95 秒是 5.2 倍。差距说明集成部分大概是成批跑的，或者自回归阶段只对部分帧去噪。论文没细说，代码我没跑，未核实。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p><b>结论：</b>代码和论文基本一致；论文没写的超参（学习率、分辨率、增强、采样器）在配置里能找到；有几处小出入。代码只读未运行，commit <code>18a2acc</code>（2026-01-22），Apache-2.0；权重 NSCLv1（非商业）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项</th><th>论文</th><th>代码（18a2acc）</th></tr></thead><tbody>
+<tr><td>基础模型</td><td>Cosmos-Predict2-2B-Video2World</td><td><code>hf://nvidia/Cosmos-Predict2-2B-Video2World/model-480p-16fps.pt</code>；网络 28 块、宽 2048、16 头、patch 2 × 2（<code>COSMOS_V1_2B_NET_MININET</code>）</td></tr>
+<tr><td>输入分辨率</td><td>没写</td><td><code>resolution="224"</code>，<code>resize_online=True</code>；隐帧 28 × 28 × 16</td></tr>
+<tr><td>文本</td><td>T5-XXL</td><td>预先算好的 T5 嵌入（<code>t5_embeddings.pkl</code>）；<code>text.dropout_rate=0.0</code>（注释：否则可能不跟指令）</td></tr>
+<tr><td>优化</td><td>没写</td><td>lr 1e-4（基础配置 weight_decay 0.1）；warmup 1,000 步，前 30K 步一个衰减周期，之后固定为 0.06 倍（注释 “sharp learning rate decay after 30K steps”）；不用 EMA</td></tr>
+<tr><td>步数</td><td>LIBERO 40K</td><td>HF 模型卡 40,000；但 README 和评测脚本的示例 <code>--run_id_note chkpt45000</code>（<a href="#n13">读者注 13</a>）</td></tr>
+<tr><td>噪声</td><td>0.7 对数正态 + 0.3 均匀 [1, 85]；推理 σ ∈ [4, 80]</td><td>一致（<code>hybrid_edm_sde.py</code>；<code>__inference_only</code> 配置）</td></tr>
+<tr><td>图像增强</td><td>没写</td><td>训练：90% 面积随机裁切、±5° 旋转、亮度 ±0.3、对比度 ±0.4、饱和度 ±0.5、色相 ±0.05（<code>dataset_utils.py</code> 第 289–366 行）；测试：90% 面积中心裁切再缩回</td></tr>
+<tr><td>批次构成</td><td>50/25/25</td><td>同，外加成功/失败回放 1:1 重采样（<a href="#n3">读者注 3</a>）</td></tr>
+<tr><td>价值目标</td><td>\(\gamma^{H-t}R\)</td><td>\(2G-1\)，\(\gamma=0.99\)；ALOHA 规划模型 0.998（<a href="#n4">读者注 4</a>）</td></tr>
+<tr><td>“掩掉 (s, a)”</td><td>输入掩码</td><td>把这些帧改成去噪目标并屏蔽其损失（<a href="#n11">读者注 11</a>）</td></tr>
+<tr><td>多数均值阈值</td><td>“固定阈值”</td><td>0.05，票数 ≥ 一半</td></tr>
+<tr><td>规划模型精调</td><td>90% 世界模型 + 价值，10% 策略</td><td><code>demonstration_sampling_prob=0.1</code>；warmup 1,500，第一个周期 15K 步；从 50K 步检查点继续；精调总步数论文和配置都没写死（<code>max_iter</code> 沿用 1,000,000）</td></tr>
+<tr><td>采样器</td><td>没写</td><td><code>2ab</code> 多步法；1 步时直接一次去噪</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · LIBERO 公布的检查点是 40K 还是 45K 步</span><p>论文 A.2.2 和 HF 模型卡（<code>nvidia/Cosmos-Policy-LIBERO-Predict2-2B</code>，sha <code>cb689ec</code>）都写 40K 步；但 <code>LIBERO.md</code> 和 <code>run_libero_eval.py</code> 第 65 行的示例命令里 <code>--run_id_note chkpt45000--5stepAct--seed195--deterministic</code>，RoboCasa 的示例也是 <code>chkpt45000</code>（论文 RoboCasa 是 45K）。run_id_note 只是日志名，不影响加载哪个文件（文件名是 <code>Cosmos-Policy-LIBERO-Predict2-2B.pt</code>，没有步数）。可能是从 RoboCasa 命令复制过来的。我无法从权重本身判断步数，未核实。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 三种许可</span><p>论文 CC BY 4.0；代码 Apache-2.0；模型权重 NVIDIA One-Way Noncommercial License（NSCLv1，模型卡写明）；数据集卡写 <code>license: cc</code>，没说是哪一种 CC。复现做研究没问题，商用要注意权重许可。</p></div>
+
+<h2 id="repro">LIBERO 训练和评测设置</h2>
+<p>这一节把论文、README、代码、Hugging Face 数据和模型卡里和 <a class="ds" href="https://libero-project.github.io/">LIBERO</a> 有关的设置列全，并和 <a href="openwam.html#qa-libero">OpenWAM 页“问 1”的协议对照表</a>放在一起。先说结论：</p>
+<ul>
+<li><b>一个模型训四个套件</b>（不是每个套件一个），和 OpenWAM、MolmoAct2 一样，和 OpenVLA 原版不一样。</li>
+<li><b>评测上限和 OpenVLA 相同</b>：220 / 280 / 300 / 520 步，开局 10 步空动作，比 OpenWAM 的 600 / 700 步紧得多。</li>
+<li><b>数据是自己重生成的</b>：成功演示 1,700 条，不是 OpenVLA 版的 1,693 条；图像只做上下翻转（<code>np.flipud</code>），不是旋转 180°。和 OpenVLA 版数据混用会出问题（<a href="#n15">读者注 15</a>）。</li>
+<li><b>98.5 是三个种子（195、196、197）的平均</b>，每个种子 2,000 回合，开 <code>--deterministic True</code>。</li>
+</ul>
+<div class="tablewrap"><table class="t-w repro"><thead><tr><th>项</th><th>设置</th><th>出处</th></tr></thead><tbody>
+<tr class="grp"><th colspan="3">训练数据</th></tr>
+<tr><td>数据集</td><td><code>nvidia/LIBERO-Cosmos-Policy</code>（sha <code>b463cbd</code>）。<code>success_only/</code> 四个套件的成功演示，训练策略；<code>all_episodes/</code> 2,000 条全部回放（成功 + 失败），训练世界模型和价值</td><td>LIBERO.md；数据集卡；配置第 41–61 行</td></tr>
+<tr><td>成功条数</td><td>Spatial 430、Object 456、Goal 438、Long 376，共 1,700</td><td>四个 <code>*_metainfo.json</code> 的 success 字段，我用脚本数的</td></tr>
+<tr><td>预处理</td><td>在环境里重放演示；256 × 256；删掉空动作；JPEG 压缩；确定性种子</td><td><code>regenerate_libero_dataset.py</code> 文件头；数据集卡</td></tr>
+<tr><td>图像方向</td><td><code>np.flipud</code>（只上下翻转），训练数据和评测两边一致</td><td><code>regenerate_libero_dataset.py</code> 第 242 行；<code>libero_utils.py</code> 第 45–57 行</td></tr>
+<tr><td>输入</td><td>agentview + 腕部两张图（模型内 224 × 224），本体 9 维 = 夹爪 2 + 末端位置 3 + 四元数 4；T5 文本</td><td><code>run_libero_eval.py</code> 第 334 行；<code>constants.py</code></td></tr>
+<tr><td>输出</td><td>动作块 16 × 7；未来本体（t + 16）；未来两张图；价值</td><td>模型卡；<code>constants.py</code></td></tr>
+<tr><td>增强</td><td>“更强”增强：90% 随机裁切、±5° 旋转、颜色抖动；评测时 90% 中心裁切</td><td><code>use_stronger_image_aug=True</code></td></tr>
+<tr class="grp"><th colspan="3">训练</th></tr>
+<tr><td>规模</td><td>40K 步，全局 batch 1,920（每卡 30 × 64 卡），48 小时，全参数</td><td>A.2.2；README 的 8 卡方案用梯度累积 8</td></tr>
+<tr><td>优化</td><td>lr 1e-4，warmup 1,000，30K 步后降到 0.06 倍</td><td>配置第 99–107 行</td></tr>
+<tr><td>停止标准</td><td>README 建议训到动作 L1 约 0.010（论文 40K 步时 0.012）；并提醒“用训练时的同款 GPU 评测，否则成绩可能明显下降”</td><td>LIBERO.md 末段</td></tr>
+<tr class="grp"><th colspan="3">评测</th></tr>
+<tr><td>回合</td><td>每任务 50 次，默认初始状态（第 k 回合用第 k 个），每套件 500 次，不跳过</td><td><code>num_trials_per_task=50</code>；<code>initial_states_path="DEFAULT"</code>（第 678–681 行）</td></tr>
+<tr><td>开局空等</td><td>10 步空动作 <code>[0,0,0,0,0,0,−1]</code>（夹爪张开）</td><td><code>NUM_STEPS_WAIT = 10</code>（第 394 行）；<code>libero_utils.py</code> 第 40–42 行</td></tr>
+<tr><td>最长步数</td><td>Spatial 220、Object 280、Goal 300、Long 520（不含空等）</td><td><code>TASK_MAX_STEPS</code>（第 172–178 行）</td></tr>
+<tr><td>执行</td><td>动作块 16 步整块执行再查询；去噪 5 步；并行解码（未来状态、价值各 1 步，不影响动作）</td><td>LIBERO.md 命令</td></tr>
+<tr><td>种子</td><td>195、196、197 各一次，平均；<code>--deterministic True</code>（每步把随机种子重设为 0，cuDNN 确定性）；环境 <code>env.seed(0)</code></td><td>LIBERO.md 注；第 397–399、807–808 行；<code>libero_utils.py</code> 第 36 行</td></tr>
+<tr><td>渲染</td><td>256 × 256</td><td><code>env_img_res=256</code></td></tr>
+<tr><td>环境版本</td><td>README 说结果在 Python 3.12.3（和 3.10.18）、PyTorch 2.7.0、H100 上得到；LIBERO 代码版本 README 没固定（未核实）</td><td>LIBERO.md</td></tr>
+</tbody></table></div>
+
+<h4>和 OpenWAM 页协议表并列</h4>
+<p>下表 OpenVLA、OpenWAM、MolmoAct2 三列摘自 <a href="openwam.html#qa-libero">openwam.html#qa-libero</a>（“训练数据”“动作块”“报告分数”三行是我补的），最后一列是本页从代码核对的 Cosmos Policy。</p>
+<div class="tablewrap"><table class="t-w repro"><thead><tr><th>项</th><th>OpenVLA</th><th>OpenWAM（你复现的）</th><th>MolmoAct2</th><th>Cosmos Policy</th></tr></thead><tbody>
+<tr><td>设定</td><td>每套件单独一个模型</td><td>四套件合训一个</td><td>四套件合训一个</td><td>四套件合训一个</td></tr>
+<tr><td>训练数据</td><td>OpenVLA 重生成版 1,693 条</td><td>同左，转 LeRobot</td><td>同左，转 LeRobot</td><td>自己重生成：成功 1,700 条 + 全部 2,000 条</td></tr>
+<tr><td>每任务回合</td><td>50</td><td>50</td><td>50</td><td>50（× 3 个种子）</td></tr>
+<tr><td>开局空等</td><td>10 步</td><td>30 步（夹爪张开）</td><td>50 步</td><td>10 步（夹爪张开）</td></tr>
+<tr><td>最长步数 S / O / G / L</td><td>220 / 280 / 300 / 520</td><td>600 / 600 / 600 / 700</td><td>280 / 280 / 300 / 520</td><td>220 / 280 / 300 / 520</td></tr>
+<tr><td>种子</td><td>7</td><td>42（只设一次）</td><td>1000（每回合导出）</td><td>195 / 196 / 197，确定性模式</td></tr>
+<tr><td>渲染和方向</td><td>256，旋转 180°</td><td>256，旋转 180°</td><td>360，旋转 180°</td><td>256，<b>只上下翻转</b>；90% 中心裁切；模型内 224</td></tr>
+<tr><td>动作块 / 执行</td><td>1（原版无动作块；OFT 为 8）</td><td>32 / 32</td><td>10 / 10</td><td>16 / 16</td></tr>
+<tr><td>报告分数</td><td>76.5</td><td>99.3（单种子 2,000 回合）</td><td>见 MolmoAct2 页</td><td>98.5（三种子 6,000 回合）</td></tr>
+</tbody></table></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 和你手上的 LIBERO 数据不一样的两处</span><p><b>条数。</b>你手上 OpenWAM / MolmoAct2 用的是 OpenVLA 版：Spatial 432、Object 454、Goal 428、Long 379，共 1,693 条（<a href="openwam.html#qa-libero">OpenWAM 页</a>）。Cosmos 版按元数据是 430、456、438、376，共 1,700 条。四个套件都不同（−2、+2、+10、−3），说明重放时的仿真随机性改变了一部分演示的成败。数据集卡说是“确定性种子”重放，但 OpenVLA 当年没有用同样的种子，所以两边不可能逐条一致。</p>
+<p><b>图像方向。</b>OpenVLA 版在转 RLDS 时把图像<b>旋转 180°</b>（上下、左右都翻）；Cosmos 版只 <code>np.flipud</code>（只上下翻）。两者差一次<b>左右镜像</b>。Cosmos 代码自己训练和评测一致，没问题；但如果把 Cosmos 的检查点拿到 OpenVLA 风格的评测脚本里，或者用 OpenVLA 版数据训 Cosmos Policy，画面会左右颠倒，Spatial 这种靠“左边/右边”区分的任务会受影响。</p>
+<p><b>和 99.3 比时注意：</b>Cosmos Policy 的 98.5 是在比 OpenWAM 紧得多的步数上限（Long 520 对 700）、三种子平均下测的；两个数不是同一协议。按格子算，98.5 和 99.3 的差在 6,000 回合里约 48 个回合。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 用 Cosmos 代码复现 98.5 时要对齐的几件事</span><ol>
+<li>评测命令照 LIBERO.md：<code>--seed</code> 分别 195、196、197，<code>--deterministic True</code>，<code>--flip_images True</code>，<code>--use_jpeg_compression True</code>（输入前先 JPEG 编解码，模拟训练数据的压缩），<code>--trained_with_image_aug True</code>（启用测试时中心裁切）。</li>
+<li>去噪步数：动作 5 步；未来状态和价值各 1 步，它们不影响动作，只省时间。</li>
+<li>不要设 <code>initial_states_path</code>：默认 50 个初始状态全测。设成 JSON 文件时代码会<b>跳过演示失败的那些初始状态</b>（第 684–687 行），回合数变少、分数会偏高。</li>
+<li>硬件：README 明确说换 GPU 可能掉分，结果来自 H100 + PyTorch 2.7.0。</li>
+</ol></div>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><b>结论：</b>两者都是“视频骨干 + 动作”的世界-动作模型，区别在动作怎样进模型。OpenWAM 页（<a href="openwam.html#s3-1">§3.1</a>）把 Cosmos Policy 归为“单系统”的代表作：没有独立的动作网络，动作塞进视频序列，和视频共用全部参数。OpenWAM-α 选的是“双系统联合自注意力”：独立的 1B ActionDiT 流，每层和视频流共享一次注意力。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th>Cosmos Policy</th><th><a href="openwam.html">OpenWAM-α</a></th></tr></thead><tbody>
+<tr><td>视频骨干</td><td>Cosmos-<b>Predict2</b>-2B-Video2World（2B，Wan2.1 VAE，T5 文本）</td><td>Wan2.2-TI2V-5B；Infra 另外支持 Cosmos-<b>Predict2.5</b>-2B 和 Cosmos3-Edge-4B</td></tr>
+<tr><td>动作怎么进模型</td><td>写成一个隐帧（28 × 28 × 16 的体积里重复铺 112 遍），和图像隐帧走同一个 DiT 的同一套参数</td><td>32 个动作 token 进独立 ActionDiT（30 层，宽 1024），每层和视频 token 拼成一个序列做联合注意力再拆回</td></tr>
+<tr><td>动作的去噪</td><td>和视频共享一个 σ；EDM，推理 σ ∈ [4, 80]，5 步</td><td>两流独立抽时间步（流匹配），推理同步 10 步</td></tr>
+<tr><td>未来视频</td><td>只预测一个未来时刻（t + 16）的两张图</td><td>预测 2 个未来隐帧（对应 8 个视频帧）</td></tr>
+<tr><td>额外输出</td><td>未来本体、未来价值，可做 best-of-N 规划</td><td>没有价值头</td></tr>
+<tr><td>训练</td><td>只在目标平台演示上微调（无机器人预训练）</td><td>先在 518.5M 帧上预训练，再在 LIBERO 微调</td></tr>
+<tr><td>LIBERO</td><td>98.5（三种子，OpenVLA 步数上限）</td><td>99.3（单种子，600 / 700 步上限）</td></tr>
+</tbody></table></div>
+<p><b>对比结论要小心。</b>OpenWAM 的 §4.2.1 表 1（RoboTwin2.0）里单系统 Vanilla 85.5、MoE 84.63，比双系统联合自注意力的 92.36 低约 7 点。但那是 OpenWAM 在自己的骨干、自己的训练配方下做的受控比较，不是复现 Cosmos Policy：它没有 Cosmos Policy 的隐帧复制写法、混合噪声分布、\(\sigma_{min}=4\) 截断，也没有世界模型和价值样本的联合训练。所以不能据此说 Cosmos Policy 的做法“差 7 点”。Cosmos Policy 自己的消融（表 5）显示，让策略同时预测未来状态这个辅助目标值 18 点，这一点和 OpenWAM“动作要能看到世界”的结论方向一致。</p>
+<p><b>OpenWAM 表 5 里的 Cosmos-Policy。</b>OpenWAM 页 <a href="openwam.html#t5">LIBERO-Plus 表</a>里有 Cosmos-Policy 一行（平均 82.2，高于 OpenWAM-α 的 69.2，Camera 75.8 对 33.8）。Cosmos Policy 论文本身没有 LIBERO-Plus 实验，这个数是 OpenWAM 引的。一个参考：同为 Cosmos 骨干、像素级视频隐变量，Cosmos Policy 对相机扰动并没有 OpenWAM-α 那么敏感，所以 OpenWAM 把短板归于“像素级隐变量”的解释至少不完整（这是我的推断）。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · OpenWAM 表 5 里 Cosmos-Policy 的平均</span><p>七项简单平均 \((75.8+63.3+81.7+96.5+88.9+92.7+82.2)/7=83.0\)，表里平均写 82.2。LIBERO-Plus 各扰动的样本数不同，平均可能是按样本加权的；我没有核对 LIBERO-Plus 的样本数，未核实。这个出入在 OpenWAM 原文的表里，不是 Cosmos Policy 论文的问题。</p></div>
+<p><b>复现用户的角度：</b>如果你想在 OpenWAM 框架里试 Cosmos 骨干，OpenWAM 支持的是 Predict2.5-2B（<code>configs/model/video_backbone/cosmos_predict25_2b.yaml</code>），不是 Cosmos Policy 用的 Predict2-2B；两者的分别见 <a href="cosmos-predict25.html">Cosmos-Predict2.5 页</a>。OpenWAM 的单系统 Vanilla 结构在概念上最接近 Cosmos Policy，但动作是以 token 而不是“复制铺满的隐帧”形式进入。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 是 Predict2，不是 Predict2.5</span><p>论文 §3 和代码配置（<code>load_path=.../Cosmos-Predict2-2B-Video2World/model-480p-16fps.pt</code>）一致：基础模型是 2025 年的 Cosmos-Predict2-2B，480p、16 fps 版本。它继承的基础训练配置（<code>Stage-c_pt_4-Index-102-Size-2B-Res-480-Fps-16</code>）是 \(P_{mean}=\ln4\)、\(P_{std}=1.2\)、σ ∈ [0.01, 200]、每段 24 个隐帧。Cosmos Policy 把它用在 224 × 224、9 到 11 个隐帧的短序列上，远小于预训练的 480p、24 隐帧。OpenWAM 里的 Cosmos 骨干是后来的 Predict2.5 和 Cosmos 3，不是同一个检查点。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">LIBERO 是 9 个隐帧</a>：state_t = 9，33 = 1 + 8 × 4。</li>
+<li><a href="#n2">隐帧有多大</a>：28 × 28 × 16 = 12,544；动作 112 份；ALOHA 动作和 LIBERO 本体除不尽，代码截断。</li>
+<li><a href="#n3">批次构成多一层</a>：成功/失败回放 1:1 重采样，论文没写。</li>
+<li><a href="#n4">价值尺度和阈值</a>：2G − 1，γ = 0.99；多数均值阈值 0.05。</li>
+<li><a href="#n5">表 1 的平均和格子</a>：全部对得上；三种子格子 1/15 点。</li>
+<li><a href="#n6">消融数字</a>：1.5、3.9、18.7 都对得上。</li>
+<li><a href="#n7">图 7 和试验次数</a>：平均对得上；推断糖果碗 20 次、密封袋 30 次。</li>
+<li><a href="#n8">混合噪声分布</a>：P(σ &gt; 20) 从 9.0% 到 29.5%；采样器 2ab。</li>
+<li><a href="#n9">训练规模</a>：batch 对得上；同样 48 小时，π0 看的样本是 Cosmos 的 10 倍。</li>
+<li><a href="#n10">表 3 自洽</a>：20 格加权全对，平均是简单平均；505 + 143 = 648。</li>
+<li><a href="#n11">“掩掉”的实现</a>：改成加噪目标并屏蔽损失；低 σ 时训练里仍可能偷看（推断）。</li>
+<li><a href="#n12">一处小出入</a>：1 步去噪掉 0.7 不是 0.5；规划每分支 100 次前向。</li>
+<li><a href="#n13">40K 还是 45K</a>：论文和模型卡 40K，示例命令写 chkpt45000。</li>
+<li><a href="#n14">三种许可</a>：论文 CC BY、代码 Apache-2.0、权重非商业。</li>
+<li><a href="#n15">数据和你手上的不一样</a>：1,700 对 1,693；只上下翻转对旋转 180°。<b>复现要点</b></li>
+<li><a href="#n16">复现 98.5 要对齐的事</a>：三种子、确定性、JPEG、中心裁切、不跳初始状态、同款 GPU。<b>复现要点</b></li>
+<li><a href="#n17">OpenWAM 表 5 的 Cosmos-Policy 平均</a>：简单平均 83.0，表写 82.2，未核实加权方式。</li>
+<li><a href="#n18">是 Predict2，不是 Predict2.5</a>：基础检查点 480p-16fps；OpenWAM 用的是 Predict2.5 / Cosmos 3。</li>
+</ol>
+<p>论文没写、我也没找到的：规划实验每个任务的试验次数；规划模型精调的步数；RoboCasa 逐任务成功率；Cosmos 版 LIBERO 数据的总帧数（要下载 HDF5 才能数）。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、模型和方法。除标注的以外，链接在 2026 年 11 月 16 日用脚本核对都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-policy/">Cosmos Policy</a></td><td>本文</td><td><a href="https://github.com/NVlabs/cosmos-policy">代码</a> · <a href="https://huggingface.co/collections/nvidia/cosmos-policy">HF</a></td><td><a href="https://arxiv.org/abs/2601.16163">2601.16163</a></td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>仿真操作基准</td><td>libero-project.github.io · 本站 <a href="libero.html">LIBERO 页</a></td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/LIBERO-Cosmos-Policy">LIBERO-Cosmos-Policy</a></td><td>本文重生成的 LIBERO 数据</td><td>huggingface.co/datasets/nvidia/LIBERO-Cosmos-Policy</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://robocasa.ai/">RoboCasa</a></td><td>厨房仿真基准</td><td>robocasa.ai</td><td><a href="https://arxiv.org/abs/2406.02523">2406.02523</a></td></tr>
+<tr><td><a class="ds" href="https://mimicgen.github.io/">MimicGen</a></td><td>自动生成演示</td><td>mimicgen.github.io</td><td><a href="https://arxiv.org/abs/2310.17596">2310.17596</a></td></tr>
+<tr><td><a class="ds" href="https://tonyzhaozh.github.io/aloha/">ALOHA</a></td><td>低成本双臂平台，ACT</td><td>tonyzhaozh.github.io/aloha</td><td><a href="https://arxiv.org/abs/2304.13705">2304.13705</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World">Cosmos-Predict2</a></td><td>基础视频模型</td><td>huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World</td><td>Cosmos 平台 <a href="https://arxiv.org/abs/2501.03575">2501.03575</a> · 本站 <a href="cosmos.html">Cosmos 页</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Wan-Video/Wan2.1">Wan2.1</a></td><td>VAE 来源</td><td>github.com/Wan-Video/Wan2.1 · 本站 <a href="wan.html">Wan 页</a></td><td><a href="https://arxiv.org/abs/2503.20314">2503.20314</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2206.00364">EDM</a></td><td>扩散训练公式</td><td>–</td><td><a href="https://arxiv.org/abs/2206.00364">2206.00364</a></td></tr>
+<tr><td><a class="ds" href="https://openvla-oft.github.io/">OpenVLA-OFT</a></td><td>基线；LIBERO 预处理来源</td><td>openvla-oft.github.io</td><td><a href="https://arxiv.org/abs/2502.19645">2502.19645</a></td></tr>
+<tr><td><a class="ds" href="https://www.physicalintelligence.company/blog/pi05">π0.5</a></td><td>基线（主页对脚本返回 429 限流，未能核对）</td><td>physicalintelligence.company</td><td><a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td></tr>
+<tr><td><a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a></td><td>基线</td><td>diffusion-policy.cs.columbia.edu</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2503.00200">UVA</a></td><td>统一视频-动作模型</td><td>–</td><td><a href="https://arxiv.org/abs/2503.00200">2503.00200</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.00795">Video Policy</a></td><td>视频生成器即策略</td><td>–</td><td><a href="https://arxiv.org/abs/2508.00795">2508.00795</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2503.14734">GR00T N1</a></td><td>基线；RoboCasa 协议</td><td>本站 <a href="gr00t.html">GR00T 页</a></td><td><a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2609.07398">OpenWAM</a></td><td>对照</td><td>本站 <a href="openwam.html">OpenWAM 页</a></td><td><a href="https://arxiv.org/abs/2609.07398">2609.07398</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2601.16163 后的整理，不是作者的官方内容。原文：Moo Jin Kim、Yihuai Gao、Tsung-Yi Lin、Yen-Chen Lin、Yunhao Ge、Grace Lam、Percy Liang、Shuran Song、Ming-Yu Liu、Chelsea Finn、Jinwei Gu，《Cosmos Policy: Fine-Tuning Video Models for Visuomotor Control and Planning》，arXiv 2601.16163，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 12 从原文 PDF 裁切，只做了裁切、缩放和格式转换，经站点作者决定放原图。表格数字照录原文；读者注、代码对照和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
