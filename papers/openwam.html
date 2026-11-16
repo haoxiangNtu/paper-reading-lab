@@ -71,7 +71,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="note" id="n1"><span class="lab">读者注 1 · 同名项目和 Hugging Face 组织</span><p>2026-11-16 用 Hugging Face API 列出 <code>author=OpenWAM</code> 的模型：46 个，全部创建于 2026-09-04 到 09-05（在 2609.07398 提交前后），名字是 OpenWAM-Alpha-*（14 个）和 robotwin_* / pretrain_* / sft_*（32 个，对应 §4 的消融）。我读的两张模型卡都引用 2609.07398、链接 OpenWAM-Official/OpenWAM；本篇代码的下载脚本 <code>download_openwam_checkpoints.py</code> 也从 <code>OpenWAM/&lt;名字&gt;</code> 下载。2610.07922（Heng Yu 等，Stanford）的摘要页只有 GitHub 链接 OpenWAM/OpenWAM（AGPL-3.0，仓库描述写着 Stanford University），没有 Hugging Face 链接。所以 HF 的 OpenWAM 组织属于本篇。我只读了两张卡，其余 44 张没有逐张打开。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -874,6 +874,30 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 </ol>
 <p>按这个结构估算参数量（我算的，代码没打印）：\(D=768\) 时每层注意力 \(4D^2\approx2.36\)M、FFN \(2\times768\times2048\approx3.15\)M，6 层约 33M；\(D=1408\) 时约 82M。和 5B 的 DiT 比很小。</p>
 <p>和 S-VAE 原论文的区别：原论文（2512.17909）用“语义加像素”的重建目标，压到 96 通道、16 倍空间下采样，并且要能解码回图像；OpenWAM 版只重建特征、不解码像素（摘要和 <code>model.py</code> 对照，原论文正文我没细读）。详见<a href="#n23">读者注 23</a>。</p>
+
+<h3 id="qa-rr">问 3：Wan2.2-VAE（重建式）和 DINOv3（表示式）到底有什么区别？</h3>
+<p><b>一句话：</b>两者都把画面变成一格一格的向量，但<b>训练时被要求记住的东西不同</b>。Wan2.2-VAE 要能把向量还原回原视频，所以它保留“画面长什么样”的全部细节；DINOv3 只要求同一张图的不同裁切得到一致的特征，所以它保留“画面里是什么、在哪里”，丢掉对识别没用的细节，也没法还原像素。</p>
+<p>打个比方：VAE 像一张压缩照片，DINOv3 像一份标注清单（“这里是碗的边缘，那里是夹爪”）。照片能看清颜色和纹理，但谁是碗要自己认；清单直接告诉你是什么，但画不回原图。</p>
+
+<div class="tablewrap"><table class="t-w"><thead><tr><th>对比项</th><th>Wan2.2-VAE（重建式）</th><th>DINOv3 ViT-B/16（表示式）</th></tr></thead><tbody>
+<tr><td>训练目标</td><td>编码后再解码，让解码出的视频接近原视频。Wan 报告给的 Wan-VAE（2.1 版）损失：L1 重建 ×3、KL ×3e-6、LPIPS 感知 ×3，后期加 3D 判别器的 GAN 损失（arXiv 2503.20314 §4.1.2）。2.2 版的训练细节没公开</td><td>没有解码器。学生网络对齐教师网络（DINO 的图像级损失 + iBOT 的遮挡 patch 损失），再加 KoLeo 让特征散开、Gram anchoring 保持局部特征质量；每张图取 2 个大裁切和 8 个小裁切（arXiv 2508.10104）</td></tr>
+<tr><td>能否还原像素</td><td>能，有配套解码器（Wan 用它生成视频）</td><td>不能。要看图得另训解码器（RAE 就是这么做的）</td></tr>
+<tr><td>保留什么</td><td>颜色、纹理、精确位置、光照，凡是还原需要的都要留</td><td>物体类别、部件、边界、对应关系；对识别无关的细节会被压低</td></tr>
+<tr><td>网络</td><td>因果 3D 卷积，直接处理视频</td><td>ViT（12 层，宽 768），一次处理一张图</td></tr>
+<tr><td>时间维</td><td>自带：首帧单独，之后每 4 帧学成 1 个隐帧</td><td>没有。OpenWAM 只能对逐帧特征求平均来凑 4 倍</td></tr>
+<tr><td>每个 16 × 16 位置的数字个数</td><td>48（且这 48 个数管 4 帧）</td><td>768（每帧一份）</td></tr>
+<tr><td>压缩比（每格原始像素数 ÷ 隐变量数）</td><td>4 帧 × 3 色 × 256 像素 = 3,072 → 48，<b>64 倍</b></td><td>3 × 256 = 768 → 768，<b>不压缩</b>；4 帧平均后 3,072 → 768，4 倍</td></tr>
+<tr><td>隐变量的分布</td><td>有 KL 约束，接近标准正态，适合扩散模型从噪声出发去生成</td><td>没有这类约束，高维且各方向尺度不一；OpenWAM 在后面加无参 LayerNorm 硬拉到零均值单位方差</td></tr>
+<tr><td>原本用途</td><td>视频生成的“画布”</td><td>分类、分割、深度、检索等理解任务的通用特征</td></tr>
+</tbody></table></div>
+
+<p><b>放到世界-动作模型里意味着什么。</b>视频流要做的是“从噪声生成未来的隐变量”。</p>
+<ul>
+<li>选 VAE：目标低维、分布规整、时间也压过，扩散模型好学；但它花很多容量去预测纹理和光照这些和动作关系不大的东西。</li>
+<li>选 DINOv3：目标里是对操作有用的语义和几何，但 768 维、没时间压缩、分布不规整，对按 VAE 设计的 DiT 来说太难（见<a href="#qa-enc">问 2</a> 的宽度条件）。</li>
+</ul>
+<p>图 7 正好说明了这一点：直接用 DINOv3 只有 76.42，比 Wan2.2-VAE 的 90.30 低 13.88 点；用 S-VAE 把它压到 48 维之后到 90.18，只差 0.12 点。也就是说，<b>DINOv3 的问题主要在“形状”（维度和分布），不在内容</b>，形状改到和 VAE 一样后，它的语义内容不比 VAE 的像素内容差。论文的结论也是这个意思：好的隐空间看的是“紧凑”和“信息丰富”，不在于属于哪一类编码器。</p>
+<p class="tcap">DINOv3 正文写了多裁切，没写颜色抖动等颜色增强，所以表里没说它“丢颜色”；DINO 系列早期版本用过颜色增强，v3 是否沿用未核实。</p>
 
 <div class="note" id="n20"><span class="lab">读者注 20 · V-JEPA 2.1 到底是 1024 维还是 1408 维</span><p>§4.1.2 写“1024-D for V-JEPA 2.1”，这是 ViT-L 的宽度（<code>vjepa21_src/vision_transformer.py</code> 的 <code>vit_large</code>：<code>embed_dim=1024</code>）。但代码的下载脚本只提供 <code>vjepa2_1_vitg_384.pt</code>，manifest 写 <code>embed_dim: 1408</code>（ViT-g，40 层，22 个头），S-VAE 的文件头注释也写“1408-d V-JEPA 2.1 latents”。图 7 用的是哪个尺寸，论文和代码对不上，标“未核实”。两种情况下不加 S-VAE 时 4C（4,096 或 5,632）都超过 DiT 宽度 3,072，上面的结论不变。</p></div>
 <div class="note" id="n21"><span class="lab">读者注 21 · “每 4 帧平均”的准确含义</span><p>论文说没有时间压缩的编码器“把每 4 个连续帧的特征平均”。代码里更具体：第 1 帧单独保留，后面每 4 帧求平均（<code>dinov3.py</code> 和 <code>flux2_vae.py</code> 的 <code>_causal_temporal_pool</code>），9 帧 → 1 + 2 = 3 帧，这样才和 Wan2.2-VAE 的因果分组对齐。另外 V-JEPA 2.1 并不是“没有时间压缩”：它的 tubelet 是 2，自带 2 倍时间压缩，代码只再做一次步长 2 的平均（<code>vjepa21.py</code> 文件头）；第 1 帧则复制成 2 帧送进视频分支，得到 1 个隐帧。</p></div>
