@@ -78,6 +78,20 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 .lb.on{border-color:var(--fg)}
 .t4-arrow{font-size:13px;color:var(--muted);margin:6px 0}
 .t4-note{font-size:14px;margin:8px 0 0;max-width:none}
+.tk-tool{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;background:var(--bg2);min-width:0;max-width:100%;box-sizing:border-box}
+.tk-tool .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.tk-strip{display:grid;grid-template-columns:repeat(33,minmax(0,1fr));gap:2px}
+.tf{font:10px var(--font-mono);text-align:center;padding:4px 0;border-radius:3px;color:#06121e;overflow:hidden}
+.tf.sx{background:var(--line);color:var(--muted);opacity:.6}
+.tf.g0,.tk-leg .g0{background:#e8b04f}.tf.g1,.tk-leg .g1{background:#4f8fea}.tf.g2,.tk-leg .g2{background:#4fc98a}
+.tk-leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin:8px 0 4px}
+.tk-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.tk-leg .s0{background:var(--fg);opacity:.75}.tk-leg .sx{background:var(--line)}
+.tk-note{font-size:14px;margin:6px 0 0;max-width:none}
+.tk-grid-wrap{display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px;align-items:start}
+.tk-grid-wrap svg{width:330px;max-width:100%;height:auto;color:var(--fg);cursor:crosshair}
+.tk-out p{font-size:14px;margin:0 0 6px;max-width:none}
+@media (max-width:640px){.tk-grid-wrap{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -100,7 +114,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="note" id="n1"><span class="lab">读者注 1 · 同名项目和 Hugging Face 组织</span><p>2026-11-16 用 Hugging Face API 列出 <code>author=OpenWAM</code> 的模型：46 个，全部创建于 2026-09-04 到 09-05（在 2609.07398 提交前后），名字是 OpenWAM-Alpha-*（14 个）和 robotwin_* / pretrain_* / sft_*（32 个，对应 §4 的消融）。我读的两张模型卡都引用 2609.07398、链接 OpenWAM-Official/OpenWAM；本篇代码的下载脚本 <code>download_openwam_checkpoints.py</code> 也从 <code>OpenWAM/&lt;名字&gt;</code> 下载。2610.07922（Heng Yu 等，Stanford）的摘要页只有 GitHub 链接 OpenWAM/OpenWAM（AGPL-3.0，仓库描述写着 Stanford University），没有 Hugging Face 链接。所以 HF 的 OpenWAM 组织属于本篇。我只读了两张卡，其余 44 张没有逐张打开。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#qa-kg">问 4 KoLeo 与 Gram</a><a href="#qa-vd">问 5 ViT 与 DiT</a><a href="#qa-t4">问 6 首帧与 4 帧</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#qa-kg">问 4 KoLeo 与 Gram</a><a href="#qa-vd">问 5 ViT 与 DiT</a><a href="#qa-t4">问 6 首帧与 4 帧</a><a href="#qa-tok">问 7 stride 与 token</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1014,6 +1028,33 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <p><b>“因果”指什么：</b>编码器里所有时间方向的卷积都只在前面补帧（代码 <code>CausalConv3d</code>：时间维的填充全加在前面，后面填 0 帧），所以一个隐帧只依赖它自己那组帧和之前的帧，永远看不到之后的帧。代码按块编码：先单独编第 1 帧，然后每次编 4 帧，每层卷积把上一块最后 2 帧缓存下来接到下一块前面（<code>CACHE_T = 2</code>），因此能编任意长的视频，显存不随长度增长（<code>wan/models/vae.py</code> 的 <code>encode</code> 循环：<code>iter_ = 1 + (t - 1) // 4</code>，第 0 块取 <code>x[:, :, :1]</code>，第 i 块取 <code>x[:, :, 1+4(i-1) : 1+4i]</code>）。</p>
 <p><b>在 OpenWAM 里的完整链条：</b>33 帧窗口按 <code>video_stride: 4</code> 抽出第 0、4、8 … 32 帧共 9 帧 → Wan2.2-VAE 编成 3 个隐帧：[第 0 帧]、[第 4–16 帧]、[第 20–32 帧]（括号里是原始 33 帧的编号）→ 第 1 个是干净的条件，后 2 个是 DiT 要从噪声里生成的“未来”。动作块 32 步覆盖的正是这段未来。</p>
 
+<h3 id="qa-tok">问 7：stride 4 和隐帧是什么关系？“384 × 320 ÷ 16 = 24 × 20，再 2 × 2 patch = 120 / 隐帧”是什么意思？</h3>
+<p><b>先说结论：</b>从一段 33 帧的视频片段，到 DiT 里的 360 个 token，中间有<b>四次“缩小”</b>，前两次在时间上，后两次在空间上，各管各的：</p>
+<ol>
+<li><b>抽帧（时间，stride 4）：</b>33 帧里每隔 4 帧取 1 帧 → 9 帧。这一步只是“跳着取”，什么都不学，被跳过的帧直接不看。</li>
+<li><b>VAE 时间压缩（时间，4 倍）：</b>这 9 帧再按“首帧单独、之后每 4 帧一组”编码 → 3 个隐帧（<a href="#qa-t4">问 6</a>）。这一步是学出来的。</li>
+<li><b>VAE 空间压缩（空间，16 倍）：</b>每个隐帧把 384 × 320 的画面变成 24 × 20 的格子，每格 48 个数。</li>
+<li><b>DiT 打包（空间，2 × 2）：</b>相邻 2 × 2 个格子合成 1 个 token → 每个隐帧 12 × 10 = 120 个 token，3 个隐帧共 360 个。</li>
+</ol>
+<p>stride 的 4 和 VAE 的 4 只是碰巧相同，是两回事：前者是数据加载器的设置（<code>video_stride: 4</code>），后者是 Wan2.2-VAE 结构里固定的。两者叠起来，一个隐帧（除首帧外）覆盖原片段里 4 × 4 = 16 帧。</p>
+
+<div class="tk-tool">
+<p class="lab">时间轴 · 33 帧窗口（LIBERO 数据集标 10 fps，即 3.3 秒；仿真里实际 20 Hz，见问 1）</p>
+<div class="tk-strip" id="tk-strip"></div>
+<div class="tk-leg"><span><i class="s0"></i>被抽中的 9 帧（stride 4）</span><span><i class="sx"></i>被跳过，视频流不看</span><span><i class="g0"></i>z0：第 0 帧（干净条件）</span><span><i class="g1"></i>z1：第 4–16 帧</span><span><i class="g2"></i>z2：第 20–32 帧</span></div>
+<p class="tk-note">动作流<b>不抽帧</b>：动作块是第 1 到第 32 帧的 32 个动作，每一帧都有（<code>num_frames: 33</code>，块长 = 33 − 1）。所以视频流用 3 个隐帧粗粗地“想象”未来 3.2 秒的画面，动作流逐帧给出这 3.2 秒里的每一步动作。</p>
+</div>
+
+<p><b>“384 × 320 ÷ 16 = 24 × 20”：</b>OpenWAM 把相机画面拼成一张 384（高）× 320（宽）像素的画布（LIBERO 是上方主相机 256 × 320，左下腕部相机 128 × 160，见<a href="#t-repro">复现表</a>）。Wan2.2-VAE 在空间上缩小 16 倍：384 ÷ 16 = 24 行，320 ÷ 16 = 20 列，所以每个隐帧是一张 24 × 20 的格子图，<b>每格概括原图 16 × 16 像素</b>，用 48 个数表示。</p>
+<p><b>“再 2 × 2 patch = 120 / 隐帧”：</b>DiT 不是一格一个 token，而是把相邻的 2 × 2 = 4 格打包成一个 token（输入层 <code>Conv3d(48, 3072, 1×2×2)</code>）：24 ÷ 2 = 12 行，20 ÷ 2 = 10 列，12 × 10 = <b>120 个 token / 隐帧</b>。每个 token 对应原图 32 × 32 像素，输入是 4 格 × 48 = 192 个数，再被映射成 3072 维。3 个隐帧 × 120 = 360 个视频 token。</p>
+<div class="tk-tool">
+<p class="lab">空间网格 · 一个隐帧（细线 = VAE 的 16 × 16 像素格，粗框 = DiT 的一个 token）</p>
+<div class="tk-grid-wrap"><svg id="tk-svg" viewBox="0 0 330 390" role="img" aria-label="384×320 画布分成 24×20 格、12×10 个 token 的示意"></svg>
+<div class="tk-out" id="tk-out"><p>把鼠标移到网格上（或点击），看那个 token 对应原图哪块像素。</p></div></div>
+</div>
+<p><b>为什么还要 2 × 2 打包：</b>注意力的计算量和 token 数的平方成正比。不打包的话每个隐帧 480 个 token、3 帧 1440 个；打包后 360 个，注意力计算量是原来的 \((360/1440)^2=1/16\)。代价是每个 token 管的区域更大（32 × 32 像素）。Wan 报告把“VAE 16 倍 + patch 2 倍”合起来称作空间 32 × 32 的总压缩（见 <a href="wan.html#wan22">Wan 页</a>）。</p>
+<p class="tcap">出处：<code>configs/dataloader/libero.yaml</code>（<code>num_frames: 33</code>、<code>video_stride: 4</code>、画布布局）；Wan2.2-VAE 压缩率见 Wan2.2 README；DiT patch 见 <code>encoder/base.py</code> 的 <code>dit_patch_size=(1,2,2)</code>。</p>
+
 <div class="note" id="n20"><span class="lab">读者注 20 · V-JEPA 2.1 到底是 1024 维还是 1408 维</span><p>§4.1.2 写“1024-D for V-JEPA 2.1”，这是 ViT-L 的宽度（<code>vjepa21_src/vision_transformer.py</code> 的 <code>vit_large</code>：<code>embed_dim=1024</code>）。但代码的下载脚本只提供 <code>vjepa2_1_vitg_384.pt</code>，manifest 写 <code>embed_dim: 1408</code>（ViT-g，40 层，22 个头），S-VAE 的文件头注释也写“1408-d V-JEPA 2.1 latents”。图 7 用的是哪个尺寸，论文和代码对不上，标“未核实”。两种情况下不加 S-VAE 时 4C（4,096 或 5,632）都超过 DiT 宽度 3,072，上面的结论不变。</p></div>
 <div class="note" id="n21"><span class="lab">读者注 21 · “每 4 帧平均”的准确含义</span><p>论文说没有时间压缩的编码器“把每 4 个连续帧的特征平均”。代码里更具体：第 1 帧单独保留，后面每 4 帧求平均（<code>dinov3.py</code> 和 <code>flux2_vae.py</code> 的 <code>_causal_temporal_pool</code>），9 帧 → 1 + 2 = 3 帧，这样才和 Wan2.2-VAE 的因果分组对齐。另外 V-JEPA 2.1 并不是“没有时间压缩”：它的 tubelet 是 2，自带 2 倍时间压缩，代码只再做一次步长 2 的平均（<code>vjepa21.py</code> 文件头）；条件帧是把第 1 帧复制成 [f0, f0] 送进视频分支，得到 1 个隐帧；目标帧则把 [f0, f0, f1 … f8] 共 10 帧一起送进去得 5 个隐帧，丢掉第 1 个，剩下 4 个两两平均成 2 个（<code>vjepa21.py</code> 第 186–199 行）。所以每个样本要跑两次编码器。</p></div>
 <div class="note" id="n22"><span class="lab">读者注 22 · FLUX.2-VAE 这一行也不是 48 维</span><p>论文把 S-VAE 的 48 维说成“和 Wan2.2-VAE 一样”，容易让人以为两个重建式编码器维度相同。实际上 OpenWAM 里 FLUX.2-VAE 每个位置 128 通道（32 通道 × 2 × 2 打包），DiT token 输入 512 维，是 Wan2.2-VAE 的 2.7 倍。所以“FLUX.2-VAE 84.26 对 Wan2.2-VAE 90.30”这 6 个点里，同时混着维度、时间压缩方式（平均对学习）和编码器本身三个因素，不能只归于“图像编码器对视频编码器”。</p></div>
@@ -1188,6 +1229,29 @@ function draw(){var K=+k.value,T=1+4*K,L=1+K; tv.textContent=T; if(sel>=L) sel=L
  note.innerHTML=T+' 帧 → '+L+' 个隐帧（1 + ('+T+' − 1) / 4）。<b>z'+sel+'</b> 由第 '+(a===b?a:a+'–'+b)+' 帧编码'+(sel===0?'，只有首帧自己':'')+'；通过因果卷积和缓存，它还能看到前面的帧（浅色），但看不到后面的帧（灰）。'+(K===2?' 这正是 OpenWAM 的设置：z0 是当前观测（干净条件），z1、z2 是要预测的未来。':'')+(K===0?' 只有 1 帧时就是一张图片，图和视频共用同一个隐空间。':'');}
 la.addEventListener('click',function(e){var b=e.target.closest('button');if(b){sel=+b.dataset.i;draw();}});
 k.addEventListener('input',draw); draw();
+})();
+</script>
+<script>
+(function(){
+var st=document.getElementById('tk-strip'); if(!st) return;
+var h='';for(var j=0;j<33;j++){var s=j%4===0, g=j===0?'g0':(j<=16?'g1':'g2');h+='<span class="tf '+(s?'s0 '+g:'sx')+'" title="第 '+j+' 帧">'+j+'</span>';}
+st.innerHTML=h;
+var svg=document.getElementById('tk-svg'),out=document.getElementById('tk-out'),NS='http://www.w3.org/2000/svg',c=16,ox=5,oy=5;
+function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+svg.appendChild(el('rect',{x:ox,y:oy,width:20*c,height:16*c,fill:'#4f8fea',opacity:.18}));
+svg.appendChild(el('rect',{x:ox,y:oy+16*c,width:10*c,height:8*c,fill:'#4fc98a',opacity:.22}));
+svg.appendChild(el('rect',{x:ox+10*c,y:oy+16*c,width:10*c,height:8*c,fill:'#8a96a8',opacity:.15}));
+var t1=el('text',{x:ox+6,y:oy+14,'font-size':11,fill:'currentColor'});t1.textContent='主相机 256×320 像素';svg.appendChild(t1);
+var t2=el('text',{x:ox+6,y:oy+16*c+14,'font-size':11,fill:'currentColor'});t2.textContent='腕部 128×160';svg.appendChild(t2);
+var t3=el('text',{x:ox+10*c+6,y:oy+16*c+14,'font-size':11,fill:'currentColor'});t3.textContent='空（黑）';svg.appendChild(t3);
+for(var i=0;i<=20;i++)svg.appendChild(el('line',{x1:ox+i*c,y1:oy,x2:ox+i*c,y2:oy+24*c,stroke:'currentColor','stroke-opacity':i%2?0.18:0.6,'stroke-width':i%2?0.6:1.4}));
+for(i=0;i<=24;i++)svg.appendChild(el('line',{x1:ox,y1:oy+i*c,x2:ox+20*c,y2:oy+i*c,stroke:'currentColor','stroke-opacity':i%2?0.18:0.6,'stroke-width':i%2?0.6:1.4}));
+var hi=el('rect',{x:0,y:0,width:2*c,height:2*c,fill:'none',stroke:'#e8b04f','stroke-width':3,visibility:'hidden'});svg.appendChild(hi);
+function pick(ev){var r=svg.getBoundingClientRect(),sx=330/r.width,x=(ev.clientX-r.left)*sx-ox,y=(ev.clientY-r.top)*sx-oy;if(x<0||y<0||x>=20*c||y>=24*c)return;
+ var tc=Math.floor(x/(2*c)),tr=Math.floor(y/(2*c));hi.setAttribute('x',ox+tc*2*c);hi.setAttribute('y',oy+tr*2*c);hi.setAttribute('visibility','visible');
+ var px0=tc*32,py0=tr*32,where=py0<256?'主相机':(px0<160?'腕部相机':'黑色填充区');
+ out.innerHTML='<p>token 第 '+(tr+1)+' 行第 '+(tc+1)+' 列（每帧 12 × 10 个里的第 '+(tr*10+tc+1)+' 个）</p><p>= VAE 格子 行 '+(2*tr)+'–'+(2*tr+1)+'、列 '+(2*tc)+'–'+(2*tc+1)+'（4 格 × 48 = 192 个数）</p><p>= 原图像素 y '+py0+'–'+(py0+31)+'、x '+px0+'–'+(px0+31)+'，属于'+where+'</p>';}
+svg.addEventListener('mousemove',pick);svg.addEventListener('click',pick);
 })();
 </script>
 </body>
