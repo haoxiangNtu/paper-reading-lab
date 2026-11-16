@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos-Predict2.5 拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2511.00062 Cosmos-Predict2.5 / Transfer2.5 做成 11 幕 3D 动画：数据漏斗、Wan2.1 VAE 与 patch 化、Cosmos-Reason1 文本编码、AdaLN-LoRA 的 DiT 块和参数量、流匹配与 shift、帧替换条件、SFT 合并 RL 蒸馏、Transfer2.5 控制分支、驾驶与机器人后训练、结果和 OpenWAM。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos-predict25.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos-predict25.html">返回精读</a><a href="../../papers/cosmos-predict25.html#s3-2">原文 §3.2</a><a href="../../papers/cosmos-predict25.html#openwam">和 OpenWAM 的关系</a><a href="https://arxiv.org/abs/2511.00062">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2511.00062 · Cosmos-Predict2.5 / Transfer2.5</p>
+<h1>一个物理 AI 世界模型，从数据到后训练</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2 幕数据漏斗；第 3 幕 Wan2.1 VAE 和 patch 化（<b>切换三个分辨率阶段，现算 token 数</b>）；第 4 幕 Cosmos-Reason1 的 28 层怎样拼成文本嵌入；<b>第 5 幕 DiT 块和参数量，切换 28 / 32 层和 14B，和权重文件大小对照</b>；第 6 幕流匹配和 shift（现抽样）；第 7 幕帧替换条件；第 8 幕后训练流水线；第 9 幕 Transfer2.5 的控制分支和长视频曲线；第 10 幕驾驶、相机、动作三种领域后训练；第 11 幕结果和 OpenWAM。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结构数字来自论文、官方代码（cosmos-predict2.5 提交 a2c298b、cosmos-transfer2.5 提交 2ff49d0）和 HF 权重文件大小；标“现算”的数是页面按公式当场算的。没有任何 Cosmos 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码 / 权重”分开写。代码是 nvidia-cosmos/cosmos-predict2.5 提交 a2c298b（2026-06-08）和 cosmos-transfer2.5 提交 2ff49d0（2026-06-07），Apache-2.0，只读未运行。参数量是我按 <code>minimal_v4_dit.py</code> 的层定义算的，和 HF 上 bf16 权重文件大小 / 2 对照过。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / 权重</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和编码</td></tr>
+<tr><td>E1</td><td>视频</td><td>93 帧，16 fps，约 5.8 秒；256p → 480p → 720p（1280 × 704）</td><td><code>state_t = 24</code>；推理默认输出 77 帧</td></tr>
+<tr><td>E2</td><td>VAE</td><td>Wan2.1 VAE，4 × 8 × 8，因果</td><td><code>wan2pt1_tokenizer</code>，z 16 通道；<code>tokenizer.pth</code> 507,609,880 字节</td></tr>
+<tr><td>E3</td><td>patch</td><td>1 × 2 × 2</td><td>输入 16 + 条件掩码 1 + padding 掩码 1 = 18 通道 → 72 → Linear 到宽度</td></tr>
+<tr><td>E4</td><td>文本</td><td>Cosmos-Reason1，多块拼接 → 1024，交叉注意力</td><td>Reason1(.1)-7B，28 层 × 3584 = 100,352 → Linear + GELU → 1024；512 token；102,761,472 个投影参数</td></tr>
+<tr class="grp"><td colspan="4">DiT</td></tr>
+<tr><td>D1</td><td>块</td><td>LN → scale + shift → 自注意力 → gate；同样包住交叉注意力和 FFN</td><td>三组 AdaLN-LoRA（d → 256 → 3d）+ 共享时间 MLP 的 3d 偏置；q/k RMSNorm；无仿射 LN</td></tr>
+<tr><td>D2</td><td>位置</td><td>去掉绝对位置编码，只留 3D RoPE</td><td><code>extra_per_block_abs_pos_emb = False</code>；头维 128 分成高 42、宽 42、时间 44；高宽外推 3.0</td></tr>
+<tr><td>D3</td><td>2B</td><td>32 层，2048，FFN 8192，16 头</td><td><b>28 层</b>；2,059,174,912 个参数（文件 / 2 = 2,059,287,503）</td></tr>
+<tr><td>D4</td><td>14B</td><td>36 层，5120，FFN 20480，40 头</td><td>一致；14,368,047,104（文件 / 2 = 14,368,195,503）</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>目标</td><td>x_t = (1 − t)x + tε，预测 v = ε − x；t ~ logit-normal，再 shift β</td><td><code>sigmoid(randn)</code>；<code>shift = 5</code>；均匀损失权重；<code>timestep_scale = 0.001</code></td></tr>
+<tr><td>T2</td><td>条件</td><td>帧替换；0 / 1 / 2 帧条件，概率 0.5 / 0.25 / 0.25</td><td>按隐帧计；条件帧处网络输出换成真值速度</td></tr>
+<tr><td>T3</td><td>优化</td><td>AdamW (0.9, 0.999)，2B lr 3e-5，wd 1e-3，预热 2000</td><td>720p 段预热 100；梯度裁剪 0.1；文本 dropout 0.2</td></tr>
+<tr><td>T4</td><td>后训练</td><td>5 个领域 SFT（3 万步，batch 256）+ 4K 冷却 → model soup → RL（8 样本 × 20 步，256 步）→ rCM 蒸馏 4 步</td><td>post-trained 权重来自 GRPO 第 288 步</td></tr>
+<tr class="grp"><td colspan="4">扩展</td></tr>
+<tr><td>X1</td><td>Transfer2.5</td><td>每 7 块插 1 个控制块，共 4 个</td><td>control_layers [0, 7, 14, 21]，零初始化投影</td></tr>
+<tr><td>X2</td><td>驾驶多视角</td><td>7 视角沿时间拼接，每视角 8 隐帧；7 维视角嵌入</td><td>29 帧 / 视角，30 fps</td></tr>
+<tr><td>X3</td><td>相机控制</td><td>Plücker 射线图投影后加到视频 token；只训自注意力和投影层</td><td>—</td></tr>
+<tr><td>X4</td><td>动作条件</td><td>动作 MLP 加到时间嵌入</td><td>7 × 4 = 28 维 → 两个 MLP，加到时间嵌入和 AdaLN-LoRA；+67,592,192 参数</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕</b>的漏斗柱高按对数画；“过滤器”圆环只表示顺序，不表示每一步去掉多少（原文没给）。</li>
+<li><b>第 3 幕</b>只画一个隐帧的 token 网格，93 帧的分组按真实规则画；token 数按公式现算。</li>
+<li><b>第 4 幕</b>每层的拼接段画成等长，真实每段都是 3584 维；512 个 token 没有逐个画。</li>
+<li><b>第 5 幕</b>左边的块柱按层数画；中间展开的块是结构示意，参数量按代码现算。</li>
+<li><b>第 6 幕</b>的直方图是 2,000 个固定种子的样本现抽，logit-normal 取代码里的均值 0、标准差 1；上方的“数据点”和“噪声点”是玩具。</li>
+<li><b>第 7 幕</b>的去噪颜色过渡是示意；进度按 shift 5 的均匀网格走。</li>
+<li><b>第 8 幕</b>的 RL 轨迹是 8 条示意折线，步数（20）和“每两步算一次梯度”是原文的数。</li>
+<li><b>第 9 幕</b>“Transfer1 式”把 4 个控制块放在开头，是按原文一句话画的示意；右边曲线是我从图 10 矢量图读出的数（重画）。</li>
+<li><b>第 10 幕</b>的视角数、隐帧数、动作维度按原文和代码；方块的排布是示意。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2511.00062 和官方代码后的理解，不是作者的官方图。原图见<a href="../../papers/cosmos-predict25.html">精读页</a>（arXiv 登记 CC BY 4.0，PDF 页脚另有版权声明；经站点作者决定放原图，只做裁切）。逐节内容和读者注也在精读页。</p></footer>
+</div>
+</body>
+</html>

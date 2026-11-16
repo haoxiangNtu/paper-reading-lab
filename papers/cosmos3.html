@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 3 精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2606.02800 Cosmos 3（NVIDIA 全模态世界模型）中文精读：语言、图像、视频、音频、动作五种模态共用一个双塔 Mixture-of-Transformers；编码器、token 排列、3D MRoPE 绝对时间轴、推理塔和生成塔的分阶段训练、动作中训练和 DROID 策略后训练、基础设施和评测逐节整理；对照 NVIDIA/cosmos-framework 代码和 HF 权重文件头；写明 OpenWAM 怎样接 Cosmos3-Edge；11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:860px}.t-links{min-width:660px}.t-r10{min-width:1180px}
+.t-xw td,.t-xw th,.t-r10 td,.t-r10 th{white-space:nowrap}
+.t-r10 th,.t-r10 td{font-size:12.5px;padding:3px 5px}
+.t-r10 .us{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.t-r10 tr.avg td{font-weight:600;border-top:1px solid var(--line)}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+figure.pfig.half img{max-width:460px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos3/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2606.02800 · cs.CV · v4 2026 年 6 月 23 日 · NVIDIA 技术报告 · 中文精读</p>
+<h1>Cosmos 3：面向物理 AI 的全模态世界模型</h1>
+<p class="orig">Cosmos 3: Omnimodal World Models for Physical AI</p>
+<p>作者署名为 NVIDIA（arXiv 列出 294 位作者），附录 G 按组列出贡献者。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2606.02800">arXiv 原文</a><a href="https://arxiv.org/pdf/2606.02800v4">PDF（v4）</a><a href="https://research.nvidia.com/labs/cosmos-lab/cosmos3/">项目页</a><a href="https://github.com/NVIDIA/cosmos">NVIDIA/cosmos</a><a href="https://github.com/NVIDIA/cosmos-framework">cosmos-framework 代码</a><a href="https://huggingface.co/collections/nvidia/cosmos3">HF 权重</a><span>正文 80 页，附录 A–G 到第 117 页，参考文献到第 139 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇报告在 arXiv 上登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，PDF 上没有和它矛盾的版权声明（页眉只有日期 2026-6-24 和“NVIDIA”署名）。CC BY 本来就允许转载原图；这一批论文也由站点作者决定一律放原图。下面的图从 arXiv PDF v4 裁切，只做了裁切、缩放和格式转换，没有改内容。37 张图里放了 23 张；排行榜网页截图（图 18、19、26、27）、纯示意的流程框图（图 11、13、15）、JSON 提示示例（图 30）、合成数据的样例帧（图 32 到 35）和两张视频帧对比（图 21、23）只写文字说明，并链接到 PDF 对应页。</p>
+<p>按原文顺序覆盖第 1 到 8 节和附录 A 到 G，小节编号和原文一致。正文每节先给结论；第 5 节基础设施和长附录多数放在折叠块里。公式按原文编号，表格数字照录原文。“读者注”是我核算或对照时发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>论文给的仓库 <a href="https://github.com/NVIDIA/cosmos">NVIDIA/cosmos</a> 只是入口页（README、cookbook、基准文档），读的是提交 <a href="https://github.com/NVIDIA/cosmos/tree/540106233a1a834f00fddd368dd6e3e818575696">5401062</a>（2026-11-11）。训练和推理代码在它指向的 <a href="https://github.com/NVIDIA/cosmos-framework">NVIDIA/cosmos-framework</a>，读的是提交 <a href="https://github.com/NVIDIA/cosmos-framework/tree/e40831fa068fd171894b6cfb269308b441e80a85">e40831f</a>（2026-11-16）。两个仓库都是 OpenMDW-1.1 许可（Linux 基金会的模型许可，允许任意使用和再分发，需保留许可文本和版权声明）。只读，没有运行。参数量用 HF 上 safetensors 文件的头部（只下载头部，不下载权重）逐张量相加。</p>
+<p><b>本页的位置。</b>用户在复现的 <a href="openwam.html">OpenWAM</a> 支持 Cosmos3-Edge 作为视频骨干，所以页末有一节 <a href="#openwam">和 OpenWAM 的关系</a>。前一代 Cosmos-Predict2.5 见 <a href="cosmos-predict25.html">Cosmos-Predict2.5 精读</a>，同批还有 <a href="cosmos.html">Cosmos WFM</a>、<a href="cosmos-reason1.html">Cosmos-Reason1</a>、<a href="cosmos-transfer1.html">Cosmos-Transfer1</a>、<a href="cosmos-policy.html">Cosmos Policy</a>、<a href="cosmos-interactive.html">Cosmos 交互式模拟</a> 和 <a href="gr00t.html">GR00T</a>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 模型结构</a><a href="#s2-3">2.3 MoT</a><a href="#s2-4">2.4 位置编码</a><a href="#s2-5">2.5 三个尺寸</a><a href="#s3">3 数据</a><a href="#s4">4 训练</a><a href="#i3d">3D 框架动画</a><a href="#s4-2-5">4.2.5 机器人策略</a><a href="#s5">5 基础设施</a><a href="#s6">6 结果</a><a href="#s6-2-5">6.2.5 动作</a><a href="#s6-3">6.3 使用指南</a><a href="#s7">7 相关工作</a><a href="#s8">8 结论</a><a href="#apA">附录 A–G</a><a href="#code">代码对照</a><a href="#libero">LIBERO 配方</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>Cosmos 3 是 NVIDIA Cosmos 系列的第三代。前两代把理解（Cosmos-Reason）、生成（Cosmos-Predict）、可控生成（Cosmos-Transfer）、策略（Cosmos Policy）分成不同模型；Cosmos 3 把它们并进<b>一个网络</b>：语言、图像、视频、音频、动作五种模态放在同一条 token 序列里，前半段自回归、后半段扩散，由一个两套参数的 Mixture-of-Transformers（MoT）处理。</p>
+<ul>
+<li><b>“全模态”（omnimodal）指什么：</b>输入和输出都可以是语言、图像、视频、音频、动作。理解塔（Reasoner）读文本和视觉，输出文本；生成塔（Generator）读文本、视觉、音频、动作，输出视觉、音频、动作。同一个网络因输入输出组合不同，可以当 VLM、文生图、文生视频、图生视频、音视频联合生成、可控视频迁移、正向动力学、逆向动力学、策略模型用。</li>
+<li><b>统一结构：</b>每层两套参数（LayerNorm、QKV、FFN 各一份），都从同一个 VLM 初始化；理解 token 用因果注意力只看自己，生成 token 用双向注意力看全部。文本自回归预测下一个 token，其余模态用流匹配去噪。</li>
+<li><b>三个尺寸：</b>Edge（4B，自训 2B 稠密 LLM）、Nano（16B，Qwen3-VL-8B）、Super（64B，Qwen3-VL-32B）。“4B”指两塔加 ViT；我用 HF 文件头核对，分别是 3.86B、15.75B、64.62B（<a href="#n4">读者注 4</a>）。</li>
+<li><b>训练分段：</b>先训理解塔（预训练 2,200 万样本 + SFT 220 万），再冻结它，用它初始化生成塔；生成塔预训练（图像、视频、音频）→ 中训练（加动作和可控迁移，加合成数据）→ 按任务后训练（文生图、图生视频、DROID 策略）。</li>
+<li><b>动作：</b>自动驾驶、相机运动、人手、单臂、双臂、人形，全部写成“自我位姿 9D + 末端位姿 9D + 抓取状态”的相对位姿伪动作，每种实体一对自己的输入输出线性层，主干共享。同一段视频-动作数据，靠哪些 token 加噪来区分正向动力学、逆向动力学和策略三种模式。</li>
+<li><b>结果：</b>理解塔 48 个基准里在机器人、智能基建、驾驶三类领先开源模型；Cosmos3-Nano-Policy-DROID 在 RoboLab、RoboArena、MolmoSpaces 三个榜单写报告时排第一；文生图和图生视频的后训练版本在 Artificial Analysis 上是开源第一。</li>
+</ul>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li>动作中训练有用：从中训练检查点（MT-init）出发，LIBERO-10 第 500 步就有 24.6% 成功率，从预训练检查点（PT-init）出发是 0%；到 2000 步两者差 2.2 点（表 20）。官方仓库给了完整的 LIBERO-10 配方（<a href="#libero">见下</a>）。</li>
+<li>报告里有十几处前后不一致，多数不影响结论，例如正文说 DreamZero 25.2%、表 19 是 23.9%（<a href="#n18">读者注 18</a>），停车标志基准的分数只可能来自 49 段视频而不是写的 50 段（<a href="#n14">读者注 14</a>），附录 C 合成数据的数量和占比对不上（<a href="#n21">读者注 21</a>）。</li>
+<li>OpenWAM 论文没有用 Cosmos 3 做实验，只在支持列表里写了 Cosmos3-Edge-4B；代码完整接了 Edge，配置里的 shift 5.0 对应的是中训练 480p 的值，不是预训练的 3（<a href="#n8">读者注 8</a>、<a href="#openwam">和 OpenWAM 的关系</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="cosmos3/fig1.webp" width="1600" height="500" alt="图 1：上方是 Cosmos 3 全模态世界模型，图标表示语言、图像、视频、音频、动作；下方六个小图分别是视觉语言模型、图像生成、音视频生成、策略或世界动作模型、正向动力学、逆向动力学，每种都画成同一个 Cosmos 3 的不同输入输出" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 5 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=5">看原图 ↗</a></span>一个模型的六种用法：VLM（视觉加文本进、文本出）、图像生成、音视频生成、策略 / 世界动作模型（视频和动作一起出）、正向动力学（给动作出视频）、逆向动力学（给视频出动作）。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>结论：</b>作者认为理解和生成不该分开建模，并用一个“收拾餐桌的家用机器人”说明现状：要 VLM 定位和规划、VLA 或 WAM 出动作、再一个世界模型预测后果，三个模型拼起来又慢又浪费。Cosmos 3 想用一个模型覆盖这些角色，并且换任务不改结构。</p>
+<p>报告给出三个用途（图 2）：近期是合成训练数据；中期是在共享模型上做任务和实体专门化（中训练模型作为更好的起点）；长期是生成训练环境。代码、权重、合成数据集和评测基准以 OpenMDW-1.1 发布。</p>
+<figure class="pfig half" id="fig2">
+<img src="cosmos3/fig2.webp" width="971" height="500" alt="图 2：左边是预训练加中训练得到的 Cosmos 3，右边分出后训练的四个方向：文生图和图生视频用于合成数据，策略用于任务专门化，交互式训练环境用虚线表示未来工作" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 6 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=6">看原图 ↗</a></span>预训练和中训练之后，同一结构分别后训练成文生图、图生视频（合成数据）、策略（专门化）；“交互式训练环境”画成虚线，是将来的方向（同批的 <a href="cosmos-interactive.html">交互式模拟</a> 一篇就是这一支）。</figcaption>
+</figure>
+<p>表 1 是全文结果的摘要。带 * 的是后训练版本，† 是闭源模型；空格表示该模型没有这项能力。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>模型</th><th class="n">理解·通用</th><th class="n">机器人</th><th class="n">智能基建</th><th class="n">驾驶</th><th class="n">文生图</th><th class="n">文生视频</th><th class="n">图生视频</th><th class="n">音频</th><th class="n">FD·机器人</th><th class="n">策略·机器人</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td class="n">73.7</td><td class="n">57.8</td><td class="n">62.6</td><td class="n">79.3</td><td class="n">91.36*</td><td class="n">80.0</td><td class="n">82.8</td><td class="n">7.31</td><td class="n">26.0*</td><td class="n">—</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">69.6</td><td class="n">55.1</td><td class="n">61.0</td><td class="n">76.0</td><td class="n">84.61</td><td class="n">79.4</td><td class="n">82.7</td><td class="n">7.34</td><td class="n">25.5*</td><td class="n">39.7*</td></tr>
+<tr><td>Gemini 3.1 Pro†</td><td class="n">77.5</td><td class="n">58.2</td><td class="n">58.6</td><td class="n">47.2</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Qwen3-VL-32B</td><td class="n">72.8</td><td class="n">52.6</td><td class="n">56.1</td><td class="n">40.7</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">68.9</td><td class="n">48.5</td><td class="n">52.7</td><td class="n">46.4</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Gemma-4-31B</td><td class="n">69.8</td><td class="n">51.0</td><td class="n">51.3</td><td class="n">36.6</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Gemma-4-E4B</td><td class="n">53.1</td><td class="n">39.3</td><td class="n">29.4</td><td class="n">26.0</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Gemini 3 Pro Image†</td><td></td><td></td><td></td><td></td><td class="n">90.85</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Qwen-Image-2512</td><td></td><td></td><td></td><td></td><td class="n">84.25</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>Veo-3.1†</td><td></td><td></td><td></td><td></td><td></td><td class="n">79.1</td><td class="n">82.6</td><td class="n">7.45</td><td></td><td></td></tr>
+<tr><td>Wan2.2-A14B</td><td></td><td></td><td></td><td></td><td></td><td class="n">78.0</td><td class="n">81.3</td><td></td><td></td><td></td></tr>
+<tr><td>Ctrl-World</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">23.0</td><td></td></tr>
+<tr><td>π0.5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">28.1</td></tr>
+</tbody></table></div>
+<div class="note" id="n1"><span class="lab">读者注 1 · 表 1 的数各来自哪张表</span><p>都能在后面找到出处：理解四列 = 表 10 的四个组平均；文生图 = 表 11 UniGenBench “All”（Super 用的是后训练版 91.36，Nano 用基础版 84.61；Gemini 3 Pro Image 写 90.85，但表 11 里是 90.69，<b>对不上</b>）；文生视频 / 图生视频 = 表 12 PAIBench-G Overall；音频 = 表 15 AVQ；FD·机器人 = 表 18 DROID 正向动力学 PSNR（26.04、25.52、Ctrl-World 22.99，四舍五入）；策略 = 表 19 RoboLab “Overall · Specific”（39.7、π0.5 28.1）。只有 Gemini 3 Pro Image 这一格不一致。</p></div>
+
+<h2 id="s2"><span class="no">2</span>模型结构</h2>
+<p><b>结论：</b>各模态先用自己的编码器变成向量，再按固定规则排成一条序列：<b>自回归段在前、扩散段在后</b>；扩散段内“干净的条件在前、带噪的目标在后”，模态按视觉、音频、动作排。网络是双塔 MoT，位置编码是改过的 3D MRoPE，时间轴按真实秒数对齐。</p>
+
+<h3 id="s2-1"><span class="no">2.1</span>编码器</h3>
+<p>每个非语言模态的 token 进入主干前，都加一个可学习的模态嵌入向量，让共享参数分得清模态。</p>
+<p><b>2.1.1 图像和视频。</b>两套编码器。理解用 ViT（patch 16 × 16，后接两层 MLP 把 2 × 2 个 token 合成一个），沿用 Qwen3-VL 的 DeepStack 多层特征聚合和“文本时间戳与视频帧交错”；ViT 和主干一起训练。生成用 <a href="wan.html">Wan2.2-TI2V-5B</a> 的视频 VAE：时间 4 倍、空间 16 × 16 压缩，再 2 × 2 合并 patch，合计每个 token 覆盖 4 帧 × 32 × 32 像素，再用一个线性层投到隐藏维；VAE 冻结。</p>
+<p><b>2.1.2 音频。</b>音频 VAE 结构取自 Lee 等（2025b）。48 kHz 立体声，hop 1920 个采样点，每秒 25 个 token；冻结，线性层投影。</p>
+<p><b>2.1.3 动作。</b>覆盖四类来源：自动驾驶、相机运动、机器人、第一人称人体（头和双手）。各自的原生控制量（关节轨迹、方向盘、身体姿态、相机变换）统一成一个接口。</p>
+<figure class="pfig" id="fig3">
+<img src="cosmos3/fig3.webp" width="1600" height="709" alt="图 3：上方是四种组件：自我位姿 9D（3D 位置加 6D 旋转）、末端位姿 9D、抓取状态 15D（五个指尖 3D 位置）、抓取状态 1D（开合）；下方六个例子：自动驾驶 9D、相机运动 9D、第一人称 57D、单臂 10D、双臂 20D、人形 29D" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 8 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=8">看原图 ↗</a></span>统一动作表示。四种积木：自我位姿 9D、末端位姿 9D（都是 3D 平移 + 6D 旋转）、指尖抓取状态 15D、夹爪抓取状态 1D。组合起来：自动驾驶和相机各 9D；第一人称 9 + 2 × (9 + 15) = 57D；单臂 9 + 1 = 10D；双臂 2 × (9 + 1) = 20D；人形 9 + 2 × (9 + 1) = 29D。</figcaption>
+</figure>
+<p><b>动作表示。</b>动作 \(a_t\) 定义为从状态 \(v_{t-1}\) 到 \(v_t\) 的变化。自我位姿和末端位姿用<b>状态差得到的伪动作</b>：相邻两个 SE(3) 位姿的相对变换 \(\Delta T_t=T_{t-1}^{-1}T_t\)，旋转用 6D 表示（Zhou 等 2019），坐标系按 OpenCV 习惯（z 轴沿手指 / 夹爪，x 轴向右）。这样就不用关心 PID 参数之类的控制器细节。抓取状态不取差值，直接给 t 时刻的状态。相机和自动驾驶只有自我位姿；第一人称数据用头部相机位姿差、手腕位姿差、手腕坐标系下的指尖位置；机器人数据用头部相机位姿差、法兰位姿差、连续的夹爪开合值。</p>
+<p><b>动作 token 化。</b>每个实体域 \(k\in\{1,\dots,K\}\) 一对自己的输入、输出线性层，主干共享：</p>
+<div class="eq"><div class="m">\[ z = W^{(k)}_{\rm in}\,x + b^{(k)}_{\rm in} \]</div><span class="no">(1)</span></div>
+<div class="eq"><div class="m">\[ x = W^{(k)}_{\rm out}\,z + b^{(k)}_{\rm out} \]</div><span class="no">(2)</span></div>
+<p>\(x\) 是归一化后的动作向量，\(z\in\mathbb R^{d_{\rm model}}\) 是动作 token。投影层从零初始化（随机初始化），和主干一起训练。预测出的 6D 旋转用 SVD 投回 3 × 3 旋转矩阵。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 代码里的动作投影：32 个域、每个 64 维</span><p>和式 (1)(2) 一致。<code>cosmos_framework/model/generator/mot/domain_aware_linear.py</code> 的 <code>DomainAwareLinear</code>（注释说取自 X-VLA）把每个域的权重和偏置存成 <code>nn.Embedding(num_domains, out×in)</code>，按样本的域编号取出；<code>cosmos3_vfm_network.py</code> 第 423–427 行建 <code>action2llm</code> 和 <code>llm2action</code>。配置是 <code>num_embodiment_domains=32</code>、<code>max_action_dim=64</code>（短于 64 维的动作补零）。HF 文件头核对：Edge 的 <code>action_proj_in</code> 有 4,259,840 个参数 = 32 × (64 × 2048 + 2048)，<code>action_proj_out</code> 4,196,352 = 32 × (2048 × 64 + 64)；Nano、Super 同样按 4096、5120 宽算得上。</p>
+<p>域编号表在 <code>data/generator/action/utils/domain_utils.py</code>：例如 av 1、camera_pose 2、hand_pose 3、pusht 4、<b>libero 5</b>、droid_lerobot 8、agibotworld 15、<b>robotwin 17</b>、<b>robocasa 30</b>。原生维度表里 droid 10、agibotworld 29、webhumanaction_body 57，正好是图 3 的单臂 10D、人形 29D、第一人称 57D。有一处我没看懂：<code>"embodiment_b_20260828": 32</code>，而默认只有 32 个域（编号 0–31），除非对应配方把域数调大，否则会越界；未核实。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>token 排列和生成模式</h3>
+<p><b>2.2.1 排列。</b>序列 = 自回归（AR）子序列 + 扩散（DM）子序列。AR 段放文本和 ViT 编码的图像 / 视频，走理解参数；DM 段放 VAE 编码的图像 / 视频、音频、动作，走生成参数，两段在每层通过联合注意力交互。三条规则：AR 在 DM 前；DM 里每种模态干净条件在带噪目标前；条件段和目标段内部都按视觉、音频、动作排。</p>
+<p><b>2.2.2 生成模式。</b>干净的视觉、音频、动作记为 \(v,s,a\)，带噪的加波浪号。\(S_{\rm AR}\triangleq[l_1,\dots,l_n,\langle{\rm EOS}\rangle,\langle{\rm BOG}\rangle]\) 是所有模式共用的前缀（BOG 是“开始生成”特殊 token）。</p>
+<ul>
+<li><b>语言：</b>只有 AR 段，生成参数不启用，就是一个 VLM。</li>
+<li><b>文生图：</b>\(S_{\rm T2I}=[S_{\rm AR},\tilde v_1]\) ……(3)</li>
+<li><b>文生视频（可带音频）：</b>\(S_{\rm T2V+Audio}=[S_{\rm AR},\tilde v_{1:N},\tilde s]\)，\(N\) 是隐帧数 ……(4)</li>
+<li><b>图生视频 / 视频续写：</b>\(S_{\rm V2V}=[S_{\rm AR},v_{1:P},\tilde v_{P+1:N}]\)，\(P=1\) 是图生视频，\(P>1\) 是续写 ……(5)</li>
+<li><b>视频迁移：</b>控制视频（边缘、深度等）当条件，\(S_{\rm Transfer}=[S_{\rm AR},v^{\rm ctrl}_{1:N},\tilde v_{1:N}]\) ……(6)</li>
+<li><b>动作：</b>三种。正向动力学（FD）给干净动作、去噪视频；逆向动力学（ID）给干净视频、去噪动作；策略模式两个都去噪，同时生成干预和它的视觉后果。</li>
+</ul>
+<figure class="pfig" id="fig4">
+<img src="cosmos3/fig4.webp" width="1528" height="308" alt="图 4：三列，正向动力学中视频 v_{t-1} 干净、v_t 和 v_{t+1} 带噪，动作 a_t、a_{t+1} 干净；逆向动力学中视频全干净、动作带噪；策略中视频和动作除 v_{t-1} 外都带噪" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 10 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=10">看原图 ↗</a></span>同一段视频-动作数据，只改哪些 token 加噪就得到三种训练模式。实线框是干净 token，虚线框是带噪 token；\(a_t\) 连接 \(v_{t-1}\) 和 \(v_t\)。3D 动画第 5 幕可以切换三种模式。</figcaption>
+</figure>
+
+<h3 id="s2-3"><span class="no">2.3</span>Mixture-of-Transformers（MoT）结构</h3>
+<p><b>结论：</b>和 BAGEL（Deng 等 2025）的层结构类似，但训练策略、位置编码和能力不同。每层有两条通路，每条都是完整的 Transformer 层（自己的 LayerNorm、注意力投影、FFN），都从预训练 VLM 初始化；AR 段走理解塔（Reasoner），DM 段走生成塔（Generator），两者只在注意力里相遇。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos3/fig5.webp" width="1520" height="702" alt="图 5：左边一条序列，AR 段是 ViT 视觉 token、语言 token、EOS、BOG，DM 段是 VAE 视觉、音频、动作 token；中间每层两套 LayerNorm 和 MLP，共享一个多模态注意力；右边注意力掩码，AR 部分是下三角，DM 行对所有列全可见，AR 行对 DM 列为零" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 11 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=11">看原图 ↗</a></span>左：一条序列分 AR 和 DM 两段，各走独立的 LayerNorm 和 MLP，只在共享注意力里汇合，重复 L 层。右：注意力掩码，AR 查询对 AR 键是因果三角，对 DM 键全部屏蔽；DM 查询对所有键全可见。图注说训练时实际预测的是速度（流匹配），图里画干净目标只是为了好看。</figcaption>
+</figure>
+<p><b>2.3.2 双流联合注意力。</b></p>
+<div class="eq"><div class="m">\[ O_{\rm AR}={\rm Attn}_{\rm causal}\big(Q_{\rm AR},K_{\rm AR},V_{\rm AR}\big) \]</div><span class="no">(7)</span></div>
+<div class="eq"><div class="m">\[ O_{\rm DM}={\rm Attn}_{\rm full}\big(Q_{\rm DM},[K_{\rm AR};K_{\rm DM}],[V_{\rm AR};V_{\rm DM}]\big) \]</div><span class="no">(8)</span></div>
+<p>AR token 永远不受 DM token 影响，所以理解塔保持原 VLM 的文本生成能力；DM token 能看到文本提示和所有条件、目标 token。一个直接后果（5.3.1 节用到）：扩散采样的每一步，AR 段的结果都一样，只需算一次缓存起来。</p>
+
+<h3 id="s2-4"><span class="no">2.4</span>多模态位置编码</h3>
+<p><b>结论：</b>以 Qwen3-VL 的 3D MRoPE（每个注意力头的维度分成时间、高、宽三段）为底，改了三处：DM 段每个视觉片段的 t、h、w 从 0 重新计数；AR 段和 DM 段之间插 15,000 的时间间隔；时间步长按真实时间缩放，让不同帧率的视频、音频、动作对齐到同一条物理时间轴。</p>
+<figure class="pfig" id="fig6">
+<img src="cosmos3/fig6.webp" width="1566" height="388" alt="图 6：左边一条打包序列，语言 token 的 t、h、w 相同为 0 到 4，视频两帧每帧 2×2，t 为 7 和 8，音频和动作只有时间坐标 7 到 10；右边 FPS 调制，24 FPS 时帧位置 0、1、2、3、4，16 FPS 时 0、1.5、3、4.5、6，30 FPS 时 0、0.8、1.6、2.4、3.2" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 13 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=13">看原图 ↗</a></span>左：语言 token 的 t = h = w，退化为一维 RoPE；视频 token 三个坐标都变；音频和动作只有时间坐标（h = w = 0）；模态偏移 k 把文本和视觉的时间段隔开。右：24 FPS 是基准，16 FPS 每帧占 1.5 个单位，30 FPS 占 0.8 个，同样的秒数占同样长的位置区间。</figcaption>
+</figure>
+<p><b>2.4.1 位置编号。</b>AR 段完全照 Qwen3-VL（为了兼容理解能力）。DM 段：视频 token 的 t 随隐帧递增，h、w 在每帧里从 0 平铺；图像当单帧视频；每个视觉片段从 0 重新开始，所以 t、h、w 是片段内的绝对坐标。音频 token 每个 hop 时间加一，动作 token 每个采样步加一，空间坐标为 0。</p>
+<p><b>AR 和 DM 之间的间隔。</b>如果 DM 直接接在最后一个文本 token 的时间位置后面，生成视频的开头几帧会过饱和、出现棋盘格伪影，Super 上尤其明显。作者猜是最后的文本 token 和第一帧视觉 token 的时间编码几乎一样。做法（受 Cao 等 2025 启发）：在两段之间插一个固定的时间间隔，所有模型都取 <b>15,000</b>。</p>
+<p><b>2.4.2 绝对时间调制。</b>先定义每秒的时间步数 TPS：视频是帧率除以 VAE 的时间压缩 4；音频是 48000 / 1920 = 25；动作就是采样频率。以 \({\rm TPS}_{\rm base}=24/4=6\) 为单位长度（24 FPS 是训练数据里最常见的帧率），每前进一步时间坐标增加</p>
+<div class="eq"><div class="m">\[ \delta t=\frac{{\rm TPS}_{\rm base}}{{\rm TPS}} \]</div><span class="no">(9)</span></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 式 (9) 算几个例子，和代码对照</span><p>30 FPS 视频：TPS = 7.5，δt = 6 / 7.5 = 0.8；16 FPS：TPS = 4，δt = 1.5，正是图 6 右边的数。音频 TPS 是 48000 / 1920 = 25 整（正文写“≈ 25”，其实是整数），δt = 0.24；DROID 策略的 15 Hz 动作 δt = 0.4，LIBERO 的 20 Hz 动作 δt = 0.3。代码一致：三个尺寸的配置都是 <code>base_fps=24</code>、<code>enable_fps_modulation=True</code>、<code>unified_3d_mrope_temporal_modality_margin=15000</code>（<code>configs/base/experiment/sft/models/*_model_config.py</code>）；OpenWAM 移植的 <code>text_pack.py</code> 里写成 <code>scaled_t = (帧号 + 起点) / tps × base_tps + temporal_offset</code>，<code>temporal_offset = 文本长度 + 15000</code>。代码还有一个论文没提的开关 <code>sound_base_temporal_compression_factor</code>：默认 None 时音频按 base_fps 推进，设成 4 才和视觉放在同一隐帧网格上。</p></div>
+
+<h3 id="s2-5"><span class="no">2.5</span>三个尺寸</h3>
+<p><b>结论：</b>Edge 4B（自训的 2B 稠密 LLM）、Nano 16B（Qwen3-VL-8B）、Super 64B（Qwen3-VL-32B）。“4B / 16B / 64B”大致等于“两倍稠密 LLM”。报告发布时只放出 Nano 和 Super，Edge 后来（README 记 2026 年 7 月）发布。Edge 的 LLM 用 Megatron 从头训，结构大体照 Qwen3-1.7B，但去掉 QK 归一化、FFN 激活改成 ReLU²（附录 D）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 2</th><th class="n">LLM 层数</th><th class="n">隐藏维</th><th class="n">注意力头</th><th class="n">KV 头</th><th class="n">头维</th><th class="n">FFN 维</th></tr></thead><tbody>
+<tr><td>Cosmos3-Edge</td><td class="n">28</td><td class="n">2,048</td><td class="n">16</td><td class="n">8</td><td class="n">128</td><td class="n">9,216</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">36</td><td class="n">4,096</td><td class="n">32</td><td class="n">8</td><td class="n">128</td><td class="n">12,288</td></tr>
+<tr><td>Cosmos3-Super</td><td class="n">64</td><td class="n">5,120</td><td class="n">64</td><td class="n">8</td><td class="n">128</td><td class="n">25,600</td></tr>
+</tbody></table></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 参数量逐项核对（HF 文件头）</span><p>我读了 HF 上三个仓库每个 safetensors 分片的头部，按张量形状相加：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th class="n">transformer（两塔）</th><th class="n">ViT</th><th class="n">合计</th><th class="n">HF 页面显示</th><th class="n">单塔层参数（我算）</th><th class="n">稠密 LLM（单塔 + 嵌入 + lm_head）</th></tr></thead><tbody>
+<tr><td>Edge</td><td class="n">3,369,657,024</td><td class="n">489,342,704</td><td class="n">3,858,999,728</td><td class="n">3.86B</td><td class="n">1.409B</td><td class="n">1.946B</td></tr>
+<tr><td>Nano</td><td class="n">15,173,669,120</td><td class="n">576,388,336</td><td class="n">15,750,057,456</td><td class="n">15.75B</td><td class="n">6.946B</td><td class="n">8.19B</td></tr>
+<tr><td>Super</td><td class="n">64,019,736,832</td><td class="n">595,266,800</td><td class="n">64,615,003,632</td><td class="n">64.6B</td><td class="n">31.206B</td><td class="n">32.76B</td></tr>
+</tbody></table></div>
+<p>“合计”和 HF API 给的参数总数一个不差，说明“4B / 16B / 64B”= 两塔 + ViT，<b>不含</b>冻结的 Wan2.2 VAE（另 704,688,668 个参数，和 <a href="wan.html#n20">Wan 页读者注 20</a> 一致）。单塔层参数按表 2 算：Edge 每层注意力 2048 × (2048 + 1024 + 1024 + 2048) = 12.58M，FFN 是不带门控的 ReLU²，2 × 2048 × 9216 = 37.75M，× 28 = 1.409B，和文件头里两条通路的 to_q…mlp 张量总和逐项相同；Nano、Super 用 SwiGLU（3 个矩阵）。所以 Edge 的“2B 稠密”是 1.41B 层 + 268M 词嵌入 + 268M lm_head（词表 131,072，Nemotron-3 分词器）。另一个细节：Edge 文件里有 <code>k_norm_und_for_gen</code>（生成塔读理解塔 K 时额外归一化），没有音频投影层，配置 <code>sound_gen=False</code>，原生分辨率 480p，所以 <b>Edge 不能生成音频</b>，论文没明说。</p></div>
+
+<h2 id="s3"><span class="no">3</span>数据</h2>
+<p><b>结论：</b>理解塔用图文、视频文本对（约 2,420 万样本）；生成塔用图像、视频、音频、动作的大规模数据，按阶段逐步加模态（图 8）。两条课程都是“先广后专”。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>理解塔数据</h3>
+<p>预训练 2,200 万，SFT 220 万（表 3）。预训练以图文和纯文本为主；SFT 转向物理 AI，视频文本占一半。</p>
+<figure class="pfig" id="fig7">
+<img src="cosmos3/fig7.webp" width="1567" height="532" alt="图 7：两个环形图，左边预训练 2200 万样本，OCR 42.9% 最大，其次 2D 定位 16.5%、视觉问答 11.3%；右边 SFT 220 万样本，视频推理 22.7%、视频问答 21.4%、2D 定位 16.0%、视觉问答 15.0%、视频描述 12.7%、提示扩写 10.7%" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 15 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=15">看原图 ↗</a></span>理解塔数据按能力分类。预训练以 OCR 为主（42.9%），SFT 以视频推理、视频问答、定位为主。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 3 · 模态</th><th class="n">预训练</th><th class="n">SFT</th></tr></thead><tbody>
+<tr><td>图文（媒体数）</td><td class="n">18,814,952</td><td class="n">1,051,513</td></tr>
+<tr><td>视频文本（媒体数）</td><td class="n">1,016,299</td><td class="n">1,079,200</td></tr>
+<tr><td>纯文本（对话数）</td><td class="n">2,170,762</td><td class="n">40,960</td></tr>
+<tr><td>合计</td><td class="n">22,002,013</td><td class="n">2,171,673</td></tr>
+</tbody></table></div>
+<p><b>3.1.1 预训练数据。</b>1,970 万条从 Nemotron Nano 2 数据集合里挑，另加 230 万条补数学、视频、空间定位和指令遵循。两步清洗：</p>
+<ul>
+<li><b>语义去重：</b>每个对话（媒体 + 问答）算联合嵌入（图文和纯文本用 Qwen3-VL-Embedding-8B，视频用 PE-Core-G14-448），K-means 分簇后在簇内按余弦相似度 &gt; 0.95 去重，去掉 4.23%。</li>
+<li><b>AI 评审：</b>Gemma-4-31B-it 按忠实性、完整性、正确性各打 1–5 分，三项都达到阈值才保留（比取平均严）。预训练阈值 2（保留 78%），SFT 阈值 5（保留 46%）。阈值越高，指代定位类被删得最多。</li>
+</ul>
+<p>最终构成：OCR 944 万（42.9%）、2D 定位 362 万（16.5%）、视觉问答 248 万（11.3%）、图像推理 166 万（7.5%）、文本问答 135 万、图像描述 130 万、视频问答 99 万、文本指令 82 万、视觉指令 34 万、视频描述和视频推理各约 1 万。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 表 3 和构成能对上</span><p>表 3 两列的和都对：18,814,952 + 1,016,299 + 2,170,762 = 22,002,013；1,051,513 + 1,079,200 + 40,960 = 2,171,673。SFT 里视频文本占 1,079,200 / 2,171,673 = 49.7%，就是正文说的“50%”。预训练分项 9.44 + 3.62 + 2.48 + 1.66 + 1.35 + 1.30 + 0.99 + 0.82 + 0.34 + 0.01 + 0.01 = 22.02（百万），和 2,200 万一致；百分比如 9.44 / 22.0 = 42.9%。</p></div>
+<p><b>3.1.2 SFT 数据</b>（共 220 万，按能力分组，细节点开看）。</p>
+<details class="tbl"><summary>SFT 的十几个数据来源（点开）</summary>
+<ul>
+<li><b>通用空间理解：</b>2D 定位（检测、指代、OCR 版面、指点、计数、轨迹，多数来自 LocateAnything，坐标统一成 JSON）；3D 定位（扫描场景转成相机坐标 3D 框，直接监督最终框）；真实场景指点和空间问答（RefSpatial 式指点、RoboSpatial 式放置点和可达性、多视角、视频帧空间、关系选择题）；仿真器派生的具身空间推理（答案由仿真状态算出，再经程序和 VLM 双重检查）。</li>
+<li><b>通用时间理解：</b>人工稠密时间描述（第一人称日常任务，动作平均 1.8 秒、14.2 词；另有 5.5 万段 2,600 小时视频、74.3 万个事件三元组）；FoundationMotion 生成每段 10 道四选一运动题；相机运动标注。</li>
+<li><b>物理合理性判断：</b>Cosmos HUE 人评的 1.35 万条（视频，问题，答案）；<a class="ds" href="https://videophy2.github.io/">VideoPhy-2</a> 的 3,400 段视频 1–5 分物理遵循评分转成问答。</li>
+<li><b>结构化时空扩写（Upsampler）：</b>“简短输入 → 结构化 JSON 描述”的配对数据，输入可以是文本、图像或两者；交叉多种长度和风格的指令变体。6.3.2 节用它给生成塔写提示。</li>
+<li><b>自动驾驶：</b>内部日志 1 万多段人工标注的决策链（CoT），再自动标注约 110 万段；Nexar 行车记录仪 2.4 万段做时间定位（6 FPS，最长 300 秒）；MADS 数据做度量 3D 车辆定位（约 1 FPS，100 m 内可见目标）。</li>
+<li><b>机器人：</b>动作 CoT（指令 + 当前帧 → 图像平面上末端的 2D 路点；Qwen3-VL-72B 写定位理由，Molmo-7B 定位，目标轨迹来自 MolmoAct 或跟踪过的 <a class="ds" href="https://droid-dataset.github.io/">DROID</a>）；MimicGen 子任务时间切分（Omniverse 重渲染 3,600 段，6 个任务，60 段留作零样本评测）；<a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a> 8.3 万条长程规划；EO-Data-1.5M 的 ERQA 类机器人问答；手术室 VQA 39.8 万轮对话、220 万张图。</li>
+<li><b>智能基建：</b>仓库空间智能（合成，9.3 万张 RGB-D、87.3 万问答中取 8 万平衡样本）；行人密集定位（20.8 万张、560 万人工框，已模糊化处理）；交通和异常（CARLA 碰撞二分类 + Cosmos-Transfer2.5 增强 3,400 条；TAR 3,600 段 26 小时、4.4 万标注；1,000 段尾随检测）。</li>
+</ul></details>
+
+<h3 id="s3-2"><span class="no">3.2</span>生成塔数据</h3>
+<p><b>结论：</b>预训练只有图像、视频、音频；中训练加入动作、视频迁移和合成数据；后训练各任务分开做，得到 Cosmos3-Super-Text2Image、Cosmos3-Super-Image2Video、Cosmos3-Nano-Policy-DROID，结构和中训练模型完全相同。</p>
+<figure class="pfig" id="fig8">
+<img src="cosmos3/fig8.webp" width="1467" height="459" alt="图 8：行是训练模式，列是预训练、中训练、后训练；文生图 767M、16M、8M；视频 348M、75M、20K；音视频 139M、19M；动作中训练 8M、后训练 58K；视频迁移中训练 4M" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 20 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=20">看原图 ↗</a></span>生成塔的数据课程（样本数）。文生图 767M → 16M → 8M；视频 348M → 75M → 20K；音视频 139M → 19M；动作只在中训练（8M）和 DROID 后训练（58K）出现；视频迁移只在中训练（4M）。中训练结束得到基础版 Nano 和 Super。</figcaption>
+</figure>
+<p><b>3.2.1 图像和视频。</b>五步：收集和预处理、嵌入和去重、分类和基础过滤、标注、按分辨率和时长分片。</p>
+<ul>
+<li><b>预训练：</b>从 78 亿张原始图、30 亿段原始视频里得到 7.67 亿张图和 3.477 亿段视频。720p 占图 26.8%、视频 36.4%；480p 占 26.0%、30.8%；1080p 以上占 25.2%、12.2%。16:9 占图 52.0%、视频 97.3%。TransNetV2 切镜头，ffmpeg cropdetect 去黑边；图像用 Qwen3-VL-Embedding-8B、视频用 Cosmos-Embed1 嵌入，各抽样（1.47 亿图、4 亿视频）跑 2 万簇 K-means 后簇内去重；47 个层级类别；图像按美学分、拼图、水印、白底、NSFW 过滤；视频按 DOVER 美学、DOVER 技术、VTSS 三个 0–9 分和约 100 个二值伪影标签过滤（分屏、旋转、静止直接拒，字幕、运动模糊保留）。</li>
+<li><b>中训练：</b>更严的分辨率和美学阈值，难例概念加采样。图像有效比例：真实 60%、合成 36%、文字渲染 4%。视频：预训练池里精选 46.0%，机器人、驾驶、人类活动、第一人称交互的领域片段 43.9%，人体运动、高速运动、精细操作等难例 10.1%。再加五个合成数据集（附录 C）和视频迁移数据：从预训练池挑 300 万段，边缘和模糊控制训练时现算，深度用 Video Depth Anything、分割用 SAMv2 预先算，世界场景图控制用 MADS（110 万样本，7 路相机，30 FPS，14 个地区）。</li>
+<li><b>后训练：</b>图像只用合成、文字渲染和高质量真实图，不用网页数据；视频 = 预训练子集（正则）+ SFT 视频（合成、人工精选、按失败案例检索的真实视频）。</li>
+<li><b>结构化描述：</b>所有阶段都用 JSON 结构化描述而不是自由文本（自由文本精确但漏细节）。描述模型是两个 LoRA 微调的 Qwen3-VL-8B（图像、视频各一）。另建一个难例描述基准，精确率由 VLM 拆成原子断言逐条验证，召回率对照人工断言列表；结构化格式召回明显更高，精确率不降（论文没给数字）。</li>
+</ul>
+<p><b>3.2.2 音频。</b>网页视频的音频常是旁白和配乐，不是画面里的事件发出的。预训练用全部 1.389 亿段带音轨的片段（30 秒以下的 6,250 万段用 Qwen3-Omni-Captioner 写音频描述）。中训练筛出 1,880 万段：1,280 万段非语音、600 万段口型同步的语音。</p>
+<details class="tbl"><summary>中训练音频的筛选规则（点开）</summary>
+<ul>
+<li>SAM-Audio 把音频分成语音轨和其余轨。</li>
+<li>SyncNet 测口型：有人脸且 lip_sync_confidence ≥ 3.0 记为 speech_synced。</li>
+<li>FireRedASR2S 估计 speech_ratio、music_ratio；music_ratio ≥ 0.1 记为 high_music；Qwen3-VL 再判断是否是画面里在演奏乐器（是的话音乐保留）。</li>
+<li>语音分支：保留原音，除非是非演奏的背景音乐，此时用 SAM-Audio 去音乐，再复查 speech_ratio ≥ 0.05、music_ratio = 0，并检查不是近静音（max_abs ≥ 0.007、p50_db ≥ −80、active_ratio ≥ 0.2）。</li>
+<li>非语音分支：speech_ratio ≥ 0.05 时用去人声的其余轨，否则用原音；背景音乐同样去掉；复查条件类似。</li>
+<li>描述跟最终波形走：波形改过就重新描述；语音片段用 Qwen3-ASR 转写，再由 GPT-OSS-120B 和音频描述合并。</li>
+</ul></details>
+<p><b>3.2.3 动作。</b>中训练才加入“文本-视频-动作”配对数据，学三个方向：给动作预测未来、给轨迹反推动作、两者一起生成。共 840 万个回合、6.13 万小时（图 9）。</p>
+<figure class="pfig half" id="fig9">
+<img src="cosmos3/fig9.webp" width="780" height="326" alt="图 9：环形图，总计 61.3K 小时，第一人称运动 67.4%，自动驾驶 16.3%，机器人 8.7%，相机运动 7.5%" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 25 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=25">看原图 ↗</a></span>动作数据按小时分：第一人称 67.4%、自动驾驶 16.3%、机器人 8.7%、相机运动 7.5%。</figcaption>
+</figure>
+<ul>
+<li><b>第一人称（4.13 万小时）：</b>自有数据，170 万回合双手操作，头戴 RGB，逐帧头部相机位姿和每只手 21 个关键点的 3D 位姿。</li>
+<li><b>自动驾驶（1.00 万小时）：</b>NVIDIA Hyperion 平台内部日志，按目标场景分布挖掘，轨迹转到前广角相机坐标系。</li>
+<li><b>机器人（5,400 小时）：</b>全部开源数据，9.04 万个任务、51.67 万回合，成功和失败的回合都留（表 4）。</li>
+<li><b>相机运动（4,600 小时）：</b>从预训练视频里用 ViPE 和 DepthAnything3 估相机位姿，滤掉抖动和异常内参，度量尺度，190 万段。</li>
+</ul>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 4 · 实体</th><th>数据来源</th><th class="n">任务</th><th class="n">回合</th><th class="n">小时</th></tr></thead><tbody>
+<tr><td>AgiBot</td><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td class="n">338</td><td class="n">239.4K</td><td class="n">4.37K</td></tr>
+<tr><td>Franka Panda</td><td>RoboMIND；DROID</td><td class="n">67.5K</td><td class="n">76.3K</td><td class="n">442</td></tr>
+<tr><td>Google Robot</td><td>RT-1（Fractal）</td><td class="n">599</td><td class="n">87.2K</td><td class="n">351</td></tr>
+<tr><td>WidowX-250</td><td>BridgeData V2</td><td class="n">21.8K</td><td class="n">50.4K</td><td class="n">100.1</td></tr>
+<tr><td>UMI</td><td>六个 UMI 数据集</td><td class="n">43</td><td class="n">38.3K</td><td class="n">67</td></tr>
+<tr><td>UR</td><td>RoboMIND</td><td class="n">114</td><td class="n">25.0K</td><td class="n">35</td></tr>
+<tr><td>合计</td><td></td><td class="n">90.4K</td><td class="n">516.7K</td><td class="n">5.36K</td></tr>
+</tbody></table></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 动作数据的小时数</span><p>四类相加 41.3 + 10.0 + 5.36 + 4.6 = 61.26K 小时，和 61.3K 一致；占比 41.3 / 61.3 = 67.4%、10.0 / 61.3 = 16.3%、5.36 / 61.3 = 8.7%、4.6 / 61.3 = 7.5%，全对。表 4 小时数加起来 4.37K + 442 + 351 + 100.1 + 67 + 35 = 5,365，回合 516.6K，任务 67.5K + 21.8K + 338 + 599 + 43 + 114 = 90.4K，都在四舍五入范围内。注意 DROID 在中训练里只占 Franka 一行的一部分（DROID 本身 7.6 万回合 350 小时，4.2.5 节），这一行合计才 442 小时。</p></div>
+<p><b>处理：</b>每个来源按 2.1.3 节的统一格式转换，再按维度算归一化系数，把各通道缩到大约 [−1, 1]；多视角拼成一张画布，布局写进元数据（附录 B.5 图 30）；不删静止片段，而是记下静止帧数，采样时再平衡。</p>
+
+<h2 id="s4"><span class="no">4</span>训练</h2>
+<p><b>结论：</b>两大阶段。先训理解塔（预训练 → SFT）；因为两塔结构相同，训好的理解塔权重用来初始化生成塔，然后<b>冻结理解塔</b>，生成塔按 预训练 → 中训练 → 后训练 走。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>理解塔训练</h3>
+<p><b>4.1.1 预训练。</b>从“语言模型 + ViT + 多模态投影”开始：Edge 用自训模型（附录 D），Nano 用 Qwen3-VL-8B，Super 用 Qwen3-VL-32B。不做“只训投影层”的对齐阶段，一开始就全部一起训。下一 token 预测，整个混合数据训 2 轮，不放回采样；序列最长 16k token，单样本图像最多 2,048、视频最多 8,192 个 token。按平方根归一化每个 token 的损失权重，平衡长短样本。AdamW，LLM 和投影层峰值学习率 5e-5，ViT 5e-6，10% 线性预热后余弦降到 0.1 倍；β = (0.9, 0.999)，权重衰减 0.05，梯度裁剪 1.0。</p>
+<p><b>4.1.2 SFT。</b>每个数据集按重要性分配固定的采样预算；预训练数据以 1 : 4 的比例混入，再加 80 万条指令遵循数据防止遗忘。8,200 步，全局 batch 512；学习率 LLM 1e-5、ViT 1e-6，1,000 步预热后余弦降到 0.1 倍；β = (0.9, 0.95)，权重衰减 0.1，裁剪 1.0。</p>
+
+<h3 id="s4-2"><span class="no">4.2</span>生成塔训练</h3>
+<p><b>训练目标。</b>所有模态都用整流流匹配：\(x_\sigma=\sigma\epsilon+(1-\sigma)x_0\)，网络 \(v_\theta(x_\sigma,\sigma,c)\) 预测常速度 \(v^*=\epsilon-x_0\)，用带掩码的 MSE（干净的条件 token 不计损失）。每种模态独立抽噪声水平；图像、音频、动作用 logit-normal，视频用 Waver 的 mode sampling（作者说质量更好）。再做 shift 重参数化 \(\sigma=s\bar t/(1+(s-1)\bar t)\)，\(\bar t=1-t\)，\(s\ge1\) 时偏向高噪声。</p>
+
+<h4 id="s4-2-1"><span class="no">4.2.1</span>预训练</h4>
+<p>联合训练文生图、文生（视频 + 音频）、图生（视频 + 音频）、视频续写（+ 音频）。</p>
+<ul>
+<li><b>多分辨率：</b>256p、480p、720p 三档，五种宽高比（表 5），帧数可变。256p 用全部数据，480p 只用原生 ≥ 480p 的，720p 只用 ≥ 720p 的；帧数上限 256p 和 480p 400 帧、720p 300 帧。图像 : 256p 视频 : 480p 视频 : 720p 视频 = 1 : 1 : 2 : 1。shift：256p 为 1、480p 为 3、720p 为 5。</li>
+<li><b>序列打包：</b>固定 74,000 token 一条，不同分辨率的样本拼在一起，不补零（图 10）。</li>
+<li><b>四种模式：</b>只靠前置几帧干净条件来区分：文生图（T = 1）20%、文生视频（T_cond = 0）56%、图生视频（T_cond = 1）16%、视频续写（T_cond = 2，即前 5 帧像素）8%。描述里加时长、FPS、时间戳字段。</li>
+<li><b>FPS 调制：</b>按 2.4.2 节，以 24 FPS 为基准；时长和 FPS 也写进提示。</li>
+<li><b>优化：</b>只更新生成塔，理解塔冻结。FusedAdamW，学习率 1e-4，β = (0.9, 0.99)，权重衰减 0.05，裁剪 1.0，线性衰减到 0.30 倍；文本 dropout 10%（用于 CFG）。</li>
+<li><b>规模：</b>Nano 31.05T token、1,024 张 GB200；Super 17.86T token、2,048 张 GB200。</li>
+</ul>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 5 · 分辨率</th><th class="n">FPS</th><th class="n">帧数</th><th class="n">16:9</th><th class="n">4:3</th><th class="n">1:1</th><th class="n">3:4</th><th class="n">9:16</th></tr></thead><tbody>
+<tr><td>256p</td><td class="n">10–30</td><td class="n">5–400</td><td class="n">(320, 192)</td><td class="n">(320, 256)</td><td class="n">(256, 256)</td><td class="n">(256, 320)</td><td class="n">(192, 320)</td></tr>
+<tr><td>480p</td><td class="n">10–30</td><td class="n">5–400</td><td class="n">(832, 480)</td><td class="n">(736, 544)</td><td class="n">(640, 640)</td><td class="n">(544, 736)</td><td class="n">(480, 832)</td></tr>
+<tr><td>720p</td><td class="n">10–30</td><td class="n">5–300</td><td class="n">(1280, 720)</td><td class="n">(1104, 832)</td><td class="n">(960, 960)</td><td class="n">(832, 1104)</td><td class="n">(720, 1280)</td></tr>
+</tbody></table></div>
+<figure class="pfig" id="fig10">
+<img src="cosmos3/fig10.webp" width="1600" height="535" alt="图 10：左上三档分辨率，256p 最多 400 帧 shift 1，480p 最多 400 帧 shift 3，720p 最多 300 帧 shift 5；左下四行打包示例填满 74000 token；右边环形图，视频 480p 40%，视频 256p 20%，视频 720p 20%，图像三档各 6.66%，注明视频模式 T2V 70%、I2V 20%、V2V 10%" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 28 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切（上方的表 5 已单独录入），经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=28">看原图 ↗</a></span>左：三档分辨率和 74,000 token 打包。右：预训练数据配比，视频 80%、图像 20%；视频内部 T2V 70%、I2V 20%、V2V 10%。</figcaption>
+</figure>
+<div class="note" id="n7"><span class="lab">读者注 7 · 视频模式是“均匀”还是 70 / 20 / 10</span><p>正文的 20%、56%、16%、8% = 图像 20% 加上视频 80% × (70%, 20%, 10%)，和图 10 右下角的小字一致。但图 10 的图注写“在三种条件模式里<b>均匀</b>采样”，均匀的话应是 26.7% 各一份。以正文和图为准，图注是笔误的可能性大。另外配比 1 : 1 : 2 : 1 换成百分比是 20 / 20 / 40 / 20，图里图像三档各 6.66%，合计 20%，也对得上。</p></div>
+
+<h4 id="s4-2-2"><span class="no">4.2.2</span>中训练</h4>
+<p>两个目的：<b>领域专门化</b>（1,560 万张精选图、7,470 万段机器人、驾驶、人类活动、物理和合成视频）和<b>多模态集成</b>（加入动作和视频迁移）。保持预训练的“干净前缀 + 带噪目标”格式，动作、音频、控制、视频 token 共用时间坐标。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 6 · 数据流</th><th>模式 / 条件</th><th class="n">占比</th></tr></thead><tbody>
+<tr><td>图像</td><td>T2I</td><td class="n">10%</td></tr>
+<tr><td>视频</td><td>T2V、I2V、V2V</td><td class="n">32%</td></tr>
+<tr><td>视频 + 音频</td><td>T2(V+A)、I2(V+A)、V2(V+A)</td><td class="n">8%</td></tr>
+<tr><td>动作</td><td>正向动力学、逆向动力学、策略</td><td class="n">25%</td></tr>
+<tr><td>通用迁移</td><td>边缘、模糊、深度、分割</td><td class="n">20%</td></tr>
+<tr><td>驾驶迁移</td><td>世界场景图</td><td class="n">5%</td></tr>
+</tbody></table></div>
+<p>shift 提高到 256p 3、480p 5、720p 10。动作沿用视觉的噪声日程；总损失是各模态速度 MSE 的加权和，<b>动作损失乘 10</b>（归一化动作的逐元素 MSE 偏小）。优化同预训练，损失缩放 10，LambdaLinear 日程（起始系数 0.4，周期 10 万步）。Nano 2.4T token / 1,024 张 GB200，Super 1.9T token / 2,048 张。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 两套 shift，代码和 OpenWAM 用的是哪一套</span><p>论文有两套训练 shift：预训练 {256p: 1, 480p: 3, 720p: 5}，中训练 {3, 5, 10}。代码的三个尺寸配置都是 <code>shift={"256": 3, "480": 5, "720": 10}</code>（<code>nano_model_config.py</code> 第 92 行等），即中训练那套；动作损失 <code>action_loss_weight=10.0</code>，视频时间分布 <code>"waver"</code>、其余 <code>"logitnormal"</code>，都和论文一致。OpenWAM 的 <code>cosmos3_edge.yaml</code> 注释写“NVIDIA 按分辨率的训练 shift 是 {256: 3, 480: 5, 720: 10}，5.0 对应本仓库训练用的 480p”，说的正是中训练值，不是预训练值。推理默认值又是另一回事：基础模型文生视频 shift 10、正逆动力学和策略 5（表 21）。</p></div>
+
+<h4 id="s4-2-3"><span class="no">4.2.3</span>文生图后训练</h4>
+<p>从 Super 做两阶段 SFT：第一阶段 2 万步，真实 45%、合成 40%、纯文字渲染 15%，学习率 1e-4、2,000 步预热、线性衰减；第二阶段 2,000 步，47 万对超高质量图文。两阶段都用 70k 上下文，只用 720p 以上的图。UniGenBench 全集 91.36，配上智能体流程（附录 B.7）在 Artificial Analysis 文生图榜上开源第一。</p>
+<h4 id="s4-2-4"><span class="no">4.2.4</span>图生视频后训练</h4>
+<p>数据：按话题重新平衡的预训练数据，加智能体流程找出弱项后检索的样本、1,000 段人工精选视频、约 2 万段合成视频（约占 6% 的 token）；视频全按 I2V 训练，另混 20% 的文生图 token 保住语义对齐。目标 480p、189 帧（24 fps 下约 8 秒）。1 万步，学习率 1e-5，约 500 亿 token。Artificial Analysis 图生视频榜（无音频）开源第一。</p>
+
+<h4 id="s4-2-5"><span class="no">4.2.5</span>机器人策略后训练</h4>
+<p><b>结论：</b>以 DROID 为试点，从中训练的 Nano 继续训成 Cosmos3-Nano-Policy-DROID：加本体状态、降推理延迟、输出可执行的关节动作。写报告时在 RoboLab、RoboArena、MolmoSpaces 三个榜单第一。</p>
+<ul>
+<li><b>平台和数据：</b>Franka Panda 7 自由度 + Robotiq 2F-85 夹爪；DROID 7.6 万条轨迹、350 小时、86 个任务、564 个场景。按 360 × 640 读入，用社区提供的静止帧过滤和失败演示剔除，训练时随机图像增强。</li>
+<li><b>初始化：</b>动作编码器、动作解码层、动作嵌入 token 全部重新初始化；动作相关参数学习率乘 5。</li>
+<li><b>输入：</b>当前本体状态 + 三视角画布：腕部图（360 × 640）在上，两个外部视角（各 180 × 320）在下并排，拼成 540 × 640。用 DROID 官方的简短任务指令做提示。</li>
+<li><b>输出：</b>未来 32 步<b>绝对关节位置</b>，同时输出辅助 RGB 视频帧，15 Hz。学习率 2e-4，其余同中训练。</li>
+<li><b>推理：</b>4 步去噪，shift 5，CFG 3 并用两张卡并行算有条件 / 无条件两路，跳过视频隐变量解码；部署在 2 张 RTX Pro 6000 上，下游用 Franky 关节位置控制器按 15 Hz 执行 32 步。</li>
+</ul>
+<div class="note" id="n9"><span class="lab">读者注 9 · DROID 策略和统一动作接口不是一回事</span><p>2.1.3 节的统一接口是“相对位姿伪动作 + 夹爪”（DROID 在域表里是 10 维 = 9D 末端位姿 + 1D 夹爪）。但后训练的策略输出的是 <b>8 维绝对关节位置</b>（官方文档 <code>docs/action_policy_droid_posttrain.md</code>：<code>action_space=joint_pos</code>，含夹爪 8 维，<code>use_state=true</code>，chunk 32，学习率 2e-4，全局 batch 8,192，只用 KarlP/droid 的 keep_ranges 过滤后约 74% 的窗口）。所以策略后训练换了动作空间，这也是为什么动作投影层要重新初始化。论文写“动作解码 MLP”，代码里是单层的 <code>DomainAwareLinear</code>，不是 MLP。画布尺寸：论文 540 × 640；文档写“480p（640 × 360）”。540 × 640 的宽高比 1.19，按表 5 最接近 480p 的 4:3 档（736 × 544），代码里怎么取整我没有逐行确认，未核实。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>从数据到部署拆成 11 幕：总览、五种编码器、统一动作表示（可切换实体）、token 排列和七种生成模式、动作三模式（FD / ID / 策略）、双塔 MoT 和注意力掩码、3D MRoPE 和 FPS 调制、训练阶段、流匹配和 shift、DROID 策略部署、结果和 OpenWAM 接口。下面嵌的是第 6 幕。</p>
+<iframe src="../interactives/cosmos3/index.html?embed=1&amp;scene=6" title="Cosmos 3 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos3/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>基础设施</h2>
+<p><b>结论：</b>四根柱子：数据（SILA 平台，Lance 列式表）、训练（HSDP + Ulysses 上下文并行、两路扁平注意力、选择性激活检查点、torch.compile、分片 AOT 编译的 VAE、异步存档）、服务（PyTorch 参考实现、vLLM / TensorRT-LLM 跑理解塔、vLLM-Omni 跑生成塔）、评测（生成和打分分离）。对复现最有用的是 5.2.1 的打包加载器和 5.2.2 的注意力实现，其余点开看。</p>
+<details class="tbl"><summary>5.1 数据基础设施 SILA（点开）</summary>
+<p>SILA 把每个样本作为 Lance 表的一行，每种标注（描述、标签、分数、嵌入）是一列，替代 Cosmos-Predict 1.0 / 2.5 时代“每条流水线一张 Postgres 表、再同步到 Databricks”的做法。Worker 以 Lance 分片为单位领租约、心跳续约，崩溃后别人可接手；一个分片再细分成段做检查点，整片完成后一次性提交。每个分片走分阶段的 Ray 流水线（加载、预处理、计算、后处理、写、提交各自的 actor 池，带背压）；在节点本地起 vLLM 端点给描述、嵌入模型用；在 Lepton 和 Slurm 上见缝插针跑；长时间运行的“编排智能体”监控和重启任务。作者说任务启动时间从 30–60 分钟降到约 5 分钟，吞吐提高 10 倍。嵌入直接存在 Lance 表上建 ANN 索引（64K 个 IVF 分区 + PQ 压缩），元数据过滤和向量检索同一份存储。还有开发小表、进度分析、行级查看器，OLAP 分析时导出 Parquet 快照到 Databricks / Spark。</p></details>
+
+<h3 id="s5-2"><span class="no">5.2</span>训练基础设施</h3>
+<p><b>5.2.1 数据加载器。</b>单样本 token 数相差两个数量级以上（720p 两秒视频比几十条文本描述还多），按样本数分 batch 会造成补零浪费、卡间负载不均、NCCL 超时。四个机制：按 token 预算 \(T_{\max}\) 打包（另设样本数上限 \(N_{\max}\)）；每个数据流一个加载器、联合加载器多路复用；<b>所有卡在同一步选同一个数据流</b>（种子按步数定，吞吐 +54%）；有限前瞻打包（放不下的先放一边、找后面更小的样本填空，最多前瞻 10 次，有效序列长 +8%）。另有冷启动预热和每步统计。</p>
+<figure class="pfig" id="fig12">
+<img src="cosmos3/fig12.webp" width="1600" height="663" alt="图 12：左边图像、视频、动作音频三个数据加载器，各接一个流缓冲区，中间是所有卡同步的流选择器，按 token 预算打包，右边输出打包好的 batch，token 不超过 Tmax，样本不超过 Nmax" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 38 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=38">看原图 ↗</a></span>联合数据加载器：每个流一个缓冲区；每一步所有卡选同一个流 \(k_i\)，再按 token 和样本数预算贪心打包，带有限前瞻。图 13（原文第 39 页，未放）用 6 个样本演示前瞻：x3、x5 放不下先跳过，x4、x6 填进来，跳过的按原顺序放回队首。</figcaption>
+</figure>
+<p><b>5.2.2 注意力实现。</b>理解塔要因果、生成塔要“看理解 + 生成”的双向注意力。用 FlexAttention 写正确但慢；作者做了“两路扁平注意力”：理解塔一次因果的变长 SDPA；生成塔把键值按样本交错成 \([R_0,G_0,R_1,G_1,\dots]\)，查询只放生成 token，一次双向变长 SDPA。每层两次核函数调用，比 FlexAttention 端到端快 22%（Nano）。Hopper 用 FlashAttention-3，Blackwell 用 NATTEN。</p>
+<figure class="pfig" id="fig14">
+<img src="cosmos3/fig14.webp" width="1600" height="480" alt="图 14：生成查询 G0、G1、G2 长度 2、3、1；键值按 R0 G0 R1 G1 R2 G2 交错；cu_seqlens_q 为 0 2 5 6，cu_seqlens_k 为 0 5 10 15；右边是块对角矩形掩码" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 41 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=41">看原图 ↗</a></span>两路扁平注意力的生成塔那一路。三个打包样本的 (|R|, |G|) = (3, 2)、(2, 3)、(4, 1)。</figcaption>
+</figure>
+<div class="note" id="n10"><span class="lab">读者注 10 · 图 14 的累积长度</span><p>查询只有生成 token：累积 0, 2, 2 + 3 = 5, 5 + 1 = 6，即 <code>cu_seqlens_q = [0, 2, 5, 6]</code>；键值是 R + G：3 + 2 = 5，2 + 3 = 5，4 + 1 = 5，累积 [0, 5, 10, 15]。和图上一致。代码里对应的开关是配置 <code>joint_attn_implementation="two_way"</code>（三个尺寸都是）。</p></div>
+<details class="tbl"><summary>5.2.3–5.2.8 并行、检查点、编译、VAE、存档、吞吐（点开）</summary>
+<p><b>5.2.3 分布式。</b>HSDP（组内分片、组间复制）+ Ulysses 上下文并行（每层两次 all-to-all，从序列分片换到头分片）。最大 CP 度受查询头数限制：Nano 32、Super 64。不用环形注意力，因为它要先把理解和生成 token 交错成一条连续序列才能分片，而 Ulysses 允许两条通路各自分片。</p>
+<p><b>5.2.4 选择性激活检查点。</b>默认全量重算让每步多约 33% 的计算；按“重算 FLOPs / 显存字节”排序，优先保存注意力输出（重算贵、张量小），Nano 在 74k token 预算下吞吐 +13%。代码配置里就是 <code>activation_checkpointing.mode="selective"</code>、<code>save_ops_regex=["fmha"]</code>。</p>
+<p><b>5.2.5 torch.compile。</b><code>fullgraph=True, dynamic=True</code>，Nano 生成塔训练吞吐 +41%。</p>
+<p><b>5.2.6 视频 VAE。</b>Wan2.2 VAE 在线编码，在 Edge、Nano 上占前向时间的大头。一次编码多帧：256p 68 帧、480p 24 帧、720p 12 帧；torch.compile 再降 52% 延迟；3 分辨率 × 5 宽高比 × 3 种调用（首块、缓存 1、缓存 2）= 45 个静态图，用 AOTInductor 分到 45 张卡上各编一个，热身从约 15 分钟降到 1 分钟以内（图 15，原文第 44 页）。帧数不定时右补到块长再裁掉；机器人数据帧数固定，直接按确切形状编译。</p>
+<p><b>5.2.7 存档。</b>走单独的 Gloo 进程组异步写；子进程负责；第一次算出保存计划后复用（开销 −60%）；复制的张量只存在最低编号的卡上；按卡恢复随机数状态。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 7</th><th class="n">存档耗时 均值 / 最小 / 最大（秒）</th><th class="n">相对同步存档提速</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano</td><td class="n">72 / 43 / 250</td><td class="n">4%</td></tr>
+<tr><td>Cosmos3-Super</td><td class="n">167 / 40 / 736</td><td class="n">9%</td></tr>
+</tbody></table></div>
+<p><b>5.2.8 吞吐。</b>GB200 上、文生图加文生视频联合训练测的。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 8</th><th class="n">每步（秒）</th><th class="n">TFLOPS</th><th class="n">MFU</th><th class="n">步 / 小时</th><th class="n">图像 token（百万 / 卡·时）</th><th class="n">视频 token（百万 / 卡·时）</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano</td><td class="n">7.1</td><td class="n">520</td><td class="n">0.23</td><td class="n">507</td><td class="n">4.56</td><td class="n">16.23</td></tr>
+<tr><td>Cosmos3-Super</td><td class="n">19.5</td><td class="n">673</td><td class="n">0.30</td><td class="n">185</td><td class="n">1.66</td><td class="n">5.91</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n11"><span class="lab">读者注 11 · VAE 分块帧数和打包长度：论文和代码有出入</span><p>论文说 720p 每次编码 12 帧；代码三个尺寸都是 <code>encode_chunk_frames={"256": 68, "480": 24, "720": 8}</code>，720p 是 8。打包长度：论文说 74,000；代码的 Edge / Nano 基线配置是 <code>max_num_tokens_after_packing=45056</code>，LIBERO 配方和 HF 上 Nano 的 config.json 里是 74000。可能是不同阶段的设置，论文只写了一个值。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 8 的 GPU 数前后不一</span><p>正文说 Nano 用 1,024 张、Super 用 2,048 张测吞吐（和 4.2.1 节训练用的卡数一致），表 8 的图注却写 2,048 和 4,096 张。步数换算没问题：3600 / 7.1 = 507，3600 / 19.5 = 184.6 ≈ 185；两个模型的“图像 token / 步数”之比 4.56 / 1.66 = 2.75 和 507 / 185 = 2.74 一致，说明每卡每步的 token 数相同。按 MFU 反推峰值：520 / 0.23 ≈ 2,261、673 / 0.30 ≈ 2,243 TFLOPS，即每卡约 2.25 PFLOPS（BF16 稠密），两行自洽。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>服务</h3>
+<p>PyTorch 参考实现是权威规格，新功能先在这里实现再移植。加速手段：Transformer 块级 torch.compile + CUDA graph（文生图提速 30–60%）；推理时也用 Ulysses CP；CFG 并行（有条件和无条件两路分到两张卡，每步只交换一次，延迟近乎减半）；<b>理解塔缓存</b>（条件固定，理解塔只算一次）；变长打包批处理（只对吞吐有用，机器人这类延迟敏感场景批大小设 1）；提示扩写模式（理解塔写 JSON，再交给生成塔）。理解塔：Nano、Super 基于 Qwen3-VL，直接复用 vLLM / TensorRT-LLM 的支持；Edge 是自定义 Nemotron 主干，单独写了 vLLM 集成。生成塔接入 vLLM-Omni：Cache-DiT、Ulysses、CFG 并行、HSDP、CPU 卸载、VAE 分片并行、动态 FP8。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>表 9 · 批处理提速</th><th class="n">Nano 256p</th><th class="n">Nano 480p</th><th class="n">Super 256p</th><th class="n">Super 480p</th></tr></thead><tbody>
+<tr><td>H100 80GB</td><td class="n">8%</td><td class="n">2%</td><td class="n">55%</td><td class="n">5%</td></tr>
+<tr><td>GB200</td><td class="n">40%</td><td class="n">2%</td><td class="n">9%</td><td class="n">1%</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 9 的最大批大小</span><p>189 帧视频编码成 1 + 188 / 4 = 48 个隐帧。每个隐帧的 token 数 = (W / 32) × (H / 32)：256p（320 × 192）10 × 6 = 60，整段 2,880；480p（832 × 480）26 × 15 = 390，整段 18,720；720p（1280 × 720）40 × 23 = 920（720 / 32 = 22.5，向上取整，未核实取整方式），整段 44,160。74,000 的预算下 480p 最多放 3 段（4 段 74,880 超了），720p 只能放 1 段，和图注一致；但 256p 能放 25 段，图注说 256p 的最大批是 6，<b>不是 token 预算限制的</b>，可能是显存或别的上限，论文没说。</p></div>
+<figure class="pfig" id="fig16">
+<img src="cosmos3/fig16.webp" width="1538" height="570" alt="图 16：三个柱状和折线图：(a) Nano 720p 文生视频单卡延迟，H100 NVL 上 PyTorch 297.3 秒、vLLM-Omni 286.33 秒，B200 上 114.8 和 107.8 秒；(b) Nano 720p 文生图单卡延迟，H100 NVL 4.21 和 3.44 秒，B200 2.87 和 1.77 秒；(c) B200 上 1 到 8 卡的扩展" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 50 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=50">看原图 ↗</a></span>服务延迟。Nano 720p 文生视频单卡：H100 NVL 约 297 / 286 秒（PyTorch / vLLM-Omni），B200 约 115 / 108 秒；文生图在秒级。右图：多卡扩展。</figcaption>
+</figure>
+<h3 id="s5-4"><span class="no">5.4</span>评测基础设施</h3>
+<p>在 Lepton 或 Slurm 上调度生成、打分、端点评测三类任务；每次记录检查点、代码版本、基准、生成参数和数据集，保证每个分数可追溯。生成和打分分开，换指标不用重新生成。理解塔用 <a class="ds" href="https://github.com/open-compass/VLMEvalKit">VLMEvalKit</a> + vLLM。分数存关系库，生成物存对象存储，人评结果和自动指标放在一起看。</p>
+
+<h2 id="s6"><span class="no">6</span>结果</h2>
+<h3 id="s6-1"><span class="no">6.1</span>理解塔评测</h3>
+<p><b>结论：</b>48 个基准分四组（通用 19、机器人 17、智能基建 9、驾驶 3），VLMEvalKit 测。通用能力和同尺寸开源模型相当、低于 Gemini 3.1 Pro；机器人、智能基建、驾驶三组 Super 领先所有开源模型，机器人组只比 Gemini 3.1 Pro 低 0.4（57.8 对 58.2）。比 Cosmos-Reason2 更好，作者归因于多了 20% 的预训练数据。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>组平均（表 10）</th><th class="n">Super</th><th class="n">Qwen3-VL-32B</th><th class="n">Cosmos-Reason2-32B</th><th class="n">Gemini 3.1 Pro†</th><th class="n">Nano</th><th class="n">Qwen3-VL-8B</th><th class="n">Cosmos-Reason2-8B</th><th class="n">Edge</th><th class="n">Qwen3-VL-2B</th><th class="n">Cosmos-Reason2-2B</th></tr></thead><tbody>
+<tr><td>通用（19）</td><td class="n">73.7</td><td class="n">72.8</td><td class="n">70.0</td><td class="n best">77.5</td><td class="n">69.6</td><td class="n">68.9</td><td class="n">66.3</td><td class="n">59.7</td><td class="n">60.3</td><td class="n">57.5</td></tr>
+<tr><td>机器人（17）</td><td class="n">57.8</td><td class="n">52.6</td><td class="n">55.0</td><td class="n best">58.2</td><td class="n">55.1</td><td class="n">48.5</td><td class="n">51.3</td><td class="n">48.3</td><td class="n">38.7</td><td class="n">42.5</td></tr>
+<tr><td>智能基建（9）</td><td class="n best">62.6</td><td class="n">56.1</td><td class="n">48.5</td><td class="n">58.6</td><td class="n">61.0</td><td class="n">52.7</td><td class="n">55.6</td><td class="n">47.9</td><td class="n">42.4</td><td class="n">47.7</td></tr>
+<tr><td>驾驶（3）</td><td class="n best">79.3</td><td class="n">40.7</td><td class="n">72.2</td><td class="n">47.2</td><td class="n">76.0</td><td class="n">46.4</td><td class="n">68.3</td><td class="n">59.4</td><td class="n">42.7</td><td class="n">55.7</td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 10 全表：48 个基准 × 16 个模型（点开；底色是 Cosmos 3 三个尺寸。列的顺序按 PDF 里旋转表头的坐标还原）</summary>
+<div class="tablewrap"><table class="t-r10"><thead><tr><th>基准</th><th class="n us">Super</th><th class="n">Qwen3-VL-32B</th><th class="n">Cosmos-Reason2-32B</th><th class="n">Gemma-4-31B</th><th class="n">Gemini 3.1 Pro†</th><th class="n us">Nano</th><th class="n">Qwen3-VL-8B</th><th class="n">Cosmos-Reason2-8B</th><th class="n">Gemma-4-E4B</th><th class="n">RynnBrain-8B</th><th class="n">MiMo-Embodied-7B</th><th class="n us">Edge</th><th class="n">Qwen3-VL-2B</th><th class="n">Cosmos-Reason2-2B</th><th class="n">Gemma-4-E2B</th><th class="n">RynnBrain-2B</th></tr></thead><tbody>
+<tr><td>MMBench-Dev</td><td class="n us">87.4</td><td class="n">87.8</td><td class="n">86.3</td><td class="n">86.7</td><td class="n">93.2</td><td class="n us">85.1</td><td class="n">85.3</td><td class="n">82.2</td><td class="n">66.2</td><td class="n">85.5</td><td class="n">81.4</td><td class="n us">76.6</td><td class="n">77.2</td><td class="n">73.6</td><td class="n">60.2</td><td class="n">81.9</td></tr>
+<tr><td>RealWorldQA</td><td class="n us">79.2</td><td class="n">80.3</td><td class="n">76.1</td><td class="n">71.8</td><td class="n">81.8</td><td class="n us">72.2</td><td class="n">73.2</td><td class="n">68.2</td><td class="n">61.0</td><td class="n">72.5</td><td class="n">72.0</td><td class="n us">73.3</td><td class="n">67.3</td><td class="n">61.4</td><td class="n">57.1</td><td class="n">65.9</td></tr>
+<tr><td>CVBench</td><td class="n us">88.0</td><td class="n">86.8</td><td class="n">88.1</td><td class="n">84.1</td><td class="n">88.6</td><td class="n us">86.5</td><td class="n">85.2</td><td class="n">85.6</td><td class="n">68.1</td><td class="n">87.5</td><td class="n">87.8</td><td class="n us">84.9</td><td class="n">78.7</td><td class="n">78.7</td><td class="n">56.1</td><td class="n">85.7</td></tr>
+<tr><td>VideoPhy2</td><td class="n us">47.4</td><td class="n">36.8</td><td class="n">43.3</td><td class="n">33.1</td><td class="n">28.7</td><td class="n us">45.6</td><td class="n">28.2</td><td class="n">37.1</td><td class="n">13.8</td><td class="n">10.5</td><td class="n">20.8</td><td class="n us">40.3</td><td class="n">7.9</td><td class="n">12.8</td><td class="n">8.4</td><td class="n">7.3</td></tr>
+<tr><td>CausalVQA</td><td class="n us">77.0</td><td class="n">81.0</td><td class="n">74.5</td><td class="n">76.5</td><td class="n">92.0</td><td class="n us">70.0</td><td class="n">72.0</td><td class="n">71.5</td><td class="n">38.0</td><td class="n">68.5</td><td class="n">63.0</td><td class="n us">37.0</td><td class="n">57.0</td><td class="n">53.5</td><td class="n">29.5</td><td class="n">51.0</td></tr>
+<tr><td>MVPBench</td><td class="n us">70.3</td><td class="n">58.6</td><td class="n">62.2</td><td class="n">27.0</td><td class="n">59.4</td><td class="n us">66.9</td><td class="n">51.6</td><td class="n">54.2</td><td class="n">32.8</td><td class="n">50.1</td><td class="n">43.3</td><td class="n us">53.3</td><td class="n">43.6</td><td class="n">43.7</td><td class="n">31.9</td><td class="n">44.9</td></tr>
+<tr><td>CountBenchQA</td><td class="n us">89.1</td><td class="n">93.6</td><td class="n">87.5</td><td class="n">79.1</td><td class="n">95.3</td><td class="n us">84.8</td><td class="n">89.5</td><td class="n">79.9</td><td class="n">55.4</td><td class="n">90.5</td><td class="n">84.6</td><td class="n us">89.9</td><td class="n">87.5</td><td class="n">79.7</td><td class="n">56.9</td><td class="n">86.0</td></tr>
+<tr><td>AI2D</td><td class="n us">87.8</td><td class="n">88.2</td><td class="n">87.5</td><td class="n">88.9</td><td class="n">93.8</td><td class="n us">85.0</td><td class="n">84.8</td><td class="n">83.6</td><td class="n">78.2</td><td class="n">85.7</td><td class="n">83.2</td><td class="n us">75.4</td><td class="n">76.7</td><td class="n">75.4</td><td class="n">73.0</td><td class="n">79.8</td></tr>
+<tr><td>DocVQA</td><td class="n us">90.4</td><td class="n">96.0</td><td class="n">95.1</td><td class="n">89.6</td><td class="n">95.8</td><td class="n us">94.2</td><td class="n">95.6</td><td class="n">94.3</td><td class="n">78.1</td><td class="n">95.4</td><td class="n">93.9</td><td class="n us">86.8</td><td class="n">92.8</td><td class="n">89.9</td><td class="n">73.4</td><td class="n">91.8</td></tr>
+<tr><td>InfoVQA</td><td class="n us">82.4</td><td class="n">87.6</td><td class="n">85.1</td><td class="n">66.5</td><td class="n">85.0</td><td class="n us">81.8</td><td class="n">83.4</td><td class="n">79.8</td><td class="n">46.1</td><td class="n">81.8</td><td class="n">84.2</td><td class="n us">60.1</td><td class="n">71.7</td><td class="n">65.0</td><td class="n">37.8</td><td class="n">70.5</td></tr>
+<tr><td>OCRBench-v2</td><td class="n us">66.7</td><td class="n">65.9</td><td class="n">57.4</td><td class="n">61.8</td><td class="n">64.5</td><td class="n us">60.1</td><td class="n">64.1</td><td class="n">56.6</td><td class="n">42.4</td><td class="n">58.6</td><td class="n">41.2</td><td class="n us">43.7</td><td class="n">54.2</td><td class="n">50.1</td><td class="n">37.8</td><td class="n">41.0</td></tr>
+<tr><td>LogicVista</td><td class="n us">55.9</td><td class="n">47.9</td><td class="n">46.1</td><td class="n">57.0</td><td class="n">81.9</td><td class="n us">43.2</td><td class="n">41.8</td><td class="n">37.4</td><td class="n">31.5</td><td class="n">40.3</td><td class="n">39.6</td><td class="n us">34.7</td><td class="n">39.4</td><td class="n">34.0</td><td class="n">29.5</td><td class="n">34.9</td></tr>
+<tr><td>MMMU-Pro</td><td class="n us">48.1</td><td class="n">49.0</td><td class="n">45.6</td><td class="n">70.6</td><td class="n">76.7</td><td class="n us">41.1</td><td class="n">41.1</td><td class="n">38.6</td><td class="n">46.9</td><td class="n">42.0</td><td class="n">37.3</td><td class="n us">26.4</td><td class="n">32.3</td><td class="n">26.9</td><td class="n">39.9</td><td class="n">30.3</td></tr>
+<tr><td>MVBench</td><td class="n us">74.5</td><td class="n">72.6</td><td class="n">72.5</td><td class="n">64.4</td><td class="n">72.8</td><td class="n us">73.2</td><td class="n">69.1</td><td class="n">70.1</td><td class="n">48.9</td><td class="n">69.5</td><td class="n">56.1</td><td class="n us">58.2</td><td class="n">60.3</td><td class="n">60.5</td><td class="n">41.2</td><td class="n">64.7</td></tr>
+<tr><td>BlinkSpatial</td><td class="n us">88.8</td><td class="n">88.1</td><td class="n">87.4</td><td class="n">90.9</td><td class="n">92.3</td><td class="n us">81.8</td><td class="n">87.4</td><td class="n">83.9</td><td class="n">76.9</td><td class="n">76.9</td><td class="n">83.2</td><td class="n us">72.0</td><td class="n">77.6</td><td class="n">75.5</td><td class="n">62.9</td><td class="n">79.7</td></tr>
+<tr><td>BlinkDepth</td><td class="n us">91.9</td><td class="n">82.3</td><td class="n">85.5</td><td class="n">87.1</td><td class="n">79.8</td><td class="n us">92.7</td><td class="n">87.1</td><td class="n">87.9</td><td class="n">77.4</td><td class="n">91.1</td><td class="n">81.5</td><td class="n us">79.8</td><td class="n">74.2</td><td class="n">83.1</td><td class="n">70.2</td><td class="n">87.9</td></tr>
+<tr><td>RefCOCO</td><td class="n us">89.5</td><td class="n">90.6</td><td class="n">70.7</td><td class="n">81.8</td><td class="n">84.3</td><td class="n us">84.3</td><td class="n">87.3</td><td class="n">81.1</td><td class="n">71.5</td><td class="n">75.9</td><td class="n">74.3</td><td class="n us">80.1</td><td class="n">84.5</td><td class="n">80.8</td><td class="n">66.3</td><td class="n">71.2</td></tr>
+<tr><td>HallusionBench</td><td class="n us">49.0</td><td class="n">52.8</td><td class="n">50.8</td><td class="n">57.8</td><td class="n">64.2</td><td class="n us">45.3</td><td class="n">50.5</td><td class="n">42.0</td><td class="n">42.0</td><td class="n">45.7</td><td class="n">40.2</td><td class="n us">40.7</td><td class="n">42.6</td><td class="n">28.6</td><td class="n">36.0</td><td class="n">45.0</td></tr>
+<tr><td>IFBench</td><td class="n us">37.0</td><td class="n">37.0</td><td class="n">28.2</td><td class="n">52.3</td><td class="n">42.5</td><td class="n us">28.5</td><td class="n">32.0</td><td class="n">26.0</td><td class="n">34.2</td><td class="n">22.8</td><td class="n">25.8</td><td class="n us">20.8</td><td class="n">20.0</td><td class="n">19.8</td><td class="n">29.0</td><td class="n">17.8</td></tr>
+<tr class="avg"><td>General Avg.</td><td class="n us">73.7</td><td class="n">72.8</td><td class="n">70.0</td><td class="n">69.8</td><td class="n">77.5</td><td class="n us">69.6</td><td class="n">68.9</td><td class="n">66.3</td><td class="n">53.1</td><td class="n">65.8</td><td class="n">62.8</td><td class="n us">59.7</td><td class="n">60.3</td><td class="n">57.5</td><td class="n">47.2</td><td class="n">59.9</td></tr>
+<tr><td>Cosmos-ER</td><td class="n us">74.1</td><td class="n">61.3</td><td class="n">74.9</td><td class="n">54.3</td><td class="n">61.1</td><td class="n us">69.7</td><td class="n">56.9</td><td class="n">71.2</td><td class="n">44.3</td><td class="n">54.9</td><td class="n">55.6</td><td class="n us">56.6</td><td class="n">48.9</td><td class="n">59.0</td><td class="n">38.0</td><td class="n">48.0</td></tr>
+<tr><td>Cosmos-CS</td><td class="n us">66.4</td><td class="n">63.4</td><td class="n">65.2</td><td class="n">61.1</td><td class="n">69.5</td><td class="n us">63.9</td><td class="n">58.4</td><td class="n">63.1</td><td class="n">43.2</td><td class="n">54.1</td><td class="n">53.8</td><td class="n us">51.5</td><td class="n">49.7</td><td class="n">54.8</td><td class="n">35.3</td><td class="n">49.0</td></tr>
+<tr><td>RefSpatial</td><td class="n us">57.0</td><td class="n">52.7</td><td class="n">48.0</td><td class="n">46.6</td><td class="n">70.0</td><td class="n us">53.1</td><td class="n">47.6</td><td class="n">41.1</td><td class="n">24.6</td><td class="n">46.6</td><td class="n">41.3</td><td class="n us">48.4</td><td class="n">27.1</td><td class="n">30.7</td><td class="n">16.2</td><td class="n">39.0</td></tr>
+<tr><td>VSI-Bench</td><td class="n us">60.9</td><td class="n">59.5</td><td class="n">58.0</td><td class="n">47.6</td><td class="n">47.5</td><td class="n us">54.9</td><td class="n">55.1</td><td class="n">52.0</td><td class="n">28.4</td><td class="n">63.0</td><td class="n">46.7</td><td class="n us">59.2</td><td class="n">49.8</td><td class="n">45.0</td><td class="n">27.3</td><td class="n">62.5</td></tr>
+<tr><td>SparBench</td><td class="n us">54.9</td><td class="n">48.0</td><td class="n">42.9</td><td class="n">46.6</td><td class="n">51.5</td><td class="n us">54.8</td><td class="n">40.1</td><td class="n">38.0</td><td class="n">28.5</td><td class="n">49.5</td><td class="n">41.2</td><td class="n us">52.8</td><td class="n">34.5</td><td class="n">35.5</td><td class="n">30.6</td><td class="n">47.8</td></tr>
+<tr><td>RynnBrain-Area</td><td class="n us">53.0</td><td class="n">53.1</td><td class="n">50.4</td><td class="n">58.7</td><td class="n">65.4</td><td class="n us">52.0</td><td class="n">33.2</td><td class="n">43.4</td><td class="n">35.7</td><td class="n">56.6</td><td class="n">47.1</td><td class="n us">39.1</td><td class="n">24.4</td><td class="n">31.9</td><td class="n">31.2</td><td class="n">58.1</td></tr>
+<tr><td>RynnBrain-Spatial</td><td class="n us">34.5</td><td class="n">16.8</td><td class="n">42.2</td><td class="n">32.4</td><td class="n">36.8</td><td class="n us">26.1</td><td class="n">37.5</td><td class="n">35.5</td><td class="n">33.9</td><td class="n">59.0</td><td class="n">37.2</td><td class="n us">22.6</td><td class="n">29.7</td><td class="n">33.9</td><td class="n">19.7</td><td class="n">55.7</td></tr>
+<tr><td>RynnBrain-Trajectory</td><td class="n us">69.3</td><td class="n">61.6</td><td class="n">64.6</td><td class="n">64.4</td><td class="n">71.3</td><td class="n us">67.9</td><td class="n">54.8</td><td class="n">64.4</td><td class="n">63.5</td><td class="n">61.1</td><td class="n">61.1</td><td class="n us">58.7</td><td class="n">54.7</td><td class="n">61.1</td><td class="n">60.9</td><td class="n">53.5</td></tr>
+<tr><td>RynnBrain-Affordance</td><td class="n us">84.6</td><td class="n">84.2</td><td class="n">86.8</td><td class="n">87.8</td><td class="n">86.8</td><td class="n us">85.1</td><td class="n">82.6</td><td class="n">84.6</td><td class="n">84.4</td><td class="n">85.3</td><td class="n">85.7</td><td class="n us">77.6</td><td class="n">70.5</td><td class="n">80.0</td><td class="n">77.0</td><td class="n">90.4</td></tr>
+<tr><td>RynnBrain-Object</td><td class="n us">48.3</td><td class="n">57.0</td><td class="n">44.9</td><td class="n">47.2</td><td class="n">51.5</td><td class="n us">39.8</td><td class="n">49.2</td><td class="n">42.0</td><td class="n">35.2</td><td class="n">71.6</td><td class="n">33.5</td><td class="n us">24.0</td><td class="n">41.2</td><td class="n">30.1</td><td class="n">26.7</td><td class="n">70.7</td></tr>
+<tr><td>RynnBrain-Grounding</td><td class="n us">74.4</td><td class="n">77.0</td><td class="n">76.7</td><td class="n">72.4</td><td class="n">82.8</td><td class="n us">72.9</td><td class="n">68.8</td><td class="n">72.5</td><td class="n">59.3</td><td class="n">74.2</td><td class="n">57.8</td><td class="n us">51.6</td><td class="n">33.1</td><td class="n">54.3</td><td class="n">31.1</td><td class="n">45.5</td></tr>
+<tr><td>MMSIBench</td><td class="n us">41.8</td><td class="n">33.0</td><td class="n">31.4</td><td class="n">32.3</td><td class="n">40.8</td><td class="n us">36.2</td><td class="n">26.3</td><td class="n">29.5</td><td class="n">37.6</td><td class="n">38.4</td><td class="n">30.1</td><td class="n us">32.3</td><td class="n">28.5</td><td class="n">28.9</td><td class="n">33.7</td><td class="n">33.2</td></tr>
+<tr><td>MMSIVideoBench</td><td class="n us">26.1</td><td class="n">33.8</td><td class="n">29.6</td><td class="n">33.6</td><td class="n">38.6</td><td class="n us">27.2</td><td class="n">28.8</td><td class="n">29.4</td><td class="n">39.4</td><td class="n">28.2</td><td class="n">30.0</td><td class="n us">24.9</td><td class="n">25.5</td><td class="n">23.9</td><td class="n">32.5</td><td class="n">24.5</td></tr>
+<tr><td>HealthSurgiBench</td><td class="n us">44.5</td><td class="n">24.4</td><td class="n">53.9</td><td class="n">19.1</td><td class="n">24.6</td><td class="n us">56.1</td><td class="n">23.0</td><td class="n">46.9</td><td class="n">20.7</td><td class="n">23.3</td><td class="n">24.0</td><td class="n us">62.1</td><td class="n">26.0</td><td class="n">31.3</td><td class="n">17.3</td><td class="n">18.3</td></tr>
+<tr><td>ERQA</td><td class="n us">51.2</td><td class="n">46.5</td><td class="n">42.8</td><td class="n">47.8</td><td class="n">65.2</td><td class="n us">46.0</td><td class="n">44.0</td><td class="n">44.2</td><td class="n">30.2</td><td class="n">43.0</td><td class="n">42.0</td><td class="n us">42.0</td><td class="n">37.8</td><td class="n">37.2</td><td class="n">32.5</td><td class="n">38.8</td></tr>
+<tr><td>RoboSpatialHome</td><td class="n us">70.0</td><td class="n">65.1</td><td class="n">64.3</td><td class="n">63.0</td><td class="n">65.1</td><td class="n us">66.3</td><td class="n">64.8</td><td class="n">64.5</td><td class="n">42.0</td><td class="n">71.4</td><td class="n">66.1</td><td class="n us">63.4</td><td class="n">44.6</td><td class="n">52.0</td><td class="n">36.3</td><td class="n">62.9</td></tr>
+<tr><td>Where2Place</td><td class="n us">71.0</td><td class="n">56.0</td><td class="n">59.0</td><td class="n">52.0</td><td class="n">61.0</td><td class="n us">64.0</td><td class="n">53.0</td><td class="n">50.0</td><td class="n">17.0</td><td class="n">11.0</td><td class="n">58.0</td><td class="n us">55.0</td><td class="n">32.0</td><td class="n">33.0</td><td class="n">15.0</td><td class="n">11.0</td></tr>
+<tr class="avg"><td>Robotics Avg.</td><td class="n us">57.8</td><td class="n">52.6</td><td class="n">55.0</td><td class="n">51.0</td><td class="n">58.2</td><td class="n us">55.1</td><td class="n">48.5</td><td class="n">51.3</td><td class="n">39.3</td><td class="n">52.4</td><td class="n">47.7</td><td class="n us">48.3</td><td class="n">38.7</td><td class="n">42.5</td><td class="n">33.0</td><td class="n">47.6</td></tr>
+<tr><td>VANTAGE-2DGrounding</td><td class="n us">76.2</td><td class="n">72.4</td><td class="n">45.7</td><td class="n">45.1</td><td class="n">46.9</td><td class="n us">75.6</td><td class="n">73.3</td><td class="n">66.9</td><td class="n">10.1</td><td class="n">67.6</td><td class="n">59.4</td><td class="n us">49.8</td><td class="n">65.1</td><td class="n">56.3</td><td class="n">5.5</td><td class="n">49.2</td></tr>
+<tr><td>VANTAGE-Astro2D</td><td class="n us">81.5</td><td class="n">76.8</td><td class="n">22.6</td><td class="n">68.7</td><td class="n">77.7</td><td class="n us">78.3</td><td class="n">69.2</td><td class="n">81.1</td><td class="n">58.8</td><td class="n">10.5</td><td class="n">57.8</td><td class="n us">76.7</td><td class="n">56.6</td><td class="n">72.5</td><td class="n">48.4</td><td class="n">0.0</td></tr>
+<tr><td>VANTAGE-2DPointing</td><td class="n us">72.9</td><td class="n">75.6</td><td class="n">74.0</td><td class="n">76.8</td><td class="n">85.6</td><td class="n us">74.8</td><td class="n">68.6</td><td class="n">68.7</td><td class="n">43.4</td><td class="n">64.9</td><td class="n">55.0</td><td class="n us">63.0</td><td class="n">53.1</td><td class="n">59.7</td><td class="n">31.7</td><td class="n">60.3</td></tr>
+<tr><td>VANTAGE-DVC</td><td class="n us">29.5</td><td class="n">29.4</td><td class="n">30.1</td><td class="n">29.6</td><td class="n">30.2</td><td class="n us">31.4</td><td class="n">29.6</td><td class="n">32.5</td><td class="n">14.3</td><td class="n">28.4</td><td class="n">2.2</td><td class="n us">20.9</td><td class="n">0.8</td><td class="n">28.5</td><td class="n">9.3</td><td class="n">0.0</td></tr>
+<tr><td>VANTAGE-EventVerif</td><td class="n us">71.3</td><td class="n">60.0</td><td class="n">73.6</td><td class="n">55.2</td><td class="n">67.5</td><td class="n us">68.9</td><td class="n">59.4</td><td class="n">64.1</td><td class="n">40.6</td><td class="n">58.9</td><td class="n">58.0</td><td class="n us">64.8</td><td class="n">44.7</td><td class="n">55.3</td><td class="n">27.6</td><td class="n">41.6</td></tr>
+<tr><td>VANTAGE-SOT</td><td class="n us">62.2</td><td class="n">44.2</td><td class="n">33.1</td><td class="n">54.7</td><td class="n">72.7</td><td class="n us">59.2</td><td class="n">33.1</td><td class="n">37.7</td><td class="n">16.0</td><td class="n">4.8</td><td class="n">9.2</td><td class="n us">18.7</td><td class="n">29.8</td><td class="n">26.7</td><td class="n">11.5</td><td class="n">4.8</td></tr>
+<tr><td>VANTAGE-Temporal</td><td class="n us">51.9</td><td class="n">46.8</td><td class="n">50.5</td><td class="n">33.0</td><td class="n">41.7</td><td class="n us">48.0</td><td class="n">43.3</td><td class="n">47.3</td><td class="n">16.9</td><td class="n">20.1</td><td class="n">5.9</td><td class="n us">39.1</td><td class="n">35.2</td><td class="n">39.0</td><td class="n">9.0</td><td class="n">25.9</td></tr>
+<tr><td>VANTAGE-VQA</td><td class="n us">69.5</td><td class="n">71.3</td><td class="n">70.3</td><td class="n">67.0</td><td class="n">71.2</td><td class="n us">69.0</td><td class="n">66.4</td><td class="n">68.0</td><td class="n">51.5</td><td class="n">65.4</td><td class="n">67.5</td><td class="n us">64.4</td><td class="n">63.9</td><td class="n">64.7</td><td class="n">46.2</td><td class="n">62.9</td></tr>
+<tr><td>TARBench</td><td class="n us">48.4</td><td class="n">28.1</td><td class="n">36.6</td><td class="n">31.9</td><td class="n">33.6</td><td class="n us">43.6</td><td class="n">31.5</td><td class="n">34.1</td><td class="n">12.8</td><td class="n">34.8</td><td class="n">32.6</td><td class="n us">34.1</td><td class="n">32.7</td><td class="n">26.6</td><td class="n">8.5</td><td class="n">34.2</td></tr>
+<tr class="avg"><td>Smart Infra. Avg.</td><td class="n us">62.6</td><td class="n">56.1</td><td class="n">48.5</td><td class="n">51.3</td><td class="n">58.6</td><td class="n us">61.0</td><td class="n">52.7</td><td class="n">55.6</td><td class="n">29.4</td><td class="n">39.5</td><td class="n">38.6</td><td class="n us">47.9</td><td class="n">42.4</td><td class="n">47.7</td><td class="n">22.0</td><td class="n">31.0</td></tr>
+<tr><td>LingoQA</td><td class="n us">76.8</td><td class="n">66.4</td><td class="n">70.0</td><td class="n">57.2</td><td class="n">71.2</td><td class="n us">71.4</td><td class="n">68.4</td><td class="n">71.6</td><td class="n">24.2</td><td class="n">60.4</td><td class="n">70.4</td><td class="n us">58.4</td><td class="n">59.2</td><td class="n">58.2</td><td class="n">19.0</td><td class="n">50.2</td></tr>
+<tr><td>AVSpecialCollision</td><td class="n us">79.3</td><td class="n">37.3</td><td class="n">77.3</td><td class="n">32.3</td><td class="n">54.0</td><td class="n us">79.0</td><td class="n">34.0</td><td class="n">74.0</td><td class="n">33.3</td><td class="n">33.7</td><td class="n">37.3</td><td class="n us">66.7</td><td class="n">36.3</td><td class="n">74.3</td><td class="n">33.7</td><td class="n">33.3</td></tr>
+<tr><td>AVSpecialStopBehavior</td><td class="n us">81.6</td><td class="n">18.4</td><td class="n">69.4</td><td class="n">20.4</td><td class="n">16.3</td><td class="n us">77.5</td><td class="n">36.7</td><td class="n">59.2</td><td class="n">20.4</td><td class="n">36.7</td><td class="n">42.9</td><td class="n us">53.1</td><td class="n">32.6</td><td class="n">34.7</td><td class="n">20.4</td><td class="n">36.7</td></tr>
+<tr class="avg"><td>Driving Avg.</td><td class="n us">79.3</td><td class="n">40.7</td><td class="n">72.2</td><td class="n">36.6</td><td class="n">47.2</td><td class="n us">76.0</td><td class="n">46.4</td><td class="n">68.3</td><td class="n">26.0</td><td class="n">43.6</td><td class="n">50.2</td><td class="n us">59.4</td><td class="n">42.7</td><td class="n">55.7</td><td class="n">24.4</td><td class="n">40.1</td></tr>
+</tbody></table></div>
+<p>Gemma-4-31B、Gemma-4-E4B、Gemma-4-E2B、RynnBrain-8B、RynnBrain-2B、MiMo-Embodied-7B 的组平均见上面全表。驾驶的两个内部基准：AVSpecialCollision 三类（碰撞、险碰、无碰）各 100 段，报三类准确率均值；AVSpecialStopBehavior 五类（完全停、滚动停、不停、无关、假标志）各 10 段，报五类准确率均值。HealthSurgiBench 是自建的手术室基准，23 种题型，规则打分加 Qwen3-4B 评审。</p>
+</details>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 10 的组平均全部能复算；停车基准的分母是 49</span><p>我把 48 行按列平均（脚本见报告），64 个组平均里 63 个和原文完全一致，只有 Super 的驾驶平均算出来是 (76.8 + 79.3 + 81.6) / 3 = 79.23，原文 79.3，差 0.07，可能是用未四舍五入的分项算的。</p><p>另一个发现：AVSpecialStopBehavior 说是 5 类 × 10 段、报 5 类准确率的平均，那每类准确率是 10% 的整数倍，平均必是 2% 的整数倍。但表里的数是 81.6、18.4、69.4、20.4、16.3、77.5、36.7、59.2、53.1、42.9……没有一个是 2 的倍数；它们正好是 40/49、9/49、34/49、10/49、8/49、38/49、18/49、29/49、26/49、21/49。所以实际是 <b>49 段视频的整体准确率</b>，不是 50 段的类平均。碰撞基准没有这个问题（300 段，79.3 = 238 / 300）。</p></div>
+
+<h3 id="s6-2"><span class="no">6.2</span>生成塔评测</h3>
+<h4 id="s6-2-1"><span class="no">6.2.1</span>图像生成</h4>
+<p>评测提示统一先用 Claude Opus 4.7 改写成训练时的 JSON 结构（模板在附录 B.2），所有模型 1024 × 1024。UniGenBench 加了 570 条物理世界提示（机器人和工业、标牌文字、驾驶、工地、流体、医疗），共 1,170 条，Gemini 3.1 Pro 逐测试点判过 / 不过。CVTG 用 OCR + 匈牙利匹配算 GNED、PNED（500 条英文长提示、102 条中文）。HPSv3 是人类偏好分，Aesthetic v2 是 LAION 美学分。</p>
+<figure class="pfig" id="fig17">
+<img src="cosmos3/fig17.webp" width="1538" height="866" alt="图 17：十二张生成图片的拼图，有农田无人机、机械臂整理衣服、人形机器人、城市夜景标牌、多米诺、人和机器人、陶艺、离心机、番茄分拣、工业机械臂、玻璃吹制等" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 54 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=54">看原图 ↗</a></span>Cosmos3-Super-Text2Image 的样例，单次扩写的 JSON 提示，shift 3、guidance 4、50 步。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 11</th><th>类型</th><th class="n">UniGen All</th><th class="n">Orig</th><th class="n">Phys</th><th class="n">500L GNED</th><th class="n">500L PNED</th><th class="n">102ch GNED</th><th class="n">102ch PNED</th><th class="n">Aesv2</th><th class="n">HPSv3</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super-Text2Image</td><td>开源</td><td class="n best">91.36</td><td class="n best">93.34</td><td class="n">89.54</td><td class="n best">80.88</td><td class="n">89.08</td><td class="n">32.02</td><td class="n">41.22</td><td class="n">5.91</td><td class="n">11.60</td></tr>
+<tr><td>Cosmos3-Super</td><td>开源</td><td class="n">87.33</td><td class="n">85.21</td><td class="n">89.64</td><td class="n">66.77</td><td class="n">70.97</td><td class="n">8.48</td><td class="n">16.31</td><td class="n">5.76</td><td class="n">9.49</td></tr>
+<tr><td>Cosmos3-Nano</td><td>开源</td><td class="n">84.61</td><td class="n">87.32</td><td class="n">82.12</td><td class="n">24.23</td><td class="n">26.53</td><td class="n">4.63</td><td class="n">9.70</td><td class="n">5.76</td><td class="n">8.99</td></tr>
+<tr><td>Gemini 3 Pro Image</td><td>闭源</td><td class="n">90.69</td><td class="n">92.81</td><td class="n best">89.74</td><td class="n">59.24†</td><td class="n">71.79†</td><td class="n">46.00</td><td class="n best">76.40</td><td class="n">5.70</td><td class="n">11.78</td></tr>
+<tr><td>FLUX.2-dev</td><td>开源</td><td class="n">87.60</td><td class="n">89.77</td><td class="n">85.61</td><td class="n">74.71</td><td class="n">84.98</td><td class="n">44.33</td><td class="n">68.74</td><td class="n">5.75</td><td class="n">11.38</td></tr>
+<tr><td>Qwen-Image-2512</td><td>开源</td><td class="n">84.25</td><td class="n">87.32</td><td class="n">81.44</td><td class="n">79.68</td><td class="n best">90.86</td><td class="n">46.33</td><td class="n">71.26</td><td class="n best">5.92</td><td class="n">11.03</td></tr>
+<tr><td>Hunyuan 3.0</td><td>开源</td><td class="n">84.02</td><td class="n">87.68</td><td class="n">80.67</td><td class="n">71.40</td><td class="n">87.68</td><td class="n">49.05</td><td class="n">71.31</td><td class="n">5.90</td><td class="n best">11.93</td></tr>
+<tr><td>Z-Image-Turbo</td><td>开源</td><td class="n">78.14</td><td class="n">81.53</td><td class="n">75.03</td><td class="n">75.20</td><td class="n">86.95</td><td class="n best">49.18</td><td class="n">73.32</td><td class="n">5.70</td><td class="n">11.36</td></tr>
+</tbody></table></div>
+<p class="tcap">† Gemini 3 Pro Image 常把文字写成大写；不算这类错误时 CVTG-500L 为 GNED 75.97、PNED 91.45。</p>
+<p>后训练版在语义对齐和英文文字上领先，中文文字仍明显落后（102ch GNED 32.02，其余模型 44–49）。Artificial Analysis 文生图榜（2026-05-28，图 18 是网页截图，原文第 56 页）开源第一、总第四。</p>
+
+<h4 id="s6-2-2"><span class="no">6.2.2</span>视频生成</h4>
+<p>三个自动基准加两个人评。提示统一用 Claude Opus 4.6 改写成 JSON。</p>
+<ul>
+<li><b><a class="ds" href="https://arxiv.org/abs/2512.01989">PAIBench-G</a>：</b>1,044 对图文提示，六个物理 AI 领域；总分 = 0.5 × 质量分 + 0.5 × 领域分；和人类 ELO 的相关 r = 0.918。每条提示 5 个种子，720p、16:9、189 帧。原基准只有图生视频，作者扩展了文生视频；公开榜用 Qwen3-VL-235B 做评审但作者复现不出来，所以内部用 Qwen2.5-VL-72B（脚注 2）。</li>
+<li><b>RBench：</b>650 个具身场景（250 个任务导向 + 400 个按机器人形态），任务完成度和视觉质量；和人类判断 Spearman ρ = 0.96。单种子，720p、121 帧。</li>
+<li><b><a class="ds" href="https://physics-iq.github.io/">Physics-IQ</a>：</b>396 个真实场景、5 类物理，比生成延续和真实结果的空间、时间、幅度、像素四项一致性，按“真实对真实”上界归一化。</li>
+</ul>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 12</th><th>类型</th><th class="n">PAI T2V 总</th><th class="n">领域</th><th class="n">质量</th><th class="n">PAI I2V 总</th><th class="n">领域</th><th class="n">质量</th><th class="n">RBench I2V</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td>开源</td><td class="n best">80.0</td><td class="n best">86.8</td><td class="n">73.1</td><td class="n best">82.8</td><td class="n">87.3</td><td class="n best">78.2</td><td class="n">58.1%</td></tr>
+<tr><td>Cosmos3-Nano</td><td>开源</td><td class="n">79.4</td><td class="n">85.8</td><td class="n">73.0</td><td class="n">82.7</td><td class="n">87.2</td><td class="n">78.1</td><td class="n">58.4%</td></tr>
+<tr><td>Wan2.2-A14B</td><td>开源</td><td class="n">78.0</td><td class="n">83.2</td><td class="n">72.8</td><td class="n">81.3</td><td class="n">85.3</td><td class="n">77.3</td><td class="n">50.7%</td></tr>
+<tr><td>HunyuanVideo-1.5</td><td>开源</td><td class="n">76.5</td><td class="n">80.9</td><td class="n">72.0</td><td class="n">81.7</td><td class="n">85.9</td><td class="n">77.6</td><td class="n">46.0%</td></tr>
+<tr><td><a href="cosmos-predict25.html">Cosmos-Predict2.5</a>-2B</td><td>开源</td><td class="n">76.5</td><td class="n">79.9</td><td class="n best">73.2</td><td class="n">81.2</td><td class="n">84.6</td><td class="n">77.9</td><td class="n">46.4%</td></tr>
+<tr><td>Cosmos-Predict2.5-14B</td><td>开源</td><td class="n">76.4</td><td class="n">79.5</td><td class="n best">73.2</td><td class="n">81.1</td><td class="n">84.0</td><td class="n">78.1</td><td class="n">—</td></tr>
+<tr><td>Wan2.1-14B</td><td>开源</td><td class="n">76.4</td><td class="n">80.1</td><td class="n">72.7</td><td class="n">80.2</td><td class="n">83.6</td><td class="n">76.8</td><td class="n">—</td></tr>
+<tr><td>Wan2.2-5B</td><td>开源</td><td class="n">76.3</td><td class="n">79.6</td><td class="n">73.0</td><td class="n">81.0</td><td class="n">84.6</td><td class="n">77.4</td><td class="n">—</td></tr>
+<tr><td>Veo-3.1</td><td>闭源</td><td class="n">79.1</td><td class="n">85.2</td><td class="n">72.9</td><td class="n">82.6</td><td class="n best">87.6</td><td class="n">77.6</td><td class="n">56.3%</td></tr>
+<tr><td>Seedance-1.5-Pro</td><td>闭源</td><td class="n">76.9</td><td class="n">82.1</td><td class="n">71.6</td><td class="n">80.8</td><td class="n">84.7</td><td class="n">76.9</td><td class="n">58.4%</td></tr>
+<tr><td>Wan 2.6</td><td>闭源</td><td class="n">78.6</td><td class="n">85.2</td><td class="n">72.0</td><td class="n">81.9</td><td class="n">85.9</td><td class="n">77.8</td><td class="n best">60.7%</td></tr>
+</tbody></table></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 12：总分公式对；“Nano 在 RBench 领先”只限开源</span><p>总分 = 0.5 × (领域 + 质量)：Super T2V 0.5 × (86.8 + 73.1) = 79.95 → 80.0，Nano 79.4，Wan2.2-A14B 78.0，Veo 79.05 → 79.1，I2V 两行 82.75、82.65 → 82.8、82.7，全对（四舍五入）。表 12 图注说“Cosmos3-Nano 在 RBench 上领先”，但同表 Wan 2.6（闭源）60.7% 最高，Nano 58.4% 和 Seedance-1.5-Pro 并列第二；正文写的“Nano 并列第二”才是对的，图注只在“开源模型里”成立。Super 比 Predict2.5-2B 在 PAIBench-G T2V 高 3.5 分，主要来自领域分（86.8 对 79.9），质量分反而略低（73.1 对 73.2）。</p></div>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 13 (a) 图生视频</th><th class="n">直接</th><th class="n">+ WMReward 选优</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td class="n best">43.8</td><td class="n best">48.9</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">40.2</td><td class="n">43.8</td></tr>
+<tr><td>Sora2（闭源）</td><td class="n">42.3</td><td class="n">46.4</td></tr>
+<tr><td>Wan2.2-A14B</td><td class="n">38.3</td><td class="n">44.4</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 13 (b) 视频续写</th><th class="n">直接</th><th class="n">+ WMReward 选优</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td class="n best">59.7</td><td class="n best">63.4</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">50.2</td><td class="n">57.7</td></tr>
+<tr><td>Magi-1</td><td class="n">56.0</td><td class="n">62.6</td></tr>
+<tr><td>Video-GPT</td><td class="n">35.0</td><td class="n">—</td></tr>
+<tr><td>VideoPoet（闭源）</td><td class="n">29.5</td><td class="n">—</td></tr>
+</tbody></table></div>
+<p>Physics-IQ 的续写模式用 3 秒条件视频预测后 5 秒；提示由仿照 PhyT2V 的迭代扩写生成。人评两个：<b>Cosmos HUE</b>（同 PAIBench-G 提示中抽 100 条，每模型 500 段视频，每段最多 20 个“是 / 否 / 不清楚”原子问题，问题由 GPT 5.2 的三层流水线生成再人工补充，两人标注、分歧交质检）；<b>Human World Bench</b>（EgoVerse 来源的 180 个第一人称操作样本，指令遵循和物理合理两个通过率取平均）。作者指出人评把模型拉开约 10 分，而自动的 PAIBench-G 只有约 4 分。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 14</th><th>类型</th><th class="n">HUE T2V</th><th class="n">HUE I2V</th><th class="n">HWB I2V</th></tr></thead><tbody>
+<tr><td>真实视频</td><td>—</td><td class="n">93.6</td><td class="n">94.4</td><td class="n">—</td></tr>
+<tr><td>Cosmos3-Super</td><td>开源</td><td class="n">89.3</td><td class="n">89.6</td><td class="n best">71.9</td></tr>
+<tr><td>Cosmos3-Nano</td><td>开源</td><td class="n">87.6</td><td class="n">88.6</td><td class="n">66.9</td></tr>
+<tr><td>Wan2.2-A14B</td><td>开源</td><td class="n">88.2</td><td class="n">88.4</td><td class="n">60.7</td></tr>
+<tr><td>HunyuanVideo-1.5</td><td>开源</td><td class="n">86.5</td><td class="n">85.6</td><td class="n">54.7</td></tr>
+<tr><td>Wan2.1-14B</td><td>开源</td><td class="n">84.0</td><td class="n">83.9</td><td class="n">33.1</td></tr>
+<tr><td>Wan2.2-5B</td><td>开源</td><td class="n">80.8</td><td class="n">80.4</td><td class="n">25.4</td></tr>
+<tr><td>Cosmos-Predict2.5-14B</td><td>开源</td><td class="n">82.1</td><td class="n">83.0</td><td class="n">38.7</td></tr>
+<tr><td>Cosmos-Predict2.5-2B</td><td>开源</td><td class="n">81.8</td><td class="n">82.6</td><td class="n">32.8</td></tr>
+<tr><td>Veo-3.1</td><td>闭源</td><td class="n best">91.3</td><td class="n best">89.7</td><td class="n">67.8</td></tr>
+<tr><td>Seedance-1.5-Pro</td><td>闭源</td><td class="n">90.0</td><td class="n">87.6</td><td class="n">—</td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · HUE 的几处小出入</span><p>正文说 Nano 在 HUE I2V 是 88.5，表 14 和附录表 33 都是 88.6。每段视频的问题数：正文和附录“可靠性”一段写“最多 20 个”，附录“标注流程”一段写“最多 16 个”。置信区间可以复算：Super T2V p = 0.893、N = 10,000 时 1.96 × √(0.893 × 0.107 / 10000) × 100 = 0.61，和“约 ±0.6”一致。HWB 的差距 71.9 − 67.8 = 4.1、71.9 − 60.7 = 11.2，对。</p></div>
+<p>Artificial Analysis 图生视频榜（无音频，2026-05-28，图 19 截图在原文第 60 页）：Cosmos3-Super-Image2Video 开源第一、总第 22。</p>
+
+<h4 id="s6-2-3"><span class="no">6.2.3</span>音频生成</h4>
+<p>Cosmos-SoundBench：从 FoleyBench 取 144 条非语音提示。打分分三步：Claude Opus 4.7、Gemini 3.1 Pro、GPT 5.5 投票列出提示要求的声音；Gemini 3.1 Pro 不看提示先描述画面；评审给语义正确（SA）、音画对齐（AVAlign）、画面支撑（VisualSupport）打分，跑三次取平均。SAV = 0.60 SA + 0.30 AVAlign + 0.10 VisualSupport；再用 audiobox-aesthetics 的制作质量 PQ，AVQ = 0.5 SAV + 0.5 PQ。每条 5 个种子。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 15</th><th>类型</th><th class="n">AVQ</th><th class="n">SAV</th><th class="n">SA</th><th class="n">AVAlign</th><th class="n">画面支撑</th><th class="n">PQ</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td>开源</td><td class="n">7.31</td><td class="n">8.34</td><td class="n">8.30</td><td class="n">8.14</td><td class="n best">9.18</td><td class="n">6.28</td></tr>
+<tr><td>Cosmos3-Nano</td><td>开源</td><td class="n">7.34</td><td class="n best">8.35</td><td class="n best">8.33</td><td class="n best">8.16</td><td class="n">9.10</td><td class="n">6.32</td></tr>
+<tr><td>LTX-2.3</td><td>开源</td><td class="n">7.10</td><td class="n">7.80</td><td class="n">7.86</td><td class="n">7.58</td><td class="n">8.12</td><td class="n">6.39</td></tr>
+<tr><td>Seedance-1.5-Pro</td><td>闭源</td><td class="n best">7.64</td><td class="n">8.21</td><td class="n">8.22</td><td class="n">8.06</td><td class="n">8.61</td><td class="n best">7.06</td></tr>
+<tr><td>Veo-3.1</td><td>闭源</td><td class="n">7.45</td><td class="n">8.21</td><td class="n">8.21</td><td class="n">8.01</td><td class="n">8.85</td><td class="n">6.68</td></tr>
+<tr><td>LTX-2.3 Pro</td><td>闭源</td><td class="n">7.32</td><td class="n">7.93</td><td class="n">7.96</td><td class="n">7.74</td><td class="n">8.35</td><td class="n">6.70</td></tr>
+<tr><td>Wan2.6</td><td>闭源</td><td class="n">7.23</td><td class="n">7.90</td><td class="n">7.99</td><td class="n">7.54</td><td class="n">8.45</td><td class="n">6.55</td></tr>
+<tr><td>Sora 2</td><td>闭源</td><td class="n">6.90</td><td class="n">7.94</td><td class="n">7.97</td><td class="n">7.70</td><td class="n">8.49</td><td class="n">5.85</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 15 两个公式都能复算</span><p>8 行全部对上（差 ≤ 0.006，是分项四舍五入）：例如 Super SAV = 0.6 × 8.30 + 0.3 × 8.14 + 0.1 × 9.18 = 8.340，AVQ = (8.34 + 6.28) / 2 = 7.31；Seedance (8.21 + 7.06) / 2 = 7.635 → 7.64。正文把公式写成“0.5 SAV + 0.5 AQ”，AQ 就是表里的 PQ。结论也由公式决定：Cosmos 3 的语义和对齐分最高，但 PQ 低，所以 AVQ 输给 Seedance 和 Veo。</p></div>
+<figure class="pfig" id="fig20">
+<img src="cosmos3/fig20.webp" width="1599" height="468" alt="图 20：上排五帧打铁画面，四帧是锤子落下的瞬间，一帧是两次击打之间；下排是生成音频的频谱图，彩色竖线对准的位置有明显的宽频瞬态，灰色竖线处没有" loading="lazy">
+<figcaption><span class="lab">图 20 · 原文第 62 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切（上方的表 15 已单独录入），经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=62">看原图 ↗</a></span>Cosmos3-Nano 生成的打铁视频和音频频谱：锤子击打的帧（彩色框）对应频谱上的瞬态，两次击打之间的帧（灰框）没有。</figcaption>
+</figure>
+
+<h4 id="s6-2-4"><span class="no">6.2.4</span>迁移生成</h4>
+<p><b>双权重 CFG：</b>每步算三次——全条件、只有提示（去掉控制视频）、保留控制视频但提示换成固定负提示；控制权重从“只有提示”外推向“全条件”，文本权重从“负提示”外推开。作者说比单一 guidance 好。基础模型默认文本 3、控制 1.5。</p>
+<p><b>通用迁移（PAIBench-C）：</b>600 段（AgiBot World 机械臂、OpenDV 驾驶、<a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a> 第一人称各 200），单一控制。对照 Cosmos-Transfer2.5（每种控制一个 ControlNet 分支）；Cosmos 3 只是把控制视频放进输入序列。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 16</th><th class="n">DOVER ↑</th><th class="n">分割 mIoU ↑</th><th class="n">模糊 SSIM ↑</th><th class="n">边缘 F1 ↑</th><th class="n">深度 si-RMSE ↓</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td class="n">10.14</td><td class="n">0.71</td><td class="n">0.91</td><td class="n best">0.50</td><td class="n best">0.58</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n best">10.39</td><td class="n best">0.72</td><td class="n">0.91</td><td class="n">0.49</td><td class="n">0.62</td></tr>
+<tr><td>Cosmos-Transfer2.5</td><td class="n">9.49</td><td class="n">0.68</td><td class="n">0.90</td><td class="n">0.45</td><td class="n">0.68</td></tr>
+</tbody></table></div>
+<p><b>驾驶迁移（AVBench-C）：</b>486 段单视角，控制输入是车道线、路沿、信号灯、标志和所有交通参与者的渲染图。自动指标：视觉里程计漂移、动态 / 静态物体对应、VLM 判环境；人评 1–3 分的视频质量和车道线还原。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 17</th><th class="n">自车漂移 ↓</th><th class="n">动态物 ↑</th><th class="n">静态物 ↑</th><th class="n">环境 ↑</th><th class="n">人评·画质 ↑</th><th class="n">人评·车道线 ↑</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super</td><td class="n best">0.003</td><td class="n">0.64</td><td class="n">0.41</td><td class="n">0.90</td><td class="n best">2.86</td><td class="n">2.45</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n best">0.003</td><td class="n best">0.67</td><td class="n">0.41</td><td class="n">0.90</td><td class="n">2.82</td><td class="n best">2.50</td></tr>
+<tr><td>Cosmos-Transfer2.5-AV-Singleview</td><td class="n">0.008</td><td class="n">0.62</td><td class="n best">0.42</td><td class="n">0.90</td><td class="n">2.59</td><td class="n">2.47</td></tr>
+</tbody></table></div>
+<p>原文第 64 页的图 21 是一段驾驶控制视频（高清地图元素和长方体表示的车辆）和 Nano 生成结果的对照，没有放。</p>
+
+<h4 id="s6-2-5"><span class="no">6.2.5</span>动作生成</h4>
+<p><b>结论：</b>核心问题是“统一的动作中训练能不能当可复用的先验”。做法：同样的后训练配方、模型、数据和算力，比较从预训练检查点（PT-init，没见过动作）和从中训练检查点（MT-init）出发。四个领域里 MT-init 基本全面更好；新实体（LIBERO-10）上 MT-init 收敛快得多。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 18</th><th class="n">驾驶 ID RRE° ↓</th><th class="n">RTE m ↓</th><th class="n">ATE m ↓</th><th class="n">相机 FD RRE° ↓</th><th class="n">RTE m ↓</th><th class="n">ATE m ↓</th><th class="n">第一人称 FD PSNR ↑</th><th class="n">机器人 FD PSNR ↑</th></tr></thead><tbody>
+<tr><td>Cosmos3-Super（MT-init）</td><td class="n">0.232</td><td class="n best">0.014</td><td class="n best">0.90</td><td class="n best">0.142</td><td class="n best">0.026</td><td class="n best">0.99</td><td class="n best">16.19</td><td class="n best">26.04</td></tr>
+<tr><td>Cosmos3-Nano（MT-init）</td><td class="n best">0.211</td><td class="n best">0.014</td><td class="n">0.98</td><td class="n">0.147</td><td class="n">0.029</td><td class="n">1.24</td><td class="n">16.12</td><td class="n">25.52</td></tr>
+<tr><td>Cosmos3-Super（PT-init）</td><td class="n">0.284</td><td class="n">0.018</td><td class="n">1.32</td><td class="n">0.293</td><td class="n">0.036</td><td class="n">1.82</td><td class="n">15.34</td><td class="n">22.69</td></tr>
+<tr><td>Cosmos3-Nano（PT-init）</td><td class="n">0.249</td><td class="n">0.017</td><td class="n">1.20</td><td class="n">0.172</td><td class="n">0.034</td><td class="n">1.61</td><td class="n">15.22</td><td class="n">23.24</td></tr>
+<tr><td>Lingbot-World</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">0.299</td><td class="n">0.057</td><td class="n">2.88</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>HY-World1.5</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">0.377</td><td class="n">0.042</td><td class="n">1.39</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>VGGT</td><td class="n">0.596</td><td class="n">0.768</td><td class="n">23.46</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>DepthAnything3</td><td class="n">0.312</td><td class="n">0.354</td><td class="n">9.29</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>LOME</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">9.36</td><td class="n">–</td></tr>
+<tr><td>Ctrl-World</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">22.99</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>驾驶逆向动力学：</b>内部数据，6 秒片段、10 FPS 精确自车轨迹，从视频直接预测轨迹。对照 VGGT 和 DepthAnything3（通用模型，尺度漂移大）。</li>
+<li><b>相机正向动力学：</b>给首帧和相机轨迹生成视频，再用 DepthAnything3 从生成视频反估轨迹比对；100 段 5 秒真实视频。</li>
+<li><b>第一人称正向动力学：</b>HWB 视频，动作含头部运动和手部追踪；对照 LOME（9.36 dB，作者认为是分布偏移）。</li>
+<li><b>机器人正向动力学：</b><a class="ds" href="https://droid-dataset.github.io/">DROID</a>，给首帧和 16 步末端动作块，预测 16 帧；PT-init 的 Nano 已和 Ctrl-World 持平（23.24 对 22.99），MT-init 到 25.52 / 26.04。</li>
+</ul>
+<figure class="pfig" id="fig22">
+<img src="cosmos3/fig22.webp" width="1556" height="511" alt="图 22：两段驾驶输入视频，右边分别画 Cosmos3-Nano、DepthAnything3、VGGT 估出的自车轨迹和红色真值轨迹，Cosmos3-Nano 的轨迹和真值几乎重合，另两者有尺度和方向漂移" loading="lazy">
+<figcaption><span class="lab">图 22 · 原文第 66 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=66">看原图 ↗</a></span>驾驶逆向动力学的轨迹对比，红色是真值。图 23（原文第 67 页，未放）是相机正向动力学的定性比较（“后拉 + 左摇”“右环绕”）。</figcaption>
+</figure>
+<figure class="pfig" id="fig24">
+<img src="cosmos3/fig24.webp" width="1583" height="630" alt="图 24：三行五帧，分别是真值、Ctrl-World、Cosmos3-Nano MT-init，机械臂整理布料，Ctrl-World 的帧里用绿色框标出变形区域，Cosmos3 对应区域没有" loading="lazy">
+<figcaption><span class="lab">图 24 · 原文第 68 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=68">看原图 ↗</a></span>DROID 正向动力学：机械臂和布料的交互。绿框是 Ctrl-World 的失真处。</figcaption>
+</figure>
+<p><b>策略：</b>Cosmos3-Nano-Policy-DROID 提交到三个基准，三个用的是同一个模型、同一组超参。</p>
+<ul>
+<li><b>RoboLab</b>（RSS 2026，仿真，120 个语言任务，三种指令详细程度、三档难度，每任务 10 次）：表 19。</li>
+<li><b><a class="ds" href="https://robo-arena.github.io/">RoboArena</a></b>（真实世界、分布式、双盲 A/B 两两比较）：2026-05-30 14:40 排第一（图 26 截图，原文第 69 页）。</li>
+<li><b>MolmoSpaces</b>（仿真，系统性变化下的泛化，arXiv 2602.11337）：“All Combined”设置 39.0% 的 oracle 成功率，2026-06-20 排第一（图 27 截图，原文第 70 页），超过 WALL-OSS-0.5 和 TiPToP。</li>
+</ul>
+<figure class="pfig" id="fig25">
+<img src="cosmos3/fig25.webp" width="1599" height="451" alt="图 25：两行真实机器人执行帧，Franka 机械臂在桌面把螺丝刀放到上层架子，以及把螺丝刀和手套放进紫色容器" loading="lazy">
+<figcaption><span class="lab">图 25 · 原文第 69 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=69">看原图 ↗</a></span>Cosmos3-Nano-Policy-DROID 的真实机器人执行：“把螺丝刀放到上层架子”“把螺丝刀和手套放进紫色容器”。作者说策略能做多步长任务，失败时会重试，对人工干扰也稳健（定性描述，没给数字）。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 19 · 成功率 %</th><th class="n">总·模糊</th><th class="n">总·默认</th><th class="n">总·具体</th><th class="n">简单·模糊</th><th class="n">默认</th><th class="n">具体</th><th class="n">中等·模糊</th><th class="n">默认</th><th class="n">具体</th><th class="n">复杂·模糊</th><th class="n">默认</th><th class="n">具体</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano-Policy-DROID</td><td class="n best">20.6</td><td class="n best">36.8</td><td class="n best">39.7</td><td class="n best">23.3</td><td class="n best">40.6</td><td class="n best">42.0</td><td class="n best">23.3</td><td class="n best">35.4</td><td class="n best">40.3</td><td class="n">4.1</td><td class="n best">25.3</td><td class="n best">29.4</td></tr>
+<tr><td>Cosmos3-Nano（PT-init）</td><td class="n">16.7</td><td class="n">28.1</td><td class="n">30.2</td><td class="n">17.8</td><td class="n">30.3</td><td class="n">32.8</td><td class="n">19.0</td><td class="n">28.7</td><td class="n">29.5</td><td class="n best">7.1</td><td class="n">18.2</td><td class="n">21.8</td></tr>
+<tr><td>π0.5</td><td class="n">15.2</td><td class="n">28.0</td><td class="n">28.1</td><td class="n">16.2</td><td class="n">29.7</td><td class="n">29.8</td><td class="n">17.9</td><td class="n">31.5</td><td class="n">31.0</td><td class="n">5.3</td><td class="n">13.5</td><td class="n">14.7</td></tr>
+<tr><td>DreamZero</td><td class="n">14.9</td><td class="n">25.7</td><td class="n">23.9</td><td class="n">15.0</td><td class="n">26.1</td><td class="n">25.8</td><td class="n">19.5</td><td class="n">30.0</td><td class="n">26.7</td><td class="n">4.1</td><td class="n">14.1</td><td class="n">10.6</td></tr>
+<tr><td>π0-FAST</td><td class="n">9.2</td><td class="n">15.5</td><td class="n">14.9</td><td class="n">9.5</td><td class="n">20.2</td><td class="n">19.4</td><td class="n">12.8</td><td class="n">13.3</td><td class="n">12.6</td><td class="n">0.0</td><td class="n">2.9</td><td class="n">3.5</td></tr>
+<tr><td>paligemma-binning</td><td class="n">3.1</td><td class="n">3.4</td><td class="n">5.5</td><td class="n">2.2</td><td class="n">3.4</td><td class="n">4.1</td><td class="n">5.9</td><td class="n">4.9</td><td class="n">10.3</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">0.0</td></tr>
+<tr><td><a href="gr00t.html">GR00T</a> N1.6</td><td class="n">5.4</td><td class="n">7.2</td><td class="n">5.3</td><td class="n">7.2</td><td class="n">8.8</td><td class="n">7.5</td><td class="n">4.9</td><td class="n">7.9</td><td class="n">4.1</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">0.0</td></tr>
+<tr><td>π0</td><td class="n">2.8</td><td class="n">5.0</td><td class="n">3.5</td><td class="n">2.8</td><td class="n">7.2</td><td class="n">5.3</td><td class="n">3.8</td><td class="n">3.6</td><td class="n">2.1</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">0.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · DreamZero 的数和 RoboLab 三档的任务数</span><p>正文说“具体指令下 39.7%，超过 π0.5 的 28.1% 和 DreamZero 的 25.2%”。表 19 里 DreamZero 的“总·具体”是 23.9，25.2 这个数表里没有（默认指令是 25.7）。</p><p>“总”不是三档的简单平均（Cosmos 具体指令三档平均是 37.2，不是 39.7），应是按任务数加权。我用 8 个模型 × 3 种指令共 24 个“总”值反解三档的任务数：在和为 120 的整数组合里，简单 64、中等 39、复杂 17 拟合最好，24 个值的最大误差 0.07，其余组合都更差。这是我的推断，论文没给分档任务数。另一个细节：Cosmos 在“复杂·模糊”上输给自己的 PT-init（4.1 对 7.1），是表里唯一一格。</p></div>
+<p><b>新实体适应（LIBERO-10）：</b>第三人称 + 腕部两路相机，每个检查点每个任务 50 次、共 500 次。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 20 · 迭代</th><th class="n">500</th><th class="n">1000</th><th class="n">1500</th><th class="n">2000</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano（MT-init）</td><td class="n best">24.6%</td><td class="n best">91.4%</td><td class="n best">95.8%</td><td class="n best">97.4%</td></tr>
+<tr><td>Cosmos3-Nano（PT-init）</td><td class="n">0.0%</td><td class="n">73.8%</td><td class="n">93.4%</td><td class="n">95.2%</td></tr>
+</tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 20 和官方 LIBERO 配方对得上</span><p>500 次试验的成功率只能是 0.2% 的整数倍，表里 7 个数都是（24.6% = 123 / 500，97.4% = 487 / 500）。官方仓库的 LIBERO-10 配方 <code>max_iter=2000</code>、<code>save_iter=500</code>，正好对应表 20 的四列；评测脚本默认每任务 50 次。完整设置见 <a href="#libero">LIBERO 配方</a>。注意这只是 <a class="ds" href="https://libero-project.github.io/">LIBERO</a>-10（Long）一个套件、只在 libero_10 上训练，不能和 OpenWAM 等“四套件平均”直接比。</p></div>
+<p><b>动作数据的协同：</b>仿照语言迁移研究，做两两协同矩阵。对角线是单域 2,000 步；非对角是行、列两域 50 / 50 混合 4,000 步（行域的训练量相同）。FD 报 PSNR、ID 报 MSE；策略模式因为分布多峰，报 4 次采样里最小的 PSNR / MSE。</p>
+<figure class="pfig" id="fig28">
+<img src="cosmos3/fig28.webp" width="1590" height="1302" alt="图 28：四个热力矩阵，FD PSNR、ID MSE、策略 PSNR、策略 MSE，行是评测域（自动驾驶、相机运动、Google Robot、WidowX 250、Franka 单臂、Franka 双臂），列是加入的共训域，每格写分数和相对对角线的差，绿色为正迁移" loading="lazy">
+<figcaption><span class="lab">图 28 · 原文第 71 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=71">看原图 ↗</a></span>动作域协同矩阵。行是评测域，列是加入的共训域，格中是分数和相对单域基线的差（绿正红负，已按“越大越好 / 越小越好”统一方向）。</figcaption>
+</figure>
+<ul>
+<li><b>相机运动受益最广：</b>FD PSNR 从 11.96 起，加驾驶 +0.86，加 Google Robot +0.79，加 Franka 单臂 +0.73、双臂 +0.48；ID MSE 每个伙伴都改善。</li>
+<li><b>机器人域之间早期互相帮：</b>WidowX-250 加 Google Robot，FD PSNR +1.39、策略 PSNR +2.29；Google Robot 的 FD 最多 +0.89、策略最多 +1.44。Franka 单臂、双臂只有 23 和 4 小时（RoboMIND 子集），单域很快饱和，加别的数据收益小或混合。</li>
+<li><b>人手数据帮机器人：</b>AgiBot 和第一人称互相加，FD PSNR 分别 23.07 → 23.20、15.13 → 15.16；先在第一人称上热身再适应 AgiBot，每个检查点都更好，5K 步 +0.94，之后约 +1.3 到 +1.6（图 29）。</li>
+</ul>
+<figure class="pfig" id="fig29">
+<img src="cosmos3/fig29.webp" width="1600" height="554" alt="图 29：左边 AgiBot 和第一人称的 2×2 协同矩阵；右边 AgiBot FD PSNR 随训练步数的两条曲线，第一人称热身的那条始终高于直接从 PT-init 适应的那条，差值标注 +0.94、+1.32、+1.55、+1.64、+1.38、+1.43" loading="lazy">
+<figcaption><span class="lab">图 29 · 原文第 72 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=72">看原图 ↗</a></span>(a) AgiBot 和第一人称的协同；(b) 第一人称热身对 AgiBot 适应的帮助，5K 到 30K 步每个检查点都更高，图上标的差值在 +0.94 到 +1.64 之间。</figcaption>
+</figure>
+<p>小结：一个基础模型可以适应相机控制生成、驾驶逆向动力学、手部正向动力学、机器人正向动力学和机器人策略，PT-init 对 MT-init 的比较说明统一动作中训练产生了可复用的先验。附录 E.4、E.5 有进一步的动作消融。</p>
+
+<h3 id="s6-3"><span class="no">6.3</span>生成塔使用指南</h3>
+<p><b>6.3.1 生成指南。</b>基础模型支持 10–30 FPS、5–400 帧、256p / 480p / 720p、五种宽高比；动作模式支持 10–30 FPS 的原生控制频率、16–400 帧的预测长度；后训练模型只保留一种模式和频率（DROID 策略是 15 FPS、32 步）。提示用 JSON 结构（附录 A），可由 Claude Opus 4.6 或 Cosmos 3 理解塔扩写；JSON 里明写时长、FPS、分辨率、宽高比。负提示按模型和模式分别调。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 21 · 生成器</th><th>模式</th><th>采样参数</th><th>负提示</th></tr></thead><tbody>
+<tr><td>Nano / Super</td><td>音视频</td><td>50 步，guidance 6，shift 10，全程 CFG</td><td>附录 B.6</td></tr>
+<tr><td>Super-Text2Image</td><td>图像</td><td>50 步，guidance 4，shift 3</td><td>空</td></tr>
+<tr><td>Super-Image2Video</td><td>视频</td><td>50 步，guidance 6，shift 5</td><td>附录 B.3（由用户提示自动生成）</td></tr>
+<tr><td>Nano / Super</td><td>正向 / 逆向动力学</td><td>50 步，guidance 1，shift 5</td><td>空</td></tr>
+<tr><td>Nano-Policy-DROID</td><td>策略</td><td>4 步，guidance 3，shift 5</td><td>空</td></tr>
+<tr><td>Nano / Super</td><td>迁移</td><td>50 步，文本 guidance 3，控制 guidance 1.5，shift 10</td><td>附录 B.6</td></tr>
+</tbody></table></div>
+<p><b>6.3.2 理解塔当提示扩写器。</b>扩写不只是改写：先“想象”场景布局和世界状态，再排时间进程，最后加音频，产出一个有类型的 JSON“场景程序”，可以独立检查。请求分四个标记块：instructions（只输出一个 JSON、不加评论）、image / video_description（原始需求，图生视频时附条件图，并要求 t = 0 和图一致）、task_constraints（字段顺序、时间格式 M:SS、要原样复制的时长 / FPS / 分辨率等）、output_json_template（必须填的键）。系统提示就是“You are a helpful assistant”。</p>
+
+<h2 id="s7"><span class="no">7</span>相关工作</h2>
+<p>六条线，每条最后说明 Cosmos 3 的位置：</p>
+<ul>
+<li><b>物理 AI 的世界模型：</b>预测式隐空间模型（World Models、PlaNet、<a href="dreamer.html">Dreamer</a>、JEPA 系列，见 <a href="vjepa21.html">V-JEPA 2.1</a>）对控制便宜，但不追求高保真；生成式世界模型（Sora、Cosmos 系列、Genie 等）把预测直接画出来，错误看得见。Cosmos 3 两者兼顾理解和生成。</li>
+<li><b>多模态理解和具身推理：</b>从 Flamingo、BLIP-2、LLaVA 到 Qwen-VL 等，再到 <a href="cosmos-reason1.html">Cosmos-Reason1</a>；问题是它们不生成未来观测或动作。</li>
+<li><b>视频生成：</b>从早期扩散到 Sora、Movie Gen、Veo 3、<a href="wan.html">Wan</a>；作者认为“看起来真”不等于“可当模拟器”，需要可追溯到状态、动作和接触。</li>
+<li><b>动作建模、VLA 和世界-动作模型：</b>正向动力学（GAIA-1、DriveDreamer、Cosmos-Drive-Dreams），逆向动力学（VPT、隐动作），策略（RT-1/2、OpenVLA、π0、<a href="gr00t.html">GR00T N1</a>），以及把视频先验用于策略的 WAM（DreamZero 等，见 <a href="openwam.html">OpenWAM</a>、<a href="cosmos-policy.html">Cosmos Policy</a>）。Cosmos 3 把三种都当作同一序列模型的条件模式。</li>
+<li><b>音频和音视频生成：</b>AudioLDM 2、MusicGen、Diff-Foley 等；物理模拟里声音的时机和来源同样重要。</li>
+<li><b>全模态模型：</b>Unified-IO 2、Chameleon、GPT-4o、Qwen-Omni；MoT 线有 Transfusion、Mixture-of-Transformers、BAGEL。Cosmos 3 把这条线推向物理世界、动作条件生成和控制。</li>
+</ul>
+
+<h2 id="s8"><span class="no">8</span>结论</h2>
+<p>一个架构统一语言、图像、视频、音频、动作的理解和生成，靠的是模态编码器、结构化 token 排列和“自回归推理 + 扩散生成”的 MoT。作者期望它成为合成世界和真实世界之间的桥：更好的合成数据、更好的专门化起点、更好的闭环训练环境。报告没有单独的“局限”一节；NVIDIA/cosmos README 的局限说明提到长时长、高分辨率、复杂物理下会有时间不一致、物体变形、动力学不合理。</p>
+
+<h2 id="apA">附录</h2>
+<details class="tbl"><summary>A 描述细节（描述模型、图像和视频 JSON 结构）</summary>
+<p><b>A.1</b> 图像描述用“四象限扫描”：四个象限和中心区域分别描述再合并，适合多主体、复杂布局。视频多一遍专门写时间变化。两个描述模型都是 LoRA 微调的 Qwen3-VL-8B；视频 8 FPS 取帧，温度 0.7，像素上下限沿用 Qwen3-VL 默认 131,072 和 25,165,824。</p>
+<p><b>A.2</b> 图像结构的顶层字段：subjects[]（每个主体的身份、外观、位置、姿态、服饰等）、背景、光照、美学、风格、相机视角、构图等。<b>A.3</b> 视频结构在此基础上加 actions[]（按时间排的关键动作）、状态变化、全局动作时间线、时间段、段间转场、相机运动和可选的 audio_description。原文给了完整字段表和 JSON 骨架（第 81–85 页）。</p></details>
+<details class="tbl"><summary>B 默认提示和提示扩写模板</summary>
+<p><b>B.1</b> 理解塔扩写模板：文生视频、图生视频、视频续写各一个变体，都要求先写 scene_imagination，再写带 M:SS 时间的 temporal_caption，再写 audio_description，并原样复制时长、FPS、宽高比、分辨率。<b>B.2</b> 文生图模板（给 Super-Text2Image；comprehensive_t2i_caption 80–200 词，subject_details 2–5 条）。<b>B.3</b> 图生视频模板，负提示从用户提示自动派生。<b>B.4</b> 视频迁移在用户描述前加一句系统提示：“你是按用户指令和控制信号（边缘、模糊、深度或分割）生成图像或视频的助手”，训练和推理都加。<b>B.5</b> 动作生成的 JSON：cinematography.framing（视角说明，多视角拼图时写清布局）、actions[{time, description, idle_frame}]、duration、fps（条件帧率）、resolution、aspect_ratio；逆向动力学不写 idle_frame（动作要严格跟随视频）。<b>B.6</b> 基础模型的负提示（按 JSON 结构写的模糊、变形、压缩伪影、漂浮等）。<b>B.7</b> 文生图的智能体扩写：GPT-5.5 扩写和改写正负提示，Gemini 3.1 Pro 当评审打 1–10 分并列缺陷，最多改写 2 次，≥ 9 分且无严重问题就停，取最高分的图；这就是 Artificial Analysis 提交的流程。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 图 30 的时长</span><p>图 30（原文第 91 页）的动作提示例子是 16 帧、fps 10.0、"idle_frame": "4 out of 16"、"duration": "2s"、时间 "0:00-0:02"。16 帧在 10 FPS 下是 1.6 秒；按 B.5 的说法，结束时间“四舍五入”得 0:02 没问题，顶层 duration“截断为整数秒”应是 1s 而不是 2s。可能这段其实有 17 帧或取整规则写反了，影响很小，记一笔。</p></div></details>
+<details class="tbl"><summary>C 生成塔用的合成数据集（五个 SDG 数据集、分布分析、消融）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 22</th><th class="n">片段数</th><th>分辨率 / FPS</th><th>RGB / 深度 / 分割 / 框 / 物理 / 相机 / 描述</th></tr></thead><tbody>
+<tr><td>SDG-PhyxSim</td><td class="n">76,489</td><td>1920 × 1080 / 30</td><td>✓ ✓ ✓ — ✓ ✓ ✓</td></tr>
+<tr><td>SDG-RobotSim</td><td class="n">208,022</td><td>不定</td><td>✓ 部分 部分 — 部分 ✓ ✓</td></tr>
+<tr><td>SDG-DriveSim</td><td class="n">264,000</td><td>3840 × 2160 / 24</td><td>✓ — — — — — ✓</td></tr>
+<tr><td>SDG-SynHuman</td><td class="n">236,937</td><td>1920 × 1080 / 30</td><td>✓ ✓ — — — ✓ —</td></tr>
+<tr><td>SDG-Warehouse</td><td class="n">122,952</td><td>1920 × 1080 / 30</td><td>✓ ✓ ✓ ✓ — ✓ —</td></tr>
+</tbody></table></div>
+<p><b>C.1 SDG-PhyxSim：</b>Isaac Sim + PhysX，每帧 16 个子步；十类场景（多米诺、搅拌球、保龄球、台球、塔倒塌、破碎球、落物、斜坡滚动、斜坡障碍、障碍阵）；每次运行 4 个固定相机，5 秒（搅拌球 8 秒）；逐物体线速度、角速度、累积旋转、质心位移，静态物理参数，USD 场景文件可精确重放；深度 16 位 FFV1，\(d=(v/65535)\,d_{\max}\)。合计约 5,700 万 RGB 帧、14.9 TiB。</p>
+<figure class="pfig" id="fig31">
+<img src="cosmos3/fig31.webp" width="1565" height="359" alt="图 31：破碎球场景撞击瞬间的五个视图：RGB、质心位移、累积旋转、线速度、角速度，后四个用颜色编码物理量" loading="lazy">
+<figcaption><span class="lab">图 31 · 原文第 97 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切（上方的表 22 已单独录入），经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=97">看原图 ↗</a></span>SDG-PhyxSim 的一帧：RGB 和四种按物理量着色的视图（红绿蓝 = XYZ，饱和度表示大小）。</figcaption>
+</figure>
+<p><b>C.2 SDG-RobotSim：</b>公开 v1.0 共 386,270 段 RGB：动作（SOMA 人形运动，AgiBot A3、Unitree G1、H2）170,735 段（44.20%）、操作 110,115 段（28.51%，MimicGen、DreamZero、Simulario）、碰撞 105,420 段（27.29%，IsaacLab、MobilityGen）。<b>C.3 SDG-DriveSim：</b>LLM 场景智能体把自然语言描述变成 USD 世界，每个场景最多 10 种确定性变体；264,000 段、约 1,467 小时、4K 24 fps、每段约 20 秒；加塞 32.9%、车人 21.1%、变道 12.9%、行人 12.4%、天气 9.2%、绕行 8.8%、应急车辆 2.7%。<b>C.4 SDG-SynHuman：</b>数字人，60–120 秒长片段，1–9 人；236,937 段、5,841 小时、平均 88.8 秒；4,050 个人物资产、8,184 个动画、198 个室内和 200 个室外环境，7 种主相机运动加 7 种叠加运动（表 23、24）。<b>C.5 SDG-Warehouse：</b>叉车险碰 23%、火灾疏散 36%、叉车撞货架 20%、搬箱 21%，约 12.3 万段、412 小时，含深度、实例分割、着色分割、边缘、2D / 3D 框。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 附录 C 的几处数量对不上</span><ul>
+<li><b>RobotSim 的总数：</b>表 22 写 208,022 段，C.2 正文写公开版 386,270 段（170,735 + 110,115 + 105,420 = 386,270，这个和是对的）。</li>
+<li><b>RobotSim 的操作类：</b>按来源列的 80,162（MimicGen）+ 22,926（DreamZero）+ 16,384（Simulario）= 119,472，比操作类总数 110,115 多 9,357；图 32 里三者占操作类的 72.84% + 20.83% + 14.88% = 108.55%，超过 100%。每个百分比都等于“来源数 / 110,115”，所以是来源数和类别总数之间有重叠或口径不同，论文没说明。</li>
+<li><b>SynHuman 的表 23：</b>标题和合计行写 190,670 个场景，但七行相加 71,006 + 33,070 + 36,978 + 36,852 + 37,166 + 15,294 + 6,571 = <b>236,937</b>，正好是片段数；百分比也是按 236,937 算的（71,006 / 236,937 = 29.97%，若按 190,670 应是 37.24%）。所以“190,670”是错的。</li>
+<li>能对上的：SynHuman 236,937 × 88.8 秒 = 5,844 小时，和 5,841 接近，× 30 fps 约 6.31 亿帧；DriveSim 264,000 × 20 秒 = 1,467 小时，× 24 fps 约 1.27 亿帧；PhyxSim 的 MP4 数 1,529,752 ≈ 76,489 × 4 相机 × 5 种（RGB + 4 种物理着色）= 1,529,780。</li>
+</ul></div>
+<p><b>C.6 分布：</b>在 Cosmos-Embed1 嵌入空间里看，五个合成集各成一团，和预训练分布只有少量重叠（图 36、表 25）。</p>
+<figure class="pfig half" id="fig36">
+<img src="cosmos3/fig36.webp" width="798" height="552" alt="图 36：UMAP 散点图，灰色是两万个预训练簇中心，五种颜色的点是五个合成集各 200 段，各自聚成一小团" loading="lazy">
+<figcaption><span class="lab">图 36 · 原文第 105 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=105">看原图 ↗</a></span>PCA → UMAP 投影：灰色是 2 万个预训练簇中心，彩色是各合成集抽 200 段。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 25</th><th class="n">CosSim ↑</th><th class="n">MMD² ↓</th><th class="n">覆盖中心数</th></tr></thead><tbody>
+<tr><td>预训练（自参照）</td><td class="n">0.796</td><td class="n">0.005</td><td class="n">19,934</td></tr>
+<tr><td>SDG-DriveSim</td><td class="n">0.667</td><td class="n">0.119</td><td class="n">5,577</td></tr>
+<tr><td>SDG-PhyxSim</td><td class="n">0.589</td><td class="n">0.221</td><td class="n">6,644</td></tr>
+<tr><td>SDG-RobotSim</td><td class="n">0.627</td><td class="n">0.162</td><td class="n">9,760</td></tr>
+<tr><td>SDG-SynHuman</td><td class="n">0.650</td><td class="n">0.191</td><td class="n">4,975</td></tr>
+<tr><td>SDG-Warehouse</td><td class="n">0.712</td><td class="n">0.361</td><td class="n">1,920</td></tr>
+</tbody></table></div>
+<p><b>C.7 消融：</b>从同一个预训练 Nano 分别加每个合成集微调，在 PAIBench-G T2V 上比（表 26）。变化都在 ±1.5 分以内；人类领域分<b>每个</b>变体都降（−0.38 到 −0.69），作者解读为人的仿真到真实差距最大；全部混合（SDG-All）九项里八项为正。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 26</th><th class="n">总分</th><th class="n">领域</th><th class="n">质量</th><th class="n">常识</th><th class="n">驾驶</th><th class="n">机器人</th><th class="n">工业</th><th class="n">人类</th><th class="n">物理</th></tr></thead><tbody>
+<tr><td>基线（预训练）</td><td class="n">79.67</td><td class="n">86.87</td><td class="n">72.46</td><td class="n">91.89</td><td class="n">70.86</td><td class="n">87.37</td><td class="n">88.66</td><td class="n">85.46</td><td class="n">94.58</td></tr>
+<tr><td>+ SDG-DriveSim</td><td class="n">79.76</td><td class="n">86.97</td><td class="n">72.55</td><td class="n">92.41</td><td class="n">70.48</td><td class="n">88.26</td><td class="n">88.92</td><td class="n">84.91</td><td class="n">94.58</td></tr>
+<tr><td>+ SDG-RobotSim</td><td class="n">79.66</td><td class="n">86.60</td><td class="n">72.72</td><td class="n">92.22</td><td class="n">69.83</td><td class="n">87.60</td><td class="n">87.44</td><td class="n">84.99</td><td class="n">94.50</td></tr>
+<tr><td>+ SDG-Warehouse</td><td class="n">79.74</td><td class="n">87.00</td><td class="n">72.48</td><td class="n">92.34</td><td class="n">71.15</td><td class="n">87.97</td><td class="n">88.63</td><td class="n">85.01</td><td class="n">94.79</td></tr>
+<tr><td>+ SDG-PhyxSim</td><td class="n">79.62</td><td class="n">86.68</td><td class="n">72.56</td><td class="n">91.57</td><td class="n">69.44</td><td class="n">88.17</td><td class="n">89.51</td><td class="n">84.77</td><td class="n">94.72</td></tr>
+<tr><td>+ SDG-SynHuman</td><td class="n">79.79</td><td class="n">87.16</td><td class="n">72.41</td><td class="n">92.55</td><td class="n">71.33</td><td class="n">88.60</td><td class="n">88.51</td><td class="n">85.08</td><td class="n">94.56</td></tr>
+<tr><td>+ SDG-All</td><td class="n">79.77</td><td class="n">86.97</td><td class="n">72.56</td><td class="n">92.40</td><td class="n">71.19</td><td class="n">87.68</td><td class="n">88.79</td><td class="n">84.99</td><td class="n">94.67</td></tr>
+</tbody></table></div>
+<p>正文的“SDG-All 质量分最好（72.56）”不对：RobotSim 的 72.72 更高（表 26 原文的下划线标在哪一格我没法从文本确认）。</p>
+</details>
+<details class="tbl"><summary>D Cosmos3-Edge 的 LLM 训练</summary>
+<p>2B 稠密主干从头训，BF16。基础预训练：Nemotron 预训练语料 15T token，序列 8,192；先通用混合、再高质量混合（热切换数据，优化器状态和学习率日程不变）；AdamW 峰值 1.2e-3，β = (0.9, 0.95)，权重衰减 0.1，WSD 日程，数据切换和稳定→衰减转折对齐；分词器和 Nemotron-3 共享。长上下文：128K 序列，RoPE base 提到 1e8，恒定学习率 1.2e-5，900 亿 token，预训练混合降到 80% + 20% 长文档问答；目标是提升部署时 32K 的质量。SFT：Nemotron-Cascade-2 的约 2,600 万条，打包到 128K 得约 260 万条，全局 batch 32，学习率 2e-5，β = (0.9, 0.98)，约 1.7 轮（14 万步）时最好。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 27</th><th class="n">HMMT25 Feb</th><th class="n">GPQA</th><th class="n">MMLU-Pro</th><th class="n">IFBench</th><th class="n">AA-LCR</th><th class="n">Multi-Challenge</th></tr></thead><tbody>
+<tr><td>Qwen3.5-2B</td><td class="n">22.9</td><td class="n">51.6</td><td class="n">66.5</td><td class="n">25.6</td><td class="n">41.3</td><td class="n">33.7</td></tr>
+<tr><td>Cosmos3-Edge</td><td class="n">76.3</td><td class="n">56.4</td><td class="n">62.6</td><td class="n">22.8</td><td class="n">43.6</td><td class="n">28.1</td></tr>
+</tbody></table></div>
+<p>列顺序按 PDF 表头位置还原。HF 配置的 <code>rope_theta=100000000</code> 正是长上下文阶段的 1e8，<code>mrope_section=[24, 20, 20]</code>（每头 64 个频率对分给 t、h、w）。</p></details>
+<details class="tbl"><summary>E 补充消融（理解塔对生成塔的作用、FPS 控制、音频、动作模式协同、视频-动作一致性）</summary>
+<p><b>E.1 理解塔的作用：</b>Nano 结构，一个用 Qwen3-VL-8B 当理解塔，一个用 Cosmos3-Nano 理解塔，生成塔都从零训；只用 256p 和 480p、0–200 帧、序列 25K，256 卡 9 万步。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 28</th><th>理解塔</th><th class="n">总</th><th class="n">领域</th><th class="n">质量</th><th class="n">常识</th><th class="n">驾驶</th><th class="n">机器人</th><th class="n">工业</th><th class="n">人类</th><th class="n">物理</th></tr></thead><tbody>
+<tr><td>T2V</td><td>Cosmos3 Reasoner</td><td class="n">74.3</td><td class="n">75.7</td><td class="n">73.0</td><td class="n">81.2</td><td class="n">54.9</td><td class="n">71.3</td><td class="n">78.4</td><td class="n">76.2</td><td class="n">89.2</td></tr>
+<tr><td>T2V</td><td>Qwen3-VL</td><td class="n">73.3</td><td class="n">73.7</td><td class="n">73.0</td><td class="n">80.5</td><td class="n">52.6</td><td class="n">66.5</td><td class="n">77.4</td><td class="n">74.0</td><td class="n">88.7</td></tr>
+<tr><td>I2V</td><td>Cosmos3 Reasoner</td><td class="n">79.4</td><td class="n">80.8</td><td class="n">78.1</td><td class="n">89.0</td><td class="n">59.4</td><td class="n">77.0</td><td class="n">84.8</td><td class="n">79.3</td><td class="n">91.6</td></tr>
+<tr><td>I2V</td><td>Qwen3-VL</td><td class="n">79.0</td><td class="n">80.0</td><td class="n">78.0</td><td class="n">89.7</td><td class="n">59.8</td><td class="n">74.0</td><td class="n">84.0</td><td class="n">78.3</td><td class="n">91.4</td></tr>
+</tbody></table></div>
+<p>（质量子项和 I2V 的主体 / 背景一致性略。）</p>
+<div class="note" id="n22"><span class="lab">读者注 22 · E.1 正文把“常识”的方向写反了</span><p>正文说 I2V 上领域分的提升来自“常识 +0.7、工业 +0.8、人类 +1.0、物理 +0.2”。按表 28，I2V 的常识是 89.0（Cosmos）对 89.7（Qwen），<b>低 0.7</b>；驾驶也低 0.4。I2V 真正最大的提升是机器人 +3.0（77.0 对 74.0），正文没提。T2V 部分（机器人 +4.8、驾驶 +2.3、工业 +1.0、物理 +0.5）都对。</p></div>
+<p><b>E.2 FPS 控制：</b>两种机制，MRoPE FPS 调制和“在 JSON 里写时长 FPS”的文本控制；四个模型各 128 卡 13 万步。评测集 10、15、24、30 FPS 各约 100 段，480p 5 秒、3 个种子；画质 VQ 用 DOVER，运动幅度 DD 用 VBench 的 dynamic degree。</p>
+<div class="eq"><div class="m">\[ {\rm MC}=\mathbb E_p\!\left[\frac{{\rm var}_p}{{\rm var}_p+{\rm mean}_p^2}\right] \]</div><span class="no">(10)</span></div>
+<div class="eq"><div class="m">\[ {\rm MF}=\big(1-|{\rm DD}-{\rm DD}_{\rm ref}|\big)\,(1-{\rm MC}) \]</div><span class="no">(11)</span></div>
+<p>综合分 = 各 FPS 档上 VQ × MF 的平均。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 29 · Nano</th><th class="n">平均 VQ</th><th class="n">平均 MF</th><th class="n">综合</th></tr></thead><tbody>
+<tr><td>无控制</td><td class="n">12.89</td><td class="n">0.6626</td><td class="n">8.51</td></tr>
+<tr><td>文本控制</td><td class="n">12.99</td><td class="n">0.7169</td><td class="n">9.28</td></tr>
+<tr><td>MRoPE FPS 调制</td><td class="n best">13.03</td><td class="n">0.7409</td><td class="n">9.63</td></tr>
+<tr><td>两者都用</td><td class="n">12.84</td><td class="n best">0.7649</td><td class="n best">9.81</td></tr>
+</tbody></table></div>
+<p>增量 +0.77、+1.12、+1.30 和正文一致；VQ 四行在 0.19 以内。</p>
+<p><b>E.3 预训练里的音频：</b>同一检查点继续训 2 万步，只有视频对视频加音频。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 30</th><th>变体</th><th class="n">总</th><th class="n">领域</th><th class="n">质量</th></tr></thead><tbody>
+<tr><td>T2V</td><td>无音频</td><td class="n">78.6</td><td class="n">83.8</td><td class="n">73.4</td></tr>
+<tr><td>T2V</td><td>有音频</td><td class="n">79.1</td><td class="n">85.0</td><td class="n">73.2</td></tr>
+<tr><td>I2V</td><td>无音频</td><td class="n">81.7</td><td class="n">85.1</td><td class="n">78.4</td></tr>
+<tr><td>I2V</td><td>有音频</td><td class="n">82.2</td><td class="n">85.9</td><td class="n">78.4</td></tr>
+</tbody></table></div>
+<p><b>E.4 动作模式协同：</b>在 <a class="ds" href="https://diffusion-policy.cs.columbia.edu/">PushT</a> 上用 <b>Cosmos3-Edge</b>：三个单模式检查点各训 2K 步，对比一个 FD / ID / 策略联合检查点训 6K 步（每种模式的优化步数相同）。策略覆盖率 = T 形块和目标区域的重叠，50 个初始化各 10 次。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 31</th><th class="n">FD PSNR ↑</th><th class="n">ID MSE ↓</th><th class="n">策略覆盖率 ↑</th></tr></thead><tbody>
+<tr><td>2K 单模式</td><td class="n best">27.13</td><td class="n">1.11 × 10⁻³</td><td class="n">74.1%</td></tr>
+<tr><td>6K 联合</td><td class="n">26.22</td><td class="n best">3.09 × 10⁻⁴</td><td class="n best">77.3%</td></tr>
+</tbody></table></div>
+<p>ID MSE 降 (1.11 − 0.309) / 1.11 = 72%，和正文一致。这是全文唯一一个用 Edge 做的生成侧实验。</p>
+<p><b>E.5 视频-动作一致性：</b>在 RoboLab 上，把 Cosmos3-Nano-Policy-DROID 预测的动作块放进仿真器执行，比较执行结果和模型同时预测的视频：左侧第三人称视角 PSNR 23.19 dB（接近表 18 的 DROID 正向动力学水平），腕部视角 17.33 dB（相机随手动，要猜新露出的内容）。</p>
+<figure class="pfig" id="fig37">
+<img src="cosmos3/fig37.webp" width="1600" height="611" alt="图 37：上两行是腕部相机的仿真执行和模型预测帧，下两行是左侧相机的仿真执行和模型预测帧，两两很接近" loading="lazy">
+<figcaption><span class="lab">图 37 · 原文第 110 页 · NVIDIA，arXiv 2606.02800，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2606.02800v4#page=110">看原图 ↗</a></span>Sim Env：在 RoboLab 里执行预测动作块得到的视频；Pred：模型和动作一起预测的视频。</figcaption>
+</figure>
+<div class="note" id="n23"><span class="lab">读者注 23 · 附录 E 的其他算术</span><p>E.2 的增量 9.28 − 8.51 = 0.77、9.63 − 8.51 = 1.12、9.81 − 8.51 = 1.30；VQ 极差 13.03 − 12.84 = 0.19，“0.2 以内”成立。E.3 两种模式“有音频”都高 0.5 总分，但 T2V 的质量分低 0.2，提升全来自领域分。E.4 的 72% 见上。</p></div>
+</details>
+<details class="tbl"><summary>F Cosmos-HUE 人评基准（打分公式、标注流程、完整排行）</summary>
+<p>每题“是 / 否 / 不清楚”，“不清楚”算“否”（留在分母、不进分子）。</p>
+<div class="eq"><div class="m">\[ {\rm HUE}(v)=\frac{\sum_{q\in\mathcal Q_v}\mathbb 1[{\rm ans}(v,q)={\rm Yes}]}{|\mathcal Q_v|}\times100\% \]</div><span class="no">(12)</span></div>
+<div class="eq"><div class="m">\[ {\rm HUE}(m)=\frac{\sum_{v=1}^{V}\sum_{q\in\mathcal Q_v}\mathbb 1[{\rm ans}(v,q)={\rm Yes}]}{\sum_{v=1}^{V}|\mathcal Q_v|}\times100\% \]</div><span class="no">(13)</span></div>
+<p>模型分按所有（视频，问题）观测等权，不是先算每段再平均。两人独立标，一致即采纳，分歧交质检。题库按“低方差、真实视频接近满分”迭代；真实视频目前 T2V 93.6、I2V 94.4。</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 32 · T2V</th><th class="n">总</th><th class="n">语义</th><th class="n">物理定律</th><th class="n">几何</th><th class="n">视觉完整</th><th class="n">常识</th><th class="n">驾驶</th><th class="n">机器人</th><th class="n">工业</th><th class="n">人类</th><th class="n">物理</th><th class="n">其他</th></tr></thead><tbody>
+<tr><td>真实视频</td><td class="n">93.6</td><td class="n">95.0</td><td class="n">90.5</td><td class="n">94.1</td><td class="n">94.8</td><td class="n">92.0</td><td class="n">93.7</td><td class="n">94.9</td><td class="n">94.4</td><td class="n">93.2</td><td class="n">93.1</td><td class="n">93.6</td></tr>
+<tr><td>Cosmos3-Super</td><td class="n">89.3</td><td class="n">92.4</td><td class="n">85.4</td><td class="n">86.6</td><td class="n">93.7</td><td class="n">89.5</td><td class="n best">87.7</td><td class="n">88.4</td><td class="n">89.4</td><td class="n">88.6</td><td class="n best">91.5</td><td class="n">93.0</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">87.6</td><td class="n">91.5</td><td class="n">83.6</td><td class="n">84.1</td><td class="n">92.5</td><td class="n">89.5</td><td class="n">87.0</td><td class="n">86.6</td><td class="n">85.8</td><td class="n">86.2</td><td class="n">87.9</td><td class="n">94.0</td></tr>
+<tr><td>Wan2.2-A14B</td><td class="n">88.2</td><td class="n">92.1</td><td class="n">83.4</td><td class="n">85.6</td><td class="n">92.6</td><td class="n">87.8</td><td class="n">84.9</td><td class="n">83.7</td><td class="n">91.1</td><td class="n">89.9</td><td class="n">87.5</td><td class="n">93.4</td></tr>
+<tr><td>HunyuanVideo-1.5</td><td class="n">86.5</td><td class="n">88.4</td><td class="n">81.8</td><td class="n">83.6</td><td class="n">93.6</td><td class="n">88.3</td><td class="n">81.0</td><td class="n">81.3</td><td class="n">88.0</td><td class="n">87.9</td><td class="n">87.4</td><td class="n">93.3</td></tr>
+<tr><td>Wan2.1-14B</td><td class="n">84.0</td><td class="n">87.7</td><td class="n">77.1</td><td class="n">78.5</td><td class="n">92.7</td><td class="n">85.3</td><td class="n">79.1</td><td class="n">78.2</td><td class="n">87.0</td><td class="n">85.1</td><td class="n">85.8</td><td class="n">90.7</td></tr>
+<tr><td>Wan2.2-5B</td><td class="n">80.8</td><td class="n">86.9</td><td class="n">73.8</td><td class="n">73.6</td><td class="n">89.9</td><td class="n">83.4</td><td class="n">73.5</td><td class="n">76.0</td><td class="n">84.4</td><td class="n">81.3</td><td class="n">82.8</td><td class="n">87.9</td></tr>
+<tr><td>Cosmos-Predict2.5-14B</td><td class="n">82.1</td><td class="n">88.1</td><td class="n">74.6</td><td class="n">75.8</td><td class="n">90.7</td><td class="n">81.3</td><td class="n">84.4</td><td class="n">76.8</td><td class="n">82.4</td><td class="n">81.3</td><td class="n">84.5</td><td class="n">90.2</td></tr>
+<tr><td>Cosmos-Predict2.5-2B</td><td class="n">81.8</td><td class="n">88.1</td><td class="n">74.0</td><td class="n">75.1</td><td class="n">90.6</td><td class="n">81.5</td><td class="n">81.8</td><td class="n">79.5</td><td class="n">82.7</td><td class="n">80.3</td><td class="n">82.7</td><td class="n">89.8</td></tr>
+<tr><td>Veo-3.1</td><td class="n best">91.3</td><td class="n best">94.3</td><td class="n">87.7</td><td class="n best">91.0</td><td class="n best">93.9</td><td class="n best">92.7</td><td class="n">85.6</td><td class="n best">91.5</td><td class="n best">94.7</td><td class="n">90.3</td><td class="n">90.4</td><td class="n best">95.8</td></tr>
+<tr><td>Seedance-1.5-Pro</td><td class="n">90.0</td><td class="n">91.2</td><td class="n best">88.4</td><td class="n">89.8</td><td class="n">92.8</td><td class="n">90.5</td><td class="n">83.6</td><td class="n">89.0</td><td class="n">92.9</td><td class="n best">90.7</td><td class="n">91.4</td><td class="n">91.7</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>表 33 · I2V</th><th class="n">总</th><th class="n">语义</th><th class="n">物理定律</th><th class="n">几何</th><th class="n">视觉完整</th><th class="n">常识</th><th class="n">驾驶</th><th class="n">机器人</th><th class="n">工业</th><th class="n">人类</th><th class="n">物理</th><th class="n">其他</th></tr></thead><tbody>
+<tr><td>真实视频</td><td class="n">94.4</td><td class="n">94.8</td><td class="n">93.2</td><td class="n">95.1</td><td class="n">95.4</td><td class="n">94.2</td><td class="n">96.0</td><td class="n">94.9</td><td class="n">93.4</td><td class="n">92.1</td><td class="n">96.3</td><td class="n">98.1</td></tr>
+<tr><td>Cosmos3-Super</td><td class="n">89.6</td><td class="n best">90.3</td><td class="n">87.5</td><td class="n">87.0</td><td class="n best">94.2</td><td class="n">90.7</td><td class="n">86.2</td><td class="n best">91.1</td><td class="n">89.6</td><td class="n">87.1</td><td class="n">91.5</td><td class="n best">94.8</td></tr>
+<tr><td>Cosmos3-Nano</td><td class="n">88.6</td><td class="n">89.2</td><td class="n">86.4</td><td class="n">86.3</td><td class="n">93.5</td><td class="n">90.6</td><td class="n best">87.6</td><td class="n">90.6</td><td class="n">88.0</td><td class="n">84.7</td><td class="n">91.0</td><td class="n">93.9</td></tr>
+<tr><td>Wan2.2-A14B</td><td class="n">88.4</td><td class="n">88.6</td><td class="n">86.0</td><td class="n">85.7</td><td class="n">93.5</td><td class="n">90.1</td><td class="n">84.7</td><td class="n">84.8</td><td class="n">92.0</td><td class="n">86.5</td><td class="n best">91.9</td><td class="n">92.5</td></tr>
+<tr><td>HunyuanVideo-1.5</td><td class="n">85.6</td><td class="n">87.1</td><td class="n">80.8</td><td class="n">83.0</td><td class="n">92.5</td><td class="n">90.0</td><td class="n">81.7</td><td class="n">77.2</td><td class="n">89.6</td><td class="n">85.2</td><td class="n">89.5</td><td class="n">91.8</td></tr>
+<tr><td>Wan2.1-14B</td><td class="n">83.9</td><td class="n">85.0</td><td class="n">80.2</td><td class="n">80.6</td><td class="n">91.2</td><td class="n">88.1</td><td class="n">76.8</td><td class="n">74.8</td><td class="n">89.9</td><td class="n">84.3</td><td class="n">85.8</td><td class="n">93.2</td></tr>
+<tr><td>Wan2.2-5B</td><td class="n">80.4</td><td class="n">83.4</td><td class="n">74.6</td><td class="n">75.7</td><td class="n">89.5</td><td class="n">86.1</td><td class="n">74.3</td><td class="n">68.6</td><td class="n">88.4</td><td class="n">79.6</td><td class="n">84.8</td><td class="n">90.5</td></tr>
+<tr><td>Cosmos-Predict2.5-14B</td><td class="n">83.0</td><td class="n">85.0</td><td class="n">77.9</td><td class="n">77.5</td><td class="n">92.4</td><td class="n">88.1</td><td class="n">85.2</td><td class="n">78.4</td><td class="n">83.0</td><td class="n">78.5</td><td class="n">84.8</td><td class="n">93.2</td></tr>
+<tr><td>Cosmos-Predict2.5-2B</td><td class="n">82.6</td><td class="n">86.1</td><td class="n">77.3</td><td class="n">78.2</td><td class="n">90.2</td><td class="n">85.6</td><td class="n">86.0</td><td class="n">79.0</td><td class="n">85.6</td><td class="n">77.1</td><td class="n">85.1</td><td class="n">92.4</td></tr>
+<tr><td>Veo-3.1</td><td class="n best">89.7</td><td class="n best">90.3</td><td class="n best">87.7</td><td class="n best">89.2</td><td class="n">93.2</td><td class="n best">92.3</td><td class="n">86.0</td><td class="n">88.6</td><td class="n best">93.4</td><td class="n best">87.2</td><td class="n">91.2</td><td class="n">94.3</td></tr>
+<tr><td>Seedance-1.5-Pro</td><td class="n">87.6</td><td class="n">87.7</td><td class="n">85.4</td><td class="n">86.5</td><td class="n">91.8</td><td class="n">89.5</td><td class="n">82.9</td><td class="n">85.7</td><td class="n">90.6</td><td class="n">85.7</td><td class="n">90.6</td><td class="n">93.0</td></tr>
+</tbody></table></div>
+<p>附录正文的几条说法我逐格核过都成立：T2V 里 Super 在驾驶（87.7）和物理（91.5，Seedance 91.4）超过所有模型；I2V 里 Super 视觉完整 94.2、机器人 91.1、其他 94.8 第一，语义和 Veo 并列 90.3；Nano 驾驶 87.6 第一；Wan2.2-A14B 物理 91.9 第一。</p></details>
+<details class="tbl"><summary>G 贡献者和致谢</summary>
+<p>按组列出贡献者（组内按姓氏字母序），以及致谢名单，第 113–117 页。arXiv 的作者列表是 NVIDIA 加 293 人。</p></details>
+
+<h2 id="code">代码对照：论文写的和代码里的</h2>
+<p>代码是 <a href="https://github.com/NVIDIA/cosmos-framework/tree/e40831fa068fd171894b6cfb269308b441e80a85">cosmos-framework e40831f</a>（2026-11-16，OpenMDW-1.1），另看了 HF 上三个基础模型的 config.json 和 safetensors 头。只读未运行。仓库有完整的训练（SFT、LoRA、蒸馏）、推理和多个后训练配方，但没有从零的大规模预训练脚本。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项目</th><th>论文</th><th>代码 / 配置</th></tr></thead><tbody>
+<tr><td>MoT 层</td><td>每层两套 LN、注意力投影、FFN，从 VLM 初始化</td><td><code>model/generator/mot/unified_mot.py</code>；HF 权重里一套是 <code>to_q/to_k/to_v/to_out</code> + <code>mlp</code>，另一套是 <code>add_q_proj…to_add_out</code> + <code>mlp_moe_gen</code></td></tr>
+<tr><td>联合注意力</td><td>式 (7)(8)，两路扁平变长注意力</td><td>配置 <code>joint_attn_implementation="two_way"</code></td></tr>
+<tr><td>位置编码</td><td>3D MRoPE，间隔 15000，base 24 FPS</td><td><code>unified_3d_mrope_temporal_modality_margin=15000</code>，<code>base_fps=24</code>，<code>enable_fps_modulation=True</code>，<code>unified_3d_mrope_reset_spatial_ids=True</code></td></tr>
+<tr><td>视觉 VAE</td><td>Wan2.2-TI2V-5B，4 × 16 × 16 + patch 2</td><td><code>wan2pt2/Wan2.2_VAE.pth</code>，<code>spatial_compression_factor=16</code>，<code>patch_spatial=2</code>，<code>state_ch=48</code>（patch 后 192 维）</td></tr>
+<tr><td>动作投影</td><td>每域一对线性层，式 (1)(2)</td><td><code>DomainAwareLinear</code>，32 域 × 64 维（读者注 2）</td></tr>
+<tr><td>训练噪声</td><td>视频 mode sampling，其余 logit-normal；shift 中训练 3/5/10</td><td><code>train_time_video_distribution="waver"</code>，其余 <code>"logitnormal"</code>；<code>shift={"256":3,"480":5,"720":10}</code>（读者注 8）</td></tr>
+<tr><td>动作损失</td><td>× 10；动作沿用视觉日程</td><td><code>action_loss_weight=10.0</code>，<code>independent_action_schedule=False</code></td></tr>
+<tr><td>VAE 分块</td><td>68 / 24 / 12 帧</td><td><code>encode_chunk_frames={"256":68,"480":24,"720":8}</code>（读者注 11）</td></tr>
+<tr><td>打包长度</td><td>74,000</td><td>Edge / Nano 基线 45,056；LIBERO 配方和 HF Nano 配置 74,000</td></tr>
+<tr><td>激活检查点</td><td>选择性，保存注意力输出</td><td><code>mode="selective"</code>，<code>save_ops_regex=["fmha"]</code></td></tr>
+<tr><td>Edge 主干</td><td>2B，去 QK 归一化，ReLU²</td><td><code>Nemotron3DenseVLTextForCausalLM</code>，<code>qk_norm_for_text=False</code>，<code>hidden_act="relu2"</code>（<code>F.relu(x).square()</code>），词表 131,072</td></tr>
+<tr><td>DROID 策略</td><td>32 步绝对关节位置，15 Hz，学习率 2e-4，动作层 lr × 5，重新初始化</td><td>文档：<code>joint_pos</code> 8 维、<code>use_state</code>、chunk 32、全局 batch 8,192；配方里 <code>lr_multipliers</code> 对 action2llm / llm2action / action_modality_embed 乘 5，<code>keys_to_skip_loading</code> 跳过这些层</td></tr>
+<tr><td>推理采样</td><td>表 21</td><td>默认调度器 UniPC；DROID 服务端支持 <code>--cfg-parallel</code> 两卡；Edge-Policy-DROID 推荐 <code>--guidance-interval 960 1001</code>（只在最高噪声的几步用 CFG，论文没提）</td></tr>
+</tbody></table></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · 仓库里两处互相矛盾的注释</span><p><code>nano_model_config.py</code> 的注释说“发布的 Cosmos3-Nano 检查点带有真正的（DROID 训练过的）动作头”；LIBERO 文档却说“基础 DCP 没有动作头”。不过两个策略配方都把动作层列在 <code>keys_to_skip_loading</code> 里，实际总是重新初始化，和论文 4.2.5 节一致，所以不影响复现。</p></div>
+
+<h3 id="libero">官方 LIBERO-10 配方（表 20 的设置）</h3>
+<p>用户在复现 LIBERO，这里把 <code>docs/action_policy_libero_posttrain.md</code>、<code>configs/base/experiment/action/posttrain_config/action_policy_libero_nano.py</code>、<code>examples/toml/sft_config/action_policy_libero_10_nano.toml</code> 和 <code>simulation/libero/closed_loop_eval.py</code> 里的关键设置列出来。论文本身只给了表 20 的四个数。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项</th><th>设置</th></tr></thead><tbody>
+<tr><td>初始化</td><td>公开的 nvidia/Cosmos3-Nano（转 DCP）；动作层重新初始化；生成塔 <code>load_weights_from_pretrained=False</code>（我的理解：只是不再从 VLM 拷一份初始化，权重仍来自 Cosmos3-Nano 检查点；未逐行核实）</td></tr>
+<tr><td>数据</td><td><a class="ds" href="https://huggingface.co/datasets/nvidia/LIBERO_LeRobot_v3">nvidia/LIBERO_LeRobot_v3</a>，20 FPS；预设 A 只训 libero_10（论文表 20 的设置），预设 B 四个套件等比例混合（max_iter 5000）</td></tr>
+<tr><td>动作</td><td>逐帧相对位姿 rot6d，10 维（位置 3 + rot6d 6 + 夹爪 1），<code>quantile_rot</code> 归一化；域编号 5；chunk 16（20 Hz 下 0.8 秒），模式 <code>"wam"</code>（视频和动作一起出）</td></tr>
+<tr><td>图像</td><td>第三人称 + 腕部各 256 × 256，拼成 256 × 512，再落到 192 × 320 的模型画布（256p 的 16:9 档）；视频长度 <code>encode_exact_durations=[17, 61, 73]</code></td></tr>
+<tr><td>优化</td><td>FusedAdam，lr 5e-5，β (0.9, 0.99)，wd 0.05，裁剪 1.0；动作层 lr × 5；LambdaLinear，预热 500，周期 16000；EMA power</td></tr>
+<tr><td>规模</td><td>HSDP 2 × 8 = 16 卡，每卡 128 样本，全局 batch 2,048；max_iter 2000（约 1500 步达峰），每 500 步存档；损失缩放 10；打包 74,000 token</td></tr>
+<tr><td>评测</td><td>服务端默认 30 步去噪、guidance 1；客户端每任务 50 次，libero_10 最多 520 步，默认用 LIBERO 自带的固定初始状态；夹爪输出 [0, 1]，客户端用 1 − 2g 换成环境的 [−1, 1]；仿真画面要先旋转 180°</td></tr>
+</tbody></table></div>
+<p>和用户手上的 OpenWAM 设置有几处本质不同，不能直接比分数：只训和测 libero_10 一个套件；动作是 10 维相对位姿 rot6d 而不是 LIBERO 环境原生的 7 维 OSC 增量（客户端转换回去）；数据是 NVIDIA 自己转的 20 FPS LeRobot 版，未核实是否和 OpenWAM / MolmoAct2 用的 OpenVLA 过滤版（1,693 回合）相同。OpenWAM 那边的 LIBERO 协议见 <a href="openwam.html#qa-libero">OpenWAM 问 1</a>。</p>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><b>结论：</b>OpenWAM 论文没有用 Cosmos 3 做任何实验；代码完整支持 Cosmos3-Edge 作为视频骨干，并发布了一个用它在 RoboTwin2.0 上训练的检查点，但论文图 6 的骨干对比只有 Wan2.1-VACE-1.3B、Cosmos-Predict2.5-2B、Wan2.2-TI2V-5B、Wan2.1-I2V-14B 四个（91.64 是 <a href="cosmos-predict25.html">Cosmos-Predict2.5</a>-2B 的数）。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>问题</th><th>答案和出处</th></tr></thead><tbody>
+<tr><td>论文里有没有 Cosmos 3？</td><td>只出现两次：图 2 的骨干列表和 §3.1 的“支持五个视频骨干……Cosmos3-Edge-4B”。§4.1.1 和图 6 只比了四个，<code>grep</code> 全文没有 Cosmos 3 的分数</td></tr>
+<tr><td>用的哪个尺寸？</td><td><b>Edge</b>（3.86B，“4B”）。<code>configs/model/video_backbone/cosmos3_edge.yaml</code>，<code>model_path</code> 指向 diffusers 格式的 nvidia/Cosmos3-Edge（transformer/ + vae/ + text_tokenizer/，下载约 9.2 GB）</td></tr>
+<tr><td>结构参数</td><td><code>pipeline_builder.py</code> 硬编码：dim 2048、28 层、16 头、头维 128、KV 8 头、FFN 9216、relu2、latent_channel 48、patch 2（patch_latent_dim 192）、rope_axes_dim [24, 20, 20]、rope_theta 1e8、margin 15000、base_fps 24、vocab 131072，和 HF config 一致</td></tr>
+<tr><td>VAE</td><td>Wan2.2 VAE（<code>AutoencoderKLWan</code>）：时间 4、空间 16、48 通道、因果；backbone 常量 <code>_COSMOS3_TEMPORAL_COMPRESSION=4</code>、<code>_COSMOS3_SPATIAL_COMPRESSION=16</code>、<code>_COSMOS3_DIT_PATCH_SIZE=(1,2,2)</code>，和 OpenWAM 默认的 Wan2.2-TI2V-5B <b>同一个 VAE</b>（见 <a href="wan.html#wan22">Wan 页</a>），所以隐空间可以直接对比</td></tr>
+<tr><td>shift</td><td><code>shift_video: 5.0</code>，注释“NVIDIA 按分辨率的训练 shift {256: 3, 480: 5, 720: 10}，5.0 对应 480p”。这是论文<b>中训练</b>的值（预训练 480p 是 3），也是论文表 21 里动力学和策略模式的推理 shift；训练和部署共用这一个值</td></tr>
+<tr><td>调度器</td><td>不用模型自带的 UniPC，而是 OpenWAM 自己的平移流 Euler 网格（<code>cosmos3/scheduler.py</code> 继承 Predict2.5 的适配器）；注释说 diffusers 当时的 UniPC 在 karras σ 下会忽略原生线性流网格（diffusers PR #14272），未核实</td></tr>
+<tr><td>文本</td><td>没有外部文本编码器：提示由 Cosmos 3 自己的理解塔（Nemotron 主干）处理，<code>freeze_und: true</code>，理解塔在 <code>no_grad</code> 下跑一次并缓存每层给生成塔用的 K / V——正是论文 5.3 节的“理解塔缓存”；理解塔最后一层 2048 维隐状态当作动作流的 context（<code>text_dim=2048</code>）。提示模板沿用原生管线：附加“视频长 X 秒、Y FPS”一句，<code>fps: 24.0</code> 是假设值</td></tr>
+<tr><td>Cosmos 3 自己的动作头</td><td>不用。<code>action_proj_in/out</code>、<code>audio_proj_*</code> 和模态嵌入保留但冻结；动作由 OpenWAM 的 ActionDiT 或共享主干负责；<code>lm_head</code>（268M）丢掉</td></tr>
+<tr><td>支持的架构</td><td>dual_system（joint_cross_attn、joint_self_attn、idm）、single_system（vanilla、moe）、tri_system；注意力掩码：生成塔视频流在 OpenWAM 里设成 <code>"bidirectional"</code>，和 Cosmos 3 生成塔的全注意力一致</td></tr>
+<tr><td>发布的检查点</td><td><code>download_openwam_checkpoints.py</code> 的 “OpenWAM_Study_Video_Backbone” 组里有 <code>robotwin_dual_system_joint_self_attention_cosmos3</code>（25.6 GB），和另外四个骨干并列；它的成绩论文和 README 都没报</td></tr>
+<tr><td>vendored 代码</td><td><code>cosmos3/_vendor/transformer_cosmos3.py</code> 取自 diffusers @6ad3573，因为当时 PyPI 版还不支持 Edge（relu²、Nemotron RMSNorm、<code>k_norm_und_for_gen</code>）；Apache-2.0 头保留</td></tr>
+</tbody></table></div>
+<div class="note" id="n25"><span class="lab">读者注 25 · OpenWAM 接 Cosmos3-Edge 时的几个对应关系</span><p>(1) OpenWAM 冻结的“und 通路”就是 Cosmos 3 的理解塔，可训练的是生成塔，和 Cosmos 3 自己“生成塔训练时理解塔冻结”的做法相同；Edge 生成塔一侧可训练参数约 1.41B（层）+ 小的投影和时间嵌入，和 Wan2.2-TI2V-5B 的 5.0B 相比小很多。(2) OpenWAM 的批里文本长度不一，代码把所有样本的视觉时间起点统一成“批内最长文本 + 15000”，原生是每个样本自己的文本长度；在 15000 的间隔下只差几个位置，B = 1（部署）时完全一致。(3) OpenWAM 默认 Wan2.2-TI2V-5B 也用 Wan2.2 VAE，所以换成 Cosmos3-Edge 时编码器不变、只换主干，是一个干净的“骨干”对照——可惜论文没有报这组数。</p></div>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa1">问 1：“全模态”和 OpenWAM 那种世界-动作模型差在哪？</h3>
+<p>OpenWAM 一类 WAM 是“视频生成模型 + 动作流”，目标只有一个：给观测和指令，同时出未来视频和动作。Cosmos 3 的生成塔在结构上也能这样做（策略模式），但它同时还是 VLM（理解塔单独用）、文生图、音视频生成、可控迁移、正向和逆向动力学。代价是：主干大（Edge 已经 3.86B）、动作只是中训练里 25% 的数据流、动作头每个实体单独一对线性层。对机器人用户来说，它更像一个“预先学过很多动作域的视频-动作初始化”，表 20 的 MT-init 对 PT-init 就是在量化这一点。</p>
+<h3 id="qa2">问 2：Cosmos 3 的视频 token 和 Wan2.2-TI2V-5B 一样吗？</h3>
+<p>VAE 一样（Wan2.2 VAE，4 × 16 × 16，48 通道），patch 也是 2 × 2，所以每个 token 都覆盖 4 帧 × 32 × 32 像素，同一段视频的视频 token 数相同。不同在于：Cosmos 3 序列前面还有文本（理解塔），视频位置用 3D MRoPE 加真实时间缩放；Wan2.2 用交叉注意力读 umT5 文本、3D RoPE 按帧号。去噪目标都是速度 ε − x₀，但 Cosmos 3 的 σ 方向是“σ = 1 为噪声”。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。按出现顺序排列，点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">表 1 的出处</a>：都能对到后文的表；Gemini 3 Pro Image 表 1 写 90.85、表 11 是 90.69。</li>
+<li><a href="#n2">动作投影</a>：DomainAwareLinear，32 域 × 64 维，参数量对上；域编号 32 可能越界（未核实）。</li>
+<li><a href="#n3">式 (9) 的例子</a>：30 FPS → 0.8，16 FPS → 1.5，音频 0.24；代码一致。</li>
+<li><a href="#n4">参数量</a>：3,858,999,728 / 15,750,057,456 / 64,615,003,632，和 HF 一致，不含 VAE；Edge 不生成音频。</li>
+<li><a href="#n5">理解塔数据</a>：表 3 和构成全部对上。</li>
+<li><a href="#n6">动作数据小时</a>：四类和表 4 都对上。</li>
+<li><a href="#n7">视频模式比例</a>：正文和图是 70 / 20 / 10，图注写“均匀”。</li>
+<li><a href="#n8">两套 shift</a>：代码和 OpenWAM 用的是中训练的 3 / 5 / 10。</li>
+<li><a href="#n9">DROID 策略的动作空间</a>：8 维绝对关节位置，不是统一接口；“MLP”实为线性层；画布尺寸未核实。</li>
+<li><a href="#n10">图 14</a>：cu_seqlens 对上。</li>
+<li><a href="#n11">VAE 分块和打包长度</a>：720p 论文 12 帧、代码 8 帧；基线打包 45,056。</li>
+<li><a href="#n12">表 8 的 GPU 数</a>：正文 1,024 / 2,048，图注 2,048 / 4,096；其余自洽。</li>
+<li><a href="#n13">表 9 的批大小</a>：480p 3、720p 1 由 74k 决定；256p 的 6 不是。</li>
+<li><a href="#n14">表 10</a>：63 / 64 个组平均复算一致；停车基准实际是 49 段视频。</li>
+<li><a href="#n15">表 12</a>：总分公式对；“Nano 在 RBench 领先”只限开源。</li>
+<li><a href="#n16">HUE</a>：88.5 对 88.6；16 对 20 个问题；±0.6 对上。</li>
+<li><a href="#n17">表 15</a>：SAV 和 AVQ 公式 8 行全对。</li>
+<li><a href="#n18">RoboLab</a>：正文 DreamZero 25.2，表里 23.9；三档任务数推断为 64 / 39 / 17。</li>
+<li><a href="#n19">表 20 和 LIBERO 配方</a>：0.2% 粒度、500 / 2000 步都对上；只是 libero_10。</li>
+<li><a href="#n20">图 30 的时长</a>：16 帧 @ 10 FPS 截断应为 1s。</li>
+<li><a href="#n21">附录 C</a>：RobotSim 208,022 对 386,270；操作类来源和超 100%；SynHuman 合计应为 236,937。</li>
+<li><a href="#n22">E.1</a>：I2V 常识其实降 0.7，机器人 +3.0 没提。</li>
+<li><a href="#n23">附录 E 算术</a>：E.2、E.3、E.4 对上。</li>
+<li><a href="#n24">仓库注释矛盾</a>：Nano 是否带动作头；不影响复现。</li>
+<li><a href="#n25">OpenWAM 接 Edge</a>：冻结理解塔、统一时间起点、同一 VAE。</li>
+</ol>
+<p>另外：附录 C.7 正文说 SDG-All 的质量分最好，但表 26 里 RobotSim 的 72.72 更高（附录 C 折叠块末尾）。</p>
+<p>论文没写、我也没找到的：生成塔预训练和中训练的总步数和全局 batch；理解塔预训练的 batch；Edge 的生成塔怎么训（报告只说“稍后发布”，只有附录 E.4 一个 Edge 实验）；RoboLab 三档的任务数；各合成集在中训练里的具体比例；DROID 策略的训练步数。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、代码和权重。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/cosmos-lab/cosmos3/">Cosmos 3</a></td><td>本文</td><td><a href="https://huggingface.co/collections/nvidia/cosmos3">HF 合集</a> · <a href="https://github.com/NVIDIA/cosmos-framework">cosmos-framework</a></td><td><a href="https://arxiv.org/abs/2606.02800">2606.02800</a></td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>真实机器人数据集；策略和正向动力学后训练</td><td>droid-dataset.github.io</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>仿真操作基准；表 20 的新实体适应</td><td>libero-project.github.io</td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/LIBERO_LeRobot_v3">LIBERO_LeRobot_v3</a></td><td>官方 LIBERO 配方用的 20 FPS 数据</td><td>huggingface.co/datasets/nvidia</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://robo-arena.github.io/">RoboArena</a></td><td>真实世界分布式策略评测</td><td>robo-arena.github.io</td><td><a href="https://arxiv.org/abs/2506.18123">2506.18123</a></td></tr>
+<tr><td>RoboLab</td><td>仿真策略基准，120 个任务（表 19）</td><td>未找到公开主页</td><td>Yang 等，RSS 2026</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2602.11337">MolmoSpaces</a></td><td>仿真泛化基准</td><td>见论文</td><td><a href="https://arxiv.org/abs/2602.11337">2602.11337</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2512.01989">PAI-Bench</a></td><td>物理 AI 视频生成（-G）和迁移（-C）基准</td><td>见论文</td><td><a href="https://arxiv.org/abs/2512.01989">2512.01989</a></td></tr>
+<tr><td><a class="ds" href="https://physics-iq.github.io/">Physics-IQ</a></td><td>物理理解视频基准（表 13）</td><td>physics-iq.github.io</td><td><a href="https://arxiv.org/abs/2501.09038">2501.09038</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2510.18701">UniGenBench</a></td><td>文生图语义基准（表 11）</td><td>见论文</td><td><a href="https://arxiv.org/abs/2510.18701">2510.18701</a></td></tr>
+<tr><td><a class="ds" href="https://videophy2.github.io/">VideoPhy-2</a></td><td>物理常识视频数据和基准</td><td>videophy2.github.io</td><td><a href="https://arxiv.org/abs/2503.06800">2503.06800</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/open-compass/VLMEvalKit">VLMEvalKit</a></td><td>理解塔评测框架</td><td>github.com/open-compass</td><td><a href="https://arxiv.org/abs/2407.11691">2407.11691</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>机器人数据（表 4）、PAIBench-C 片段</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a></td><td>长程规划 SFT 数据</td><td>behavior.stanford.edu</td><td><a href="https://arxiv.org/abs/2403.09227">2403.09227</a></td></tr>
+<tr><td><a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a></td><td>PAIBench-C 第一人称片段</td><td>ego-exo4d-data.org</td><td><a href="https://arxiv.org/abs/2311.18259">2311.18259</a></td></tr>
+<tr><td><a class="ds" href="https://diffusion-policy.cs.columbia.edu/">PushT</a></td><td>附录 E.4 的动作模式消融</td><td>diffusion-policy.cs.columbia.edu</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a></td><td>OpenWAM 发布 Cosmos3 检查点的基准</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/nvidia/Cosmos3-Edge">Cosmos3-Edge</a></td><td>OpenWAM 支持的尺寸</td><td>huggingface.co/nvidia</td><td>—</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2606.02800 后的整理，不是作者的官方内容。原文：NVIDIA（Cosmos 团队），《Cosmos 3: Omnimodal World Models for Physical AI》，arXiv 2606.02800v4，以 CC BY 4.0 许可发布；文中原图从 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图，版权归原作者。代码引用自 NVIDIA/cosmos 和 NVIDIA/cosmos-framework（OpenMDW-1.1）以及 OpenWAM 仓库。表格数字照录原文；读者注、代码对照和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos Policy 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2601.16163 Cosmos Policy 做成 11 幕 3D 动画：33 张图到 9 个隐帧、动作块怎样铺满一个隐帧、原样的 DiT、三种训练掩码、混合噪声分布、并行解码、价值目标、best-of-8 规划、LIBERO 评测协议、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos-policy.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos-policy.html">返回精读</a><a href="../../papers/cosmos-policy.html#s4-1">原文 §4.1</a><a href="../../papers/cosmos-policy.html#repro">LIBERO 设置</a><a href="https://arxiv.org/abs/2601.16163">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2601.16163 · Cosmos Policy</p>
+<h1>把视频模型变成策略：动作、未来画面和价值都是“视频帧”</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是数据怎样变成隐帧、动作怎样写进隐帧；第 4 幕是没改过的网络；<b>第 5 幕是核心：同一条序列换三种掩码，就分别在训练策略、世界模型和价值</b>；第 6、7 幕是噪声分布和推理；第 8、9 幕是回放、价值和 best-of-N 规划；第 10 幕是 LIBERO 评测协议；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。形状和设置来自论文和官方代码（NVlabs/cosmos-policy，提交 18a2acc）；标“现算”的数是页面按公式当场算的，标“示意”的是我设的玩具值。没有任何 Cosmos 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和设置表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整设置：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 NVlabs/cosmos-policy 提交 18a2acc（2026-01-22），只读未运行。LIBERO 一列以代码为准。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（18a2acc）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和序列</td></tr>
+<tr><td>I1</td><td>图像</td><td>没写分辨率；每个时刻复制 4 张，最前加 1 张空白</td><td>resolution "224"；LIBERO 33 张（chunk_duration 33），RoboCasa / ALOHA 41 张</td></tr>
+<tr><td>I2</td><td>VAE</td><td>Wan2.1：(1+T)×H×W×3 → (1+T/4)×H/8×W/8×16</td><td>隐帧 28 × 28 × 16 = 12,544 个数</td></tr>
+<tr><td>I3</td><td>隐帧序列</td><td>11 帧例子：空白、本体、腕部、相机 1、相机 2、动作、未来本体、未来腕部、未来相机 1、2、价值</td><td>LIBERO state_t 9（一个第三人称 + 腕部）；RoboCasa / ALOHA state_t 11</td></tr>
+<tr><td>I4</td><td>注入</td><td>缩放到 [−1, 1]，重复 H′W′C′/(K·d) 次填满</td><td>向上取整重复再截断；读出平均完整的 ⌊12,544/(K·d)⌋ 份；价值整块平均，(x+1)/2</td></tr>
+<tr><td>I5</td><td>本体 / 动作</td><td>ALOHA 14 个关节角；动作块 50</td><td>LIBERO 本体 9（夹爪 2 + 位置 3 + 四元数 4），动作 16 × 7；RoboCasa 32 × 7；ALOHA 50 × 14</td></tr>
+<tr><td>I6</td><td>文本</td><td>T5-XXL，交叉注意力</td><td>预先算好的 T5 嵌入；text dropout 0</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>骨干</td><td>Cosmos-Predict2-2B-Video2World，结构不改，全参数微调</td><td>model-480p-16fps.pt；MinimalV1LVGDiT：28 块，宽 2048，16 头，patch 1×2×2，3D RoPE，AdaLN-LoRA</td></tr>
+<tr><td>N2</td><td>token</td><td>—</td><td>每隐帧 196；LIBERO 1,764，11 帧 2,156（我的推算）</td></tr>
+<tr><td>N3</td><td>条件帧</td><td>条件掩码让条件帧保持干净</td><td>frame_replace：输入端换成真值，σ_cond = 0；输出端换回真值，不算损失</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>批次</td><td>50% 策略 / 25% 世界模型 / 25% 价值</td><td>demonstration_sampling_prob 0.5；回放里成功 / 失败 1:1 重采样；再各 0.5 当世界模型或价值</td></tr>
+<tr><td>T2</td><td>价值目标</td><td>γ^(H−t)·R，蒙特卡洛</td><td>2G − 1；γ 0.99（ALOHA 规划模型 0.998）；取未来帧 t + K 的回报</td></tr>
+<tr><td>T3</td><td>噪声</td><td>0.7 × 对数正态(1.39, 1.2) + 0.3 × U[1, 85]</td><td>HybridEDMSDE，p_mean = ln 4</td></tr>
+<tr><td>T4</td><td>优化</td><td>—</td><td>lr 1e-4；warmup 1,000；30K 步后降为 0.06 倍；无 EMA</td></tr>
+<tr><td>T5</td><td>规模</td><td>LIBERO 40K 步 / 64×H100 / batch 1,920；RoboCasa 45K / 32 / 800；ALOHA 50K / 8 / 200；都是 48 小时</td><td>每卡 batch 30 / 25 / 25</td></tr>
+<tr><td>T6</td><td>增强</td><td>—</td><td>90% 随机裁切、±5° 旋转、颜色抖动；测试 90% 中心裁切</td></tr>
+<tr class="grp"><td colspan="4">推理和规划</td></tr>
+<tr><td>R1</td><td>直接策略</td><td>并行解码；5 步（LIBERO、RoboCasa）/ 10 步（ALOHA）；σ ∈ [4, 80]</td><td>__inference_only：sigma_max 80，sigma_min 4；采样器 2ab</td></tr>
+<tr><td>R2</td><td>规划模型</td><td>648 条回放；90% 世界模型 + 价值，10% 策略</td><td>demonstration_sampling_prob 0.1；从 50K 检查点继续；mask_current_state_action_for_value_prediction</td></tr>
+<tr><td>R3</td><td>best-of-N</td><td>N = 8，3 个未来 × 5 个价值，多数均值，自回归 10 / 5 / 5 步</td><td>阈值 0.05，票数 ≥ 一半；8 张 GPU 各跑一个分支</td></tr>
+<tr class="grp"><td colspan="4">LIBERO 评测</td></tr>
+<tr><td>E1</td><td>回合</td><td>每套件 500，3 个种子，6,000</td><td>种子 195 / 196 / 197，--deterministic True；默认初始状态，不跳过</td></tr>
+<tr><td>E2</td><td>协议</td><td>—</td><td>开局 10 步空动作；上限 220 / 280 / 300 / 520；256 渲染，flipud；JPEG；动作块 16 整块执行</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 3 幕的数值。</b>动作和本体的值是正弦造的玩具值；复制份数和截断是按代码规则现算的。</li>
+<li><b>第 5 幕的噪声。</b>噪声覆盖层的深浅只是示意，不对应具体 σ。</li>
+<li><b>第 6 幕的推理步点。</b>按 EDM ρ = 7 的间隔画；代码采样器是 2ab，步点位置没核对。直方图是用正态分布函数现算的。</li>
+<li><b>第 7 幕的动作块。</b>16 × 7 的柱高是玩具值。</li>
+<li><b>第 8 幕的回合长度。</b>300 步是我选的；回报曲线按代码公式现算。</li>
+<li><b>第 9 幕的 15 个价值。</b>固定种子的玩具数；多数均值规则按代码现算。</li>
+<li><b>第 10 幕的失败位置。</b>每个套件的失败总数由成功率反推，落在哪个种子、任务、回合是随机放的。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2601.16163 后的理解，不是作者的官方图。原图见<a href="../../papers/cosmos-policy.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

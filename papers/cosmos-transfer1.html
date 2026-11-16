@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos-Transfer1 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.14492 Cosmos-Transfer1 的中文精读：多模态 ControlNet 分支、按时空变化的控制权重图、机器人 Sim2Real 和自动驾驶数据增强、GB200 NVL72 上的实时推理。逐节整理，含原图、结果表、官方代码对照、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-t1{min-width:760px}.t-t2{min-width:880px}.t-t3{min-width:780px}.t-t4{min-width:560px}.t-t5{min-width:560px}.t-code{min-width:720px}.t-links{min-width:640px}.t-mod{min-width:640px}
+.t-t1 td,.t-t1 th,.t-t2 td,.t-t2 th,.t-t3 td,.t-t3 th{white-space:nowrap}
+.t-t2 th,.t-t2 td{padding-left:6px;padding-right:6px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+.prompt{border-left:3px solid var(--line);padding:4px 12px;margin:10px 0;font-size:14px;color:var(--muted);max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos-transfer1/index.html">3D 框架动画</a><a href="cosmos.html">Cosmos 平台</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2503.14492 · cs.CV · v2 2025 年 4 月 1 日 · NVIDIA 技术报告 · 中文精读</p>
+<h1>Cosmos-Transfer1：用多种空间控制、按位置加权来生成世界视频</h1>
+<p class="orig">Cosmos-Transfer1: Conditional World Generation with Adaptive Multimodal Control</p>
+<p>作者署名 NVIDIA，正文附录 B 列出 24 位核心贡献者（Maciej Bala、Tiffany Cai、Francesco Ferroni、Sanja Fidler、Dieter Fox、Ming-Yu Liu、Ting-Chun Wang、Xiaohui Zeng 等）、15 位贡献者和 6 位致谢。arXiv 摘要页写作 “NVIDIA: Hassan Abu Alhaija and 38 other authors”。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2503.14492">arXiv 原文</a><a href="https://arxiv.org/pdf/2503.14492v2">PDF</a><a href="https://arxiv.org/html/2503.14492v2">HTML 版</a><a href="https://research.nvidia.com/labs/dir/cosmos-transfer1/">项目页</a><a href="https://github.com/nvidia-cosmos/cosmos-transfer1">官方代码</a><a href="https://huggingface.co/nvidia/Cosmos-Transfer1-7B">权重</a><span>正文 20 页，附录到第 23 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>我读的是 <b>arXiv v2（2025 年 4 月 1 日）</b>，v1 是 2025 年 3 月 18 日。按原文顺序覆盖正文 8 节和附录 A、B，小节编号和原文一致，用自己的话写，不是逐字翻译。原文只有两个编号公式 (1)(2)，照原编号排；表 1 到表 5 的数字照录（原文的粗体和下划线没有照搬）。</p>
+<p><b>许可和原图。</b>arXiv 摘要页登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>。但 PDF 第 1 页页脚印着 “© 2025 NVIDIA. All rights reserved.”，两者字面上矛盾（见<a href="#n1">读者注 1</a>）。这一批 Cosmos 系列的页面由站点作者决定放原图：图 1 到图 12 从 arXiv PDF 用 200 dpi 渲染后裁切，转成 webp，没有改图的内容。每张图下写了作者、出处、许可和看原图的链接。图下的文字是我写的。</p>
+<p><b>代码。</b>官方仓库 <a href="https://github.com/nvidia-cosmos/cosmos-transfer1">nvidia-cosmos/cosmos-transfer1</a>，我读的是 commit <a href="https://github.com/nvidia-cosmos/cosmos-transfer1/tree/5005e823dbd478ad8e51f6bc28a913a13a994b5f"><code>5005e82</code></a>（2026-06-07），只读，没有运行，也没有下载权重。代码是 Apache 2.0，权重是 NVIDIA Open Model License。这个提交比论文晚一年多，README 已经声明仓库不再积极开发、建议迁到 Cosmos 3（见 <a href="cosmos3.html">Cosmos 3 精读</a>），中间还加了关键点控制、蒸馏版、多视角等后续功能。论文和代码不一致的地方两边都写。</p>
+<p>标成“读者注”的框是我核算或对照的结果，不属于论文，页尾有汇总。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可标注的矛盾</span><p>arXiv 摘要页的许可链接指向 CC BY 4.0（我在 2026-11-16 抓取摘要页核对过，链接是 <code>licenses/by/4.0/</code>）。PDF 第 1 页页脚却是 “© 2025 NVIDIA. All rights reserved.”。同站的 <a href="sonic.html">SONIC</a> 页遇到过同样的情形（CC BY-SA 对 All rights reserved）。本页按 arXiv 登记的许可和站点作者的决定放了原图，这一点列在这里，读者要再转载时请自己判断。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 预备知识</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 模态与训练</a><a href="#s5">5 评测</a><a href="#s5-1">5.1 单模态对多模态</a><a href="#s5-2">5.2 时空权重图</a><a href="#s5-3">5.3 机器人 Sim2Real</a><a href="#s5-4">5.4 自动驾驶</a><a href="#s6">6 实时推理</a><a href="#s7">7 相关工作</a><a href="#s8">8 结论</a><a href="#apA">附录 A 提示词扩写</a><a href="#apB">附录 B 贡献者</a><a href="#code">代码对照</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>Cosmos-Transfer1 是一个“条件视频生成”模型：给它一段或几段<b>结构视频</b>（模糊视频、边缘、深度、分割，自动驾驶版还有高精地图和激光雷达投影），再加一句文字，它生成一段 5 秒、1280×704、24 fps 的逼真视频，结构跟输入对齐，外观按文字改。底座是 <a href="cosmos.html">Cosmos 平台</a>里的 Cosmos-Predict1-7B-Video2World，一个 28 层的视频 DiT。</p>
+<ul>
+<li><b>结构：</b>每种模态一个 ControlNet 式的控制分支，每个分支是底座前 3 个 transformer block 的副本，输出经零初始化的线性层加回底座的前 3 个 block。底座冻结。</li>
+<li><b>自适应权重：</b>推理时给每个模态一张时空权重图 \(\mathbf w\in\mathbb R^{N\times X\times Y\times T}\)，逐位置乘到分支输出上；某处权重和大于 1 就归一化。这样可以前景用“紧”的模态（模糊、边缘）保住细节，背景用“松”的模态（深度、分割）换花样。</li>
+<li><b>训练：</b>各分支<b>分开</b>训练，推理时才合并。每个分支用 1024 张 H100 训练 2 到 4 周。</li>
+<li><b>结果：</b><a class="ds" href="#transferbench">TransferBench</a>（600 段视频）上，四模态等权重的综合质量分 8.54，高于任何单模态（5.48 到 6.51）。机器人仿真转真实、自动驾驶数据增强各有一个案例研究。</li>
+<li><b>实时：</b>在 GB200 NVL72 上用 64 张 B200，5 秒视频端到端 4.2 秒生成，扩散部分从 1 卡到 64 卡加速约 40 倍。</li>
+</ul>
+<p>读完我认为最值得记住的三点：控制分支只有 3 个 block 而且分开训练，所以加减模态不用重训；权重图在代码里最终落到 44×80×16 的 token 网格上，比像素粗得多（<a href="#n4">读者注 4</a>）；表 1 正文说等权重模型“深度重建最好”，但表里去掉分割的那一行更好（<a href="#n8">读者注 8</a>）。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>多模态可控世界生成：输入是分割、深度、边缘等视频，它们在不同位置、不同时刻规定了目标世界的一部分，生成问题因此变简单。这种能力的一个直接用途是缩小 CG 仿真器和真实世界的差距：仿真器几乎免费给出深度和分割，用它们做条件，就能在保持场景结构和语义的同时把渲染画面变真实。</p>
+<p><b>做法。</b>在 Cosmos-Predict1（NVIDIA 2025，即 <a href="cosmos.html">Cosmos 平台论文</a>）的 DiT 世界模型上，用一种新的 ControlNet 设计加多模态控制分支。\(N\) 种模态就有 \(N\) 个分支，分开训练，推理时融合。</p>
+<p><b>时空自适应。</b>对分支输出施加时空控制图，规定每个模态在每个位置、每个时刻的权重。权重越高，该模态在那里的影响越大。例子：全局偏向深度可以保住几何；前景物体给边缘高权重、背景给低权重，可以保住前景细节而让背景多样。控制图也可以由另一个神经网络推断。</p>
+<p>论文随后用实验验证，给出机器人 Sim2Real 和自动驾驶数据增强两个应用，并演示在 GB200 NVL72 机柜上做到实时。代码、权重、示例脚本都开源。</p>
+
+<h2 id="s2"><span class="no">2</span>预备知识</h2>
+<figure class="pfig" id="fig1">
+<img src="cosmos-transfer1/fig1.webp" width="1279" height="699" alt="图 1：左边是普通的 DiT，一列 transformer block；右边是 ControlNet，底座变灰，旁边多一列三个 block，经 linear 加回底座" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · NVIDIA（Hassan Abu Alhaija 等），arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved，见读者注 1） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S2.F1">看原图 ↗</a></span>(a) 底座：噪声视频 token 经一串 transformer block，输出噪声预测。(b) ControlNet：底座画成灰色表示冻结；条件 token 经一个 linear 后，和噪声视频 token 相加，进入右边一列 3 个 transformer block；每个 block 的输出经一个零初始化的 linear，加回底座对应 block 的输出。</figcaption>
+</figure>
+<p>扩散模型的核心是去噪器。常见实现是图 1(a) 的 DiT：一串 transformer block，学预测加在视频 token 上的噪声。记去噪器为 \(D\)，输入带噪 token \(\mathbf x_\sigma\) 和噪声标准差 \(\sigma\)：</p>
+<div class="eq"><div class="m">\[ \mathbf n = D(\mathbf x_\sigma,\sigma) \]</div><span class="no">(1)</span></div>
+<p>ControlNet 把底座扩展成条件模型。原版为 UNet 设计，Chen 等（PixArt-δ）把它搬到 DiT。本文的 DiT 版 ControlNet（图 1b）有底座和一个控制分支，控制分支是<b>3 个</b> transformer block，论文说 3 个在控制效果和推理效率之间取得平衡。这 3 个 block 从底座对应的 block 继承权重初始化；每个 block 的输出经一个零初始化的线性层，加到底座对应 block 的激活上。训练时只优化新加的部分，底座冻结。记条件 token 为 \(\mathbf c\)：</p>
+<div class="eq"><div class="m">\[ \mathbf n = D(\mathbf x_\sigma,\sigma,\mathbf c) \]</div><span class="no">(2)</span></div>
+<p>ControlNet 继承底座的能力：底座接受文字提示，ControlNet 也接受。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 控制分支的输入，图和代码差一个位置</span><p>图 1(b) 和图 2 都画了一条从“噪声视频 token”到控制分支入口的线：分支看的不只是条件，而是噪声 token 加条件 token。代码 <code>general_dit_ctrl_enc.py</code> 也是这样，但相加的位置不同：分支先把噪声 latent（拼上条件帧掩码，<code>in_channels=17</code>）走一遍复制来的 patch 嵌入和<b>第 1 个 block</b>，<b>之后</b>才加条件嵌入（第 299-312 行：<code>x = block(x, …)</code>，再 <code>x = x + guided_hint</code>），图上是在第 1 个 block 之前。条件视频本身先过同一个视频 tokenizer 变成 16 通道 latent（<code>model_ctrl.py</code> 的 <code>encode_latent</code>），再经 <code>x_embedder2</code>（2×2 patch）和一个 7 层 MLP（4096→16→16→32→32→96→96→256→4096，最后一层零初始化）。所以条件进入分支前有两道零初始化：嵌入 MLP 的末层和每个 block 后的 linear。</p>
+<p>另外，论文式 (1)(2) 说网络“预测噪声”。代码用的是 EDM 式预条件化（<code>denoiser_scaling.py</code>：\(c_{\rm skip}=\sigma_d^2/(\sigma^2+\sigma_d^2)\)，\(\sigma_d=0.5\)），输出组合成 \(\hat{\mathbf x}_0\)。这是写法上的简化，不影响结论。</p></div>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<p>Cosmos-Transfer1 是对 Cosmos-Predict1 扩散世界模型做后训练得到的。设 \(\mathbf c_1,\dots,\mathbf c_N\) 是 \(N\) 种模态的条件视频。</p>
+<figure class="pfig" id="fig2">
+<img src="cosmos-transfer1/fig2.webp" width="1290" height="664" alt="图 2：左边是底座，右边并排 N 个控制分支，每个分支每个 block 的输出 h 乘以权重 w 后加回底座" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S3.F2">看原图 ↗</a></span>左边一列是底座 DiT，中间省略号表示中间的 block。右边是“模态 1”到“模态 n”的控制分支，每个分支都是 3 个 block。第 \(i\) 个分支第 \(j\) 个 block 的输出记作 \(\mathbf h_i^j\)，经 linear 后在 ⊗ 处乘以权重 \(\mathbf w_i\)，所有分支的结果在底座第 \(j\) 个 block 之后的 ⊕ 处相加。</figcaption>
+</figure>
+<p><b>时空控制图。</b>引入 \(\mathbf w\in\mathbb R^{N\times X\times Y\times T}\)，\(X,Y,T\) 是视频宽、高、帧数。记第 \(i\) 个分支第 \(j\) 个 block 的激活为 \(\mathbf h_i^j\in\mathbb R^{X\times Y\times T}\)，权重的第 \(i\) 片为 \(\mathbf w_i\)，加回底座的量是逐元素乘积 \(\mathbf w_i\cdot\mathbf h_i^j\)。也就是说，底座第 \(j\) 个 block 之后加上</p>
+<div class="eq"><div class="m">\[ \sum_{i=1}^{N}\mathbf w_i\cdot\mathbf h_i^j,\qquad j=1,2,3 \]</div><span class="no"></span></div>
+<p>（这一行是我按正文写成的式子，原文没有编号。）控制图可以手工设计，可以按对模态的先验用启发式规则得出，也可以训练一个网络来预测。某个时空位置上各模态权重之和大于 1 时，把这一位置的权重归一化，使其和为 1。</p>
+<p><b>分开训练，推理时融合。</b>每个控制分支按 §2 的方式单独训练。相比一次训练所有分支有三个好处：省显存，一次只需把一个分支放进显存，大规模视频训练里这能减轻实现负担；不同模态可以用不同的数据训练，因为有些模态的配对数据难得；更灵活，训练完后可以随时增删模态。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 归一化和权重图的实际粒度（代码）</span><p><b>归一化。</b><code>inference_utils.py</code> 的 <code>load_spatial_temporal_weights</code>（第 1050-1115 行）先把负值截成 0，再做 \(\mathbf w\leftarrow\mathbf w/\max(\sum_i\mathbf w_i,\,1)\)：和小于 1 不动，大于 1 才除。这和论文一致。所以“四模态都给 1”实际是每个 0.25；“四模态都给 0.5”也是每个 0.25；只给两模态各 0.5 则不变。权重不写时默认 0.5（第 1260-1262 行）。</p>
+<p><b>粒度。</b>论文写 \(\mathbf w\) 的尺寸是视频的 \(X\times Y\times T\)。代码里权重图（可以是 <code>.pt</code> 文件，2D 或 3D）先插值到像素尺寸，然后在 <code>resize_control_weight_map</code> 里再三线性插值到 <b>token 网格</b>：第 1 帧单独一层，其余帧压到 \(T-1\) 层，空间是 latent 的一半（<code>world_generation_pipeline.py:601</code>，<code>(t, h // 2, w // 2)</code>）。1280×704、121 帧时就是 16×44×80：每个权重值管 16×16 像素、8 帧。所以细到像素的掩码（例如图 6 的自行车辐条）在模型里会被平均成软边。乘法发生在零初始化 linear 之后（<code>general_dit_ctrl_enc.py:315-323</code>），和图 2 的画法一致。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、四种控制视频怎样从输入视频算出来、56,320 个 token、单个 ControlNet 和零初始化、多分支加权融合（第 5 幕）、归一化当场算（第 6 幕）、前景/背景权重图、分开训练和算力、采样与 4K 放大、三张结果表、64 卡实时。可以暂停、拖进度、旋转画面、切换开关。</p>
+<iframe src="../interactives/cosmos-transfer1/index.html?embed=1&amp;scene=5" title="Cosmos-Transfer1 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos-transfer1/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>模态与训练</h2>
+<p><b>两个模型。</b>第一个是在 Cosmos-Predict1-7B-Video2World 上后训练得到的 <b>Cosmos-Transfer1-7B</b>。第二个是自动驾驶专用版，从 Cosmos-Predict1-7B-Video2World-Sample-AV（在行车记录仪视频上微调过的版本）后训练，叫 <b>Cosmos-Transfer1-7B-Sample-AV</b>。</p>
+<p><b>训练。</b>7B 版的控制分支用 Cosmos 平台论文里的高质量微调数据集训练。单模态时（即普通 ControlNet）记作 Cosmos-Transfer1-7B [模态名]，例如 [Depth]。每个分支用 1024 张 H100 训练 2 到 4 周，视模态而定。一次推理生成 5 秒、1280×704、24 fps 的视频，即 56K 个 token。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 56K token 和算力</span><p><b>token 数。</b>原文脚注 2 用 Cosmos-Tokenize1-CV8x8x8-720p（时间、宽、高各压 8 倍的因果视频 tokenizer），再 2×2 patchify：\(1280/8/2=80\)，\(704/8/2=44\)，\((121-1)/8+1=16\)，\(80\times44\times16=56{,}320\)。我算的和原文一致。代码训练配置 <code>ctrl_7b_tp_121frames.py</code> 的 <code>latent_shape=[16, 16, 88, 160]</code>（通道、隐帧、高、宽）也对得上。121 帧 / 24 fps = 5.04 秒。</p>
+<p><b>算力（我的计算）。</b>每个分支 \(1024\times24\times7\times2=344{,}064\) 到 \(688{,}128\) H100 小时（2 到 4 周）。7B 版四个模态加起来约 138 万到 275 万 H100 小时，还不算 Sample-AV 的两个分支和 4K 放大器。论文没有给总数。</p></div>
+<p><b>7B 版的四种模态：</b></p>
+<div class="tablewrap"><table class="t-mod"><thead><tr><th>模态</th><th>怎样从输入视频得到</th><th>保住什么</th><th>论文说的训练增强</th></tr></thead><tbody>
+<tr><td>Blur visual [Vis]</td><td>双边滤波模糊</td><td>原色和大致形状，只改纹理细节；适合把 CG 渲染变真实</td><td>随机化双边滤波参数</td></tr>
+<tr><td>Edge [Edge]</td><td>逐帧 Canny 边缘</td><td>整体结构，其余交给模型发挥</td><td>随机化 Canny 阈值</td></tr>
+<tr><td>Depth [Depth]</td><td>DepthAnything2，归一化到 [0, 1]</td><td>3D 几何</td><td>未提</td></tr>
+<tr><td>Segmentation [Seg]</td><td>GroundingDINO 在首帧按描述里的名词检测，SAM2 在全视频分割；颜色随机，只区分物体不代表类别</td><td>分割布局，自由度高</td><td>颜色随机</td></tr>
+</tbody></table></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 训练增强，论文和代码</span><p><b>模糊。</b>论文只说双边滤波。代码 <code>config/transfer/blurs.py</code> 的 <code>random_blur_config</code> 是三选一：只用双边 50%、只用高斯 30%、两者叠加 20%；再随机先缩小 1 到 4 倍再放大（<code>downscale_factor=list(range(1, 5))</code>）。双边滤波参数随机范围：直径 15 到 50、颜色 σ 100 到 300、空间 σ 50 到 150、迭代 1 到 4 次。</p>
+<p><b>边缘。</b><code>control_input.py:558-575</code>：训练时下阈值随机取 20 到 99，上阈值 = 下阈值 + 50 到 149（不超过 255）；推理默认 “medium”，即 100 / 200，另有 very_low 20/50 到 very_high 300/400 五档。</p>
+<p><b>深度。</b>代码 <code>depth_anything.py:120</code> 按整段视频的 min-max 归一化，和论文的 [0, 1] 一致（存成 0 到 255）。</p></div>
+<figure class="pfig" id="fig3">
+<img src="cosmos-transfer1/fig3.webp" width="1315" height="1190" alt="图 3：同一段机械臂递咖啡杯的视频，四行分别是 Vis、Edge、Depth、Seg 控制的输入和输出" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S4.F3">看原图 ↗</a></span>同一个提示词（现代办公室里黑色机械臂把红白花纹的咖啡杯递给柜台前的女士），四种单模态各一行，左两帧是控制输入，右两帧是输出。Vis 行保住颜色和构图、只改纹理；Edge 行保住物体轮廓、颜色变了；Depth 行保住几何；Seg 行保住语义布局，自由度最大。</figcaption>
+</figure>
+<p><b>Sample-AV 的数据。</b>自动驾驶里常用的感知信号是带动态 3D 框的高精地图，激光雷达是 RGB 的补充。作者整理了 <b>RDS-HQ</b>（Real Driving Scene HQ）：65K 段 20 秒环视视频（约 360 小时），带 10 Hz 激光雷达，用 NVIDIA 驾驶平台采集，每段有稠密描述（相机安装位置、他车密度等）。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 360 小时的算术</span><p>\(65{,}000\times20\ \text{s}=1{,}300{,}000\ \text{s}=361\) 小时，和“约 360 小时”一致。这说明 360 小时按“段数 × 20 秒”计，一段环视视频算一份，不是把每个相机分开计时；如果按 6 路相机分开算会是约 2170 小时（相机路数论文没写，这是我的推断）。</p></div>
+<p><b>Sample-AV 的两种模态：</b></p>
+<ul>
+<li><b>HDMap。</b>车道线、路沿、停止线、杆、人行横道、路面标记、红绿灯、交通标志。用城市级预建激光雷达地图加内部自动标注流水线构建，再补上车辆、行人等动态物体的 3D 框检测与跟踪，全部经人工质检。适合保住道路布局、换外观；也能模拟不同的自车轨迹，因为高精地图给出了相机和道路几何之间的精确相对位姿。</li>
+<li><b>LiDAR。</b>把 10 FPS 的激光雷达对齐到 30 FPS 的相机帧：每帧取最近的一帧扫描加前后各两帧；静态点直接投影，动态点按插值后的 3D 框调整位置再投影；再用核大小 4 的插值补投影空洞。适合保住语义细节、改天气和光照。</li>
+</ul>
+<figure class="pfig" id="fig4">
+<img src="cosmos-transfer1/fig4.webp" width="1313" height="630" alt="图 4：上一行高精地图输入和夜间公路输出，下一行激光雷达深度输入和输出，下方是提示词" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 6 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S4.F4">看原图 ↗</a></span>夜间多车道公路。上行 HDMap 输入是黑底上的蓝色车道线和红色 3D 框，输出保住了道路布局；下行 LiDAR 输入是灰度深度投影（近亮远暗），输出保住了路边树丛和路灯等细节。注意图中标题写的是 “Cosmos-Transfer1-7B [HDMap]”，正文的名字是 Cosmos-Transfer1-7B-Sample-AV [HDMap]。</figcaption>
+</figure>
+<p><b>4K 放大器。</b>另外训练一个 Upscale ControlNet，把生成的 720p 视频放大到 4K。训练输入是用 Real-ESRGAN 的退化方法弄坏的高分辨率视频随机裁块，学习恢复原块。推理时把 4K 输出分成 3×3 个有重叠的块，每个去噪步对每块各推理一次，重叠区取平均，保证接缝处平滑。记作 Cosmos-Transfer1-7B-4KUpscaler。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos-transfer1/fig5.webp" width="1311" height="662" alt="图 5：左边输入，右边 4K 放大结果，中间放大局部对比；上行是生成的仓库机器人，下行是真实城市视频" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 7 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S4.F5">看原图 ↗</a></span>上行输入是生成的视频（仓库里的人形机器人），下行是真实视频（城市街道俯视）。中间两列是红框处的放大对比：放大后机器人身上多了反光，街上车辆的纹理更锐利。</figcaption>
+</figure>
+<div class="note" id="n7"><span class="lab">读者注 7 · 代码里的“4K”是多大</span><p>代码 <code>inference_utils.py:350-362</code> 的 <code>get_upscale_size</code>：16:9 时目标宽 = \(1280\times3-256=3584\)，高 = \(704\times3-\lfloor256\times9/16\rfloor=2112-144=1968\)。3×3 块的重叠是宽 \((3\times1280-3584)/2=128\)、高 \((3\times704-1968)/2=72\) 像素。所以模型实际生成的画布是 3584×1968（705 万像素，是 3840×2160 的 85.0%），解码拼接后再用双三次插值放到 \(1280\times3\)×\(704\times3\)=3840×2112（<code>world_generation_pipeline.py:408</code>）。拼接分两层：每个去噪步在 latent 上合并（<code>model_ctrl.py:321</code>），最后解码出的像素块再按线性渐变权重混合，不是简单平均（<code>merge_patches_into_video</code>）。论文的“3×3、重叠区平均”是对的，但最终尺寸不是标准 UHD。</p></div>
+
+<h2 id="s5"><span class="no">5</span>评测</h2>
+<p>§5.1 比较单模态和等权重多模态；§5.2 给出自动生成时空控制图的方法并分析；§5.3、§5.4 是机器人和自动驾驶的案例研究。</p>
+<p id="transferbench"><b>TransferBench。</b>作者整理的评测集，600 段视频，三类各 200 段：机械臂操作从 <a class="ds" href="https://agibot-world.com/">AgiBot World</a>（<a href="https://arxiv.org/abs/2503.06669">论文</a>）随机抽取；驾驶从 <a class="ds" href="https://github.com/OpenDriveLab/DriveAGI">OpenDV</a>（<a href="https://arxiv.org/abs/2403.09630">论文</a>）抽取；第一人称日常场景从 <a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a>（<a href="https://arxiv.org/abs/2311.18259">论文</a>）抽取。TransferBench 本身我没有找到公开下载（未核实）。</p>
+<p><b>指标</b>分三类：</p>
+<ul>
+<li><b>对控制信号的遵从。</b>把输入视频和生成视频都变换到同一表示再比较。<b>Blur SSIM</b>：两者做同样的模糊，算 SSIM。<b>Edge F1</b>：两者提同样的 Canny 边缘，按黑白像素分类算 F1。<b>Depth si-RMSE</b>：用 <a class="ds" href="https://depth-anything-v2.github.io/">DepthAnythingV2</a>（<a href="https://arxiv.org/abs/2406.09414">论文</a>）估深度，算尺度不变 RMSE，越低越好。<b>Mask mIoU</b>：用 GroundingDINO + SAM2 分割；同一短语的多个实例先合成一个掩码，按 IoU 距离做匹配，IoU 低于 0.1 的配对丢弃，对有效配对求平均 IoU。</li>
+<li><b>多样性 Diversity-LPIPS。</b>同一条件输入用 \(K\) 个不同提示生成 \(K\) 段视频，对 \(K(K-1)/2\) 对算 LPIPS 平均，再对数据集平均。越高越多样。</li>
+<li><b>整体质量 Quality Score。</b><a class="ds" href="https://github.com/VQAssessment/DOVER">DOVER</a>-technical 分数（<a href="https://arxiv.org/abs/2211.04894">论文</a>），对所有视频平均。</li>
+</ul>
+<p>论文没说 \(K\) 取多少；§5.3 的机器人实验是每个场景 6 个提示。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>单模态对多模态</h3>
+<p><b>结论先说：</b>单模态各自在“自己的”指标上最好，但等权重融合四个模态的质量分最高（8.54）。稠密的模态（模糊、边缘）对齐好、多样性低；稀疏的（深度、分割）反过来。</p>
+<p>三种设置：只用一个模态；去掉一个模态、其余等权；四个全用、等权（每个 0.25）。</p>
+<p class="tcap">表 1 · TransferBench 上的各种配置。Vis / Edge / Depth / Seg 对齐分别用 Blur SSIM、Edge F1、Depth si-RMSE、Mask mIoU 衡量。</p>
+<div class="tablewrap"><table class="t-t1"><thead><tr><th>模型</th><th>Blur SSIM ↑</th><th>Edge F1 ↑</th><th>Depth si-RMSE ↓</th><th>Mask mIoU ↑</th><th>Diversity LPIPS ↑</th><th>Quality ↑</th></tr></thead><tbody>
+<tr><td>Cosmos-Transfer1-7B [Vis]</td><td class="n">0.96</td><td class="n">0.16</td><td class="n">0.49</td><td class="n">0.72</td><td class="n">0.19</td><td class="n">5.94</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Edge]</td><td class="n">0.77</td><td class="n">0.28</td><td class="n">0.53</td><td class="n">0.71</td><td class="n">0.28</td><td class="n">5.48</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Depth]</td><td class="n">0.71</td><td class="n">0.14</td><td class="n">0.49</td><td class="n">0.70</td><td class="n">0.39</td><td class="n">6.51</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Seg]</td><td class="n">0.66</td><td class="n">0.11</td><td class="n">0.75</td><td class="n">0.68</td><td class="n">0.42</td><td class="n">6.30</td></tr>
+<tr><td>Uniform Weights, no Vis</td><td class="n">0.68</td><td class="n">0.13</td><td class="n">0.57</td><td class="n">0.67</td><td class="n">0.37</td><td class="n">8.02</td></tr>
+<tr><td>Uniform Weights, no Edge</td><td class="n">0.81</td><td class="n">0.10</td><td class="n">0.53</td><td class="n">0.66</td><td class="n">0.31</td><td class="n">7.68</td></tr>
+<tr><td>Uniform Weights, no Depth</td><td class="n">0.83</td><td class="n">0.15</td><td class="n">0.52</td><td class="n">0.69</td><td class="n">0.25</td><td class="n">7.49</td></tr>
+<tr><td>Uniform Weights, no Seg</td><td class="n">0.84</td><td class="n">0.15</td><td class="n">0.43</td><td class="n">0.70</td><td class="n">0.23</td><td class="n">7.83</td></tr>
+<tr><td>Uniform Weights（四模态，各 0.25）</td><td class="n">0.87</td><td class="n">0.20</td><td class="n">0.47</td><td class="n">0.72</td><td class="n">0.22</td><td class="n">8.54</td></tr>
+</tbody></table></div>
+<p><b>单模态。</b>Vis 的 Blur SSIM 最高（0.96），Edge 的 Edge F1 最高（0.28；原文脚注说 Edge F1 要求细边缘逐像素对齐，非常严格，所以所有方法都偏低）。Depth 和 Seg 在自己的指标上并不最好：Depth 的 si-RMSE 0.49，和 Vis 持平；Seg 的 Mask mIoU 0.68。论文的解释：远处背景的深度图大片均匀，SAM2 的分割多是大色块，约束稀疏，模型自由度大，单独用时重建就不那么准。</p>
+<p><b>去掉一个。</b>只去掉 Vis 时 Blur SSIM 最低（0.68），说明模糊视频给的稠密结构是高对齐的关键。多样性方面，去掉 Vis 或 Edge 使 LPIPS 升到 0.37 和 0.31；去掉 Depth 或 Seg 降到 0.25 和 0.23。所以模糊和边缘适合要精确对齐的任务（逼真风格迁移、受控环境的 Sim2Real），深度和分割适合要多样性的任务（数据增强用的新场景合成）。</p>
+<p><b>四模态等权。</b>Vis 和 Edge 对齐都排第二，论文认为是因为每个模态的权重只有 0.25，而单模态时是 1.0。质量分 8.54 最高。论文还说它的深度重建最好。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 1 和正文的三处核对</span><p><b>“深度重建最好”不成立。</b>四模态等权的 si-RMSE 是 0.47，而 “no Seg” 是 <b>0.43</b>，更低（越低越好）。等权模型在深度上是第二。</p>
+<p><b>“排第二”成立。</b>Blur SSIM：0.96（Vis）之后是 0.87，再是 0.84；Edge F1：0.28 之后是 0.20，再是 0.16。</p>
+<p><b>多样性的四个数成立：</b>0.37、0.31、0.25、0.23 都和表一致。另外，单模态里稀疏模态的质量分（Depth 6.51、Seg 6.30）高于稠密模态（Vis 5.94、Edge 5.48），而任何多模态组合（7.49 到 8.54）都比任何单模态高 0.98 以上（7.49 − 6.51）。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>时空控制图的案例研究</h3>
+<p><b>结论先说：</b>按前景 / 背景给不同模态不同权重确实有效：被加权的区域在对应指标上明显变好，例如前景 Vis 权重从 0 到 0.5，前景 Blur SSIM 从 0.43 升到 0.81。</p>
+<p><b>SalientObject 算法。</b>让一个视觉语言模型（引用 GPT-4 技术报告）把预先提好的 GroundingDINO + SAM2 掩码分成前景和背景。给它参考帧、完整描述和每个掩码对应的短语，问每个短语是否是场景里显著的前景物体。由此得到一张时空的前景 / 背景权重掩码。</p>
+<figure class="pfig" id="fig6">
+<img src="cosmos-transfer1/fig6.webp" width="1299" height="711" alt="图 6：自行车修理店，左列四种模态，中列四张黑白权重图，右边是生成结果" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F6">看原图 ↗</a></span>左列是同一帧的 Vis、Edge、Depth、Seg。中列是各自的权重图：黑色 0，白色 0.5。Vis 和 Edge 只在人和车轮上是白的，Depth 和 Seg 正好相反。右边生成结果里，人的蓝色 T 恤、白色标志和肤色都保住了（由 Vis、Edge 控制）；背景物体位置不变但颜色纹理随机（红色工具箱、黄色三脚架、白色修车架），右墙还多了一个新工具架。</figcaption>
+</figure>
+<p>图 6 前景 Vis 和 Edge 各 0.5，背景 Depth 和 Seg 各 0.5。这模拟一种常见需求：显著物体贴近原视频，背景多样。因为 Vis、Edge 约束更强（自由度低），Depth、Seg 更松（自由度高），前者给前景、后者给背景就行。</p>
+<p><b>定量实验一（图 7）。</b>前景用 Edge 和 Vis，背景用 Depth 和 Seg，逐个模态把权重设为 0、0.333、0.5，看受影响区域的对齐指标。前景 Vis 权重升高，前景 Blur SSIM 从 0.43 到 0.81，Pearson 相关 0.93；背景 Depth 权重升高，背景 si-RMSE 从 1.88 到 0.52，相关系数 −0.92。</p>
+<figure class="pfig" id="fig7">
+<img src="cosmos-transfer1/fig7.webp" width="1310" height="536" alt="图 7：四个箱线图，横轴是权重 0、0.333、0.5，纵轴分别是前景 Blur SSIM、前景 Edge F1、背景 Depth si-RMSE、背景 Mask mIoU" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 11 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F7">看原图 ↗</a></span>四个箱线图，每个横轴是一个模态在一个区域的权重（0、0.333、0.5）。相关系数分别是 r = 0.93（前景 Vis）、0.52（前景 Edge）、−0.92（背景 Depth）、0.41（背景 Seg）。纵轴标签把 si-RMSE 写成了 si-RSME，表 2 也是。读数见读者注 9。</figcaption>
+</figure>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 7 的精确读数（重画用）</span><p>图 7 是矢量图。我用 <code>pdftocairo -svg</code> 导出第 11 页，按每个子图的虚线网格（例如 0.4 到 0.8）标定，读出箱子的下四分位、中位数、上四分位（脚本在我的工作目录，结果如下，误差在 0.001 量级）：</p>
+<div class="tablewrap"><table class="t-t5"><thead><tr><th>子图</th><th>权重 0</th><th>权重 0.333</th><th>权重 0.5</th></tr></thead><tbody>
+<tr><td>前景 Blur SSIM</td><td>0.390 / <b>0.441</b> / 0.476</td><td>0.681 / <b>0.691</b> / 0.752</td><td>0.744 / <b>0.809</b> / 0.829</td></tr>
+<tr><td>前景 Edge F1</td><td>0.106 / <b>0.129</b> / 0.166</td><td>0.172 / <b>0.184</b> / 0.256</td><td>0.185 / <b>0.216</b> / 0.330</td></tr>
+<tr><td>背景 si-RMSE</td><td>1.591 / <b>2.064</b> / 2.094</td><td>0.725 / <b>0.938</b> / 1.260</td><td>0.503 / <b>0.528</b> / 0.547</td></tr>
+<tr><td>背景 Mask mIoU</td><td>0.387 / <b>0.656</b> / 0.705</td><td>0.584 / <b>0.614</b> / 0.633</td><td>0.653 / <b>0.696</b> / 0.716</td></tr>
+</tbody></table></div>
+<p>正文的“0.43 → 0.81”和“1.88 → 0.52”<b>不是中位数</b>：权重 0 处中位数是 0.441 和 2.064。1.88 落在 1.59 到 2.09 的箱子里，比中位数低不少，所以这两个起点更像是均值（论文没说，未核实）。终点 0.81 和 0.52 与表 2 第一行的前景 Blur SSIM 0.81、背景 si-RMSE 0.52 相同，这两个设置正是同一个配置（前景 Vis 0.5、背景 Depth 0.5）。背景 Seg 那一张不是单调的：中位数 0.656 → 0.614 → 0.696，权重 0 时箱子从 0.39 拉到 0.71，r 只有 0.41。</p></div>
+<p><b>定量实验二（表 2）。</b>两种控制图：前景 Edge + Vis、背景 Depth + Seg；或者反过来。</p>
+<p class="tcap">表 2 · SalientObject 控制图下的 TransferBench 结果。前 8 列是前景（FG）和背景（BG）各模态的权重，指标按区域分开算。</p>
+<div class="tablewrap"><table class="t-t2"><thead>
+<tr><th colspan="4">FG 权重</th><th colspan="4">BG 权重</th><th colspan="2">Blur SSIM ↑</th><th colspan="2">Edge F1 ↑</th><th colspan="2">si-RMSE ↓</th><th colspan="2">Mask mIoU ↑</th><th colspan="2">Diversity ↑</th><th>Quality ↑</th></tr>
+<tr><th>Vis</th><th>Edge</th><th>Depth</th><th>Seg</th><th>Vis</th><th>Edge</th><th>Depth</th><th>Seg</th><th>FG</th><th>BG</th><th>FG</th><th>BG</th><th>FG</th><th>BG</th><th>FG</th><th>BG</th><th>FG</th><th>BG</th><th></th></tr></thead><tbody>
+<tr><td class="n">0.5</td><td class="n">0.5</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0.5</td><td class="n">0.5</td><td class="n">0.81</td><td class="n">0.71</td><td class="n">0.27</td><td class="n">0.14</td><td class="n">0.37</td><td class="n">0.52</td><td class="n">0.77</td><td class="n">0.68</td><td class="n">0.01</td><td class="n">0.33</td><td class="n">8.29</td></tr>
+<tr><td class="n">0</td><td class="n">0</td><td class="n">0.5</td><td class="n">0.5</td><td class="n">0.5</td><td class="n">0.5</td><td class="n">0</td><td class="n">0</td><td class="n">0.68</td><td class="n">0.93</td><td class="n">0.17</td><td class="n">0.25</td><td class="n">0.38</td><td class="n">0.40</td><td class="n">0.77</td><td class="n">0.75</td><td class="n">0.12</td><td class="n">0.03</td><td class="n">8.08</td></tr>
+</tbody></table></div>
+<p>把 Edge、Vis 从前景挪到背景，背景的 Blur SSIM 和 Edge F1 明显升高，前景下降。Vis 和 Edge 在深度和分割对齐上也不差，和表 1 一致。把一个区域从 Vis / Edge 换成 Depth / Seg，多样性明显上升（前景 0.01 → 0.12，背景 0.03 → 0.33），画质相当，深度和分割对齐仍然不错（尤其和图 7 里无条件的基线比）。这和图 6 的定性观察相符。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 2 和正文、和表 1 的对照</span><p><b>正文的数都对得上：</b>背景 Blur SSIM 0.71 → 0.93、Edge F1 0.14 → 0.25；前景 0.81 → 0.68、0.27 → 0.17；多样性前景 0.01 → 0.12（行 1 → 行 2）、背景 0.03 → 0.33（行 2 → 行 1）。</p>
+<p><b>两点值得注意。</b>其一，背景用 Vis / Edge 时背景 Mask mIoU 是 0.75，比用 Seg 本身的 0.68 还高；前景两种设置都是 0.77。也就是说，分割对齐最好的反而不是分割控制，和表 1 里 Seg 单模态 0.68 低于 Vis 单模态 0.72 是同一个现象。其二，两行的质量分 8.29 和 8.08 都低于表 1 的四模态等权 8.54，§5.2 没有讨论这个差距。每个位置只有两个模态（各 0.5）而等权时有四个（各 0.25），这可能是原因，但只是我的推断。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>机器人 Sim2Real 数据生成案例</h3>
+<p><b>结论先说：</b>用时空控制图让机器人（前景）由 Edge（加或不加 Vis）控制、背景由 Seg 控制，比单模态得到更高的质量分和前景分割对齐，同时多样性接近最高。</p>
+<p><b>数据。</b>用 NVIDIA Omniverse 和 <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a>（<a href="https://arxiv.org/abs/2301.04195">Orbit 论文</a>）在一个基础厨房场景里做了 20 个机器人操作场景：厨房程序化生成，家具有铰接，任务是开关柜门和取放常见厨房物品，机器人运动由自动任务与运动规划算法（Garrett 等 2020）算出。每个场景准备 6 个提示词（不同光照、场景细节、环境），输出 RGB、分割和深度。共 \(20\times6=120\) 段视频。</p>
+<p><b>两种设置</b>（机器人掩码从语义分割得到）：</p>
+<ul>
+<li><b>Setting 1</b>：保住机器人的形状和外观，只改背景。\(w_{\rm Edge}(FG)=1\)，\(w_{\rm Vis}(FG)=1\)，\(w_{\rm Seg}(BG)=1\)，其余为 0。</li>
+<li><b>Setting 2</b>：只保住机器人形状，允许颜色纹理变化。\(w_{\rm Edge}(FG)=1\)，\(w_{\rm Seg}(BG)=1\)，其余为 0。</li>
+</ul>
+<p class="tcap">表 3 · 机器人仿真数据上的结果。FG Mask mIoU 只在前景机器人区域上算。</p>
+<div class="tablewrap"><table class="t-t3"><thead><tr><th>模型</th><th>Blur SSIM ↑</th><th>Edge F1 ↑</th><th>Depth si-RMSE ↓</th><th>Mask mIoU ↑</th><th>FG Mask mIoU ↑</th><th>Diversity LPIPS ↑</th><th>Quality ↑</th></tr></thead><tbody>
+<tr><td>Cosmos-Transfer1-7B [Vis]</td><td class="n">0.95</td><td class="n">0.19</td><td class="n">0.82</td><td class="n">0.65</td><td class="n">0.56</td><td class="n">0.20</td><td class="n">9.11</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Edge]</td><td class="n">0.63</td><td class="n">0.40</td><td class="n">1.01</td><td class="n">0.63</td><td class="n">0.57</td><td class="n">0.36</td><td class="n">7.70</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Depth]</td><td class="n">0.66</td><td class="n">0.13</td><td class="n">0.84</td><td class="n">0.59</td><td class="n">0.57</td><td class="n">0.43</td><td class="n">9.17</td></tr>
+<tr><td>Cosmos-Transfer1-7B [Seg]</td><td class="n">0.47</td><td class="n">0.10</td><td class="n">1.34</td><td class="n">0.55</td><td class="n">0.54</td><td class="n">0.60</td><td class="n">9.29</td></tr>
+<tr><td>Cosmos-Transfer1-7B, Setting1</td><td class="n">0.51</td><td class="n">0.12</td><td class="n">1.30</td><td class="n">0.59</td><td class="n">0.61</td><td class="n">0.57</td><td class="n">9.57</td></tr>
+<tr><td>Cosmos-Transfer1-7B, Setting2</td><td class="n">0.50</td><td class="n">0.14</td><td class="n">1.41</td><td class="n">0.60</td><td class="n">0.63</td><td class="n">0.58</td><td class="n">10.42</td></tr>
+</tbody></table></div>
+<p>单模态在自己的指标上更高（Vis 的 Blur SSIM 最高），但质量分低于两种多模态设置。Seg 的质量分较高、多样性最高，但 Blur SSIM、Edge F1、Mask mIoU 较低，论文认为它能生成多样背景，但可能给前景机器人带来瑕疵。两种设置在质量分、多样性、前景 mIoU 上都排前三，其余指标较均衡。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 3 核对和 Setting 1 的实际权重</span><p><b>“都在前三”成立。</b>质量分 10.42、9.57、9.29（Seg）；多样性 0.60（Seg）、0.58、0.57；前景 mIoU 0.63、0.61，第三是 0.57（三个单模态并列）。</p>
+<p><b>“其余指标较均衡”要打折扣。</b>两种设置的 Blur SSIM（0.51、0.50）、Edge F1（0.12、0.14）、si-RMSE（1.30、1.41）都排在后段，比 Seg 单模态好不了多少；它们的整帧指标被大面积背景拖低了，前景的改进只在 FG mIoU 一列看得到（0.54 → 0.61、0.63）。论文没有给前景区域的 Blur SSIM 或 Edge F1。</p>
+<p><b>Setting 1 前景实际是 0.5 / 0.5。</b>前景 Edge 和 Vis 都给 1，和是 2 &gt; 1，按 §3 的归一化各变成 0.5。代码 <code>auxiliary/robot_augmentation/spatial_temporal_weight.py:55-63</code> 的两种设置和论文完全一致（vis/edge 前景 1.0，seg 背景 1.0），归一化在推理时由 <code>load_spatial_temporal_weights</code> 做。所以 Setting 1 和 Setting 2 前景的 Edge 实际权重是 0.5 对 1.0，这也许是 Setting 2 前景 mIoU 更高的一个原因（我的推断）。</p></div>
+<figure class="pfig" id="fig8">
+<img src="cosmos-transfer1/fig8.webp" width="1327" height="1073" alt="图 8：三个厨房仿真场景，每个有单模态和多模态两行、三个提示词三列，红框和绿框标出机器人区域" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F8">看原图 ↗</a></span>左列是 Isaac Lab 渲染的输入（三个厨房，有单臂和双臂移动机器人），右边三列是三个提示词的输出。每个场景上行是只用 Seg（权重 1），下行是多模态：前景机器人用 Edge、Seg、Vis 的组合和自定义权重，背景只用 Seg（权重 1）。红框里单模态的机器人有断裂、变形；绿框里多模态的机器人形状完整。注意图注写的前景组合含 Seg，和表 3 的两种设置（前景无 Seg）不完全相同。</figcaption>
+</figure>
+<p>论文对图 8 的总结：Transfer1 加了场景细节、复杂阴影和自然光照，显著提升了真实感和多样性；用控制图的完整模型能更好地保住机器人形状、减少断裂伪影。它可以在保持物理合理的机器人动力学的同时调光照、颜色、纹理和细节，也能加入新的背景物体。</p>
+
+<h3 id="s5-4"><span class="no">5.4</span>自动驾驶数据增强案例</h3>
+<p><b>结论先说：</b>融合 HDMap 和 LiDAR 后车道 mIoU 最高（51.55），3D 框 mAP 和重投影误差接近只用 LiDAR 的最优值。</p>
+<p>与机器人不同，自动驾驶从量产车和车队持续积累海量真实数据，但分布长尾，关键是放大安全攸关的边缘案例的用途。可以把场景格式描述的干预作为条件，生成大量有用的视觉变体，用于测试和训练。</p>
+<figure class="pfig" id="fig9">
+<img src="cosmos-transfer1/fig9.webp" width="1327" height="663" alt="图 9：两个驾驶场景，左边单用深度或分割的生成，右边深度加分割的生成，最右是控制输入" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F9">看原图 ↗</a></span>上行：左是只用 Depth，右是 Depth + Seg，最右小图是深度和分割输入；路中间有锥桶围出的施工区。下行：只用 Seg 对 Depth + Seg，夜间停车场旁的道路。绿框标出改善的区域。</figcaption>
+</figure>
+<p>图 9 用通用的 7B 模型，等权 \(w_{\rm depth}=w_{\rm segment}=0.5\)。第一行加了分割后恢复了道路中间的实线，只用深度时没有；这条线很重要，因为场景里自车要临时借对向车道绕过锥桶围出的区域。第二行只用分割时同车道车辆朝向不合理，可能缺少几何线索；加上深度后朝向更合理。</p>
+<figure class="pfig" id="fig10">
+<img src="cosmos-transfer1/fig10.webp" width="1289" height="1145" alt="图 10：五行三列，前两行是高精地图和激光雷达条件，后三行分别是只用地图、只用激光雷达、两者都用的生成结果" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 15 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F10">看原图 ↗</a></span>Sample-AV 模型，夜间城市路口，三列是三个时刻。第 1 行 HDMap 条件，第 2 行 LiDAR 条件，第 3 行只用 HDMap 生成，第 4 行只用 LiDAR 生成（锥桶出现了，但车道线错了），第 5 行两者都用（车道布局改善，物体细节更多）。绿框标出右侧被锥桶挡住的车道。</figcaption>
+</figure>
+<p>图 10 用 Sample-AV 模型，均匀标量 \(w_{\rm map}=0.3\)、\(w_{\rm lidar}=0.7\)。场景是最右车道被锥桶挡住，自车用右侧第二车道右转。只用 LiDAR 车道线错误；融合 HDMap 后车道布局明显更真实。图 11 是更多不同提示的例子。</p>
+<figure class="pfig" id="fig11">
+<img src="cosmos-transfer1/fig11.webp" width="1328" height="809" alt="图 11：第一行是地图加 3D 框和激光雷达条件，下面四行是雾天、黄昏、大雪、火灾四种提示的生成" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 16 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F11">看原图 ↗</a></span>第 1 行是条件：左边 HDMap + 3D 框，右边 LiDAR。第 2 到 5 行是四个提示：浓雾的早晨；午后金色阳光、长影；大雪；街道两侧房屋起火。四列是时间顺序的帧，路口和车辆布局在四种天气下保持一致。</figcaption>
+</figure>
+<p><b>定量评测（表 4）。</b>3D 框遵从：用基于 StreamPETR 和 Hydra-MDP 的 3D 检测方法，在生成视频上检测 3D 框，和真实视频对应的框比，算 IoU 阈值 0.2 的 mAP。高精地图遵从：用 grounded SAM2 分割车道，和真实车道标线算 IoU。LiDAR 的 3D 一致性：按 Zhou 等 2017 的光度重投影误差，只保留和 10 FPS 激光雷达扫描同步的帧，用激光雷达深度、已知相机位姿和框标注把每帧前向变换到下一个保留帧，和生成的下一帧算 L1。</p>
+<p class="tcap">表 4 · Sample-AV 在自动驾驶视频生成任务上的结果。</p>
+<div class="tablewrap"><table class="t-t4"><thead><tr><th>方法</th><th>3D-Bbox mAP ↑</th><th>Lane mIoU ↑</th><th>Reprojection Err. ↓</th></tr></thead><tbody>
+<tr><td>Sample-AV [HDMap]</td><td class="n">41.89</td><td class="n">50.37</td><td class="n">9.46</td></tr>
+<tr><td>Sample-AV [LiDAR]</td><td class="n">46.50</td><td class="n">48.19</td><td class="n">8.60</td></tr>
+<tr><td>Sample-AV（HDMap + LiDAR）</td><td class="n">44.66</td><td class="n">51.55</td><td class="n">8.67</td></tr>
+</tbody></table></div>
+<p>LiDAR 单模态的 mAP 最好、重投影误差最低，因为它给出最精确的空间条件和天然的 3D 信息；但缺少车道布局，车道 mIoU 最差。融合后车道 mIoU 最高，同时保持 mAP，重投影误差和 LiDAR 相当、比 HDMap 好。车道准确度是 AV 开发者最看重的指标之一。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 4 和代码的权重</span><p>“保持 mAP”是说 44.66 介于两者之间：比 LiDAR 低 1.84，比 HDMap 高 2.77。车道 mIoU 比 HDMap 高 1.18，比 LiDAR 高 3.36。重投影误差 8.67 对 8.60，差 0.07。表 4 没说用的是哪种权重；正文图 10 用的是 0.3 / 0.7，代码示例 <code>assets/sample_av_multi_control_spec.json</code> 也正好是 hdmap 0.3、lidar 0.7。我推测表 4 也用这组权重，未核实。另外三种方法都只有一个数，没有方差或样本数。</p></div>
+<p><b>接仿真器。</b>前面的例子都有真实场景布局作对应。也可以接物理传感器仿真：用 NVIDIA Omniverse AV 仿真 Blueprint 的 Sensor RTX API 仿真激光雷达深度。图 12 显示，虽然只在真实激光雷达上训练，模型能泛化到合成激光雷达；而且保留了互联网预训练带来的世界知识，能生成 AV 微调数据里没有的场景和效果。</p>
+<figure class="pfig" id="fig12">
+<img src="cosmos-transfer1/fig12.webp" width="1300" height="1159" alt="图 12：第一行是 Omniverse 仿真的激光雷达深度，下面四行是黄金时刻、夜晚、大雨、丛林风格城市四种提示的生成" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 17 页 · NVIDIA，arXiv 2503.14492，CC BY 4.0（PDF 页脚另印 All rights reserved） · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14492v2#S5.F12">看原图 ↗</a></span>第 1 行是 Omniverse 仿真的激光雷达（灰度深度），第 2 到 5 行四个提示：黄金时刻的城市、夜间城市、暴雨、丛林风格的城市。注意这里用的模型名是 Cosmos-Transfer1-7B，不是 Sample-AV；而通用 7B 版并没有 LiDAR 模态（§4），所以这多半是笔误（我的推断）。</figcaption>
+</figure>
+
+<h2 id="s6"><span class="no">6</span>实时推理</h2>
+<p><b>结论先说：</b>64 张 B200 上，5 秒视频端到端 4.2 秒生成，扩散部分加速约 40 倍。</p>
+<p>GB200 NVL72 把 36 颗 Grace CPU 和 72 张 Blackwell GPU 接在全互连的 NVLink 网络上，适合张量并行和上下文并行。和逐 token 生成、参数又多的 LLM 不同，Transfer1-7B 参数相对少，一次生成几万个 token。</p>
+<p><b>并行策略。</b>非注意力层纯数据并行，注意力层按头并行。每张 B200 有 192 GB HBM，放得下整个模型，所以把 56K token 的序列切到各卡上。扩散过程中唯一的通信在注意力：用 all-to-all，让每张卡拿到某一个头的完整 56K 序列。论文说这比流水线式地 all-gather 键值对好，不需要额外的规约，注意力也不会严重受内存带宽限制。模型有 32 个注意力头；无分类器引导用负提示代替无条件分支，正负两路的去噪互相独立，所以分给两组 GPU。于是注意力分布到 64 张卡，每张卡对 56K 个 query、key、value 做一个头的注意力。即使用 Blackwell FMHA 最大的 query 分块，每张卡的 SM 也能占满。</p>
+<p class="tcap">表 5 · 用不同数量的 GPU 生成 5 秒视频的时间。</p>
+<div class="tablewrap"><table class="t-t5"><thead><tr><th>GPU 数</th><th>1</th><th>4</th><th>8</th><th>16</th><th>32</th><th>64</th></tr></thead><tbody>
+<tr><td>只算扩散</td><td class="n">141.0 s</td><td class="n">39.3 s</td><td class="n">20.1 s</td><td class="n">10.3 s</td><td class="n">5.4 s</td><td class="n">3.5 s</td></tr>
+<tr><td>端到端</td><td class="n">141.7 s</td><td class="n">40.0 s</td><td class="n">20.8 s</td><td class="n">11.0 s</td><td class="n">6.1 s</td><td class="n">4.2 s</td></tr>
+</tbody></table></div>
+<p>从 1 卡到 64 卡，扩散部分约 40 倍加速。扩散占工作量 99% 以上，也是唯一做了并行的部分。64 卡时 5 秒视频 4.2 秒生成，达到实时吞吐。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 5 的算术</span><p><b>加速比和效率。</b>扩散：\(141.0/39.3=3.59\)（4 卡，效率 89.7%）、7.01（8 卡，87.7%）、13.69（16 卡，85.6%）、26.11（32 卡，81.6%）、<b>40.29</b>（64 卡，62.9%）。“约 40 倍”成立。从 32 卡到 64 卡效率掉得最多。</p>
+<p><b>固定开销。</b>端到端减扩散在每一列都是 <b>0.7 s</b>（141.7 − 141.0、40.0 − 39.3、…、4.2 − 3.5），说明 tokenizer 解码等其余部分没有并行。“99% 以上”只在 1 卡成立（141.0 / 141.7 = 99.5%）；64 卡时扩散只占 3.5 / 4.2 = 83%，端到端加速是 141.7 / 4.2 = 33.7 倍。</p>
+<p><b>实时。</b>121 帧 / 24 fps = 5.04 秒，4.2 秒 &lt; 5.04 秒，所以说“实时吞吐”成立；但这是生成完整一段的时间，不是逐帧低延迟。</p>
+<p><b>64 是这个方案的上限。</b>按头并行时每组最多 32 张卡（一卡一头），两组（正、负提示）共 64 张。表 5 停在 64 卡，没有用满 NVL72 的 72 张，原因就在这里（我的推断）。非注意力层每卡处理 56,320 / 32 = 1,760 个 token。</p></div>
+
+<h2 id="s7"><span class="no">7</span>相关工作</h2>
+<p><b>视觉域迁移。</b>从分割图或草图生成逼真图像的研究很多（原文引了 Wang 等 2018、Park 等 2019 等十余篇），也扩展到视频合成（Wang 等 2018、2019，Mallya 等 2020 等），应用于内容创作、机器人、自动驾驶、VR/AR、游戏。</p>
+<p><b>扩散模型的空间控制。</b>分免训练方法和在预训练模型上加训练的方法，后者一般效果更好。代表是 <a class="ds" href="https://github.com/lllyasviel/ControlNet">ControlNet</a>（<a href="https://arxiv.org/abs/2302.05543">论文</a>）：加一个从预训练模型初始化的编码分支，只训练这个分支。之后有多种扩展；Chen 等（PixArt-δ）把它从 UNet 搬到 transformer。视频方面，Lin 等把图像 ControlNet 编码器改造到视频，Jain 等用掩码注意力做免训练的空间控制。</p>
+<p><b>用生成模型增强仿真。</b>早期用 GAN：Rao 等（RL-CycleGAN）把仿真图转真实并对齐 Q 值；Ho 等的 RetinaGAN 保住物体特征，在多个真实 RL 任务上有效。后来扩散模型取代 GAN：Zhao 等用带 ControlNet 的扩散模型把仿真语义图转成逼真驾驶图，伪影更少；Pronovost 等用潜扩散生成交通场景。视频生成模型也越来越多地被当作可学习的仿真器，NVIDIA 2025（Cosmos 平台）是一组开源的物理 AI 预训练模型。</p>
+
+<h2 id="s8"><span class="no">8</span>结论</h2>
+<p>在 Cosmos-Predict1 上加多模态控制分支和自适应加权，得到可控性高、质量好的条件世界生成。评测显示它能保住条件输入的场景结构，同时允许细粒度控制，可用于缩小仿真到真实的差距（机器人 Sim2Real、自动驾驶数据增强）。推理扩展策略在 GB200 NVL72 上达到实时吞吐。代码和模型开源。</p>
+
+<h2 id="apA"><span class="no">A</span>提示词扩写器</h2>
+<p><b>为什么要。</b>训练时 Transfer1 配的是详细描述，用户的提问往往短得多、风格也不同，这个域偏移会降低效果。所以训练一个扩写器，把各种输入提示对齐到训练时的提示分布。</p>
+<p>沿用 Cosmos 平台的三条标准：<b>忠实</b>（不和原提示、条件视频冲突）、<b>完整</b>（保留并展开原提示的所有元素）、<b>分布内</b>（结构和长度和训练集的长提示一致）。</p>
+<p><b>做法。</b>微调一个 Pixtral-12B，输入条件视频（可以是分割、深度等任何模态）和用户提示，输出结构一致的详细提示。训练数据：从现有训练提示出发，用 Gemma-2-9B-it 生成保持忠实但风格多样的短提示，形成配对；每个模态 100 万段视频，所有模态一起用 FSDP2 训练一个 epoch。</p>
+<p>论文举了两个例子。分割图 + “厨房里机器人从地上捡瓶子放到桌上” 扩写成一段描述木柜、花岗岩台面、白身黑关节头顶红灯的机器人等细节的长提示（扩写结果里还多出“把椅子放回原处”的动作，原提示没有）。深度图 + “一辆车在路上开” 扩写成行车记录仪视角、白天晴朗、两侧绿植、多车道、有摩托车等。</p>
+<div class="prompt">我注意到第一个例子的扩写多了“机器人走到餐区、把一把白椅子放回原位”，这在原提示里没有；是否违背“忠实”取决于条件视频里有没有这个动作，论文没给视频，无法判断。</div>
+
+<h2 id="apB"><span class="no">B</span>贡献者与致谢</h2>
+<p>核心贡献者 24 位（按字母序）。分工摘要：Ming-Yu Liu 提出自适应多模态控制设计并统管项目；Ting-Chun Wang 和 Xiaohui Zeng 训练 7B 的各个 ControlNet；Ting-Chun Wang、Tiffany Cai、Pooya Jannaty 实现多模态推理；Fabio Ramos、Dieter Fox、Jinwei Gu、Yunhao Ge 整理机器人仿真数据；Yifan Lu、Xuanchi Ren、Tianchang Shen 整理 RDS-HQ；Jiashu Xu 和 Yunhao Ge 做提示词扩写器；Ali Hassani 和 Maciej Bala 做 GB200 NVL72 上的实时推理；Sanja Fidler 和 Huan Ling 指导 Sample-AV 部分，Hanzi Mao 指导 7B 部分。另有 15 位贡献者和 6 位致谢。</p>
+
+<h2 id="code">代码对照：论文写的和代码里的</h2>
+<p>仓库包含推理、训练（预训练和后训练）、蒸馏代码。下表把论文的设定和 commit 5005e82 里能对上的配置并列。代码是 Apache 2.0，表里引用文件名、行号和配置键。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码（5005e82）</th></tr></thead><tbody>
+<tr><td>底座</td><td>Cosmos-Predict1-7B-Video2World</td><td><code>config/base/net.py</code> FADITV2Config：28 层，宽 4096，32 头，patch 2×2×1，3D RoPE，AdaLN-LoRA 256；训练配置另加可学习的逐块绝对位置嵌入</td></tr>
+<tr><td>控制分支深度</td><td>3 个 block</td><td><code>num_control_blocks = 3</code>，<code>layer_mask=[i &gt;= 3 …]</code>（训练 <code>ctrl_7b_tp_121frames.py:48,154</code>，推理 <code>cosmos-1-diffusion-control2world.py</code>）</td></tr>
+<tr><td>零初始化</td><td>每个 block 后的 linear 零初始化</td><td><code>zero_blocks[f"block{idx}"] = zero_module(nn.Linear(4096, 4096))</code>；条件嵌入 MLP 的末层也零初始化（<code>general_dit_ctrl_enc.py:56-69</code>）</td></tr>
+<tr><td>条件怎样进分支</td><td>图 1：条件 token 加到噪声 token 上，再进第 1 个 block</td><td>条件视频经 tokenizer 编成 latent，<code>x_embedder2</code> + 7 层 MLP；在分支第 1 个 block <b>之后</b>相加（<a href="#n3">读者注 3</a>）</td></tr>
+<tr><td>注入底座</td><td>分支第 j 块 → 底座第 j 块</td><td>底座 <code>general_dit.py:548</code>：<code>x = x + x_ctrl[name]</code>，只有 block0 到 block2 有</td></tr>
+<tr><td>权重与归一化</td><td>逐元素乘；和 &gt; 1 时归一化</td><td>\(\mathbf w/\max(\sum\mathbf w,1)\)；默认 0.5；权重图插值到 token 网格（<a href="#n4">读者注 4</a>）</td></tr>
+<tr><td>多模态训练</td><td>分开训练，推理时融合</td><td>训练时 <code>assert len(guided_hints) == 1 or not torch.is_grad_enabled()</code>（第 196 行），只允许单模态训练；<code>hint_dropout_rate = 0.3</code> 只在把几个条件拼成一个输入时起作用</td></tr>
+<tr><td>优化器</td><td>未给</td><td>AdamW，lr \(=2^{-14.3}\approx4.96\times10^{-5}\)，weight decay 0.1，betas (0.9, 0.99)，eps 1e-10；预热 2500 步；EMA 开；张量并行 8，序列并行；底座 <code>finetune_base_model=False</code></td></tr>
+<tr><td>算力</td><td>每分支 1024 张 H100，2 到 4 周</td><td>示例配置默认 DDP + TP 8，节点数由使用者定</td></tr>
+<tr><td>采样</td><td>未给</td><td><code>transfer.py</code>：35 步，guidance 5（管线类的默认是 7），24 fps；求解器 <code>res_sampler.py</code> 的 2AB 多步法，σ 按 ρ = 7 的 Karras 序列从 70 降到 0.002；默认负提示是一段描述“老旧游戏、粗糙 CG”的文字</td></tr>
+<tr><td>从输入视频起步</td><td>未提</td><td><code>--sigma_max 70</code> 默认；小于 80 时必须给输入 RGB 视频，先对它加噪到 σ = 70 再去噪（<a href="#n15">读者注 15</a>）</td></tr>
+<tr><td>自动前景掩码</td><td>§5.2 用 VLM 分前景 / 背景</td><td><code>control_weight_prompt</code>：用 GroundingDINO + SAM2 按给定名词出二值掩码（<a href="#n16">读者注 16</a>）；不调用 VLM</td></tr>
+<tr><td>机器人设置</td><td>Setting 1 / 2</td><td><code>robot_augmentation/spatial_temporal_weight.py:55-63</code>，与论文一致</td></tr>
+<tr><td>4K 放大</td><td>720p → 4K，3×3 重叠块</td><td>3584×1968 画布，再插值到 3840×2112（<a href="#n7">读者注 7</a>）</td></tr>
+<tr><td>多卡推理</td><td>按头并行 + all-to-all，正负提示分两组</td><td><code>--num_gpus</code> 设上下文并行（<code>parallel_state.initialize_model_parallel(context_parallel_size=…)</code>），注意力由 Transformer Engine 1.13 的 <code>set_context_parallel_group</code> 处理（<a href="#n14">读者注 14</a>）</td></tr>
+<tr><td>扩写器</td><td>微调的 Pixtral-12B</td><td><code>--upsample_prompt</code>，<code>auxiliary/upsampler</code></td></tr>
+<tr><td>论文之后的新增</td><td>—</td><td>关键点控制（Transfer1pt1）、单步蒸馏的 Edge 模型（2025-08）、AV 单视角转多视角（2025-05）、区域提示词</td></tr>
+</tbody></table></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 开源代码里没有 §6 的并行方案</span><p>我在仓库里搜 <code>all_to_all</code>、<code>alltoall</code>，没有结果。多卡推理走的是 Transformer Engine 的上下文并行：<code>general_dit.py:583</code> 调 <code>set_context_parallel_group(cp_group, cp_ranks, torch.cuda.Stream())</code>，没有传 <code>cp_comm_type</code>，所以用的是 TE 1.13 的默认通信方式（我记得是点对点的环形，未核实）。论文 §6 的“按头并行 + all-to-all + 正负提示分组”在这个仓库里看不到，表 5 的数字无法用开源代码直接复现。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 默认从加噪的输入视频起步</span><p><code>transfer.py:81</code> 默认 <code>sigma_max=70.0</code>；<code>model_ctrl.py</code> 的 <code>get_x_from_clean</code> 在给了输入视频时返回 \(\mathbf x_0+70\,\boldsymbol\epsilon\)，采样从这里开始，而不是从 EDM 的最大噪声 \(\sigma_{\max}=80\)（<code>config/base/model.py:50</code>）开始。σ = 70 已经接近纯噪声（数据标准差 0.5，信噪比 \(0.5/70\approx0.007\)），但仍保留一点原视频的低频信息。论文没有提到这一点；论文里的结果是否这样生成，不知道。机器人示例 <code>assets/robot_sample_spec.json</code> 也显式写了 <code>"sigma_max": 70</code>。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 自动前景掩码只对 seg 生效（我读到的情况）</span><p>文档 <code>examples/inference_cosmos_transfer1_7b.md</code> 第 4 个例子在 vis 和 edge 上写 <code>"control_weight_prompt": "robotic arms . gloves"</code>，说会对 vis、edge 生成二值掩码（掩码内 0.5、外 0），于是机械臂区域四个模态各 0.25（四个 0.5 归一化），其余区域 depth、seg 各 0.5。但 <code>diffusion/inference/preprocessors.py:72</code> 的条件是 <code>… and hint_key in ["seg"]</code>，只有 seg 会触发掩码生成。照字面读，这个例子里 vis、edge 的提示被忽略，四个模态全图都是 0.5，归一化后处处 0.25，等于表 1 的等权设置。我没有运行代码，这是读出来的推断；也可能是有意改动而文档没更新。</p></div>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa-sep">问 1：分支是分开训练的，推理时把几个加在一起，为什么能行？</h3>
+<p>每个分支训练时都是“底座冻结 + 一个分支、权重 1”，它学到的是一个加到底座前 3 个 block 上的残差。推理时多个分支的残差按权重相加。归一化规则 \(\mathbf w/\max(\sum\mathbf w,1)\) 保证每个位置注入的总权重不超过 1，也就是说总残差的“量”不超过训练时单个分支的量，底座不会看到训练时从未见过的大幅扰动（这是我对归一化动机的理解，论文没明说）。论文没有证明这种线性叠加一定好，它的证据是经验的：表 1 里任何多模态组合的质量分都高于任何单模态。代码第 196 行明确禁止训练时用多个分支，所以融合在训练中从未出现过。</p>
+<h3 id="qa-pick">问 2：拿到一段自己的仿真视频，权重怎么给？</h3>
+<p>按论文的结果，三条经验：</p>
+<ol>
+<li><b>要像原视频，用稠密模态。</b>Vis 保颜色和构图，Edge 保轮廓。它们多样性低（表 1 LPIPS 0.19、0.28）。</li>
+<li><b>要多样，用稀疏模态。</b>Depth 保几何，Seg 保布局，多样性 0.39、0.42。</li>
+<li><b>两者都要，分区域。</b>关心的物体（机器人、被操作的物体）用 Edge（加或不加 Vis），背景用 Seg 或 Depth。机器人场景可以直接用表 3 的 Setting 1 / 2，代码里有生成权重图的脚本。</li>
+</ol>
+<p>代码里权重写在一个 JSON 里，每个模态一项，<code>control_weight</code> 可以是标量，也可以是 <code>.pt</code> 文件（\(T\times H\times W\) 或 \(H\times W\)）。注意粒度只有 16×16 像素、8 帧（<a href="#n4">读者注 4</a>），细小物体的掩码会被抹平。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可标注的矛盾</a>：arXiv 登记 CC BY 4.0，PDF 页脚写 All rights reserved。</li>
+<li><a href="#n2">56K token 和算力</a>：56,320 算对了；每分支 34 万到 69 万 H100 小时。</li>
+<li><a href="#n3">控制分支的输入</a>：代码在第 1 个 block 之后才加条件，图上在之前；论文的“预测噪声”在代码里是 EDM 预条件化。</li>
+<li><a href="#n4">归一化和权重图的粒度</a>：除以 max(Σw, 1) 与论文一致；权重图落到 16×44×80 的 token 网格。</li>
+<li><a href="#n5">360 小时的算术</a>：65K × 20 s = 361 h，按段计，不按相机计。</li>
+<li><a href="#n6">训练增强</a>：代码的模糊是双边、高斯混合加缩放；Canny 阈值随机范围。</li>
+<li><a href="#n7">代码里的“4K”</a>：3584×1968 画布，插值到 3840×2112，不是 3840×2160。</li>
+<li><a href="#n8">表 1 的核对</a>：“深度重建最好”不成立（0.47 对 no Seg 的 0.43）；其余说法成立。</li>
+<li><a href="#n9">图 7 的精确读数</a>：0.43 和 1.88 不是中位数（0.441、2.064）；背景 Seg 不单调。</li>
+<li><a href="#n10">表 2 的对照</a>：正文数字都对；分割对齐最好的不是分割控制；质量分低于等权。</li>
+<li><a href="#n11">表 3 和 Setting 1</a>：“前三”成立；整帧指标被背景拖低；Setting 1 前景实际各 0.5。</li>
+<li><a href="#n12">表 4 和代码权重</a>：差值 1.84、1.18、0.07；0.3 / 0.7 与代码示例一致，表 4 的权重未写。</li>
+<li><a href="#n13">表 5 的算术</a>：40.29 倍；固定 0.7 s 开销；64 卡时扩散只占 83%；64 = 32 头 × 2。</li>
+<li><a href="#n14">开源代码里没有 §6 的并行方案</a>：没有 all-to-all，用的是 TE 上下文并行。</li>
+<li><a href="#n15">默认从加噪的输入视频起步</a>：sigma_max = 70，论文未提。</li>
+<li><a href="#n16">自动前景掩码只对 seg 生效</a>：文档例子把提示写在 vis、edge 上，照代码读会被忽略（未运行）。</li>
+</ol>
+<p>论文没写、我也没找到的：TransferBench 的视频清单和 \(K\)（多样性用几个提示）；RDS-HQ 的公开下载（未核实）；表 4 用的权重；论文结果所用的采样步数、引导强度和 sigma_max；“1024 张 H100、2 到 4 周”分别对应哪个模态。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、模型和方法。链接在 2026 年 11 月 16 日用脚本核对过，结果见表后说明。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-transfer1/">Cosmos-Transfer1</a></td><td>本文</td><td><a href="https://github.com/nvidia-cosmos/cosmos-transfer1">代码</a></td><td><a href="https://arxiv.org/abs/2503.14492">2503.14492</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/nvidia-cosmos/cosmos-predict1">Cosmos-Predict1</a></td><td>底座世界模型，<a href="cosmos.html">本站精读</a></td><td>github.com/nvidia-cosmos/cosmos-predict1</td><td><a href="https://arxiv.org/abs/2501.03575">2501.03575</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>TransferBench 的机械臂部分</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/OpenDriveLab/DriveAGI">OpenDV</a></td><td>TransferBench 的驾驶部分</td><td>github.com/OpenDriveLab/DriveAGI</td><td><a href="https://arxiv.org/abs/2403.09630">2403.09630</a></td></tr>
+<tr><td><a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a></td><td>TransferBench 的第一人称部分</td><td>ego-exo4d-data.org</td><td><a href="https://arxiv.org/abs/2311.18259">2311.18259</a></td></tr>
+<tr><td><a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a></td><td>§5.3 机器人仿真数据</td><td>isaac-sim.github.io/IsaacLab</td><td><a href="https://arxiv.org/abs/2301.04195">2301.04195</a>（Orbit）</td></tr>
+<tr><td><a class="ds" href="https://depth-anything-v2.github.io/">Depth Anything V2</a></td><td>深度模态和深度指标</td><td>depth-anything-v2.github.io</td><td><a href="https://arxiv.org/abs/2406.09414">2406.09414</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/IDEA-Research/GroundingDINO">GroundingDINO</a></td><td>分割模态的检测部分</td><td>github.com/IDEA-Research/GroundingDINO</td><td><a href="https://arxiv.org/abs/2303.05499">2303.05499</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/sam2">SAM 2</a></td><td>视频分割</td><td>github.com/facebookresearch/sam2</td><td><a href="https://arxiv.org/abs/2408.00714">2408.00714</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/VQAssessment/DOVER">DOVER</a></td><td>质量分</td><td>github.com/VQAssessment/DOVER</td><td><a href="https://arxiv.org/abs/2211.04894">2211.04894</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/richzhang/PerceptualSimilarity">LPIPS</a></td><td>多样性指标</td><td>github.com/richzhang/PerceptualSimilarity</td><td><a href="https://arxiv.org/abs/1801.03924">1801.03924</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/lllyasviel/ControlNet">ControlNet</a></td><td>控制分支的原型</td><td>github.com/lllyasviel/ControlNet</td><td><a href="https://arxiv.org/abs/2302.05543">2302.05543</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2401.05252">PixArt-δ</a></td><td>DiT 版 ControlNet</td><td>–</td><td><a href="https://arxiv.org/abs/2401.05252">2401.05252</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/xinntao/Real-ESRGAN">Real-ESRGAN</a></td><td>4K 放大器的退化方法</td><td>github.com/xinntao/Real-ESRGAN</td><td><a href="https://arxiv.org/abs/2107.10833">2107.10833</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/exiawsh/StreamPETR">StreamPETR</a></td><td>表 4 的 3D 检测</td><td>github.com/exiawsh/StreamPETR</td><td><a href="https://arxiv.org/abs/2303.11926">2303.11926</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2406.06978">Hydra-MDP</a></td><td>表 4 的 3D 检测</td><td>–</td><td><a href="https://arxiv.org/abs/2406.06978">2406.06978</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/mistralai/Pixtral-12B-2409">Pixtral-12B</a></td><td>提示词扩写器底座</td><td>huggingface.co/mistralai</td><td><a href="https://arxiv.org/abs/2410.07073">2410.07073</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/google/gemma-2-9b-it">Gemma-2-9B-it</a></td><td>生成短提示</td><td>huggingface.co/google</td><td><a href="https://arxiv.org/abs/2408.00118">2408.00118</a></td></tr>
+</tbody></table></div>
+<p>本批相关页：<a href="cosmos.html">Cosmos 平台</a> · <a href="cosmos-predict25.html">Cosmos-Predict2.5</a> · <a href="cosmos-reason1.html">Cosmos-Reason1</a> · <a href="cosmos3.html">Cosmos 3</a> · <a href="gr00t.html">GR00T N1</a>。</p>
+
+<footer><p>精读是我读 arXiv 2503.14492 后的整理，不是作者的官方内容。原文：NVIDIA（Hassan Abu Alhaija 等 39 位作者），《Cosmos-Transfer1: Conditional World Generation with Adaptive Multimodal Control》，arXiv 2503.14492v2，2025，arXiv 登记许可 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>（PDF 页脚另印 “© 2025 NVIDIA. All rights reserved.”）。图 1 到 12 从原文 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图。表格数字照录原文；读者注、问答和动画是本页所加。代码对照基于 nvidia-cosmos/cosmos-transfer1 commit 5005e82（Apache 2.0）。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 交互式模拟拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.06627 Interactive World Simulation with Cosmos 做成 11 幕 3D 动画：MoT 和 token 排布、块因果掩码、两遍 teacher forcing、TF-dCM、SF-DMD、流式 K/V 缓存、每块时间预算、59 维动作、Sim-Transfer 闭环、Sim-Auto 多传感器时间轴。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos-interactive.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos-interactive.html">返回精读</a><a href="../../papers/cosmos-interactive.html#s3">原文 §3 配方</a><a href="../../papers/cosmos-interactive.html#s4">§4 流式推理</a><a href="https://arxiv.org/abs/2611.06627">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2611.06627 · NVIDIA · Cosmos 交互式世界模拟</p>
+<h1>一个双向视频模型，怎样变成边收动作边出画面的模拟器</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是结构：token 排布和<b>块因果掩码（当场数可见对）</b>；第 4 到 6 幕是四个训练阶段，<b>第 6 幕是在自己生成的历史上做 SF-DMD</b>；第 7、8 幕是推理：<b>流式 K/V 缓存</b>和每块时间花在哪里；第 9 到 11 幕是三个例子：59 维动作、Sim-Transfer 闭环、Sim-Auto 多传感器时间轴。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。数字来自论文和官方代码（NVIDIA/cosmos-framework 提交 e40831f）；标“现算”的数是页面按公式当场算的。没有任何 Cosmos 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码 / 配置”分开写。代码是 NVIDIA/cosmos-framework 提交 e40831f（2026-11-16），OpenMDW-1.1，只读未运行。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / 配置</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">结构</td></tr>
+<tr><td>A1</td><td>骨干</td><td>Cosmos3-Nano，MoT：推理塔（语言）+ 生成塔（视觉、控制、去噪）</td><td>可训练键 moe_gen、time_embedder、vae2llm、llm2vae（Bimanual 另加 action2llm、action_modality_embed）</td></tr>
+<tr><td>A2</td><td>视觉隐变量</td><td>因果 VAE，1 + 4n 帧 → 1 + n 隐帧；16 × 16 空间，48 通道；2 × 2 patch</td><td>state_ch=48、latent_downsample_factor=16、patch_spatial=2</td></tr>
+<tr><td>A3</td><td>MRoPE</td><td>(t, h, w)；动作只有 t、步长 1/4；两种子序列隔 15,000</td><td>unified_3d_mrope_temporal_modality_margin=15_000；enable_fps_modulation、base_fps=24</td></tr>
+<tr><td>A4</td><td>块</td><td>𝒢ⱼ = [𝒰ⱼ, Ṽⱼ]；Bimanual 2 隐帧、Transfer 1、Auto 3（0.4 s）</td><td>teacher_forcing_frames_per_chunk=2 / 1</td></tr>
+<tr><td>A5</td><td>时间注意力</td><td>块因果：块内联合，读更早的块</td><td>video_temporal_causal=True（Stage 1–3）；Stage 0 joint_attn_implementation="two_way"，之后 "three_way"</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T0</td><td>Stage 0</td><td>双向 rectified flow，式 (4)；mode 采样 1.29 + 偏移 κ = 3/5/10</td><td>train_time_video_distribution="waver"；shift {"256": 3, "480": 5}</td></tr>
+<tr><td>T1</td><td>Stage 1 TF</td><td>两遍：干净 K/V，再并行带噪；梯度穿过缓存</td><td>causal_training_strategy="teacher_forcing"；teacher_forcing_detach_clean_kv=False</td></tr>
+<tr><td>T2</td><td>Stage 2 TF-dCM</td><td>时间对 (u, u − 1/48)；教师 CFG 一步 Euler；4 步学生</td><td>teacher_forcing_dcm_total_steps=48；teacher_forcing_dcm_teacher_guidance=3.0（Bimanual）</td></tr>
+<tr><td>T3</td><td>Stage 3 SF-DMD</td><td>学生 rollout，最后一步求导；双向教师 + fake score；δ = 10⁻⁶；1:5；max 4 步</td><td>simulation_mode="self_forcing"；sf_rollout_step_mode="max"；student_update_freq=6；common_loss.py 的 1/(mean|·| + 1e-6)；sf_replayed_training=True</td></tr>
+<tr><td>T4</td><td>学习率</td><td>Bimanual 10⁻⁵ / 10⁻⁵ / 2 × 10⁻⁶ / 10⁻⁶ 与 2 × 10⁻⁷</td><td>同；Stage 0 action2llm、action_modality_embed × 5</td></tr>
+<tr class="grp"><td colspan="4">推理</td></tr>
+<tr><td>I1</td><td>4 步时间表</td><td>[1, 15/16, 5/6, 5/8]</td><td>_T_LIST = (1.0, 0.9375, 0.8333…, 0.625)</td></tr>
+<tr><td>I2</td><td>缓存</td><td>Bimanual 64 / sink 8；Transfer 30 / 3；Auto 2 块 / 1 块</td><td>--kv-cache-inference-size / --attention-sink-size；Auto rolling_kv_cache_chunks=2、rolling_kv_sink_chunks=1</td></tr>
+<tr><td>I3</td><td>运行时</td><td>编译、CUDA Graph、无掩码注意力、异步解码、TAEHV Super</td><td>Interactive Drive：--compile-denoise、--parallel-decode、maskless_attention；不用 CUDA Graph（附录 D.4）</td></tr>
+<tr class="grp"><td colspan="4">三个例子</td></tr>
+<tr><td>E1</td><td>Bimanual 动作</td><td>59 维 = 9 + (24 + 1) × 2，asinh 归一化，按域投影</td><td>max_action_dim=64（补 5 个零）、action_global_asinh=True、num_embodiment_domains=32</td></tr>
+<tr><td>E2</td><td>Transfer 闭环</td><td>Isaac Lab + GR00T N1.7，深度 7.5 Hz，每次 4 帧</td><td>公开仓库里没找到闭环脚本</td></tr>
+<tr><td>E3</td><td>Auto 跨传感器</td><td>之前 0.4 s，去重，LiDAR 128 × 1808</td><td>decomposed_temporal_window_seconds=0.4、deduplicate_cross_view=True、model_width=1808 circular_pad</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2、3 幕</b>每个隐帧只画 1 个视觉 token 和 1 个控制 token，真实是几百个空间 token；可见对数按这个缩小的序列现算，比例和真实序列不同。</li>
+<li><b>第 4 幕</b>块数画成 4 块；K/V 方块的高度只表示“已存”。</li>
+<li><b>第 5 幕</b>的二维轨迹是手设的曲线；τ、s 和 4 步网格按论文的偏移公式现算。</li>
+<li><b>第 6 幕</b> cycle 规则下各块的步数和时间表是我设的（论文只说“轮流用不同步数”）；max 4 步的时间表是论文的。</li>
+<li><b>第 7 幕</b>的“近期历史秒数”按 30 FPS 算；Bimanual 在 16 FPS 的 Sana-WM-Bench 上是 30 / 16 倍长。</li>
+<li><b>第 8 幕</b> Sim-Transfer 的分项来自表 C.3，区间有重叠，加起来和块时间不完全相等；Sim-Auto 的解码没有单独标数，含在“其他”里。</li>
+<li><b>第 9 幕</b>各数据域亮哪些字段是我按字段含义推测的。</li>
+<li><b>第 11 幕</b>“按 0.4 s 窗口”的倍数是我的推算，不是论文的数。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2611.06627 和官方代码后的理解，不是作者的官方图。原图见<a href="../../papers/cosmos-interactive.html">精读页</a>（arXiv 登记 CC BY 4.0，PDF 页脚另有版权声明；经站点作者决定放原图，只做裁切）。逐节内容和读者注也在精读页。</p></footer>
+</div>
+</body>
+</html>

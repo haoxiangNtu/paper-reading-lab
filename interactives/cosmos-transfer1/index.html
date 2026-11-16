@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos-Transfer1 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.14492 Cosmos-Transfer1 的框架做成 11 幕 3D 动画：控制视频的生成、56,320 个 token、ControlNet 分支与零初始化、多分支加权融合、当场计算的权重归一化、前景/背景时空权重图、分开训练、采样与 4K 放大、结果表、64 卡实时推理。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos-transfer1.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos-transfer1.html">返回精读</a><a href="../../papers/cosmos-transfer1.html#s3">原文 §3</a><a href="../../papers/cosmos-transfer1.html#code">代码对照</a><a href="https://arxiv.org/abs/2503.14492">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2503.14492 · NVIDIA · Cosmos-Transfer1</p>
+<h1>几段结构视频加一句话，怎样变成一段逼真的视频</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是数据：控制视频从哪来、变成多少 token；第 4 到 7 幕是网络：单个 ControlNet、<b>多分支加权融合（第 5 幕）</b>、<b>归一化当场算（第 6 幕）</b>、前景/背景权重图；第 8 幕是训练；第 9 幕是采样和 4K 放大；第 10 幕是结果；第 11 幕是 64 卡实时。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。多数幕左上角有开关。网络尺寸和超参数来自论文和官方代码（commit 5005e82）；柱子是原文表格数字；第 2、4、5、7 幕里的图像和激活是玩具，已标明。这里没有运行任何 Cosmos 网络。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 nvidia-cosmos/cosmos-transfer1 commit 5005e82（2026-06-07），只读未运行；它比论文晚一年多，加了关键点、蒸馏、多视角等后续功能。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（5005e82）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>输出视频</td><td>5 秒，1280×704，24 fps</td><td>121 帧；<code>--fps 24</code></td></tr>
+<tr><td>D2</td><td>Vis</td><td>双边滤波模糊，训练时随机参数</td><td>双边 50% / 高斯 30% / 两者 20%，再随机缩放 1 到 4 倍</td></tr>
+<tr><td>D3</td><td>Edge</td><td>逐帧 Canny，训练时随机阈值</td><td>训练：下阈值 20 到 99，上阈值 = 下 + 50 到 149；推理 medium 100 / 200</td></tr>
+<tr><td>D4</td><td>Depth</td><td>DepthAnything2，归一化到 [0, 1]</td><td>按整段 min-max 归一化</td></tr>
+<tr><td>D5</td><td>Seg</td><td>GroundingDINO 首帧检测 + SAM2 全视频；颜色随机</td><td><code>auxiliary/sam2</code></td></tr>
+<tr><td>D6</td><td>AV 模态</td><td>HDMap（含 3D 框）、LiDAR（10 Hz 对齐到 30 FPS，前后各 2 帧，核 4 插值）</td><td><code>is_av_sample</code>；示例权重 hdmap 0.3、lidar 0.7</td></tr>
+<tr class="grp"><td colspan="4">token</td></tr>
+<tr><td>T1</td><td>tokenizer</td><td>Cosmos-Tokenize1-CV8x8x8-720p</td><td>latent 16 通道 × 16 × 88 × 160</td></tr>
+<tr><td>T2</td><td>token 数</td><td>80 × 44 × 16 = 56,320</td><td>patch 2×2×1</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>底座 DiT</td><td>Cosmos-Predict1-7B-Video2World，冻结</td><td>28 层，宽 4096，32 头，FA-CA-MLP，3D RoPE，AdaLN-LoRA 256</td></tr>
+<tr><td>N2</td><td>控制分支</td><td>每模态一个，3 个 block，从底座继承初始化</td><td><code>num_control_blocks = 3</code></td></tr>
+<tr><td>N3</td><td>零初始化</td><td>每块后的 linear 零初始化</td><td>4096×4096 零 linear ×3；条件嵌入 MLP 末层也是 0</td></tr>
+<tr><td>N4</td><td>条件进入</td><td>条件 token 经 linear 加到噪声 token 上</td><td>tokenizer → 2×2 patch → 7 层 MLP；在分支第 1 块之后相加</td></tr>
+<tr><td>N5</td><td>融合</td><td>底座第 j 块后加 Σᵢ wᵢ·hᵢʲ，j = 1..3</td><td><code>general_dit.py:548</code></td></tr>
+<tr><td>N6</td><td>归一化</td><td>某处 Σw &gt; 1 时归一化到 1</td><td>w / max(Σw, 1)；默认 0.5；负值截为 0</td></tr>
+<tr><td>N7</td><td>权重图</td><td>N × X × Y × T</td><td>插值到 token 网格（16 × 44 × 80，首帧单独）</td></tr>
+<tr class="grp"><td colspan="4">训练与推理</td></tr>
+<tr><td>R1</td><td>训练</td><td>分支分开训练；每个 1024 张 H100，2 到 4 周</td><td>只允许单分支训练；AdamW lr ≈ 4.96e-5，wd 0.1，预热 2500，EMA，TP 8</td></tr>
+<tr><td>R2</td><td>采样</td><td>未给</td><td>35 步，2AB 多步求解器，Karras ρ = 7，guidance 5，负提示；sigma_max 70 从加噪的输入视频开始</td></tr>
+<tr><td>R3</td><td>4K 放大</td><td>3×3 重叠块，每步平均</td><td>画布 3584×1968，重叠 128 / 72，最后插值到 3840×2112</td></tr>
+<tr><td>R4</td><td>实时</td><td>64 张 B200：32 头 × 正负提示 2 组，all-to-all，4.2 s</td><td>代码里是 TE 上下文并行，没有 all-to-all 方案</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的画面。</b>一个 32×18 的手画玩具帧（机械臂、桌子、背景）。模糊、边缘、深度、分割都是页面对这个玩具当场算的，算法是简化版（盒式模糊、梯度阈值），不是双边滤波和 Canny。</li>
+<li><b>第 4、5 幕的激活。</b>每个分支每个 block 的“残差大小”是我设的数，训练曲线也是玩具。权重和归一化按论文和代码的规则当场算。</li>
+<li><b>第 7 幕的掩码。</b>一个手画的人形，随时间平移。像素到 token 的平均是当场算的。</li>
+<li><b>第 8 幕的甘特图。</b>论文只说 2 到 4 周、视模态而定，没说哪个模态几周，条的长度是我排的；GPU 小时按 1024 × 24 × 天数当场算。</li>
+<li><b>第 9 幕的方块。</b>“视频”方块的噪点是示意；σ 序列按代码（<code>res_sampler.py</code>：35 步，ρ = 7，σ 从 70 或 80 降到 0.002）当场算。</li>
+<li><b>第 11 幕的 GPU 方块。</b>排列是示意；32 头 × 2 组和表 5 的时间是原文。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2503.14492 后的理解，不是作者的官方图。原图和逐节内容、核算见<a href="../../papers/cosmos-transfer1.html">精读页</a>（arXiv 登记 CC BY 4.0，PDF 页脚另印 All rights reserved）。</p></footer>
+</div>
+</body>
+</html>

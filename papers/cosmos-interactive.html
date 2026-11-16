@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 交互式世界模拟 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.06627《Interactive World Simulation with Cosmos for Physical AI》的中文精读：怎样把双向视频扩散模型 Cosmos 3 改成块因果、4 步、流式的交互模拟器；三个例子（机器人/相机动作、仿真器驱动的视频迁移、多视角加 LiDAR 驾驶）的结构、训练、延迟和结果；含裁切原图、官方代码对照、11 幕 3D 动画和 23 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w5{min-width:640px}.t-w6{min-width:700px}.t-w7{min-width:760px}.t-w9{min-width:860px}.t-links{min-width:680px}.t-cmp{min-width:680px}.t-sm{min-width:420px}
+.t-w9 td,.t-w9 th,.t-w7 td,.t-w7 th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos-interactive/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2611.06627 · cs.AI · v1 2026 年 11 月 4 日 · NVIDIA 技术报告 · 中文精读</p>
+<h1>把 Cosmos 改成可以交互的世界模拟器：块因果、4 步、流式</h1>
+<p class="orig">Interactive World Simulation with Cosmos for Physical AI</p>
+<p>作者署名 NVIDIA，附录 A 列出约百位贡献者，统筹是 Chen-Hsuan Lin 和 Ming-Yu Liu。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2611.06627">arXiv 原文</a><a href="https://arxiv.org/pdf/2611.06627">PDF</a><a href="https://research.nvidia.com/labs/cosmos-lab/cosmos-simulation/">项目主页</a><a href="https://github.com/NVIDIA/cosmos-framework">官方代码</a><a href="https://huggingface.co/collections/nvidia/cosmos3-examples">权重</a><span>正文 63 页，附录到第 108 页，全文 119 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 摘要页登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，但 PDF 第 1 页页脚写着 “© 2026 NVIDIA. All rights reserved.”，两者矛盾（<a href="#n1">读者注 1</a>）。这一批论文的原图由站点作者决定放上来：18 张图从 arXiv PDF 裁切，只做了裁切、缩放和格式转换，没有改内容。这篇没有 arXiv HTML 版，“看原图”链接到 PDF 的对应页。</p>
+<p>正文按原文顺序覆盖第 1 到 9 节和附录 A 到 D，小节编号同原文，用自己的话写，不是逐字翻译。公式按原文编号；主要结果表照录数字，长表和超参放在折叠里。“读者注”是我核算或对照的结果，不属于论文，页尾有汇总。</p>
+<p><b>代码。</b>论文给了 <a class="ds" href="https://github.com/NVIDIA/cosmos-framework">NVIDIA/cosmos-framework</a>（训练和推理，OpenMDW-1.1 许可，读的是 <a href="https://github.com/NVIDIA/cosmos-framework/tree/e40831fa068fd171894b6cfb269308b441e80a85">e40831f</a>，2026-11-16）、<a class="ds" href="https://github.com/NVIDIA/cosmos">NVIDIA/cosmos</a>（文档和示例入口，OpenMDW-1.1，<a href="https://github.com/NVIDIA/cosmos/tree/540106233a1a834f00fddd368dd6e3e818575696">5401062</a>，2026-11-11）和驾驶演示用的 <a class="ds" href="https://github.com/NVIDIA/flashdreams">NVIDIA/flashdreams</a>（Apache-2.0，<a href="https://github.com/NVIDIA/flashdreams/tree/5b23817a1edd78b14196c00138b2f7e4a24da7de">5b23817</a>，2026-11-13）。只读，没有运行。OpenMDW-1.1 是宽松许可，但本页仍只引文件名和配置键，不复制代码。四个权重在 Hugging Face 上也是 OpenMDW-1.1。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 结构</a><a href="#s2-1">2.1 Cosmos 3 骨干</a><a href="#s2-2">2.2 token 排布</a><a href="#s2-3">2.3 时间因果注意力</a><a href="#s3">3 后训练配方</a><a href="#s3-1">3.1 双向适配</a><a href="#s3-2">3.2 TF</a><a href="#s3-3">3.3 TF-dCM</a><a href="#s3-4">3.4 SF-DMD</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 流式推理</a><a href="#s4-1">4.1 状态和缓存</a><a href="#s4-2">4.2 运行时优化</a><a href="#s5">5 Sim-Bimanual</a><a href="#s6">6 Sim-Transfer</a><a href="#s7">7 Sim-Auto</a><a href="#s8">8 相关工作</a><a href="#s9">9 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#apD">附录 D</a><a href="#code">代码对照</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#qa" class="rn">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p><b>结论先说。</b>这篇是一份“配方”报告：拿双向（整段视频一起去噪）的视频世界模型 Cosmos 3，经过四个后训练阶段，变成按块往前生成、每块只去噪 4 步、能边收控制边出画面的模拟器。三个例子共用这套配方：</p>
+<ul>
+<li><b>Cosmos3-Nano-Sim-Bimanual</b>：给初始图、场景描述和动作流（相机位姿或双臂/手的 59 维动作），预测接下来的画面。1 张 GB300 上 640 × 352、每块 8 帧，生成 48.1 FPS，超过 30 FPS 回放速度。</li>
+<li><b>Cosmos3-Nano-Sim-Transfer</b>：外部仿真器负责物理，它把深度、分割、边缘或模糊图“渲染”成真实感 RGB。在 <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a>（<a href="https://arxiv.org/abs/2511.04831">论文</a>）里接上 <a href="gr00t.html">GR00T N1.7</a> 策略做闭环，苹果放盘任务在校准条件下 27/32 对原生渲染 22/32。</li>
+<li><b>Cosmos3-Nano-Sim-Auto</b>：最多 11 个相机加 360° LiDAR 的驾驶模拟，每块 0.4 秒；单相机 32.6 FPS，7 相机加 LiDAR 在 16 张 GB200 上 16.7 FPS。</li>
+</ul>
+<p>四个阶段是：Stage 0 双向适配（教师）→ Stage 1 teacher forcing（TF，用真实历史学块因果）→ Stage 2 TF-dCM（离散一致性蒸馏到 4 步）→ Stage 3 SF-DMD（在自己生成的历史上做分布匹配蒸馏，修暴露偏差）。推理时用 K/V 缓存、初始 sink 加滚动窗口、编译和 CUDA Graph。</p>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li><b>去噪只是一部分成本。</b>Bimanual 每块 166 ms 里，去噪约 89 ms，给下一块准备干净 K/V 约 69 ms；驾驶单相机时，控制准备和 K/V 更新加起来比去噪还多。只减步数换不来同比例的加速（§5.4、§7.4）。</li>
+<li><b>“实时”只对部分配置成立。</b>Sim-Transfer 最快的配置 15.85 FPS，按 30 FPS 视频算实时系数 1.89，和附录表 C.2 的 RTF 一致（<a href="#n12">读者注 12</a>）；论文定义了“控制到画面的延迟”式 (22)，但没有报这个数（<a href="#n13">读者注 13</a>）。</li>
+<li><b>策略评测证据很薄。</b>Bimanual 的所有评测都是回放录好的动作（开环）。唯一的闭环实验是 Sim-Transfer 的 32 个起点，场景提示词还是在同一批起点、同一个策略上调过的；成对符号检验 p ≈ 0.18，六个策略检查点合起来 117/192 对 114/192（<a href="#n11">读者注 11</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="cosmos-interactive/fig1.webp" width="1600" height="742" alt="图 1：顶部是 Cosmos 3 全模态世界模型，取 Cosmos3-Nano 检查点，经过共享的因果与蒸馏后训练配方，分出 Sim-Bimanual、Sim-Transfer、Sim-Auto 三个模型" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 5 页 · NVIDIA，arXiv 登记 CC BY 4.0（PDF 页脚另有版权声明，见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=5">看原图 ↗</a></span>从上到下：Cosmos 3 全模态世界模型，取其中的 Cosmos3-Nano 检查点，经过一套共享的因果化和蒸馏后训练配方，得到三个专用模型：导航和操作、单视角视频迁移、多视角驾驶模拟。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>物理 AI（机器人、车）的动作会改变后续观测，所以训练和测试都需要能“响应动作”的环境。真实世界采集贵且有风险，仿真更安全。生成式世界模型能提供更多样的外观，但要用来交互，它必须在新控制到来时增量地出画面，记住之前的场景变化，并且在规定的响应时间内返回。</p>
+<p><b>做法。</b>在 <a href="cosmos3.html">Cosmos 3</a>（<a href="https://arxiv.org/abs/2606.02800">2606.02800</a>）上做一套共享的后训练：因果训练加蒸馏，再配流式执行。配方直接沿用 Causal-rCM（<a href="https://arxiv.org/abs/2606.25473">2606.25473</a>，同一团队）。支持两种用法：从录下的经验学视觉动力学（动作进、画面出），以及按外部仿真器的物理状态生成观测（结构控制进、画面出）。</p>
+<p><b>三个例子</b>见上面的速览。作者明确说：各例子按各自协议评测，<b>由策略驱动时模拟器是否有用，需要单独的闭环验证</b>。这句在后面结果里反复出现。</p>
+
+<h2 id="s2"><span class="no">2</span>模型结构</h2>
+<p><b>结论：</b>结构基本照搬 Cosmos 3，唯一共享的改动是生成塔里的<b>时间因果注意力</b>：按块（chunk）划分，块内互相看，只能看更早的块，不能看未来的块。</p>
+
+<h3 id="s2-1"><span class="no">2.1</span>Cosmos 3 骨干</h3>
+<ul>
+<li><b>MoT 两塔。</b>Mixture-of-Transformers：推理塔（reasoner）做语言的自回归，生成塔（generator）做非语言模态的去噪。每层两塔有各自的 LayerNorm、QKV 投影和 FFN。文本提示走推理塔；视觉、控制和去噪相关 token（干净条件、已去噪历史、带噪目标）走生成塔。生成塔的 query 可以读推理塔的 K/V，反过来不行。</li>
+<li><b>视觉编码。</b>推理塔吃 ViT 特征；生成塔吃因果视频 VAE 的隐变量。时间压缩 4 倍：\(1+4n\) 帧变成 \(1+n\) 个隐帧，第一个隐帧只对应首帧（同 <a href="wan.html">Wan</a> 的做法）。采样时积分输出投影给出的 rectified flow 速度。</li>
+<li><b>位置编码。</b>3D MRoPE，按 \((t_{\rm pos},h,w)\) 分配旋转通道。源和目标视觉 token 在同一隐帧共享时间坐标；语言 token 三个轴同值递增；动作 token 只有时间坐标，\(h=w=0\)。自回归子序列和扩散子序列之间隔 15,000 的时间间隙。</li>
+<li><b>条件。</b>控制 token 和带噪目标拼在一起，去噪全程保持干净。视频迁移时源视频或结构控制（深度、分割、边缘、模糊）走同一个 tokenizer；动作条件时，动作 token 表示相机、末端的相对运动等，按域用不同投影映射进统一表示。</li>
+</ul>
+
+<h3 id="s2-2"><span class="no">2.2</span>多模态 token 排布</h3>
+<p>把 \(L\) 个目标隐帧切成有序、不相交、连续的块 \(\mathcal B_1,\dots,\mathcal B_J\)，第 \(j\) 块有 \(N_j\ge1\) 个隐帧，对应每视角 \(4N_j\) 个新 RGB 帧。块 \(j\) 的视觉部分 \(\mathcal V_j\) 在扩散时刻 \(\tau\) 的带噪版本记作 \(\tilde{\mathcal V}_j^\tau\)，对齐的干净控制记作 \(\mathcal U_j\)。当前生成块和逻辑输入是</p>
+<div class="eq"><div class="m">\[ \mathcal G_j^\tau=[\mathcal U_j,\tilde{\mathcal V}_j^\tau],\qquad \mathcal S_j(\tau)=[\mathcal T\mid\mathcal H_j,\ \mathcal G_j^\tau] \]</div><span class="no">(1)</span></div>
+<p>\(\mathcal T\) 是语言 token，\(\mathcal H_j\) 是保留下来的干净历史（推理时以 K/V 缓存 \(\mathcal H_j^{\rm KV}\) 存在，不必真的拼接）。只有 \(\tilde{\mathcal V}_j^\tau\) 带噪、算损失；控制在块内处理但不算损失。去噪完成后得到干净块 \(\hat{\mathcal G}_j=[\mathcal U_j,\hat{\mathcal V}_j]\)，写进历史，下一块的输入是</p>
+<div class="eq"><div class="m">\[ \mathcal S_{j+1}(\tau)=[\mathcal T\mid\mathcal H_{j+1},\mathcal U_{j+1},\tilde{\mathcal V}^\tau_{j+1}]=[\mathcal T\mid\underbrace{\mathcal H_j,\mathcal U_j,\hat{\mathcal V}_j}_{\mathcal H_{j+1}},\mathcal U_{j+1},\tilde{\mathcal V}^\tau_{j+1}] \]</div><span class="no">(2)</span></div>
+<p>K/V 缓存有上限时，加新条目可能要淘汰旧的（§4.1）。</p>
+<p><b>流式控制。</b>每个目标块配一组和它物理时段对齐的干净控制。<b>采样一块之前，这一块的全部控制必须到齐</b>：策略或仿真器要先给出这一段的动作或控制，模型才开始去噪。块越大，等控制的时间越长。</p>
+<p><b>时间对齐。</b>动作是每 RGB 帧一个，时间压缩 4 倍，所以相邻隐帧之间有 4 个动作；动作用视觉 token 1/4 的旋转时间增量，最后一个动作和对应隐帧共享时间坐标。第一帧前面没有真实动作。</p>
+<figure class="pfig" id="fig2">
+<img src="cosmos-interactive/fig2.webp" width="1600" height="1132" alt="图 2：上半部分是推理第 j 步的自回归生成，语言、可选初始观测、已缓存的干净历史和当前带噪块；下半部分对比动作控制组和源视频控制组" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 8 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=8">看原图 ↗</a></span>(a) 左端是语言 \(\mathcal T\) 和可选的初始观测 \(\mathcal H_0\)；之后每个已完成块由干净控制 \(\mathcal U_k\) 和去噪后的视觉 \(\hat{\mathcal V}_k\) 组成，作为缓存的历史；最右是当前块 \(\mathcal G_j^\tau\)，控制保持干净，视觉逐步去噪，完成后才解码成 RGB。(b) 两种控制流：动作条件时每个隐帧区间 4 个干净动作 token；视频迁移时是对齐的干净源隐帧。</figcaption>
+</figure>
+<p><b>序列打包。</b>不同长度、分辨率的录像打包进同一缓冲区，用布尔注意力掩码保证每条录像只看自己、不看 padding，并满足跨塔、时间、token 角色规则。设备切分不构成注意力边界。</p>
+
+<h3 id="s2-3"><span class="no">2.3</span>时间因果注意力</h3>
+<p>把生成塔的双向时间注意力换成<b>块因果</b>：每个注意力块对应一个生成块，块内带噪视觉互相看（联合去噪），也能看保留的干净历史，不能看未来块。同一时段内提供的源视频可以看；字幕和缓存条件要限制可见性，防止泄露未来目标。</p>
+<figure class="pfig" id="fig3">
+<img src="cosmos-interactive/fig3.webp" width="1600" height="959" alt="图 3：两张注意力掩码矩阵，左边 Cosmos 3 生成块之间全可见，右边因果化后只能读本块和更早的块" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 9 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=9">看原图 ↗</a></span>行是 query，列是 key/value。左上角紫色三角是语言的因果自注意力；生成塔 query 能读语言，语言不能读生成塔。(a) Cosmos 3 里每个生成块（\(\mathcal U_k\) 加 \(\tilde{\mathcal V}_k\)）能读其他所有块。(b) 因果化后是块下三角：只读本块和更早的块。动作条件时 \(\mathcal U_0\) 是空组，第一个视觉组是干净首帧。</figcaption>
+</figure>
+<p><b>按块分解。</b>记 \(\mathbf z_{1:L}\) 为要生成的目标隐变量（不含给定的首帧），\(\mathcal I_j\) 为块 \(j\) 开始生成前已接受的条件（控制组、初始观测、时间戳、语言），在条件序列预先给定时：</p>
+<div class="eq"><div class="m">\[ p_\theta(\mathbf z_{1:L}\mid\mathcal I_{1:J})=\prod_{j=1}^{J}p_\theta\big(\mathbf z_{\mathcal B_j}\mid\mathbf z_{\mathcal B_{&lt;j}},\mathcal I_j\big) \]</div><span class="no">(3)</span></div>
+<p>块之间因果，块内自由交互。块小，响应控制更频繁；块大，一次建模更长区间，画质可能更好。</p>
+<p>作者特别说明：这个分解<b>假设条件是外部预先给定的</b>。闭环时策略根据模型之前的输出选下一步动作，条件就依赖于模拟出来的轨迹；回放录好的控制只覆盖了条件生成，没有检验策略驱动的反馈。</p>
+
+<h2 id="s3"><span class="no">3</span>后训练配方</h2>
+<p><b>结论：</b>四个顺序阶段，每个阶段解决一个问题：领域和控制（Stage 0）、因果（1）、步数（2）、自己生成的历史带来的暴露偏差（3）。条件 token 一律作为干净条件，不算损失。</p>
+<figure class="pfig" id="fig4">
+<img src="cosmos-interactive/fig4.webp" width="1600" height="903" alt="图 4：四个阶段的表，列出训练上下文和目的，右侧虚线标出冻结的双向教师和冻结的因果教师" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 11 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=11">看原图 ↗</a></span>Stage 0 双向适配：参考片段、全时间上下文，学领域和长上下文下的控制保真。Stage 1 TF：干净的参考历史、因果预测，训练多步因果教师并初始化学生。Stage 2 TF-dCM：干净参考历史、少步学生，减少去噪次数。Stage 3 SF-DMD：学生自己生成的因果历史，处理暴露偏差。实线箭头表示初始化下一阶段；虚线把冻结的因果教师（Stage 1）接到 Stage 2，把冻结的双向教师（Stage 0）接到 Stage 3。</figcaption>
+</figure>
+
+<h3 id="s3-1"><span class="no">3.1</span>双向适配（Stage 0）</h3>
+<p>先在双向注意力下把 Cosmos 3 生成器适配到各例子的观测域和条件接口，并用较长的连续片段训练，让教师见过长历史。适配后的权重既初始化因果化，又作为 Stage 3 的冻结双向教师。损失是 rectified flow：</p>
+<div class="eq"><div class="m">\[ \mathbf x_\tau=(1-\tau)\mathbf z+\tau\boldsymbol\epsilon,\quad \boldsymbol\epsilon\sim\mathcal N(0,\mathbf I),\qquad L_{\rm bidir}=\mathbb E_{\mathbf z,\mathcal C,\boldsymbol\epsilon,\tau}\Big[w_{\rm bidir}(\tau)\big\|\mathbf v^{\rm bidir}_\theta(\mathbf x_\tau,\tau;\mathcal C)-(\boldsymbol\epsilon-\mathbf z)\big\|_2^2\Big] \]</div><span class="no">(4)</span></div>
+<p>一个片段共用一个 \(\tau\)。\(w_{\rm bidir}=1/(CTHW)\)，用整段序列大小（含条件帧）归一化。噪声时间用非均匀采样加分辨率相关的偏移（附录 B.2）。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>Teacher forcing 因果训练（Stage 1）</h3>
+<p>每个例子选一个名义块大小。历史 \(\mathcal H_j\) 是<b>参考（真实）</b>目标、之前的控制和初始观测；附加条件 \(\mathcal C_j=(\mathcal T,\mathcal U_j)\)。损失逐块求和，同一个样本共用一个 \(\tau\)：</p>
+<div class="eq"><div class="m">\[ L_{\rm TF}=\mathbb E_{\mathbf z,\mathcal C,\boldsymbol\epsilon,\tau}\sum_j w_j^{\rm TF}(\tau)\big\|\mathbf v^{\rm TF}_\theta(\mathbf x^j_\tau,\tau;\mathcal H_j,\mathcal C_j)-(\boldsymbol\epsilon_j-\mathbf z_j)\big\|_2^2 \]</div><span class="no">(5)</span></div>
+<p><b>干净/带噪两路掩码。</b>干净参考 query 只看因果可用的干净输入；带噪 query 读严格更早块的干净历史，并和本块的控制、带噪视觉联合注意。不能直接或间接（经条件状态、缓存 K/V）看到当前块的干净目标。</p>
+<p><b>回放式 teacher forcing。</b>与其造一个同时容纳干净和带噪 token 的大掩码，不如分两遍：第一遍处理干净参考，存下每层 K/V；第二遍并行评估所有带噪目标，读本块和严格更早的干净缓存。要和单次打包前向等价，需要保留或重算穿过干净缓存的梯度。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos-interactive/fig5.webp" width="1600" height="990" alt="图 5：(a) 打包的干净和带噪掩码，(b) 回放时带噪一遍的可见性，(c) 两遍训练流程：干净一遍得到逐层 K/V，带噪一遍并行算损失" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 13 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=13">看原图 ↗</a></span>(a) 一个矩阵里同时放干净块 \(\mathcal G^c_j\) 和带噪块 \(\mathcal G^n_j\)：干净看干净；带噪只看严格更早的干净块和自己块内。(b) 回放时带噪那一遍读语言、更早片段的前缀和严格更早的干净块。(c) Pass 1 干净 → 逐层 K/V → Pass 2 带噪目标并行 → 算损失后一次更新；虚线是穿过缓存的梯度路径。</figcaption>
+</figure>
+
+<h3 id="s3-3"><span class="no">3.3</span>Teacher forcing 下的一致性蒸馏（Stage 2，TF-dCM）</h3>
+<p>历史和控制固定，学生学一个一致性映射：从教师去噪轨迹上不同的点都预测同一个终点。</p>
+<div class="eq"><div class="m">\[ f_\theta(\mathbf x^j_\tau,\tau;\mathcal H_j,\mathcal C_j)=\mathbf x^j_\tau-\tau\,\mathbf v^{\rm TF}_\theta(\mathbf x^j_\tau,\tau;\mathcal H_j,\mathcal C_j) \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ f_\theta(\mathbf x,0;\mathcal H_j,\mathcal C_j)=\mathbf x \]</div><span class="no">(7)</span></div>
+<p>采一对时间 \(0\le s<\tau\le1\)，冻结的因果教师 \(\psi_{\rm AR}\) 带 CFG 走一步 Euler，从 \(\tau\) 到 \(s\)：</p>
+<div class="eq"><div class="m">\[ \hat{\mathbf x}^j_s=\mathrm{ODESolve}\big(\mathbf v^{\rm CFG}_{\psi_{\rm AR}},\mathbf x^j_\tau,\tau\to s;\mathcal H_j,\mathcal C_j\big) \]</div><span class="no">(8)</span></div>
+<p>CFG 约定 \(\mathbf v^{\rm CFG}=\mathbf v^{\rm base}+\gamma(\mathbf v^{\rm cond}-\mathbf v^{\rm base})\)，\(\gamma=1\) 即纯条件场。学生匹配两个噪声水平上的终点：</p>
+<div class="eq"><div class="m">\[ L_{\rm TF\text{-}dCM}=\mathbb E_{\mathbf z,\mathcal C,\boldsymbol\epsilon,\tau,s}\sum_j w^{\rm dCM}_j(\tau)\big\|f_\theta(\mathbf x^j_\tau,\tau;\mathcal H_j,\mathcal C_j)-\mathrm{sg}\big[f_\theta(\hat{\mathbf x}^j_s,s;\mathcal H_j,\mathcal C_j)\big]\big\|_2^2 \]</div><span class="no">(9)</span></div>
+<p>\(w^{\rm dCM}_j=1/(CHW)\)。目标分支整条停梯度（包括它的干净历史缓存）。学生学的是带 CFG 的教师轨迹，推理时每步只需一次条件前向。</p>
+
+<h3 id="s3-4"><span class="no">3.4</span>Self forcing 下的分布匹配蒸馏（Stage 3，SF-DMD）</h3>
+<p>Stage 2 在真实历史上学少步去噪，但推理时历史是自己生成的。Stage 3 从 Stage 2 学生出发，在<b>学生自己的 rollout</b> 上训练（Self Forcing 加 DMD）。块内按调度 \(1=\tau_{j,K_j}>\dots>\tau_{j,0}=0\) 交替做终点预测和高斯重加噪：</p>
+<div class="eq"><div class="m">\[ \tilde{\mathbf x}^j_{\tau_{j,n-1}}=(1-\tau_{j,n-1})\,f_\theta(\tilde{\mathbf x}^j_{\tau_{j,n}},\tau_{j,n};\mathcal H^{\rm KV}_j,\mathcal C_j)+\tau_{j,n-1}\boldsymbol\epsilon_{j,n} \]</div><span class="no">(10)</span></div>
+<div class="eq"><div class="m">\[ \tilde{\mathbf x}^j_{\tau_{j,K_j}}\sim\mathcal N(0,\mathbf I) \]</div><span class="no">(11)</span></div>
+<p>训练只对每块最后一次去噪求导：</p>
+<div class="eq"><div class="m">\[ \hat{\mathbf z}_j=f_\theta\big(\mathrm{sg}[\tilde{\mathbf x}^j_{\tau_{j,1}}],\tau_{j,1};\mathrm{sg}[\mathcal H^{\rm KV}_j],\mathcal C_j\big) \]</div><span class="no">(12)</span></div>
+<p><b>教师和辅助打分模型。</b>冻结的 Stage 0 双向教师 \(\psi_{\rm bidir}\) 给参考分数，可训练的辅助模型 \(\phi\)（“fake score”）估计当前学生分布的分数，两者都对整段 rollout 用双向时间注意力。理想目标是带噪的反向 KL：</p>
+<div class="eq"><div class="m">\[ L_{\rm DMD,raw}=\mathbb E_{\mathcal C_i,\tau}\big[D_{\rm KL}\big(p^\tau_\theta(\cdot\mid\mathcal C_i)\,\|\,p^\tau_{\rm ref}(\cdot\mid\mathcal C_i)\big)\big] \]</div><span class="no">(13)</span></div>
+<p>辅助模型在重加噪、停梯度的学生输出上训练：</p>
+<div class="eq"><div class="m">\[ \mathbf y_{i,\tau}=(1-\tau)\,\mathrm{sg}[\hat{\mathbf z}_i]+\tau\boldsymbol\epsilon_i \]</div><span class="no">(14)</span></div>
+<div class="eq"><div class="m">\[ L_{\rm aux}(\phi)=\mathbb E\Big[\lambda_{\rm RF}(\tau)\,\mathrm{mean}\big[\,|\mathbf v_\phi(\mathbf y_{i,\tau},\tau;\mathcal C_i)-(\boldsymbol\epsilon_i-\mathrm{sg}[\hat{\mathbf z}_i])|^2\big]\Big] \]</div><span class="no">(15)</span></div>
+<p>\(\lambda_{\rm RF}=1\)。高斯腐蚀下后验终点均值 \(\mathbf m_{a,\tau}\) 和分数的关系是</p>
+<div class="eq"><div class="m">\[ \mathbf s_{a,\tau}(\mathbf y\mid\mathcal C)=\nabla_{\mathbf y}\log p^\tau_a(\mathbf y\mid\mathcal C)=\frac{(1-\tau)\,\mathbf m_{a,\tau}(\mathbf y;\mathcal C)-\mathbf y}{\tau^2},\quad 0<\tau<1 \]</div><span class="no">(16)</span></div>
+<p>于是理想的路径梯度是</p>
+<div class="eq"><div class="m">\[ \nabla_\theta L_{\rm DMD,raw}=\mathbb E\Bigg[\Big(\frac{\partial\hat{\mathbf z}_i}{\partial\theta}\Big)^{\!\top}\frac{(1-\tau)^2}{\tau^2}\big(\mathbf m_{\theta,\tau}(\mathbf y_{i,\tau};\mathcal C_i)-\mathbf m_{\rm ref,\tau}(\mathbf y_{i,\tau};\mathcal C_i)\big)\Bigg] \]</div><span class="no">(17)</span></div>
+<p>一个 \(1-\tau\) 来自腐蚀的雅可比，另一个来自分数到终点的换算。实际更新用打分模型代替后验均值，并做自适应归一化：</p>
+<div class="eq"><div class="m">\[ \rho_{i,\tau}=\mathrm{mean}\big[|\mathrm{sg}[\hat{\mathbf z}_i]-f_{\psi_{\rm bidir}}(\mathbf y_{i,\tau},\tau;\mathcal C_i)|\big],\qquad \mathbf g_{i,\tau}=\frac{f_\phi(\mathbf y_{i,\tau},\tau;\mathcal C_i)-f_{\psi_{\rm bidir}}(\mathbf y_{i,\tau},\tau;\mathcal C_i)}{\rho_{i,\tau}+\delta} \]</div><span class="no">(18)</span></div>
+<p>三个模型都用 \(\delta=10^{-6}\)。生成器拟合一个停梯度的终点偏移：</p>
+<div class="eq"><div class="m">\[ L_{\rm DMD}(\theta)=\mathbb E\Big[\frac1{2a_i}\big\|\hat{\mathbf z}_i-\mathrm{sg}[\hat{\mathbf z}_i-\mathbf g_{i,\tau}]\big\|_2^2\Big] \]</div><span class="no">(19)</span></div>
+<p>单视角 RGB 模型 \(a_i=CHW\)；RGB 和 LiDAR 联合时每个模态分开算再组合。作者说得很清楚：自适应归一化替换了理想的时间因子，最后一步求导替换了完整 rollout 的雅可比，加上近似打分模型，这是一个受反向 KL 启发的<b>实用替代</b>，不是式 (13) 的精确梯度。</p>
+<p><b>回放式反传。</b>先不带梯度生成整段 rollout，存下每块最后的带噪输入、时间、停梯度的缓存前缀和 DMD 目标；然后一块一块重算最后一次预测并反传，累积梯度后一次更新。省峰值显存，不改变估计量。</p>
+<p><b>退出策略。</b>每块用几次去噪：max 规则总用上限（和推理一致）；cycle 规则轮流用不同步数。三个最终模型都用 max、每块 4 次。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 4 步的时间表和 1/48 的间隔可以对上</span><p>附录 C.1 给的 4 步 SDE 时间表是 \([1,15/16,5/6,5/8]\)，说是 shift 5 的表。按附录 B.2 的偏移 \(S_\kappa(u)=\kappa u/(1+(\kappa-1)u)\)，取 \(\kappa=5\)、\(u=1,3/4,1/2,1/4\)：\(S=1,\ 3.75/4=15/16,\ 2.5/3=5/6,\ 1.25/2=5/8\)，正好是均匀 4 步再做偏移。代码 <code>bimanual_profiles.py</code> 的 <code>_T_LIST = (1.0, 0.9375, 0.8333…, 0.625)</code>、<code>transfer_self_forcing.py</code> 的 <code>t_list</code> 相同。TF-dCM 的时间对间隔 1/48 对应代码 <code>teacher_forcing_dcm_total_steps=48</code>；“一步 Euler”对应 <code>tf_dcm.py</code> 里的 “one teacher Euler step”。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 式 (18) 的 δ 和 1:5 的交替</span><p>代码 <code>distillation/common_loss.py</code> 的 <code>make_vsd_pseudo_target</code> 正是式 (18)(19)：\(w=1/(\mathrm{mean}|g-\text{ref}|+10^{-6})\)，伪目标 \(g-w\cdot\text{grad}\)。另有一个 <code>per_instance_sum</code> 模式改用 <code>clamp(min=1e-5)</code>，默认 <code>vsd_loss_reduction="mean"</code>，我没找到三个模型的配置启用它。“1 次学生更新配 5 次辅助更新”在配置里写作 <code>student_update_freq=6</code>。Bimanual 的检查点 1,380 = 230 + 1,150，正好 1:5；Sim-Auto 的 250 + 1,250 = 1,500、50 + 250 = 300 也是 1:5。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>拆成 11 幕：总览、MoT 和 token 排布、块因果掩码（可切块大小，当场数可见对数）、Stage 0/1 两遍 teacher forcing、Stage 2 一致性蒸馏（当场算偏移后的时间）、Stage 3 自回放和 DMD（嵌在这里的是这一幕）、流式 K/V 缓存（三种窗口可切）、每块时间预算和实时系数、Bimanual 的 59 维动作、Sim-Transfer 闭环、Sim-Auto 多传感器时间轴。标“示意”的是我画的形状，数字来自论文和代码。</p>
+<iframe src="../interactives/cosmos-interactive/index.html?embed=1&amp;scene=6" title="Cosmos 交互式模拟 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos-interactive/index.html">全屏打开，还有论文和代码并列的结构表 ↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>流式推理</h2>
+<p><b>结论：</b>少步蒸馏只减少了每块的生成器调用次数；条件准备、历史读写、解码仍在每块里。流式推理靠复用之前算过的状态来压这些成本，同时要分清“吞吐”和“响应延迟”。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>流式状态和内存</h3>
+<p><b>下一块预测。</b>和 TF 训练不同，推理时历史是生成的。采样块 \(j\) 时条件和历史都不变；新到的条件只能影响下一个还没采样的块。采样完的隐变量分两路：更新 K/V 缓存（为下一块）和因果解码（出画面），两路可以放在不同 GPU 上并行。</p>
+<p><b>把干净 K/V 追加到历史。</b>去噪完成后，用完成块（含控制和生成的隐变量）重新跑一遍得到干净的逐层 K/V：</p>
+<div class="eq"><div class="m">\[ \Delta\mathcal H^{\rm KV}_j=\mathrm{RefreshKV}_\theta(\hat{\mathcal G}_j;\mathcal H^{\rm KV}_j,\mathcal T^{\rm KV}_j) \]</div><span class="no">(20)</span></div>
+<div class="eq"><div class="m">\[ \mathcal H^{\rm KV}_{j+1}=\mathrm{Retain}_{j+1}\big(\mathcal H^{\rm KV}_j\oplus\Delta\mathcal H^{\rm KV}_j\big) \]</div><span class="no">(21)</span></div>
+<p>单视角动作路径按时间顺序逐个隐帧刷新，后面的帧能读到刚刷新的前面帧，和 TF 的干净分支一致。一块的成本是 \(K_j+R_j\) 次生成器调用（\(K_j\) 次去噪、\(R_j\) 次历史刷新），批量刷新时 \(R_j=1\)。</p>
+<figure class="pfig" id="fig6">
+<img src="cosmos-interactive/fig6.webp" width="1600" height="763" alt="图 6：一个流式生成步的状态和依赖：初始上下文和流式输入进入生成器，去噪当前块，完成的隐变量分两路，K/V 缓存更新和因果解码" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 18 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=18">看原图 ↗</a></span>左上是初始上下文（语言、初始观测），右上是流式输入（控制、源视频、当前条件 \(\mathcal U_j\)）。生成器读语言 K/V、只读的干净历史和条件，去噪当前块；完成的隐变量一路做 K/V 更新（追加到有界历史，得到下一块的 \(\mathcal H^{\rm KV}_{j+1}\)），一路做因果解码（输出观测，携带时间状态）。</figcaption>
+</figure>
+<p><b>有界历史和初始 sink。</b>仿照 StreamingLLM：缓存保留一段固定的初始 sink 加一个最近条目的滚动窗口，新条目挤掉最旧的非 sink 条目，时间戳不重编号。窗口填满后存储和注意力上下文都固定。注意：训练时可以保留全历史、评测时用窗口加 sink（§5.3、§5.5 就是这样），所以<b>历史策略是评测工作点的一部分</b>。</p>
+
+<h3 id="s4-2"><span class="no">4.2</span>运行时优化</h3>
+<p><b>指标。</b>\(t_{\rm in}\) 是收到某个控制的时刻，\(t_{\rm obs}\) 是受它影响的第一帧解码完成的时刻：</p>
+<div class="eq"><div class="m">\[ T_{\rm control\to obs}=t_{\rm obs}-t_{\rm in} \]</div><span class="no">(22)</span></div>
+<div class="eq"><div class="m">\[ t_{{\rm start},j}\ge\max\big(t_{{\rm controls},j},\ t_{{\rm history},j}\big) \]</div><span class="no">(23)</span></div>
+<div class="eq"><div class="m">\[ \mathrm{FPS}_{\rm sync}=\frac FT,\qquad \mathrm{RTF}=\frac TD \]</div><span class="no">(24)</span></div>
+<p>\(F\) 是在耗时 \(T\) 内产出的帧数，\(D\) 是它们代表的物理时长。实时吞吐要求 \(\mathrm{RTF}\le1\)。吞吐量衡量产能，控制到画面的延迟衡量响应。顺序执行时每块预算是</p>
+<div class="eq"><div class="m">\[ T_{\rm chunk}=T_{\rm condition}+T_{\rm denoise}+T_{\rm cache}+T_{\rm decode}+T_{\rm bookkeeping} \]</div><span class="no">(25)</span></div>
+<p>具体手段：</p>
+<ul>
+<li><b>减编译和启动开销：</b>滚动窗口满了之后形状固定，语言 token 填充到固定容量，于是可以静态编译（torch.compile）和 CUDA Graph 回放。</li>
+<li><b>无掩码注意力：</b>把允许的注意目标分成几组分别算，再用 log-sum-exp 统计合并，避免构造大掩码。</li>
+<li><b>上下文并行：</b>Ulysses 式两次 all-to-all；或者每卡保留当前块的完整隐状态、只按头切 K/V，用 all-reduce 代替 all-to-all，以重复计算换通信，不保证更快。</li>
+<li><b>分摊相机工作：</b>多视角时把相机的读取、编码、解码分到各卡。</li>
+<li><b>解码器取舍：</b>可选编译过的 Wan 2.2 VAE 或更轻的 <a href="https://github.com/madebyollin/taehv">TAEHV Super</a>（保留 Wan 编码器和隐空间）。</li>
+<li><b>异步解码：</b>解码放到另一张卡，生成卡同时刷新 K/V。只有节省超过传输和同步开销时才有用。</li>
+</ul>
+<div class="note" id="n13"><span class="lab">读者注 13 · 定义了延迟，但没有报延迟</span><p>式 (22) 的 \(T_{\rm control\to obs}\) 在全文没有一个实测值；表格报的是每块墙钟时间、吞吐和首块启动时间。按式 (23) 我做个下界估算（<b>我的推算</b>，假设控制按物理时间实时到达、没有显示和传输延迟）：Bimanual 一块 8 帧要先攒 8/30 = 267 ms 的动作，再加 166 ms 生成，约 0.43 s；Sim-Transfer 一块 4 帧攒 133 ms，加 240–401 ms（编译有界到 eager），约 0.37–0.53 s；Sim-Auto 一块攒 400 ms，加单相机 364 ms 约 0.76 s，用了 map GPU 预取还要再多一块的控制延迟（附录 D.4 说 1 chunk）。这些都只是量级。</p></div>
+
+<h2 id="s5"><span class="no">5</span>后训练例子：Cosmos3-Nano-Sim-Bimanual</h2>
+<p><b>结论：</b>一个检查点同时管相机导航和机器人/人手操作，靠一个 59 维的统一动作接口；在导航基准上质量比列出的最强基线高 8.6 到 11.2 分，在 AgiBot 两个基准上五项指标都好于 DreamDojo 2B 和 14B。所有评测都是回放动作的开环预测。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>结构</h3>
+<p><b>动作表示。</b>59 维：9 维自身位姿（ego pose）、右手 24 维加右夹爪开度、左手 24 维加左夹爪开度。位姿是 3 维平移加 6D 旋转；手的 24 维是 9 维手腕位姿加 5 个指尖相对手腕的 3D 位置（9 + 15）。合计 \(9+(24+1)+(24+1)=59\)。每个来源先映射到这个布局，用有效掩码标出哪些字段是观测到的；领域相关的归一化用反双曲正弦（asinh），再经按域选择的投影：</p>
+<div class="eq"><div class="m">\[ \mathbf h^{\rm act}_t=\mathrm{Proj}_{d_t}\big(\mathbf m_t\odot\mathrm{Norm}_{d_t}(\mathbf a_t)\big) \]</div><span class="no">(26)</span></div>
+<p><b>时间对齐。</b>位姿动作用每 16 个 RGB 帧更新一次的锚点：区间 \(j\) 内的位姿 \(\mathbf T_t\) 编码成 \(\mathbf T^{-1}_{b(j)}\mathbf T_t\)，\(b(j)\) 是区间前的那一帧。这样既在局部坐标系下，又不会随整条轨迹累积变大。每个隐帧区间配 4 个逐帧动作；因果模型每块预测 2 个隐帧（启动后 8 个新 RGB 帧），所以一个锚点区间跨 2 块。首帧配空动作，和后来的“零运动”命令语义不同。</p>
+<figure class="pfig" id="fig7">
+<img src="cosmos-interactive/fig7.webp" width="1600" height="431" alt="图 7：首帧 1 个隐帧没有动作，之后每 4 个动作对应 1 个隐帧，2 个隐帧组成 8 帧的预测块，一个位姿锚点跨 16 帧" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 22 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=22">看原图 ↗</a></span>最左是首帧隐变量，没有动作。之后四组“4 个动作 → 1 个隐帧”，对应 RGB 偏移 1–4、5–8、9–12、13–16；每两组构成一个预测块（2 个隐帧、8 个 RGB 帧）。顶部箭头标出一个位姿锚点跨 16 个 RGB 帧，不含首帧。</figcaption>
+</figure>
+<p><b>混合动作序列。</b>同一条动作序列里可以先操作、再导航、再操作，每个转移带自己的域标签和掩码。切换域时不换模型、不重置 rollout，从保留的视觉历史接着生成。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 59 维和代码里的 64 维</span><p>按正文拆 \(9+24+1+24+1=59\)。代码 <code>bimanual_profiles.py</code> 设 <code>max_action_dim=64</code>、<code>action_schema="unified_v1"</code>、<code>action_global_asinh=True</code>、<code>num_embodiment_domains=32</code>；推理文档 <code>docs/inference_bimanual.md</code> 说 sidecar 已归一化和掩码，推理时“只追加 5 个零通道”，\(59+5=64\)，对得上。混合示例里 AgiBot 是域 15，相机位姿是域 2。Stage 0 的 <code>lr_multipliers</code> 给 <code>action2llm</code> 和 <code>action_modality_embed</code> 5 倍，和 §5.3 一致。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>数据准备</h3>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>来源</th><th>动作信息</th><th>语言条件</th></tr></thead><tbody>
+<tr><td>相机视频，多为航拍和第一人称</td><td>给定或估计的相机位姿</td><td>只描述环境，不提相机运动</td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot</a>（<a href="https://arxiv.org/abs/2503.06669">论文</a>）和 <a class="ds" href="https://doc.i2rt.com/products/yam">YAM</a></td><td>各机体自己的字段</td><td>改写成初始状态描述</td></tr>
+<tr><td><a class="ds" href="https://www.mecka.ai/">Mecka</a></td><td>人手腕、指尖，和可用的自身字段</td><td>改写成初始状态描述</td></tr>
+<tr><td><a class="ds" href="https://behavior.stanford.edu/">Behavior-1K</a>（<a href="https://arxiv.org/abs/2403.09227">论文</a>）</td><td>仿真机体动作</td><td>原生的任务描述</td></tr>
+</tbody></table></div>
+<p class="tcap">表 1 的内容，照录原文。</p>
+<ul>
+<li><b>过滤和对齐：</b>野外视频没有位姿标签，用 <a href="https://arxiv.org/abs/2508.10934">ViPE</a> 估计相机轨迹，按连续性和平滑度过滤掉低置信或抖动大的；机器人和人手序列取长的连续片段，统一坐标、移动底座、夹爪约定。</li>
+<li><b>描述：</b>语言描述场景，动作流描述运动，二者不能互相冲突。教师模型先给结构化场景拆解和详细描述，再按控制域改写；再用这些数据训练三个领域的内部描述模型做大规模标注。</li>
+<li><b>不泄露未来：</b>机器人和人手片段只保留第一个时间段，改写成“初始状态”，去掉受控动作和它的结果（例如物体最后放到哪里）。改写模型看不到后面的段和视频。作者承认源描述是从整段视频生成的，所以这只是初始状态的近似。图 8 的例子（AgiBot-GEAR 的拖鞋）去掉了抓取和抬起，保留了初始位置。</li>
+</ul>
+
+<h3 id="s5-3"><span class="no">5.3</span>后训练</h3>
+<p>四个阶段都用相机、机器人、人手数据，权重 2:2:1；前三阶段 256p 和 480p 按 2:1 混合，SF-DMD 只用 480p；片段最多 901 帧。因果阶段每块 2 个隐帧，训练时保留全部历史、没有 sink，这比评测用的 64 隐帧窗口长：<b>训练和最终推理在“历史从哪来”和“能看多少历史”两方面都不一样</b>。</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>阶段</th><th class="n">检查点迭代</th><th class="n">RGB 帧上限</th><th>学习率</th><th>分辨率</th><th>教师 CFG</th></tr></thead><tbody>
+<tr><td>Teacher</td><td class="n">35,000</td><td class="n">901</td><td>10⁻⁵</td><td>256p / 480p</td><td>—</td></tr>
+<tr><td>TF</td><td class="n">8,000</td><td class="n">901</td><td>10⁻⁵</td><td>256p / 480p</td><td>—</td></tr>
+<tr><td>TF-dCM</td><td class="n">4,000</td><td class="n">901</td><td>2 × 10⁻⁶</td><td>256p / 480p</td><td>3</td></tr>
+<tr><td>SF-DMD</td><td class="n">1,380</td><td class="n">901</td><td>10⁻⁶ / 2 × 10⁻⁷</td><td>480p</td><td>1</td></tr>
+</tbody></table></div>
+<p class="tcap">表 2 · Bimanual 各阶段设置。SF-DMD 学习率是学生 / 辅助打分模型；CFG 1 即不用 CFG。</p>
+<p>Stage 0 从公开的 Cosmos3-Nano 初始化，动作投影和动作模态嵌入用 5 倍学习率。Stage 2 用 CFG 3 的教师蒸到 4 步。Stage 3 关掉教师 CFG，学生和辅助模型 1:5 交替。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 三个模型的教师 CFG，论文和代码</span><p>Bimanual：TF-dCM 3、SF-DMD 1；代码 <code>teacher_forcing_dcm_teacher_guidance=3.0</code>、<code>action_conditioned_teacher_guidance=1.0</code>，一致。附录表 B.4 显示 SF-DMD 用 CFG 6 反而更差。Sim-Transfer：表 7 写 TF-dCM 和 SF-DMD 都是 3；代码里 SF 的通用工厂函数默认 <code>teacher_guidance=6.0</code>，但 <code>transfer_stage3_profiles.py</code> 显式改成 3.0，注释说是“刻意和 Stage 2 对齐”，所以发布配方和论文一致。Sim-Auto：两个蒸馏阶段 1.5，代码 <code>auto_profiles.py</code> 同。代码里 Bimanual 的 <code>_MAX_ITERS=(35000, 8000, 4000, 1500)</code>，SF-DMD 跑到 1,500，论文选的是 1,380 这个检查点。</p></div>
+
+<h3 id="s5-4"><span class="no">5.4</span>推理优化</h3>
+<p>1 张 GB300，编译去噪、CUDA Graph、64 个隐帧的 K/V 窗口、TAEHV Super 解码；4 步去噪，每块 2 个隐帧解码成 8 帧，640 × 352。</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>配置</th><th class="n">每块 p50（ms）</th><th class="n">p95</th><th class="n">产能（FPS）</th><th class="n">块数</th><th class="n">次数</th></tr></thead><tbody>
+<tr><td>编译预设，TAEHV Super</td><td class="n">166</td><td class="n">169</td><td class="n">48.1</td><td class="n">720</td><td class="n">3</td></tr>
+<tr><td>编译预设，Wan 2.2 解码器</td><td class="n">229</td><td class="n">231</td><td class="n">35.0</td><td class="n">240</td><td class="n">1</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 1 张 GB300 上的解码器对比。每块 8 帧，在 30 FPS 下代表 267 ms 物理时间；去掉每次运行前 10 块预热。</p>
+<figure class="pfig" id="fig9">
+<img src="cosmos-interactive/fig9.webp" width="1350" height="253" alt="图 9：一条横向堆叠柱，去噪约 89 ms，K/V 缓存更新约 69 ms，解码很短，总共 167 ms" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 25 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=25">看原图 ↗</a></span>编译加 CUDA Graph 的单次带插桩运行，每块中位数 167 ms。从左到右：去噪（正文说约 89 ms）、K/V 缓存更新（约 69 ms）、TAEHV Super 解码（4.4 ms）、其他。</figcaption>
+</figure>
+<p>K/V 更新占了块时间的很大一部分，所以只减去噪步数决定不了端到端加速。解码器质量另测：80 个 Camera Easy 样本上 PAI-Bench-G 分数 Wan 71.8、TAEHV Super 70.9。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 3 和图 9 的算术</span><p>8 / 0.166 = 48.2，8 / 0.229 = 34.9，和表里 48.1、35.0 一致（差在汇总口径）。中位数减少 229 − 166 = 63 ms，63 / 229 = 27.5%；48.1 / 35.0 = 1.37 倍，都和正文一致。实时系数 RTF = 166 / 266.7 = 0.62，确实快于回放。图 9：89 + 69 + 4.4 = 162.4，剩下约 4.6 ms 是“其他”；K/V 刷新占 69 / 167 = 41%。</p></div>
+
+<h3 id="s5-5"><span class="no">5.5</span>结果</h3>
+<p><b>评测设定。</b>最终 SF-DMD 学生，4 步，64 个隐帧的 K/V 窗口，其中 8 个是 sink。基准都回放录好或合成的动作，<b>没有策略根据生成画面选下一步</b>。基线各用自己的原生推理设置。</p>
+<p><b>导航。</b>300 个 <a class="ds" href="https://openaccess.thecvf.com/content/CVPR2026/html/Zhou_PAI-Bench_A_Comprehensive_Benchmark_For_Physical_AI_CVPR_2026_paper.html">PAI-Bench-G</a> 图生视频用例（合成的 1 分钟相机轨迹），加 <a class="ds" href="https://arxiv.org/abs/2605.15178">Sana-WM-Bench</a> 的简单、困难各 80 个（961 帧、16 FPS、60 秒）。画质用 PAI-Bench-G 总分；漂移是开头和结尾等长片段的分数差：</p>
+<div class="eq"><div class="m">\[ \Delta M(V)=|M(V_{\rm start})-M(V_{\rm end})| \]</div><span class="no">(27)</span></div>
+<p>相机对齐：用 ViPE 从生成视频估计位姿，Umeyama 对齐后算 ATE、RTE、RRE。</p>
+<div class="tablewrap"><table class="t-w7"><thead><tr><th>模型</th><th class="n">质量 ↑</th><th class="n">漂移 ↓</th><th class="n">ATE ↓</th><th class="n">RTE ↓</th><th class="n">RRE ↓</th></tr></thead><tbody>
+<tr class="grp"><th colspan="6">PAI-Bench-G I2V</th></tr>
+<tr><td>Cosmos3-Nano-Sim-Bimanual</td><td class="n">73.9099</td><td class="n">0.0210</td><td class="n">4.7072</td><td class="n">0.0545</td><td class="n">0.1002</td></tr>
+<tr><td>LingBot-World 2.0</td><td class="n">65.3577</td><td class="n">0.0209</td><td class="n">4.1698</td><td class="n">0.0596</td><td class="n">0.1781</td></tr>
+<tr><td>Sana-WM</td><td class="n">65.2090</td><td class="n">0.0299</td><td class="n">6.4823</td><td class="n">0.1284</td><td class="n">0.1601</td></tr>
+<tr class="grp"><th colspan="6">Sana-WM-Bench simple</th></tr>
+<tr><td>Cosmos3-Nano-Sim-Bimanual</td><td class="n">77.2887</td><td class="n">0.0118</td><td class="n">1.0040</td><td class="n">0.0124</td><td class="n">0.0551</td></tr>
+<tr><td>LingBot-World 2.0</td><td class="n">65.9748</td><td class="n">0.0371</td><td class="n">1.4254</td><td class="n">0.0185</td><td class="n">0.2591</td></tr>
+<tr><td>Sana-WM</td><td class="n">66.0599</td><td class="n">0.0223</td><td class="n">1.2159</td><td class="n">0.0192</td><td class="n">0.2356</td></tr>
+<tr class="grp"><th colspan="6">Sana-WM-Bench hard</th></tr>
+<tr><td>Cosmos3-Nano-Sim-Bimanual</td><td class="n">76.3971</td><td class="n">0.0161</td><td class="n">1.3085</td><td class="n">0.0161</td><td class="n">0.1774</td></tr>
+<tr><td>LingBot-World 2.0</td><td class="n">64.5462</td><td class="n">0.0372</td><td class="n">1.3423</td><td class="n">0.0161</td><td class="n">0.3264</td></tr>
+<tr><td>Sana-WM</td><td class="n">65.5699</td><td class="n">0.0251</td><td class="n">1.3165</td><td class="n">0.0178</td><td class="n">0.1826</td></tr>
+</tbody></table></div>
+<p class="tcap">表 4 · 相机导航基准，照录原文。LingBot-World 2.0 即 <a href="https://arxiv.org/abs/2607.07534">2607.07534</a>。</p>
+<p>Sana-WM-Bench 两组上质量高、漂移低、轨迹也更准（困难组 RTE 打平）。PAI-Bench-G 上是取舍：RTE、RRE 更低，但 ATE 4.7072 不如 LingBot 的 4.1698，漂移 0.0210 对 0.0209。</p>
+<p><b>操作。</b><a class="ds" href="https://agibot-world.com/">AgiBot-World</a> 232 个窗口（186 条源 episode），AgiBot-GEAR 100 个窗口（30 条），每个 901 帧、30 FPS、30 秒。对比 <a href="https://proceedings.mlr.press/v306/gao26q.html">DreamDojo</a> 2B 和 14B 的双向教师（骨干、数据、动作适配器都不同）。指标加上和参考帧的 PSNR、SSIM、LPIPS。</p>
+<div class="tablewrap"><table class="t-w7"><thead><tr><th>模型</th><th class="n">质量 ↑</th><th class="n">漂移 ↓</th><th class="n">PSNR（dB）↑</th><th class="n">SSIM ↑</th><th class="n">LPIPS ↓</th></tr></thead><tbody>
+<tr class="grp"><th colspan="6">AgiBot-World</th></tr>
+<tr><td>Cosmos3-Nano-Sim-Bimanual</td><td class="n">76.0884</td><td class="n">0.0118</td><td class="n">14.4138</td><td class="n">0.6839</td><td class="n">0.3454</td></tr>
+<tr><td>DreamDojo 2B</td><td class="n">74.5327</td><td class="n">0.0149</td><td class="n">12.1016</td><td class="n">0.6405</td><td class="n">0.3766</td></tr>
+<tr><td>DreamDojo 14B</td><td class="n">74.9390</td><td class="n">0.0133</td><td class="n">12.3561</td><td class="n">0.6635</td><td class="n">0.3586</td></tr>
+<tr class="grp"><th colspan="6">AgiBot-GEAR</th></tr>
+<tr><td>Cosmos3-Nano-Sim-Bimanual</td><td class="n">74.4912</td><td class="n">0.0188</td><td class="n">14.0158</td><td class="n">0.6172</td><td class="n">0.4057</td></tr>
+<tr><td>DreamDojo 2B</td><td class="n">72.4586</td><td class="n">0.0232</td><td class="n">11.5709</td><td class="n">0.5437</td><td class="n">0.4638</td></tr>
+<tr><td>DreamDojo 14B</td><td class="n">73.0033</td><td class="n">0.0218</td><td class="n">12.1113</td><td class="n">0.5818</td><td class="n">0.4326</td></tr>
+</tbody></table></div>
+<p class="tcap">表 5 · 机器人操作基准，照录原文。</p>
+<figure class="pfig" id="fig11">
+<img src="cosmos-interactive/fig11.webp" width="1600" height="739" alt="图 11：四行五列的帧，真值、DreamDojo 2B、DreamDojo 14B 和本文，从同一初始图和动作出发" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 28 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=28">看原图 ↗</a></span>行：参考视频、DreamDojo 2B、DreamDojo 14B、本文。列：0、10、20、25.9、28 秒，依次是初始视角、底座移动、抓纸巾、移到垃圾桶上方、最后一帧。底座移动后两个基线的地板和周围场景变了，本文保留了更多参考布局。</figcaption>
+</figure>
+<p><b>各阶段对比</b>（30 个 GEAR 用例，各用原生推理配置）：</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>阶段</th><th class="n">步数</th><th class="n">质量 ↑</th><th class="n">PSNR ↑</th><th class="n">SSIM ↑</th><th class="n">LPIPS ↓</th></tr></thead><tbody>
+<tr><td>双向教师</td><td class="n">35</td><td class="n">73.385</td><td class="n">13.452</td><td class="n">0.591</td><td class="n">0.454</td></tr>
+<tr><td>因果 TF</td><td class="n">35</td><td class="n">72.367</td><td class="n">12.482</td><td class="n">0.502</td><td class="n">0.516</td></tr>
+<tr><td>TF-dCM</td><td class="n">4</td><td class="n">72.375</td><td class="n">11.847</td><td class="n">0.525</td><td class="n">0.512</td></tr>
+<tr><td>SF-DMD</td><td class="n">4</td><td class="n">74.251</td><td class="n">13.479</td><td class="n">0.589</td><td class="n">0.447</td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · Bimanual 各阶段在 AgiBot-GEAR 子集上的对比。</p>
+<p>因果化让质量从 73.385 降到 72.367、PSNR 从 13.452 降到 12.482；蒸到 4 步质量持平但 PSNR 再降到 11.847。SF-DMD 把大部分损失找回来，PSNR、SSIM、LPIPS 都接近双向教师，质量还略高。作者提醒：这一阶段同时加了训练、改成只用 480p、换了别的设置，所以只能当作“整个 SF-DMD 阶段”的效果；30 个用例上没有配对的不确定度。</p>
+<figure class="pfig" id="fig13">
+<img src="cosmos-interactive/fig13.webp" width="1600" height="706" alt="图 13：30 秒混合 rollout，前 10 秒操作，中间 10 秒导航，最后 10 秒操作，每行 4 帧" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 30 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=30">看原图 ↗</a></span>一条 30 秒 rollout，从上到下：0–7.5 s 操作（橙框），10–17.5 s 相机导航（蓝框，相机慢慢右转再左转回到原位，机械臂不动），20–27.5 s 再操作。全程不重置视觉历史。</figcaption>
+</figure>
+<p><b>定性结果。</b>图 10 同一张初始图配四条相机轨迹，画面按轨迹分开；图 12 的回环轨迹在 59 秒回到建筑和车，本文保留了黄车和木屋，LingBot-World 2.0 的场景变了，Sana-WM 有明显伪影。</p>
+<p><b>评测范围（作者原话的意思）。</b>相机指标量轨迹跟随，参考帧指标量和录像的一致性；接触力学、任务成功和闭环策略行为都需要专门评测。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 4 到表 6 的差值都对得上</span><p>质量领先：73.9099 − 65.3577 = 8.5522；77.2887 − 66.0599 = 11.2288；76.3971 − 65.5699 = 10.8272，即正文的 8.55、11.23、10.83。PSNR 对 DreamDojo 14B：14.4138 − 12.3561 = 2.0577，14.0158 − 12.1113 = 1.9045。LPIPS 相对下降：(0.3586 − 0.3454)/0.3586 = 3.68%，(0.4326 − 0.4057)/0.4326 = 6.22%。表 6：74.251 − 72.375 = 1.876，13.479 − 11.847 = 1.632，0.589 − 0.525 = 0.064，0.512 − 0.447 = 0.065。全部和正文一致。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · “在活动历史窗口内的回访”靠的是 sink</span><p>窗口 64 个隐帧 = 256 帧。Sana-WM-Bench 是 16 FPS，256 帧只有 16 秒；图 12 在 59 秒回到 0.125 秒时见过的建筑。滚动窗口早已不含那段，能看到的只有 8 个 sink 隐帧（首帧加 7 × 4 = 29 帧，约 1.8 秒）。所以回访一致性主要来自开头那一小段 sink，而不是一般意义的长记忆（<b>我的推断</b>，论文只说“在活动历史窗口内”）。另外代码有一个论文没写的“视锥检索”选项（<code>kv_cache_frustum_path</code>，sink 8 + 检索 32 + 最近 32），论文的结果没有用它。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 帧数算术</span><p>\(1+4n\) 帧对应 \(1+n\) 个隐帧。901 帧 = 1 + 4 × 225：225 个目标隐帧按每块 2 个切，是 112 块加 1 个单隐帧的尾块（§2.2 允许 \(N_j\ge1\)）；代码文档也只要求动作数能被 4 整除。961 帧 = 1 + 4 × 240，正好 120 块。Sim-Transfer 的 597 帧 = 1 + 4 × 149，表 12 的有界窗口 51 = 1 个 sink + 49 个最近 + 当前，控制和 RGB 成对，所以是 102 个缓存槽，和原文一致。Sim-Auto 的 397 帧 = 1 + 4 × 99，即 100 个隐帧，§7.1.3 的“100 latent frames（397 RGB frames）”也对上。</p></div>
+
+<h2 id="s6"><span class="no">6</span>后训练例子：Cosmos3-Nano-Sim-Transfer</h2>
+<p><b>结论：</b>物理交给仿真器，外观交给生成器。输入深度/分割/边缘/模糊之一加语言，输出真实感 RGB；每块 1 个隐帧（4 帧）以减小缓冲延迟。在 TransferBench 上四种控制的跟随都好于 Cosmos 3 GA 参考，但画质和几何一致性略差；吞吐是 GA 的 3.6 倍，但 30 FPS 下仍不到实时。</p>
+
+<h3 id="s6-1"><span class="no">6.1</span>结构</h3>
+<p>每个样本只给一种控制：深度约束几何，分割约束区域身份，边缘约束轮廓，模糊保留粗外观和布局。控制视频和 RGB 目标走同一个因果 Wan2.2 tokenizer（时间 4 倍、空间各 16 倍）。注意力规则（图 14）：控制 query 能读到本块为止的控制，但只能读严格更早的干净 RGB，这样训练时控制表示不会偷看当前的干净目标。两遍 teacher forcing 里，带噪那一遍直接复用干净那一遍的控制 K/V。</p>
+<figure class="pfig" id="fig14">
+<img src="cosmos-interactive/fig14.webp" width="1600" height="810" alt="图 14：Sim-Transfer 的两张注意力矩阵，左边干净一遍，右边带噪一遍复用干净一遍的语言、控制和 RGB 的 K/V" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 32 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=32">看原图 ↗</a></span>(a) 干净一遍：控制读到当前块的控制和严格更早的干净 RGB；干净 RGB 还读自己块。(b) 带噪一遍：带噪 RGB 读到当前块的控制、严格更早的干净 RGB 和自己块内的带噪 RGB。两遍里控制和带噪 RGB 都读不到当前块的干净 RGB。每块 1 个隐帧，画了 3 块。</figcaption>
+</figure>
+<p>闭环时：策略动作推进仿真器 → 仿真器给新控制 → 渲染器出 RGB → 策略做下一步决定。离线评测时控制序列提前全部编码。</p>
+
+<h3 id="s6-2"><span class="no">6.2</span>数据准备</h3>
+<ul>
+<li>源数据 2,153,548 条 RGB 视频，Stage 3 索引保留 1,996,602 条（附录 C.1 有拆分）。</li>
+<li>对齐：RGB 和控制同索引、同几何；用直接缩放代替反射填充，避免镜像伪影；宽高比畸变超过 3% 的样本丢掉。深度用 <a href="https://github.com/DepthAnything/Video-Depth-Anything">Video Depth Anything</a> 并按视频归一化，分割用着色的 SAM2 掩码，边缘用随机阈值的 Canny，模糊随机用双边、高斯或组合。</li>
+<li>描述：LoRA 微调的 Qwen3-VL-8B，按不超过 200 帧的不重叠窗口出结构化 JSON，含一段描述随时间变化的 <code>temporal_caption</code>。</li>
+<li>时间采样：每个片段是 1 帧加若干组 4 帧。Stage 0 在 480 档 5–201 帧、720 档 5–149 帧；Stage 1、2 用 9–201 帧，每块 1 个隐帧。</li>
+</ul>
+
+<h3 id="s6-3"><span class="no">6.3</span>后训练</h3>
+<p>四种控制等权采样；Stage 0 混合 480 和 720（2:1），之后只用 480。RGB 前缀长度 0、1、2 个隐帧，概率 0.7、0.2、0.1。语言 0.93 用完整 JSON、0.07 只用稠密描述；Stage 0–2 有 10% 丢文本，Stage 3 不丢；控制从不丢。优化器 fused AdamW，BF16 计算、FP32 主参数；Stage 0 \(\beta=(0.9,0.99)\)、权重衰减 0.05；Stage 1 \((0.9,0.999)\)；Stage 2、3 \((0,0.999)\)；因果阶段权重衰减 0.01；EMA 相对宽度 0.1。</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>阶段</th><th class="n">检查点</th><th>RGB 帧</th><th>基础学习率</th><th>教师 CFG</th></tr></thead><tbody>
+<tr><td>Teacher</td><td class="n">3,806</td><td>5–201（480p），5–149（720p）</td><td>10⁻⁴</td><td>—</td></tr>
+<tr><td>TF</td><td class="n">6,000</td><td>9–201</td><td>10⁻⁵</td><td>—</td></tr>
+<tr><td>TF-dCM</td><td class="n">2,250</td><td>9–201</td><td>2 × 10⁻⁶</td><td>3</td></tr>
+<tr><td>SF-DMD</td><td class="n">1,500</td><td>9–201</td><td>10⁻⁶ / 2 × 10⁻⁷</td><td>3</td></tr>
+</tbody></table></div>
+<p class="tcap">表 7 · Sim-Transfer 各阶段设置。Stage 0 学习率在第 \(i\) 步乘 \(0.4(1-i/100{,}000)\)，从 4 × 10⁻⁵ 开始。</p>
+<p>Stage 3 的两个打分模型都从 Stage 0 教师初始化（一个冻结作参考，一个可训练的 fake score），1 次学生更新配 5 次 fake score 更新，用回放式反传。</p>
+
+<h3 id="s6-4"><span class="no">6.4</span>推理优化</h3>
+<p>每块去噪 1 个 RGB 隐帧，读对齐的控制、缓存的语言 K/V、保留的干净控制和 RGB 历史；流式 Wan2.2 VAE 跨块携带时间状态。全历史或 sink 加滚动窗口二选一。torch.compile 加按块 CUDA Graph，同时刻意保持数值行为：归一化不编译、平方激活的规约顺序不变、FP32–BF16–FP32 的中间舍入保留、K/V 顺序不变。</p>
+
+<h3 id="s6-5"><span class="no">6.5</span>结果</h3>
+<p><b>TransferBench。</b><a href="cosmos-transfer1.html">Cosmos-Transfer1</a> 提出的基准：600 条源视频，<a class="ds" href="https://agibot-world.com/">AgiBot</a>、<a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a>（<a href="https://arxiv.org/abs/2311.18259">论文</a>）、<a class="ds" href="https://github.com/OpenDriveLab/DriveAGI">OpenDV</a>（<a href="https://arxiv.org/abs/2403.09630">论文</a>）各 200，每条配四种控制，共 2,400 个输出，每个 121 帧。对比 Cosmos 3 GA 参考和各阶段检查点；双向教师和 TF 用 50 步 UniPC、CFG 3，TF-dCM 和 SF-DMD 用 4 步 SDE、CFG 1。指标：DOVER；Gemini 3.1 Pro Preview 打 0–10 的 Quality 和 Prompt；首末 15% 帧的 PAI-Bench-G 漂移；分割 IoU、模糊 SSIM、边缘 F1、深度 SI-RMSE；约 1 秒间隔帧对的 Sampson 误差。</p>
+<div class="tablewrap"><table class="t-w9"><thead><tr><th>模型</th><th class="n">DOVER ↑</th><th class="n">Quality ↑</th><th class="n">漂移 ↓</th><th class="n">分割 IoU ↑</th><th class="n">模糊 SSIM ↑</th><th class="n">边缘 F1 ↑</th><th class="n">深度 SI-RMSE ↓</th><th class="n">Prompt ↑</th><th class="n">Sampson ↓</th></tr></thead><tbody>
+<tr><td>双向教师（3,806）</td><td class="n">10.3955</td><td class="n">5.0042</td><td class="n">0.006370</td><td class="n">0.7465</td><td class="n">0.9074</td><td class="n">0.4692</td><td class="n">0.5279</td><td class="n">7.1842</td><td class="n">0.080947</td></tr>
+<tr><td>TF（6,000）</td><td class="n">10.2112</td><td class="n">4.2200</td><td class="n">0.008265</td><td class="n">0.6948</td><td class="n">0.8591</td><td class="n">0.2973</td><td class="n">0.7594</td><td class="n">6.7625</td><td class="n">0.087848</td></tr>
+<tr><td>TF-dCM（2,250）</td><td class="n">10.0403</td><td class="n">4.2588</td><td class="n">0.011730</td><td class="n">0.7070</td><td class="n">0.8569</td><td class="n">0.3051</td><td class="n">0.7273</td><td class="n">6.7288</td><td class="n">0.098861</td></tr>
+<tr><td>Cosmos3-Nano-Sim-Transfer</td><td class="n">10.1759</td><td class="n">4.9508</td><td class="n">0.006504</td><td class="n">0.7378</td><td class="n">0.8867</td><td class="n">0.3407</td><td class="n">0.6194</td><td class="n">7.0254</td><td class="n">0.096544</td></tr>
+<tr><td>Cosmos 3 GA 参考</td><td class="n">10.3596</td><td class="n">4.9296</td><td class="n">0.006349</td><td class="n">0.6433</td><td class="n">0.8559</td><td class="n">0.2140</td><td class="n">0.8423</td><td class="n">7.1846</td><td class="n">0.081045</td></tr>
+</tbody></table></div>
+<p class="tcap">表 8 · TransferBench 全量结果（原文分 (a)(b)(c) 三块，这里合并成一张）。</p>
+<p>相对 GA 参考，最终学生四项控制指标都更好（边缘 F1 +59.2%，深度误差 −26.5%），VLM Quality 略高；DOVER 和 Prompt 分别低 1.8% 和 2.2%，漂移和 Sampson 误差更高。SF-DMD 九项全部好于 TF-dCM；双向教师九项全部好于最终学生。TF 和 TF-dCM 的小差别做了按源视频的配对 bootstrap（附录 C.3）。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 8 的百分比和“九项全部”</span><p>0.3407 / 0.2140 = 1.592，即 +59.2%；(0.8423 − 0.6194) / 0.8423 = 26.5%；(10.3596 − 10.1759) / 10.3596 = 1.77%；(7.1846 − 7.0254) / 7.1846 = 2.22%。逐列比较确认：SF-DMD 对 TF-dCM 九列都更好；双向教师对最终学生九列都更好。TF-dCM − TF 的边缘 F1 差 0.3051 − 0.2973 = 0.0078，DOVER 差 −0.1709（正文 −0.1708，舍入差），Quality 差 0.0388。Sampson 误差比 GA 高 (0.096544 − 0.081045)/0.081045 = 19%，这是因果学生最明显的退步。</p></div>
+<p><b>Isaac Lab 闭环。</b>Unitree G1 人形的苹果放盘任务，物理用 Isaac Lab 3.0.0b2 和 Isaac Sim 6.0.0.1。策略是在 402 条真机演示上微调了 15,000 步的 <a href="gr00t.html">GR00T N1.7</a>（<a href="https://huggingface.co/nvidia/GR00T-N1.7-3B">权重</a>）。每次决策策略收到 640 × 480 头部相机 RGB、43 维关节状态和指令，输出 16 个动作。仿真器 30 Hz 执行动作、240 Hz 算物理；每 4 个动作采一次深度（仿真时间 7.5 Hz），渲染器每次更新生成 4 帧 RGB，最后一帧给策略。于是策略决策频率是仿真时间 1.875 Hz。渲染器用 SF-DMD 学生，4 步 SDE、CFG 1、30 个隐帧窗口、3 个 sink。每回合最多 600 个动作（20 秒），成功由仿真器状态判定。</p>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>外观</th><th class="n">Isaac RTX</th><th class="n">Sim-Transfer</th></tr></thead><tbody>
+<tr><td>校准基线</td><td class="n">22/32</td><td class="n">27/32</td></tr>
+<tr><td>绿苹果</td><td class="n">20/32</td><td class="n">24/32</td></tr>
+<tr><td>红盘子</td><td class="n">22/32</td><td class="n">19/32</td></tr>
+<tr><td>绿苹果、红盘子、白桌布</td><td class="n">16/32</td><td class="n">17/32</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>策略训练步数</th><th class="n">Isaac RTX</th><th class="n">Sim-Transfer</th><th class="n">差（pp）</th></tr></thead><tbody>
+<tr><td>5,000</td><td class="n">17/32</td><td class="n">20/32</td><td class="n">+9.4</td></tr>
+<tr><td>10,000</td><td class="n">16/32</td><td class="n">12/32</td><td class="n">−12.5</td></tr>
+<tr><td>15,000</td><td class="n">22/32</td><td class="n">27/32</td><td class="n">+15.6</td></tr>
+<tr><td>20,000</td><td class="n">24/32</td><td class="n">21/32</td><td class="n">−9.4</td></tr>
+<tr><td>30,000</td><td class="n">18/32</td><td class="n">18/32</td><td class="n">0.0</td></tr>
+<tr><td>40,000</td><td class="n">17/32</td><td class="n">19/32</td><td class="n">+6.3</td></tr>
+</tbody></table></div>
+<p class="tcap">表 9 · (a) 固定 15,000 步策略换外观；(b) 固定基线外观换策略检查点。原文说明：场景提示词是在 15,000 步策略、这 32 个起点上校准的，所以是校准集上的结果。</p>
+<p>15,000 步策略下 4 种外观有 3 种 Sim-Transfer 更高；六个检查点里最高的是 Sim-Transfer 在 15,000 步的 27/32（84.4%），RTX 最高是 20,000 步的 24/32（75.0%）。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 闭环结果的统计分量</span><p>百分比核对：27/32 = 84.4%，22/32 = 68.8%，差 15.6 pp；其余各行差值也对（−12.5、−9.4、+6.25 写作 +6.3）。附录表 C.9 给了配对结果，我核对过每行“两者都成功 + 仅一方成功”正好等于表 9 的计数，四格和都是 32。<b>15,000 步那一行：</b>不一致的起点只有 2（仅 RTX 成功）对 7（仅 Sim-Transfer 成功），精确符号检验双侧 \(p=2\sum_{k\le2}\binom9k/2^9=2\times46/512=0.18\)。<b>六个检查点合起来：</b>RTX 114/192，Sim-Transfer 117/192，不一致对 28 对 31，\(p\approx0.79\)。再加上提示词是在同一批起点、同一个 15,000 步策略上调的，我认为这个实验能说明“生成的观测可以接进策略闭环且不明显变差”，还不足以说明“比原生渲染更好”。</p></div>
+<p><b>长 rollout 吞吐。</b>160 条 VisDex 回合 × 4 种控制，640 个 600 帧、640 × 640 的视频，GB200 上 BF16 eager（不编译、不用 CUDA Graph），30 个隐帧窗口、3 个 sink。</p>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>控制</th><th class="n">FPS/GPU</th><th class="n">每块 p50 / p95（ms）</th><th class="n">首块 p50 / p95（s）</th></tr></thead><tbody>
+<tr><td>深度</td><td class="n">9.928</td><td class="n">401 / 418</td><td class="n">6.93 / 7.23</td></tr>
+<tr><td>分割</td><td class="n">9.896</td><td class="n">403 / 420</td><td class="n">6.55 / 6.64</td></tr>
+<tr><td>边缘</td><td class="n">9.920</td><td class="n">401 / 418</td><td class="n">6.33 / 6.42</td></tr>
+<tr><td>模糊</td><td class="n">9.957</td><td class="n">399 / 421</td><td class="n">6.26 / 6.37</td></tr>
+</tbody></table></div>
+<p class="tcap">表 10 · 最终学生在 600 帧 VisDex rollout 上的运行时间。每块通常 4 帧。VisDex 在论文参考文献里没有出处（未核实是什么数据）。</p>
+<figure class="pfig" id="fig16">
+<img src="cosmos-interactive/fig16.webp" width="1600" height="1683" alt="图 16：三个 VisDex 回合，每个回合深度和分割两行，第一列是 10 秒处的控制，后三列是 0、10、19.97 秒生成的 RGB" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 40 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=40">看原图 ↗</a></span>三个回合 env_0000、env_0015、env_0091，各有深度和分割两行，同一回合两种控制共用提示词。第一列是 10 秒处的控制图（仿真器渲染的灰度深度、彩色分割），后三列是生成的 RGB（0、10、19.97 秒），600 帧、640 × 640、30 FPS，30 个隐帧窗口、3 个 sink。机械臂和桌上物体的位置跟着控制走，外观（木纹、背景）在 20 秒内保持。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>指标</th><th class="n">Cosmos 3 GA 参考</th><th class="n">Sim-Transfer</th></tr></thead><tbody>
+<tr><td>稳态 FPS/GPU ↑</td><td class="n">2.766</td><td class="n">9.912</td></tr>
+<tr><td>生成延迟</td><td class="n">43.30 s/块（约 120 帧）</td><td class="n">0.403 s/块（约 4 帧）</td></tr>
+<tr><td>稳态峰值显存（GiB）↓</td><td class="n">36.15</td><td class="n">39.58</td></tr>
+</tbody></table></div>
+<p class="tcap">表 11 · 同一深度和分割负载下的对比。</p>
+<p><b>编译和缓存。</b>597 帧深度控制、1 张 GB200：</p>
+<div class="tablewrap"><table class="t-w7"><thead><tr><th>历史 / 执行</th><th class="n">FPS ↑</th><th class="n">每块 p50 / p95（ms）</th><th class="n">峰值 已分配 / 预留（GiB）</th><th class="n">DOVER</th><th class="n">VLM Prompt</th><th class="n">VLM Quality</th></tr></thead><tbody>
+<tr><td>全历史 / eager</td><td class="n">6.8802</td><td class="n">560.87 / 761.73</td><td class="n">55.06 / 60.09</td><td class="n">8.6524</td><td class="n">5.3125</td><td class="n">2.4375</td></tr>
+<tr><td>全历史 / 编译</td><td class="n">11.4068</td><td class="n">348.19 / 443.82</td><td class="n">74.59 / 79.72</td><td class="n">8.6524</td><td class="n">5.3125</td><td class="n">2.4375</td></tr>
+<tr><td>sink + 最近 / eager</td><td class="n">9.0403</td><td class="n">435.88 / 509.87</td><td class="n">44.10 / 47.76</td><td class="n">9.0190</td><td class="n">5.3750</td><td class="n">2.5000</td></tr>
+<tr><td>sink + 最近 / 编译</td><td class="n">15.8516</td><td class="n">240.42 / 268.71</td><td class="n">52.73 / 57.82</td><td class="n">9.0190</td><td class="n">5.3750</td><td class="n">2.5000</td></tr>
+</tbody></table></div>
+<p class="tcap">表 12 · BF16 推理优化（原文 (a)(b) 两块合并；毫秒和 GiB 保留两位小数，原文四位）。有界窗口是 51 个隐帧位置：1 个 sink、49 个最近、当前 1 个。</p>
+<p>编译加按块 CUDA Graph 最多快 1.75 倍；每组 16 对 eager 和编译视频逐帧完全相同（32 对、19,104 帧）。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · Sim-Transfer 在 30 FPS 下不是实时</span><p>视频名义帧率 30 FPS，所以 \(\mathrm{RTF}=30/\mathrm{FPS}\)：最快的“sink + 最近 / 编译”是 30 / 15.8516 = 1.8926，和附录表 C.2 列出的 RTF 1.8926 一字不差；“全历史 / eager” 30 / 6.8802 = 4.3603，也和表 C.2 一致。表 10 的 eager 配置 30 / 9.928 = 3.02。也就是说，Sim-Transfer 生成 1 秒 30 FPS 视频最快要 1.9 秒。正文的说法是“亚秒级的观测更新”（每块 0.403 s），这是对的，但它不是 RTF ≤ 1 意义上的实时。结论里“部分配置达到实时吞吐”指的是 Bimanual（RTF 0.62）和 Sim-Auto 单相机（364 / 400 = 0.91）。闭环实验里每次决策要 4 块，约 4 × 0.4 = 1.6 s 墙钟时间（若和表 10 速度相当，<b>我的推算</b>；闭环用的 GB300 编译配置没有报时间），对应 16 / 30 = 0.53 s 仿真时间。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 10 和表 11 的计数和倍数</span><p>9.912 / 2.766 = 3.58 倍。按每帧算：GA 43.30 s / 120 帧 = 0.361 s，Sim-Transfer 0.403 s / 4 帧 = 0.101 s。GA 600 帧平均 217.17 s，600 / 217.17 = 2.763 FPS，和 2.766 一致。计数：每种控制保留 144 个视频，600 − 117 = 483 帧，按 4 帧一块是 121 块，144 × 121 = 17,424，正好是表 10 说的块数；两种控制 34,848；GA 144 × 2 × 4 = 1,152 个块，也对。代价是显存多 3.4 GiB。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 12 的倍数</span><p>11.4068 / 6.8802 = 1.658，15.8516 / 9.0403 = 1.753，即正文的 1.66 倍和 1.75 倍。编译后显存反而更高（全历史 55.1 → 74.6 GiB 已分配）。有界窗口不仅快，画质分数也略高（DOVER 9.02 对 8.65），和附录 C.6 的窗口扫描方向一致。</p></div>
+
+<h2 id="s7"><span class="no">7</span>后训练例子：Cosmos3-Nano-Sim-Auto</h2>
+<p><b>结论：</b>驾驶模拟要多相机和 LiDAR 在视角、模态、时间上一致，并跟随道路和交通参与者的控制。先训一个双向的 Cosmos3-Nano-Transfer-Auto（离线生成），再走同一套三阶段因果配方得到 Cosmos3-Nano-Sim-Auto（流式）。每块 0.4 秒：每相机 12 帧（3 个隐帧）加 4 帧 LiDAR。</p>
+<figure class="pfig" id="fig17">
+<img src="cosmos-interactive/fig17.webp" width="1600" height="899" alt="图 17：每列一个相机或 LiDAR 流，每个相机读自己的提示词和 WSM 控制，LiDAR 读所有相机提示词和 HD 地图控制，下方共享的 RGB-LiDAR 生成器" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 43 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=43">看原图 ↗</a></span>每个相机有自己的语言提示（紫）和 WSM 控制（绿），目标隐变量（橙）加上视角嵌入 0 … N−1；LiDAR 读全部相机提示和 HD 地图控制，嵌入编号 N。底部是共享的 RGB–LiDAR 生成器，跨视角和 RGB–LiDAR 注意力受时间可见性规则约束。</figcaption>
+</figure>
+
+<h3 id="s7-1"><span class="no">7.1</span>结构</h3>
+<p><b>7.1.1 模态表示。</b>RGB 和渲染出的 WSM（World Scenario Map）控制用同一个视频 VAE，48 通道、空间 16 × 16、时间 4 倍压缩，再按 2 × 2 patch 投影；每个相机独立编码，带物理时间戳和相机身份嵌入打包在一起。LiDAR 用单独的层次 transformer VAE（受 <a class="ds" href="https://arxiv.org/abs/2610.19201">LidarVerse</a> 启发）：每帧 360° 扫描投影成 128 × 1800 的距离图（距离、强度、有效位三通道），方位方向循环填充到 1808 列以便 16 × 16 压缩；不做时间下采样，\(T\) 帧扫描得到 \((128,T,8,113)\) 的隐变量，1 × 1 patch，每帧 8 × 113 = 904 个 token。</p>
+<p><b>结构控制。</b>WSM 视频画车道线、道路边界、人行横道、地面标记、停止线、杆、交通标志和信号灯，3D 立方体表示车辆、行人等，语义颜色区分类别，按每个相机的内外参沿自车轨迹渲染。LiDAR 用渲染到距离图视角的 HD 地图。</p>
+<p><b>时间。</b>相机 30 FPS 经 4 倍压缩是 7.5 Hz 的隐帧（间隔 4/30 s），LiDAR 10 Hz 不压缩。两者按物理时间戳对齐，0.4 s 是它们的最小公共周期：3 个相机隐帧间隔、4 个 LiDAR 间隔。</p>
+<figure class="pfig" id="fig19">
+<img src="cosmos-interactive/fig19.webp" width="1600" height="684" alt="图 19：三条时间轴，30 FPS 相机帧、7.5 Hz 相机隐帧、10 Hz LiDAR，每 0.4 秒对齐一次" loading="lazy">
+<figcaption><span class="lab">图 19 · 原文第 45 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=45">看原图 ↗</a></span>上排相机帧 \(R_0,R_3,\dots\)（每 1/30 s），中排相机隐帧 \(C_0\dots C_9\)（每 4/30 s），下排 LiDAR \(L_0\dots L_{12}\)（每 0.1 s）。橙色虚线在 0、0.4、0.8、1.2 s 处标出三者重合的时刻：0.4 s 等于 3 个 RGB 隐帧间隔，也等于 4 个 LiDAR 间隔。</figcaption>
+</figure>
+<p><b>7.1.2 位置编码和视角身份。</b>沿用三轴 MRoPE，各相机用自己的空间坐标、共享时间原点，所以不同相机同一网格位置、同一时间戳的 token 位置编码相同。为区分它们，仿照 Cosmos-Transfer2.5 Multiview，给每个相机一个可学习的视角嵌入，加到该相机所有 token 上。</p>
+<p><b>7.1.3 多视角多模态注意力。</b></p>
+<ul>
+<li>语言：每个相机的视觉 token 只读自己的描述；LiDAR 读所有相机的描述。</li>
+<li>控制：每个相机读自己的 WSM，LiDAR 读 HD 地图；跨相机交换信息不等于能读别的相机的控制。</li>
+<li>传感器之间：全时空全视角注意力太贵，所以分解成“视角内的时间交互”和“跨视角交换”。和 OmniDreams 只连同一时刻不同，这里跨传感器看<b>之前 0.4 秒</b>的窗口（含当前时刻），按物理时间戳判断。同一视角仍然全片段可见。</li>
+</ul>
+<div class="eq"><div class="m">\[ C_{\rm full}=\mathcal O\big((N_vN_tN_s)^2\big) \]</div><span class="no">(28)</span></div>
+<div class="eq"><div class="m">\[ C_{\rm decomposed}=\mathcal O\big(N_vN_t^2N_s^2+N_v^2N_tN_s^2\big) \]</div><span class="no">(29)</span></div>
+<p>11 个视角、每相机 100 个隐帧（397 帧）时，理论上相机注意力计算减少约 9.9 倍。之前 0.4 s 的窗口比对称的 ±0.2 s 好；跨传感器分支里排除查询自己的视角（不重复计入）也更好。</p>
+<figure class="pfig" id="fig20">
+<img src="cosmos-interactive/fig20.webp" width="1600" height="1503" alt="图 20：(a) Transfer-Auto 的联合注意力大矩阵，三台相机和 LiDAR 的描述、控制、传感器分块；(b) 跨传感器 0.4 秒时间窗；(c) 同传感器的全片段和块因果两种时间注意力" loading="lazy">
+<figcaption><span class="lab">图 20 · 原文第 46 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=46">看原图 ↗</a></span>(a) 行是控制和传感器 query，列是描述、控制、传感器 key；紫色是读描述（LiDAR 读全部），绿色读自己的控制，蓝色读自己的传感器，橙色斜带是读其他传感器的 0.4 s 窗口，虚线块是可选的控制到传感器访问。(b) 横轴 LiDAR key 时间、纵轴 RGB 隐帧 query 时间，只保留 \(-0.4\le s_k-s_q\le0\)。(c) Transfer-Auto 同传感器全片段可见；Sim-Auto 是块因果。</figcaption>
+</figure>
+<p><b>7.1.4 因果建模。</b>Sim-Auto 保留上述路由，只把同传感器的全片段注意力换成块因果；跨传感器仍是之前 0.4 s 窗口，所以同一块里也不能读别的传感器更晚的时间戳。每块（初始时间步之后）是每相机 12 帧（3 个隐帧）加 4 帧 LiDAR。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 9.9 倍可以算出来，但它是理想值</span><p>式 (28)(29) 主项相除：\(\frac{(N_vN_t)^2}{N_vN_t^2+N_v^2N_t}=\frac{N_vN_t}{N_t+N_v}=\frac{11\times100}{111}=9.91\)，和原文一致。但式 (29) 假设跨视角只看“同一时刻”；实际窗口是之前 0.4 s，每个查询在别的相机上能看到约 4 个隐帧时刻（含当前）。把第二项乘 4：\(1100/(100+44)=7.6\) 倍（<b>我的推算</b>，没算 LiDAR）。另外附录 D.6.1 说按相邻视角稀疏化“在我们的实现里没有提速”，§7.4.1 说 FlexAttention 的部分块掩码会吃掉理论收益，所以理论倍数和实测不是一回事。</p></div>
+
+<h3 id="s7-2"><span class="no">7.2</span>数据准备</h3>
+<ul>
+<li>来源：内部的 MADS 多相机驾驶录像，约 98.8 万条带描述的样本；留出 91 条作为 <a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos3-Driving-Simulation-Evaluation">Driving-Sim-Eval</a>。最多 11 个相机（广角、长焦、鱼眼）加 360° LiDAR，RGB 30 FPS、LiDAR 10 Hz。</li>
+<li>描述：每条样本切成 400 帧一段，平均每相机 1.56 段；内部 VLM 同时看所有相机的 RGB 和 WSM，为每个相机写只描述自己可见内容、但跨视角一致的带时间戳描述。推理时可以用 WSM 和四个环境属性（时段、天气、路面、地区）做提示词上采样。</li>
+<li>控制对齐：按 WSM v4 规范、各相机的真实镜头模型（含鱼眼畸变）渲染；LiDAR 不做运动补偿。渲染器和数据准备指南在 cosmos-framework 里。</li>
+<li>提示前缀：相机前缀说明当前采样的相机组合和本相机的位置、朝向、镜头、视场；任务前缀说明控制和描述各管什么。</li>
+</ul>
+
+<h3 id="s7-3"><span class="no">7.3</span>后训练</h3>
+<p>训练生成器各块、扩散时间嵌入、RGB 和 LiDAR 的输入输出投影、传感器嵌入；推理塔和两个 tokenizer 冻结。RGB:LiDAR 损失权重 1:2。相机组合从 15 种预设里采（1 到 11 个）：480p 时标准 7 相机 0.6、全 11 相机 0.3、其他 13 种共 0.1；720p 时 7 相机 0.9；选全 11 个时一律 480p。10% 的联合样本丢掉 LiDAR 和 HD 地图；整段描述丢弃 0.2，单相机描述丢弃 0.2；T2V 和 I2V 各半。</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>阶段</th><th class="n">更新次数</th><th class="n">RGB 帧</th><th>学习率</th><th>教师 CFG</th></tr></thead><tbody>
+<tr class="grp"><th colspan="5">Stage 0：双向训练</th></tr>
+<tr><td>模态分开</td><td class="n">60,000</td><td class="n">≤ 397</td><td>8 × 10⁻⁵</td><td>—</td></tr>
+<tr><td>短序列联合</td><td class="n">20,000</td><td class="n">61</td><td>5 × 10⁻⁵</td><td>—</td></tr>
+<tr><td>长序列联合</td><td class="n">20,000</td><td class="n">≤ 397</td><td>5 × 10⁻⁵</td><td>—</td></tr>
+<tr><td>Stage 1：TF</td><td class="n">3,200</td><td class="n">≤ 397</td><td>10⁻⁵</td><td>—</td></tr>
+<tr><td>Stage 2：TF-dCM</td><td class="n">900</td><td class="n">≤ 397</td><td>2 × 10⁻⁶</td><td>1.5</td></tr>
+<tr class="grp"><th colspan="5">Stage 3：SF-DMD</th></tr>
+<tr><td>短序列</td><td class="n">250 / 1,250</td><td class="n">93</td><td>10⁻⁶ / 2 × 10⁻⁷</td><td>1.5</td></tr>
+<tr><td>长序列</td><td class="n">50 / 250</td><td class="n">397</td><td>10⁻⁶ / 2 × 10⁻⁷</td><td>1.5</td></tr>
+</tbody></table></div>
+<p class="tcap">表 13 · Transfer-Auto 和 Sim-Auto 的训练配方。128 个 GB200 节点（512 张卡）。</p>
+<p><b>7.3.1</b> 直接在 400 帧上联合训练收敛慢（尤其 LiDAR），所以分三步：先模态分开（RGB 单相机 ≤ 397 帧、LiDAR 21 帧），再短序列联合（61 帧、21 帧，约 2 秒），最后长序列联合（≤ 397 帧、133 帧，约 13.2 秒）。双向阶段的长上下文有利于后面蒸馏出的模型稳定。<b>7.3.2</b> 每个因果阶段从上一阶段的普通权重（不是 EMA）初始化，重置优化器。SF-DMD 先 93 帧 1,500 次，再 397 帧 300 次。SF-DMD 太少会留下漂浮物体之类的伪影，太多会出现时间闪烁。</p>
+
+<h3 id="s7-4"><span class="no">7.4</span>基础设施和推理优化</h3>
+<p><b>训练：</b>每个打包序列约 1.5M token，GB200 上上下文并行加 FSDP、BF16、激活重算。注意力先用 FlexAttention + FlashAttention-4，但传感器帧边界和 kernel 的块不对齐，部分可见的块要逐元素掩码，抵消了收益；自写的无掩码后端（gather → 变长注意力 → scatter → 按 LSE 合并）比 FlexAttention 快 2.5–3 倍。</p>
+<p><b>推理：</b>在 <a href="https://github.com/NVIDIA/flashdreams">FlashDreams</a> 的 Interactive Drive 客户端里跑住宅场景，832 × 480、4 步、有界缓存，每块每相机 12 帧，30 FPS 下目标是 400 ms 一块。</p>
+<div class="tablewrap"><table class="t-w7"><thead><tr><th class="n">视角</th><th>模式</th><th class="n">GPU</th><th>布局</th><th class="n">eager（ms）</th><th class="n">优化后（ms）</th><th class="n">FPS</th></tr></thead><tbody>
+<tr><td class="n">1</td><td>RGB</td><td class="n">1</td><td>1 model</td><td class="n">524（512–535）</td><td class="n">364（362–423）</td><td class="n">32.6</td></tr>
+<tr><td class="n">4</td><td>RGB</td><td class="n">16</td><td>8 model + 8 map</td><td class="n">—</td><td class="n">408（377–440）</td><td class="n">28.9</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">16</td><td>16 model</td><td class="n">897</td><td class="n">609</td><td class="n">19.5</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">16</td><td>8 model + 8 map</td><td class="n">950（936–1,014）</td><td class="n">583（561–597）</td><td class="n">20.5</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">32</td><td>16 model + 16 map</td><td class="n">—</td><td class="n">511（510–511）</td><td class="n">23.2</td></tr>
+<tr><td class="n">7</td><td>RGB + LiDAR</td><td class="n">16</td><td>16 model</td><td class="n">1,159</td><td class="n">701（693–714）</td><td class="n">16.7</td></tr>
+</tbody></table></div>
+<p class="tcap">表 14 · GB200 上选定的运行点。每块墙钟时间是多次运行中位数的中位数，括号是重复范围；FPS 是客户端收到的速率。map GPU 提前一块准备控制。</p>
+<figure class="pfig" id="fig22">
+<img src="cosmos-interactive/fig22.webp" width="1600" height="559" alt="图 22：四条横向堆叠柱，1 相机 1 卡 363 ms，4 相机 1 卡 1162 ms，4 相机 16 卡 435 ms，7 相机 16 卡 588 ms，400 ms 目标线" loading="lazy">
+<figcaption><span class="lab">图 22 · 原文第 53 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=53">看原图 ↗</a></span>每条柱是一种发布配置的中位运行，拆成控制准备、去噪、K/V 更新、解码、其他。标出的数：1 相机 1 卡 141 / 126 / 79，共 363 ms；4 相机 1 卡 361 / 567 / 201，共 1,162 ms；4 相机 16 卡（8 model + 8 map）117 / 173 / 130，共 435 ms；7 相机 16 卡 134 / 284 / 154，共 588 ms。竖线是 400 ms 目标。</figcaption>
+</figure>
+<p>发布的优化让 1 相机 1 卡的块时间少 30%，7 相机 16 卡少 32%；编译去噪贡献最大。把无掩码注意力换回块稀疏的 FlexAttention，7 相机的块时间多 195%。map GPU 只有在模型卡够多时才划算：4 相机时 8 + 8 布局 408 ms 对 16 个模型卡 545 ms；加 LiDAR 时 16 张全做模型卡更好。7 相机 RGB 在 32 卡上 23.2 FPS、RGB + LiDAR 在 16 卡上 16.7 FPS，都低于 30 FPS。图 22 说明只加速去噪不够：单相机时控制准备和 K/V 更新加起来超过去噪。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表 14 和图 22 的核对</span><p>(524 − 364)/524 = 30.5%，(897 − 609)/897 = 32.1%，对。客户端 FPS 比 12 帧 / 中位块时间略低：12 / 0.364 = 33.0 对 32.6，12 / 0.701 = 17.1 对 16.7，口径不同，差得不多。图 22 的标注：单相机控制准备 + K/V = 141 + 79 = 220 ms，确实大于去噪 126 ms；7 相机 134 + 154 = 288 ms，比去噪 284 ms 还多 4 ms，正文说“接近”略保守。图 22 的柱长和表 14 有小差（4 相机 435 对 408、7 相机 588 对 583），图是单次中位运行，表是多次运行中位数的中位数，都在重复范围内。</p></div>
+
+<h3 id="s7-5"><span class="no">7.5</span>结果</h3>
+<p>两个留出集：Driving-Sim-Eval（91 条，用 HD 地图导出的 WSM）和内部的 Traffic-Scenario-Eval（319 条，用感知得到的带噪 WSM 和指定环境属性，做 T2V）。RGB 基线是 Cosmos-Transfer2.5 多视角版（见 <a href="cosmos-predict25.html">Cosmos-Predict2.5 精读</a>），LiDAR 基线是 LidarVerse。</p>
+<div class="tablewrap"><table class="t-w9"><thead><tr><th>模型</th><th class="n">帧 FID ↓</th><th class="n">FVD I3D ↓</th><th class="n">FVD SG-V ↓</th><th class="n">DOVER ↑</th><th class="n">TSE ↓</th><th class="n">ACM ↑</th><th class="n">CSE-2 ↓</th><th class="n">CSE-5 ↓</th></tr></thead><tbody>
+<tr class="grp"><th colspan="9">(a) Transfer-T2V：没有初始 RGB</th></tr>
+<tr><td>Cosmos3-Nano-Transfer-Auto</td><td class="n">45.5</td><td class="n">488</td><td class="n">487</td><td class="n">9.01</td><td class="n">0.473</td><td class="n">0.906</td><td class="n">2.009</td><td class="n">1.633</td></tr>
+<tr><td>Cosmos3-Nano-Sim-Auto</td><td class="n">48.6</td><td class="n">480</td><td class="n">479</td><td class="n">7.30</td><td class="n">0.503</td><td class="n">0.906</td><td class="n">2.599</td><td class="n">2.244</td></tr>
+<tr><td>Cosmos-Transfer2.5</td><td class="n">61.9</td><td class="n">772</td><td class="n">770</td><td class="n">8.56</td><td class="n">0.530</td><td class="n">0.885</td><td class="n">2.511</td><td class="n">2.073</td></tr>
+<tr class="grp"><th colspan="9">(b) Transfer-I2V：有初始 RGB</th></tr>
+<tr><td>Cosmos3-Nano-Transfer-Auto</td><td class="n">27.8</td><td class="n">238</td><td class="n">237</td><td class="n">8.27</td><td class="n">0.472</td><td class="n">0.902</td><td class="n">2.246</td><td class="n">1.798</td></tr>
+<tr><td>Cosmos3-Nano-Sim-Auto</td><td class="n">33.6</td><td class="n">325</td><td class="n">324</td><td class="n">7.51</td><td class="n">0.505</td><td class="n">0.900</td><td class="n">2.359</td><td class="n">2.085</td></tr>
+<tr><td>Cosmos-Transfer2.5</td><td class="n">41.4</td><td class="n">388</td><td class="n">387</td><td class="n">8.25</td><td class="n">0.519</td><td class="n">0.881</td><td class="n">2.935</td><td class="n">2.203</td></tr>
+</tbody></table></div>
+<p class="tcap">表 15 · Driving-Sim-Eval 多视角 RGB，每相机 297 帧 720p，7 个非鱼眼视角。</p>
+<p>双向的 Transfer-Auto 每项都好于 Cosmos-Transfer2.5。4 步的 Sim-Auto 在两种模式下 FID、FVD 和时间一致性都好于基线，T2V 的 I3D FVD 甚至略好于自己的教师（480 对 488）；但 T2V 的跨视角 Sampson 误差比基线高，DOVER 也是基线更好。</p>
+<details class="tbl"><summary>表 16 · LiDAR（T2V，99 帧 10 Hz）和表 17、18 · 交通对象和人工评测（展开）</summary>
+<div class="tablewrap"><table class="t-w9"><thead><tr><th>模型</th><th class="n">BEV JSD 全局（×10⁻²）↓</th><th class="n">BEV JSD 局部 ↓</th><th class="n">BEV MMD² 局部（×10⁻³）↓</th><th class="n">FUD ↓</th><th class="n">Utonia MMD²（×10⁻²）↓</th><th class="n">CTC/真 →1</th><th class="n">车辆 CTC/真 →1</th><th class="n">对象支撑召回 ↑</th><th class="n">检测 F1@3m ↑</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano-Transfer-Auto</td><td class="n">4.01</td><td class="n">0.220</td><td class="n">3.47</td><td class="n">12.8</td><td class="n">2.08</td><td class="n">1.17</td><td class="n">2.53</td><td class="n">0.885</td><td class="n">0.237</td></tr>
+<tr><td>Cosmos3-Nano-Sim-Auto</td><td class="n">5.52</td><td class="n">0.277</td><td class="n">5.93</td><td class="n">20.1</td><td class="n">3.54</td><td class="n">1.28</td><td class="n">3.59</td><td class="n">0.816</td><td class="n">0.188</td></tr>
+<tr><td>LidarVerse，21 帧</td><td class="n">15.1</td><td class="n">0.400</td><td class="n">12.0</td><td class="n">33.6</td><td class="n">6.36</td><td class="n">1.20</td><td class="n">2.51</td><td class="n">0.843</td><td class="n">0.201</td></tr>
+<tr><td>LidarVerse，116 帧</td><td class="n">11.6</td><td class="n">0.300</td><td class="n">6.44</td><td class="n">44.8</td><td class="n">9.07</td><td class="n">1.35</td><td class="n">3.73</td><td class="n">0.788</td><td class="n">0.200</td></tr>
+</tbody></table></div>
+<p class="tcap">表 16 · 原文分 (a)(b) 两块，这里合并。列顺序按正文“FUD 改善 62–71%”反推为第 4 列（33.6 → 12.8 是 61.9%，44.8 → 12.8 是 71.4%）。</p>
+<div class="tablewrap"><table class="t-w5"><thead><tr><th>模型</th><th class="n">车辆 F1 ↑</th><th class="n">行人 F1 ↑</th><th class="n">骑行者 F1 ↑</th></tr></thead><tbody>
+<tr><td>Cosmos3-Nano-Transfer-Auto</td><td class="n">0.908</td><td class="n">0.386</td><td class="n">0.537</td></tr>
+<tr><td>Cosmos3-Nano-Sim-Auto</td><td class="n">0.853</td><td class="n">0.389</td><td class="n">0.428</td></tr>
+<tr><td>Cosmos-Transfer2.5</td><td class="n">0.741</td><td class="n">0.137</td><td class="n">0.151</td></tr>
+</tbody></table></div>
+<p class="tcap">表 17 · Traffic-Scenario-Eval 上的 AutoGrader 对象跟随，319 个 T2V 样本。</p>
+<div class="tablewrap"><table class="t-w9"><thead><tr><th>模型</th><th class="n">画质</th><th class="n">车道</th><th class="n">信号灯</th><th class="n">标志</th><th class="n">行人</th><th class="n">骑行者</th><th class="n">跨视角：车道/路标</th><th class="n">信号灯</th><th class="n">停车标志</th><th class="n">行人</th><th class="n">骑行者</th><th class="n">路面</th><th class="n">天气</th></tr></thead><tbody>
+<tr><td>Transfer-Auto</td><td class="n">1.72</td><td class="n">2.43</td><td class="n">1.83</td><td class="n">2.17</td><td class="n">1.64</td><td class="n">1.85</td><td class="n">2.93</td><td class="n">2.93</td><td class="n">2.98</td><td class="n">2.94</td><td class="n">2.98</td><td class="n">92.8%</td><td class="n">90.9%</td></tr>
+<tr><td>Sim-Auto</td><td class="n">1.39</td><td class="n">2.54</td><td class="n">2.24</td><td class="n">2.45</td><td class="n">1.70</td><td class="n">1.83</td><td class="n">2.98</td><td class="n">2.91</td><td class="n">2.94</td><td class="n">2.94</td><td class="n">2.96</td><td class="n">87.0%</td><td class="n">81.0%</td></tr>
+<tr><td>Cosmos-Transfer2.5</td><td class="n">1.65</td><td class="n">2.28</td><td class="n">1.59</td><td class="n">1.78</td><td class="n">1.20</td><td class="n">1.38</td><td class="n">2.77</td><td class="n">2.68</td><td class="n">2.76</td><td class="n">2.58</td><td class="n">2.63</td><td class="n">93.1%</td><td class="n">89.7%</td></tr>
+</tbody></table></div>
+<p class="tcap">表 18 · Traffic-Scenario-Eval 人工评测（1–3 分；环境两列是符合提示的样本比例）。两位标注者独立打分，分歧由第三位裁定。</p>
+</details>
+<p>LiDAR：Transfer-Auto 九项里八项好于两种 LidarVerse 设置（例外是车辆 CTC 2.53 对 2.51）；Sim-Auto 五项分布指标都好于 LidarVerse，但时间和对象指标只好于 116 帧设置、不如 21 帧设置，检测 F1 0.188 略低于两者。交通对象跟随 Sim-Auto 三类都好于 Cosmos-Transfer2.5；比教师，车辆和骑行者 F1 低 6% 和 20%。人工评测里 Sim-Auto 场景元素和跨视角都高于基线，但画质 1.39 最低，路面和天气符合度 87.0%、81.0% 也最低。</p>
+<figure class="pfig" id="fig24">
+<img src="cosmos-interactive/fig24.webp" width="1600" height="1113" alt="图 24：Sim-Auto 生成的 11 个相机画面围绕中央的 LiDAR 点云，叠加 WSM 控制" loading="lazy">
+<figcaption><span class="lab">图 24 · 原文第 56 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=56">看原图 ↗</a></span>Sim-Auto 的 Transfer-I2V 例子：11 个相机按朝向排在车周围（前长焦、前广角、前鱼眼、左右交叉、后左右、后长焦、左右后鱼眼），中央是按高度着色的生成 LiDAR。WSM 控制以 20% 不透明度叠在 RGB 上。</figcaption>
+</figure>
+<p><b>一小时稳定性。</b>两条驾驶场景连续生成 1 小时，循环使用 WSM 控制和描述，滚动 K/V 缓存（2 块：初始块作 sink 加最近一块）。DOVER、ACM、TSE、CSE-5 没有持续退化；但作者说物体外观和物理合理性会在长 rollout 中变差。</p>
+<figure class="pfig" id="fig27">
+<img src="cosmos-interactive/fig27.webp" width="1600" height="841" alt="图 27：四个小图，DOVER、ACM、CSE-5、TSE 随 60 分钟 rollout 时间的曲线，两个场景" loading="lazy">
+<figcaption><span class="lab">图 27 · 原文第 60 页 · NVIDIA，arXiv CC BY 4.0（另见读者注 1）· 只做了裁切 · 经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2611.06627#page=60">看原图 ↗</a></span>横轴 0–60 分钟，两条场景（城市大道、街区环路）。浅色是 4 秒窗口分数，深色是 1 分钟平均。(a) DOVER 在 7–9 之间波动；(b) ACM 约 0.88–0.94；(c) CSE-5 多数在 3 以下，偶有尖峰；(d) TSE 约 0.4–0.6。四项都没有随时间单调变差。</figcaption>
+</figure>
+<div class="note" id="n19"><span class="lab">读者注 19 · §7.5 的百分比</span><p>FID 改善：T2V (61.9 − 45.5)/61.9 = 26.5%，I2V (41.4 − 27.8)/41.4 = 32.9%，即“26–33%”。FVD：T2V 36.8%（I3D）和 36.8%（SG-V），I2V 38.7% 和 38.8%，正文写“37–39%”，下端是四舍五入后的说法。CSE“约 20% 更低”：四个数是 20.0%、21.2%、23.5%、18.4%。Sim-Auto 在 T2V 的 Sampson 误差“高 4–8%”：2.599/2.511 = +3.5%，2.244/2.073 = +8.2%。LiDAR：BEV JSD (11.6 − 4.01)/11.6 = 65.4%、(15.1 − 4.01)/15.1 = 73.4%；FUD 61.9%、71.4%。表 17：(0.908 − 0.853)/0.908 = 6.1%，(0.537 − 0.428)/0.537 = 20.3%。表 18：Sim-Auto 五个场景元素有四个高于教师（骑行者 1.83 &lt; 1.85），跨视角最大差 2.98 − 2.93 = 0.05。都和正文一致。</p></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 1.53M token 能算出来</span><p>附录 D.3.3 说 7 个 720p 视角、每视角 397 帧、133 帧 LiDAR 及其控制约 1.53M token（不含语言）。按 16 倍 VAE 加 2 × 2 patch，720 / 32 = 22.5，向上取整 23；1280 / 32 = 40。RGB：7 × 100 × 40 × 23 = 644,000，WSM 控制同样多；LiDAR 133 × 904 = 120,232，HD 地图同样多。合计 \(2\times644{,}000+2\times120{,}232=1{,}528{,}464\)，正是 1.53M。若按 22 行算是 1.47M。所以 720p 在 token 网格上实际按 23 行（736 像素高）处理（<b>我的推算</b>）。顺带：832 × 480 时每相机每隐帧 26 × 15 = 390 个 token，一块 3 个隐帧、7 相机是 8,190 个，加 LiDAR 4 × 904 = 3,616 个。</p></div>
+
+<h2 id="s8"><span class="no">8</span>相关工作</h2>
+<ul>
+<li><b>8.1 可控世界模型。</b>从潜空间动力学（World Models、Dreamer）到可直接看的生成式未来（Genie、Cosmos），再到把视觉未来接到可执行动作上。控制监督成了瓶颈：人类视频要推断潜动作再适配到机器人，测量动作直接但覆盖有限。相机控制、显式 3D 缓存、外部仿真器提供结构条件、多传感器一致性（OmniDreams 的分解式多视角注意力）都和本文相关。策略也可以在去噪完成前发动作，或在生成环境和真实环境里对比策略结果来检验模拟器的用处。</li>
+<li><b>8.2 因果生成和少步蒸馏。</b><a href="https://arxiv.org/abs/2407.01392">Diffusion Forcing</a> 给了逐帧不同噪声的序列形式；<a href="https://arxiv.org/abs/2412.07772">CausVid</a> 把双向先验蒸给因果学生；<a href="https://arxiv.org/abs/2303.01469">一致性模型</a>和 <a href="https://arxiv.org/abs/2405.14867">DMD2</a> 各自减步数；<a href="https://arxiv.org/abs/2506.08009">Self Forcing</a> 在自己生成的历史上训练；Causal-rCM 把 teacher forcing、离散一致性蒸馏和 self forcing 串成本文用的配方。</li>
+<li><b>8.3 流式推理效率。</b>滚动窗口、<a href="https://arxiv.org/abs/2309.17453">attention sink</a>、历史压缩或检索、编译和图回放、高效注意力、低精度（LongLive-2.0 的 NVFP4 加 K/V 量化）、多卡并行。块大小决定新控制多快生效。</li>
+</ul>
+
+<h2 id="s9"><span class="no">9</span>结论</h2>
+<p>作者总结：因果学习、少步蒸馏和有状态的流式执行，把 Cosmos 世界基础模型变成了响应动作和场景控制的交互模拟器；三个例子覆盖“预测动作的视觉后果”和“按外部仿真器状态生成观测”；部分配置达到实时吞吐，校准过的机器人实验演示了经生成观测的策略反馈。展望是让模拟成为由智能体决策塑造的持续经验来源。</p>
+
+<h2 id="apA"><span class="no">A</span>贡献者和致谢</h2>
+<p>按模型结构、数据、训练、推理、评测等分组列出，组内按姓氏字母排序；统筹 Chen-Hsuan Lin、Ming-Yu Liu。另有 28 位致谢。</p>
+
+<h2 id="apB"><span class="no">B</span>Cosmos3-Nano-Sim-Bimanual 补充</h2>
+<p><b>B.1 数据和描述。</b>和 §5.2 一致：首段改写为初始状态，改写模型只看这一段。评测用的 332 个 AgiBot 片段描述是按 2 FPS 采帧生成，再用同一改写提示得到。</p>
+<p><b>B.2 训练配置。</b>四个阶段同一条件规则：首帧和完整动作序列是干净条件，其余帧是目标。噪声时间采样（三个模型通用）：双向适配和 TF 用 Cosmos 3 的 mode 采样，尺度 1.29：</p>
+<div class="eq"><div class="m">\[ u=1-r-1.29\Big(\cos^2\big(\tfrac{\pi r}{2}\big)-1+r\Big),\quad r\sim\mathcal U(0,1),\qquad \tau=S_\kappa(u)=\frac{\kappa u}{1+(\kappa-1)u} \]</div><span class="no"></span></div>
+<p>\(\kappa=3\)（256p）、5（480p）、10（720p）。TF-dCM 在 \((1/48,1)\) 上均匀取 \(u\)，对 \((u,u-1/48)\) 做同样偏移；SF-DMD 的打分时间在 \((0,1)\) 均匀取再偏移。每卡 1 个片段、不累积梯度。双向和 TF 用 FusedAdam、学习率 10⁻⁵；TF-dCM 2 × 10⁻⁶、\(\beta=(0,0.999)\)，参考分支把场景描述换成空串；SF-DMD 学生 10⁻⁶、辅助 2 × 10⁻⁷，教师不用 CFG。BF16 计算，FSDP 下 FP32 主权重；最终检查点都用 EMA 权重。</p>
+<p><b>B.3 解码器。</b>80 个样本质量 71.8 → 70.9；480p GB200 上同步解码快 1.42–1.91 倍，异步解码 1.06–1.18 倍。作者说这些工作负载和最终基准不同，不构成匹配的质量-速度对比。</p>
+<p><b>B.4 指标。</b>PSNR、SSIM、LPIPS 是动作跟随的代理指标，不独立验证接触或任务结果；ATE 等在 Sim(3) Umeyama 对齐后算，不代表绝对尺度。</p>
+<details class="tbl"><summary>B.5 训练消融（表 B.1–B.7，展开）</summary>
+<p>都在 Sana-WM-Bench camera-easy 上评测；不同表之间检查点和配方不同，绝对分数不可横比。</p>
+<div class="tablewrap"><table class="t-w6"><thead><tr><th>表 / 设置</th><th class="n">质量 ↑</th><th class="n">ATE ↓</th><th class="n">RTE ↓</th><th class="n">RRE ↓</th></tr></thead><tbody>
+<tr class="grp"><th colspan="5">B.1 教师片段长度（迭代 3,500）</th></tr>
+<tr><td>长，≤ 961 帧</td><td class="n">75.165</td><td class="n">1.756</td><td class="n">0.029</td><td class="n">0.286</td></tr>
+<tr><td>短，固定 253 帧</td><td class="n">74.113</td><td class="n">2.007</td><td class="n">0.089</td><td class="n">0.316</td></tr>
+<tr class="grp"><th colspan="5">B.2 全量微调对 LoRA（迭代 2,000）</th></tr>
+<tr><td>全量微调</td><td class="n">77.086</td><td class="n">1.594</td><td class="n">0.018</td><td class="n">0.081</td></tr>
+<tr><td>LoRA，秩 16</td><td class="n">74.979</td><td class="n">1.954</td><td class="n">0.048</td><td class="n">0.224</td></tr>
+<tr class="grp"><th colspan="5">B.3 TF-dCM 教师 CFG（迭代 2,000）</th></tr>
+<tr><td>1</td><td class="n">78.237</td><td class="n">0.259</td><td class="n">0.018</td><td class="n">0.694</td></tr>
+<tr><td>3</td><td class="n">78.431</td><td class="n">0.244</td><td class="n">0.014</td><td class="n">0.367</td></tr>
+<tr><td>5</td><td class="n">78.287</td><td class="n">0.225</td><td class="n">0.012</td><td class="n">0.145</td></tr>
+<tr class="grp"><th colspan="5">B.4 SF-DMD 教师 CFG（迭代 1,000）</th></tr>
+<tr><td>1（不用 CFG）</td><td class="n">76.344</td><td class="n">0.943</td><td class="n">0.012</td><td class="n">0.149</td></tr>
+<tr><td>6</td><td class="n">74.587</td><td class="n">1.233</td><td class="n">0.015</td><td class="n">0.282</td></tr>
+<tr class="grp"><th colspan="5">B.5 退出策略和步数（迭代 3,500）</th></tr>
+<tr><td>cycle，2 步</td><td class="n">74.540</td><td class="n">1.012</td><td class="n">0.015</td><td class="n">0.082</td></tr>
+<tr><td>max，2 步</td><td class="n">75.024</td><td class="n">1.039</td><td class="n">0.012</td><td class="n">0.201</td></tr>
+<tr><td>cycle，4 步</td><td class="n">73.933</td><td class="n">1.138</td><td class="n">0.015</td><td class="n">0.095</td></tr>
+<tr><td>max，4 步</td><td class="n">75.169</td><td class="n">1.474</td><td class="n">0.016</td><td class="n">0.064</td></tr>
+<tr class="grp"><th colspan="5">B.6 混合训练（每块 4 个隐帧，迭代 4,500）</th></tr>
+<tr><td>双向推理：只双向</td><td class="n">75.792</td><td class="n">1.245</td><td class="n">0.016</td><td class="n">0.079</td></tr>
+<tr><td>双向推理：混合 1:1</td><td class="n">76.055</td><td class="n">1.496</td><td class="n">0.019</td><td class="n">0.081</td></tr>
+<tr><td>因果推理：只因果</td><td class="n">68.263</td><td class="n">1.479</td><td class="n">0.025</td><td class="n">0.555</td></tr>
+<tr><td>因果推理：混合 1:1</td><td class="n">67.580</td><td class="n">1.521</td><td class="n">0.035</td><td class="n">0.693</td></tr>
+<tr class="grp"><th colspan="5">B.7 标准 SF-DMD 对流式长调（SLT，迭代 2,000）</th></tr>
+<tr><td>SF-DMD（长上下文教师）</td><td class="n">77.167</td><td class="n">1.434</td><td class="n">0.017</td><td class="n">0.088</td></tr>
+<tr><td>SLT（短片段教师）</td><td class="n">70.567</td><td class="n">1.539</td><td class="n">0.016</td><td class="n">0.164</td></tr>
+</tbody></table></div>
+<p>要点：长片段教师四项都好；全量微调好于秩 16 LoRA；TF-dCM 的 CFG 3 质量最高、CFG 5 轨迹最准，生产选 3；SF-DMD 不用 CFG 更好；max 4 步质量和 RRE 最好但 ATE、RTE 最差，没有哪个配置全面占优，生产选 max 4 步；双向和因果交替训练在因果推理下不如只训因果；SLT 质量低 6.6 分，还出现重复的画面图案。我核对了正文给的差值（1.052、2.107、0.194、0.144、1.757、0.484、6.600），全对。</p>
+</details>
+
+<h2 id="apC"><span class="no">C</span>Cosmos3-Nano-Sim-Transfer 补充</h2>
+<p><b>C.1 数据和采样。</b>2,153,548 条中排除 156,946 条：宽高比畸变超 3% 有 114,453 条，源帧率不在 5–60 有 10,870 条，描述包装无效 145 条，没有完整可用描述窗口 31,478 条（四项相加正好 156,946，<a href="#n20">读者注 20</a>）。负分支用固定的负面描述。学生 SDE 采样时间 \([1,15/16,5/6,5/8]\)，语言和控制的 guidance 都是 1。Stage 3 训练时 K/V 窗口 51 个隐帧、1 个 sink。</p>
+<p><b>C.2 运行时剖析。</b>表 C.2 给出 RTF：全历史 eager 4.3603、全历史编译 2.6300、有界 eager 3.3185、有界编译 1.8926；软件是 Torch 2.13 nightly、CUDA 13.3。表 C.3 拆分每块：以最快的“有界编译”为例，去噪 127 ms、历史刷新 35 ms、控制 K/V 插入 34 ms、流式 VAE 解码 42 ms；进程从启动到第一帧输出要 26–79 秒（含编译）。前 121 帧上用 Video Depth Anything 比较，四种配置的 SI-RMSE 都是 5.2124。</p>
+<p><b>C.3 基准补充。</b>深度误差的定义：</p>
+<div class="eq"><div class="m">\[ s=\frac{\mathrm{median}(d)}{\mathrm{median}(\hat d)},\qquad \mathrm{SI\text{-}RMSE}=\sqrt{\frac1{|\mathcal P_{\rm valid}|}\sum_{\mathbf p\in\mathcal P_{\rm valid}}\mathrm{clip}\big(s\hat d(\mathbf p)-d(\mathbf p),-10,10\big)^2} \]</div><span class="no">(C.1)</span></div>
+<p>九个指标的 TF-dCM − TF 配对 bootstrap（10,000 次，按源视频、分域）：DOVER、模糊 SSIM 显著变差，分割 IoU、边缘 F1、深度显著变好，漂移和 Sampson 显著变差，Prompt 和 Quality 的区间含 0。长 rollout（600 帧 VisDex）上，学生的分割 IoU 和 Quality 高于 GA，其余（DOVER 9.17 对 11.50、Sampson 0.150 对 0.081 等）都是 GA 好。窗口和 sink 扫描（表 C.6）：sink 3 时窗口 10 → 30，DOVER 9.652 → 10.056；窗口 50 质量略高但 DOVER 降；sink 6 Prompt 高但 DOVER 和 Quality 降，最终选窗口 30、sink 3。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 长 rollout 上几何一致性掉得最多</span><p>表 C.5：Sampson 误差 0.150449 对 GA 的 0.081120，是 1.85 倍；121 帧的 TransferBench 上只是 1.19 倍（读者注 10）。DOVER 9.1682 对 11.5036，低 20%。生成越长，几何一致性和 GA 的差距越大。这和附录 C.5 列出的“时间退化、幻觉、外观漂移、变形、控制跟随错误”五类失败一致。</p></div>
+<p><b>C.4 Isaac Lab 细节。</b>两批各 16 个环境，固定仿真器、策略和渲染器种子；成功条件（表 C.8）同时要求：苹果和盘子水平距离 ≤ 0.08932 m、高度差满足阈值、都在桌面上方、接触力 &gt; 0.44 N、苹果速度 &lt; 0.1 m/s、两个拇指离苹果 &gt; 0.10 m。深度到灰度的映射：</p>
+<div class="eq"><div class="m">\[ I(d)=\mathrm{round}\Big[255\Big(1-\mathrm{clip}\Big(\frac{d-0.15}{0.75},0,1\Big)\Big)\Big] \]</div><span class="no"></span></div>
+<p>即 0.15–0.90 m 映射到亮到暗。GR00T N1.7 用 402 条真机演示（90,710 帧，15 Hz）微调一次 40,000 步，冻结视觉和语言骨干，只训投影和动作模型；六个检查点都来自这一次运行。外观提示词用 JSON，参照真机演示图在校准起点上调过。</p>
+<p><b>C.5 阶段对比和失败。</b>图 C.1–C.4 是四个阶段在同一视频、同一控制下的对比；失败案例有长 rollout 后期的重影和细节丢失、凭空多出的箱子、车辆前后外观不一致、碗的形状变了，以及在深度/分割控制下把被举起的物体画回桌面上（提示词说“在台面上”）。最后一类说明语言和控制冲突时，模型有时听语言。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 数据保留表加和</span><p>114,453 + 10,870 + 145 + 31,478 = 156,946；2,153,548 − 1,996,602 = 156,946。一致。</p></div>
+
+<h2 id="apD"><span class="no">D</span>Transfer-Auto / Sim-Auto 补充</h2>
+<p><b>D.1 结构细节。</b>LiDAR tokenizer：Pandar128 每帧先栅格化到 128 × 3600，每两列取最近回波降到 1800，两侧各补 4 列到 1808。距离有效区间 5–100 m，归一化</p>
+<div class="eq"><div class="m">\[ r_n=2\,\frac{r-5}{100-5}-1,\qquad i_n=2i-1 \]</div><span class="no">(D.1)</span></div>
+<p>编码器四个阶段宽度 (128, 256, 512, 1024)、各 3 层，前三阶段用 5 × 45 的邻域注意力（方位循环），后两阶段加因果时间注意力，瓶颈做时空联合注意力；后验 128 通道：</p>
+<div class="eq"><div class="m">\[ \mathbb R^{B\times3\times T\times128\times1808}\longrightarrow\mathbb R^{B\times128\times T\times8\times113} \]</div><span class="no">(D.2)</span></div>
+<p>148.5M 参数（LidarVerse 公开版 64.5M）。846 帧上重建：距离 MAE 0.4163 m 对 0.9742 m（少 57.3%），Chamfer 0.1674 对 0.1731（少 3.3%），掩码 IoU 0.7554 对 0.7414。D.1.2 解释无掩码分组：同视角组和跨传感器组不能共享 key，否则同一 key 在 softmax 里计两次；LSE 合并在 key 子集不相交时恢复联合归一化（式 D.10）。</p>
+<p><b>D.2 数据。</b>11 相机：前广角、左右交叉 120°，后左右 70°，前后长焦 30°，四个鱼眼约 200°；15 种预设组合（表 D.4）。WSM v4 的颜色和符号编码、带时间戳的描述和提示前缀例子（Box D.1–D.4）。</p>
+<p><b>D.3 训练配置。</b>Stage 0 模态分开阶段按 0.15 / 0.15 / 0.70 采 480p RGB、720p RGB、LiDAR；全局批 16、32、16；每阶段前 2,000 步线性升到峰值再线性降到 10⁻⁵。因果阶段（表 D.5）：TF 256 卡 3,200 次，TF-dCM 768 卡 900 次，SF-DMD 短 512 卡 1,500 次、长 256 卡 300 次；一个片段最多 34 个因果块。观测前缀 0、1、2 个隐帧，概率 0.7、0.2、0.1，配 0、1、3 帧 LiDAR，对应 T2V、I2V、V2V。上下文并行 32 路，加 64 路 FSDP。</p>
+<p><b>D.4 运行时优化。</b>K/V 缓存永久保留提示词和首帧及其地图作 sink、1 块干净生成历史、这块和当前块的控制；从第二块起注意力上下文固定。Interactive Drive 不用 CUDA Graph，在模型卡上解码，K/V 更新和解码串行。表 D.7 的完整运行点：</p>
+<details class="tbl"><summary>表 D.7 · 全部运行点（展开）</summary>
+<div class="tablewrap"><table class="t-w9"><thead><tr><th class="n">视角</th><th>模式</th><th class="n">GPU</th><th>布局</th><th class="n">eager</th><th class="n">发布</th><th class="n">变化</th><th class="n">FPS</th><th class="n">显存 GiB</th></tr></thead><tbody>
+<tr><td class="n">1</td><td>RGB</td><td class="n">1</td><td>1 model</td><td class="n">524</td><td class="n">364</td><td class="n">−30%</td><td class="n">32.6</td><td class="n">33.6</td></tr>
+<tr><td class="n">4</td><td>RGB</td><td class="n">1</td><td>1 model</td><td class="n">1,457</td><td class="n">1,166</td><td class="n">−20%</td><td class="n">10.2</td><td class="n">37.6</td></tr>
+<tr><td class="n">1</td><td>RGB</td><td class="n">2</td><td>1 model + 1 map</td><td class="n">—</td><td class="n">315</td><td class="n">—</td><td class="n">38.1</td><td class="n">31.2</td></tr>
+<tr><td class="n">4</td><td>RGB</td><td class="n">8</td><td>8 model</td><td class="n">783</td><td class="n">483</td><td class="n">−38%</td><td class="n">24.6</td><td class="n">41.4</td></tr>
+<tr><td class="n">4</td><td>RGB</td><td class="n">16</td><td>8 model + 8 map</td><td class="n">—</td><td class="n">408</td><td class="n">—</td><td class="n">28.9</td><td class="n">40.9</td></tr>
+<tr><td class="n">4</td><td>RGB + LiDAR</td><td class="n">8</td><td>8 model</td><td class="n">—</td><td class="n">651</td><td class="n">—</td><td class="n">18.1</td><td class="n">51.6</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">16</td><td>16 model</td><td class="n">897</td><td class="n">609</td><td class="n">−32%</td><td class="n">19.5</td><td class="n">49.0</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">16</td><td>8 model + 8 map</td><td class="n">950</td><td class="n">583</td><td class="n">−39%</td><td class="n">20.5</td><td class="n">48.2</td></tr>
+<tr><td class="n">7</td><td>RGB</td><td class="n">32</td><td>16 model + 16 map</td><td class="n">—</td><td class="n">511</td><td class="n">—</td><td class="n">23.2</td><td class="n">48.2</td></tr>
+<tr><td class="n">7</td><td>RGB + LiDAR</td><td class="n">16</td><td>16 model</td><td class="n">1,159</td><td class="n">701</td><td class="n">−39%</td><td class="n">16.7</td><td class="n">61.6</td></tr>
+</tbody></table></div>
+<p class="tcap">每块墙钟时间（ms），显存是主卡峰值（每卡 184 GiB）。作者说重复运行之间差到 8%，低于 8% 的变化不归因于优化。1 相机加 1 张 map 卡是最快的 315 ms（38.1 FPS）。</p>
+</details>
+<p><b>D.5 推理和基准设置。</b>两个基准上 Sim-Auto 都用 2 块的滚动缓存（初始块作 sink + 最近一块），不用 CFG；Transfer-Auto 用 guidance 3（Driving-Sim-Eval）或 1.5（Traffic-Scenario-Eval）；基线 Cosmos-Transfer2.5 用 guidance 3、原生 29 帧块，在 Traffic-Scenario-Eval 上用它自己最好的 10 FPS 设置。每个模型都用它最好的提示词变体。</p>
+<p><b>D.6 消融。</b>阶段对比（表 D.9，50 个验证样本，10 秒、7 相机 720p）：</p>
+<div class="tablewrap"><table class="t-w7"><thead><tr><th>检查点</th><th class="n">FID ↓</th><th class="n">FVD I3D ↓</th><th class="n">DOVER ↑</th><th class="n">ACM ↑</th><th class="n">CSE-2 ↓</th><th class="n">CSE-5 ↓</th></tr></thead><tbody>
+<tr><td>双向教师</td><td class="n">40.61</td><td class="n">352.6</td><td class="n">7.472</td><td class="n">0.8988</td><td class="n">2.867</td><td class="n">2.273</td></tr>
+<tr><td>Stage 1 TF</td><td class="n">57.08</td><td class="n">551.8</td><td class="n">7.579</td><td class="n">0.8807</td><td class="n">4.732</td><td class="n">3.669</td></tr>
+<tr><td>Stage 2 TF-dCM</td><td class="n">75.34</td><td class="n">767.3</td><td class="n">7.486</td><td class="n">0.8638</td><td class="n">7.547</td><td class="n">4.562</td></tr>
+<tr><td>Stage 3 SF-DMD 短</td><td class="n">48.93</td><td class="n">506.9</td><td class="n">7.847</td><td class="n">0.8902</td><td class="n">2.971</td><td class="n">2.377</td></tr>
+<tr><td>Stage 3 SF-DMD 长</td><td class="n">45.69</td><td class="n">435.2</td><td class="n">7.366</td><td class="n">0.8957</td><td class="n">2.795</td><td class="n">2.302</td></tr>
+</tbody></table></div>
+<p class="tcap">表 D.9。蒸到 4 步（TF-dCM）时 FID 从 57 涨到 75、CSE-2 从 4.7 涨到 7.5；SF-DMD 把它们拉回接近教师。长序列阶段 FID、FVD、ACM、CSE 更好，但 DOVER 从 7.847 降到 7.366。</p>
+<p>跨视角时间可见性（表 D.10，10 个样本）：只看最近时刻、之前 0.4 s、0.4 s 加当前带噪块三种里，之前 0.4 s 的 CSE-2 最低（5.743 对 10.585 和 7.854）。只连相邻和重叠视角（表 D.11）画质略好，但 CSE-2 从 5.503 涨到 6.823，也没提速。缓存和 sink 大小（图 D.5，94 段约 1 分钟的视频）：总缓存 \(C=2\)、sink \(S=1\) 最好；固定 1 块 sink 时，保留更多历史反而让 FID 和跨视角误差都变差（例如 GT-CSE 3.778 → 10.097，C 从 2 到 16）。天气提示改变生成的 LiDAR（表 D.12）：雨天有效回波比例 0.587 → 0.434（−26%），雾天远处回波被抑制，而共同有效像素上的距离差 2.8–5.1 m，小于不同种子之间的 5.9–6.7 m。</p>
+<div class="note" id="n22"><span class="lab">读者注 22 · 驾驶模型的“记忆”只有两块</span><p>附录 D.5.1 和图 D.5 说，最终的 Sim-Auto 推理只保留 2 块：初始块（sink）和最近完成的一块，也就是 0.4 秒的近期历史。训练时最长 34 块（表 D.5）。在这个设置下历史更多反而更差。这说明驾驶例子里场景的长时一致性主要由 WSM 控制（外部场景状态）提供，而不是模型记住的；作者在 D.6.1 也这样说：几何和参与者运动由外部场景状态经 WSM 提供，缓存的生成观测只维持视觉连续性。对“用学到的模型当模拟器”来说，这一点很关键：Sim-Auto 是渲染器，不是动力学模型。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>读的是 <a href="https://github.com/NVIDIA/cosmos-framework">cosmos-framework</a> e40831f（2026-11-16），只读未运行，OpenMDW-1.1。和论文对得上的地方已经写进各条读者注（读者注 3、4、5、6、9）。这里汇总，并列出论文里没有、代码里有的东西。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>论文</th><th>代码（e40831f）</th></tr></thead><tbody>
+<tr><td>阶段名</td><td>Stage 0–3</td><td><code>configs/simulation/common/bimanual_profiles.py</code> 的 <code>sim_bimanual_stage0_bidir</code> … <code>stage3_sfdmd</code>；<code>causal_training_strategy</code> 依次为 none、teacher_forcing、teacher_forcing_dcm、none（Stage 3 走 <code>simulation_mode="self_forcing"</code>）</td></tr>
+<tr><td>块大小</td><td>Bimanual 2 隐帧；Transfer 1 隐帧</td><td><code>teacher_forcing_frames_per_chunk=2</code>；<code>_TRANSFER_TEACHER_FORCING_FRAMES_PER_CHUNK=1</code></td></tr>
+<tr><td>穿过干净缓存的梯度</td><td>保留或重算</td><td><code>teacher_forcing_detach_clean_kv=False</code></td></tr>
+<tr><td>偏移</td><td>256p 3、480p 5、720p 10</td><td><code>"shift": {"256": 3, "480": 5}</code>；SF-DMD 只用 480p 的 5</td></tr>
+<tr><td>MRoPE 间隙</td><td>15,000</td><td><code>unified_3d_mrope_temporal_modality_margin=15_000</code></td></tr>
+<tr><td>4 步时间表</td><td>[1, 15/16, 5/6, 5/8]</td><td><code>_T_LIST</code>、<code>t_list</code> 相同；<code>sf_rollout_step_mode="max"</code>、<code>sf_simulation_steps_per_frame=[4]</code></td></tr>
+<tr><td>回放式反传</td><td>逐块重算最后一次预测</td><td><code>sf_replayed_training=True</code>、<code>sf_replay_block_size=1</code>、<code>backward_grad_steps=1</code></td></tr>
+<tr><td>DMD 归一化</td><td>式 (18)，δ = 10⁻⁶</td><td><code>distillation/common_loss.py</code>；另有 <code>per_instance_sum</code> 用 1e-5 下限</td></tr>
+<tr><td>可训练参数</td><td>Auto：生成器、时间嵌入、投影、传感器嵌入；推理塔和 tokenizer 冻结</td><td>Bimanual <code>_OPTIMIZER_KEYS</code>：moe_gen、time_embedder、vae2llm、llm2vae、action2llm、action_modality_embed；Transfer 去掉动作两项</td></tr>
+<tr><td>推理窗口</td><td>Bimanual 64 / sink 8；Transfer 30 / 3；Auto 2 块 / 1 块</td><td>文档示例 <code>--kv-cache-inference-size=64 --attention-sink-size=8</code>；<code>args.py</code> 对 Auto 预设 <code>rolling_kv_cache_chunks=2 rolling_kv_sink_chunks=1</code>；窗口无 sink 时会警告“亮度可能漂移”，并举例“30 with a sink of 3”</td></tr>
+<tr><td>Transfer 训练窗口</td><td>51 / sink 1（附录 C.1）</td><td><code>_STREAMING_KV_WINDOW_LATENT_FRAMES=51</code>、<code>_STREAMING_ATTENTION_SINK_LATENT_FRAMES=1</code></td></tr>
+<tr><td>Auto 跨视角窗口</td><td>之前 0.4 s，去重</td><td><code>auto_profiles.py</code>：<code>decomposed_temporal_window_seconds=0.4</code>、<code>deduplicate_cross_view=True</code>、<code>cross_view_temporal_window=dict(bounds=[-0.4, 0.0])</code>；LiDAR <code>semantic_width=1800, model_width=1808, "circular_pad"</code></td></tr>
+<tr><td>Bimanual 输入画布</td><td>640 × 352</td><td>文档：640 × 360 的图反射填充到 832 × 480，保留左上 22 × 40 个隐格，得到 640 × 352（Sim-Transfer 则改用直接缩放）</td></tr>
+<tr><td>论文没写</td><td>—</td><td>Bimanual 的视锥检索历史（<code>kv_cache_frustum_path</code>）；<code>docs/posttrain/guides/joint-ppo-gr00t-public.md</code> 是 GR00T N1.7 在 LIBERO 上的 PPO 指南，和本文无关</td></tr>
+<tr><td>没找到</td><td>Isaac Lab 闭环（§6.5、附录 C.4）</td><td>在 cosmos-framework 和 flashdreams 里搜 Isaac Lab / GR00T 闭环脚本，没有找到；闭环实验不能从公开代码复现（<b>未核实</b>是否在别的仓库）</td></tr>
+</tbody></table></div>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><b>先说结论：</b>OpenWAM 和这篇是世界模型的两种用法，方向正好相反。OpenWAM 的世界-动作模型（WAM）是<b>策略</b>：看当前画面，联合去噪“未来画面 + 动作”，输出动作去控制机器人。本文的 Sim 模型是<b>环境</b>：收到动作或仿真器状态，输出下一段画面，给策略看。两者可以首尾相接：WAM 的动作喂给 Sim-Bimanual，Sim-Bimanual 的画面再喂回 WAM。但本文没有做这件事。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th><a href="openwam.html">OpenWAM</a></th><th>本文（Sim-Bimanual / Sim-Transfer）</th></tr></thead><tbody>
+<tr><td>输入 → 输出</td><td>画面（+ 语言）→ 未来画面 + 动作</td><td>初始图 + 动作流 → 画面；或仿真器深度/分割 → 画面</td></tr>
+<tr><td>Cosmos 骨干</td><td>可选 Cosmos-Predict2.5-2B（§4.1.1 得 91.64）或 Cosmos3-Edge（4B，<code>cosmos3_edge.yaml</code>，生成流双向）</td><td>Cosmos3-Nano，生成流改成块因果</td></tr>
+<tr><td>时间注意力</td><td>窗口内双向，视频和动作同步去噪；每次只预测很短的未来</td><td>块因果，K/V 缓存，可以一直往下滚</td></tr>
+<tr><td>步数</td><td>按其配置的去噪调度</td><td>蒸馏到每块 4 步</td></tr>
+<tr><td>动作表示</td><td>各机器人自己的动作头</td><td>59 维统一布局 + 按域投影（继承 Cosmos 3 的共享动作接口）</td></tr>
+<tr><td>评测</td><td>在 LIBERO、RoboTwin 等真实仿真器里闭环跑策略</td><td>Bimanual 只做开环回放；Sim-Transfer 一个 32 起点的闭环实验</td></tr>
+</tbody></table></div>
+<p><b>几处具体的联系：</b></p>
+<ul>
+<li><b>同一套偏移。</b>OpenWAM 的 <code>cosmos3_edge.yaml</code> 注释写 “NVIDIA's resolution-keyed train shifts are {256: 3, 480: 5, 720: 10}”，选 480p 的 5.0；本文附录 B.2 正是这三档（<a href="#n23">读者注 23</a>）。</li>
+<li><b>Cosmos 3 的生成流本来是双向的。</b>OpenWAM 用 Cosmos3-Edge 时保持双向，冻结推理（und）通路、训练生成通路；本文同样冻结推理塔（Auto 明确写了，Bimanual 的可训练键里也没有推理塔），但把生成流的时间注意力因果化。表 6 显示因果化本身就让质量和 PSNR 下降，要靠 SF-DMD 才找回来。OpenWAM 研究里“双向对单向”的差距在它的波动范围内（见 OpenWAM 页读者注 4），两件事的设定不同，不能直接对比。</li>
+<li><b>如果想用本文的模型评测自己的 WAM：</b>Sim-Bimanual 的动作接口是 AgiBot、YAM、相机位姿等的 59 维布局，LIBERO 的 Franka 动作要先映射进来，论文没有给这类域。更大的问题是本文自己强调的：开环回放的 PSNR/LPIPS 不能代替闭环策略评测，接触和任务成功要另外验证。现成可用的是 Sim-Transfer 的思路：物理仍由仿真器（例如 LIBERO 的 MuJoCo）负责，模型只换外观，用来测策略对外观变化的鲁棒性，这和 LIBERO-Plus 的扰动维度是互补的（<b>我的推断</b>）。</li>
+<li><b>GR00T 的联系。</b>闭环实验用的 GR00T N1.7 和 OpenWAM 的 RoboCasa-GR1 基准同属 GR00T 系列，见 <a href="gr00t.html">GR00T 精读</a>。</li>
+</ul>
+<div class="note" id="n23"><span class="lab">读者注 23 · OpenWAM 的 shift 5 和本文对得上</span><p>OpenWAM 仓库（commit 1dcaeea）<code>configs/model/video_backbone/cosmos3_edge.yaml</code>：<code>shift_video: 5.0</code>，注释给出三档 {256: 3, 480: 5, 720: 10}；本文附录 B.2 的 \(\kappa\) 也是 3、5、10，cosmos-framework 的 Bimanual 配置是 <code>{"256": 3, "480": 5}</code>。所以 OpenWAM 在 480p 训练时沿用的偏移和本文一致。注意本文的 4 步时间表是“均匀 4 步再 shift 5”，OpenWAM 推理的步数和调度另有设置，不要直接混用。</p></div>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa-rt">问 1：这篇说的“实时”“交互”到底指什么？</h3>
+<p>论文分开了两件事（§4.2）：</p>
+<ol>
+<li><b>吞吐：</b>RTF = 生成耗时 / 视频时长 ≤ 1。达到的配置：Bimanual 1 张 GB300（RTF 0.62）、Sim-Auto 单相机 1 张 GB200（0.91）。没达到的：Sim-Transfer 最快 1.89；Sim-Auto 7 相机 32 卡 1.29（30 / 23.2），加 LiDAR 1.80。</li>
+<li><b>响应：</b>新控制多久能体现在画面上。按块生成意味着一块的控制必须先到齐，所以最短也要“一块的物理时长 + 一块的生成时间”。论文没有实测这个延迟，我的量级估算在<a href="#n13">读者注 13</a>：0.4–0.8 秒。</li>
+</ol>
+<p>所以更准确的说法是“能流式、按块响应、部分配置吞吐实时”。对 30 Hz 控制的机器人，这个模型每 0.27 秒（Bimanual）或 0.13 秒（Transfer）才接受一次新的动作组。</p>
+<h3 id="qa-eval">问 2：能不能拿这些模型评测或训练机器人策略？</h3>
+<p>论文给的证据：</p>
+<ul>
+<li><b>Sim-Bimanual</b>（学到的动力学）：只在回放动作下比画面和录像的相似度。没有任何“策略在模型里的成功率和真机成功率是否相关”的实验，而这正是 <a href="simpler.html">SIMPLER</a> 和 <a href="real2sim-eval.html">Real2Sim-Eval</a> 用来判断模拟器能不能评测策略的标准（MMRV、Pearson r）。论文也明说闭环行为需要专门评测。</li>
+<li><b>Sim-Transfer</b>（仿真器负责物理，模型只渲染）：有一个闭环实验，32 个起点、校准过的提示词，统计上和原生渲染分不开（<a href="#n11">读者注 11</a>）。它适合做“换外观”的数据增强或鲁棒性测试，物理正确性仍然来自仿真器。</li>
+</ul>
+<p>论文没有拿这些模型生成数据训练策略，也没有做强化学习。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可矛盾</a>：arXiv 登记 CC BY 4.0，PDF 页脚写 All rights reserved；代码和权重是 OpenMDW-1.1。</li>
+<li><a href="#n2">帧数算术</a>：901 帧是 112 块加 1 个单隐帧尾块；597、397、102 个缓存槽都能算出来。</li>
+<li><a href="#n3">59 维和代码的 64 维</a>：9 + 25 + 25；推理补 5 个零通道。</li>
+<li><a href="#n4">4 步时间表和 1/48</a>：[1, 15/16, 5/6, 5/8] 就是均匀 4 步做 shift 5；代码相同。</li>
+<li><a href="#n5">δ 和 1:5</a>：common_loss.py 与式 (18) 一致；1,380 = 230 + 1,150。</li>
+<li><a href="#n6">教师 CFG</a>：三个模型论文和代码一致；Transfer 的 SF 工厂默认 6，发布配方改成 3。</li>
+<li><a href="#n7">表 3 和图 9</a>：48.2 FPS、27.5%、1.37 倍、RTF 0.62；K/V 刷新占块时间 41%。</li>
+<li><a href="#n8">表 4–6 的差值</a>：8.55、11.23、10.83、2.06 dB、3.7%、6.2% 全对。</li>
+<li><a href="#n9">回访靠 sink</a>：64 隐帧在 16 FPS 下只有 16 秒，59 秒的回访只能靠 8 个 sink 隐帧（我的推断）；代码有论文没写的视锥检索。</li>
+<li><a href="#n10">表 8</a>：+59.2%、−26.5%、−1.8%、−2.2%，“九项全部”属实；Sampson 比 GA 高 19%。</li>
+<li><a href="#n11">闭环统计</a>：15,000 步不一致对 2 对 7，p ≈ 0.18；六个检查点合计 117/192 对 114/192；提示词在同一批起点上调过。</li>
+<li><a href="#n12">Sim-Transfer 不是实时</a>：RTF = 30 / FPS，最快 1.8926，和表 C.2 一字不差。</li>
+<li><a href="#n13">定义了延迟没报延迟</a>：式 (22) 无实测值；下界估算 0.4–0.8 秒（我的推算）。</li>
+<li><a href="#n14">表 10、11 的计数</a>：17,424 = 144 × 121；3.58 倍；每帧 0.361 s 对 0.101 s。</li>
+<li><a href="#n15">表 12 的倍数</a>：1.66、1.75 倍；编译后显存更高。</li>
+<li><a href="#n16">表 14 和图 22</a>：30%、32% 对；7 相机控制准备 + K/V 已超过去噪。</li>
+<li><a href="#n17">9.9 倍</a>：NvNt/(Nv+Nt) = 9.91；按 0.4 秒窗口约 7.6 倍（我的推算）。</li>
+<li><a href="#n18">1.53M token</a>：720p 按 23 行 token 网格算正好 1,528,464（我的推算）。</li>
+<li><a href="#n19">§7.5 的百分比</a>：全部能复算，“37–39%”下端是 36.8%。</li>
+<li><a href="#n20">数据保留表</a>：四项排除加起来正好 156,946。</li>
+<li><a href="#n21">长 rollout 几何退化</a>：Sampson 1.85 倍于 GA，比 121 帧时的 1.19 倍差得多。</li>
+<li><a href="#n22">驾驶模型只记两块</a>：长时一致性来自 WSM 控制，Sim-Auto 是渲染器不是动力学模型。</li>
+<li><a href="#n23">OpenWAM 的 shift 5</a>：{256: 3, 480: 5, 720: 10} 三处一致。</li>
+</ol>
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可矛盾</span><p>arXiv 摘要页登记 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>；PDF 第 1 页页脚印着 “© 2026 NVIDIA. All rights reserved.”。这和本站 SONIC、GraspGen 两页遇到的情况相同。本批由站点作者决定放原图，图注里都写了这一点。代码仓库 cosmos-framework 和 cosmos 是 OpenMDW-1.1（允许无限制地使用、修改、分发，要求保留许可和版权声明），flashdreams 是 Apache-2.0；四个 Hugging Face 权重卡片登记 <code>openmdw1.1-license</code>，不需要申请访问。</p></div>
+<p>论文没写、我也没找到的：VisDex 回合集的出处；MADS 和 Traffic-Scenario-Eval 是内部数据，不公开；Isaac Lab 闭环脚本不在公开仓库里；控制到画面延迟的实测值。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和方法。链接在 2026 年 11 月 16 日用脚本核对都返回 200（arXiv HTML 版不存在，返回 404，所以“看原图”指向 PDF 页）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/cosmos-lab/cosmos-simulation/">Cosmos 交互式模拟</a></td><td>本文</td><td><a href="https://github.com/NVIDIA/cosmos-framework">代码</a> · <a href="https://huggingface.co/collections/nvidia/cosmos3-examples">权重</a></td><td><a href="https://arxiv.org/abs/2611.06627">2611.06627</a></td></tr>
+<tr><td><a class="ds" href="cosmos3.html">Cosmos 3</a></td><td>骨干</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2606.02800">2606.02800</a></td></tr>
+<tr><td><a class="ds" href="cosmos-predict25.html">Cosmos-Predict2.5 / Transfer2.5</a></td><td>驾驶 RGB 基线的来源</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2511.00062">2511.00062</a></td></tr>
+<tr><td><a class="ds" href="cosmos-transfer1.html">Cosmos-Transfer1 / TransferBench</a></td><td>视频迁移基准</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2503.14492">2503.14492</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.25473">Causal-rCM</a></td><td>本文沿用的蒸馏配方</td><td>–</td><td><a href="https://arxiv.org/abs/2606.25473">2606.25473</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2506.08009">Self Forcing</a></td><td>在自生成历史上训练</td><td>–</td><td><a href="https://arxiv.org/abs/2506.08009">2506.08009</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2405.14867">DMD2</a></td><td>分布匹配蒸馏</td><td>–</td><td><a href="https://arxiv.org/abs/2405.14867">2405.14867</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2303.01469">Consistency Models</a></td><td>一致性蒸馏</td><td>–</td><td><a href="https://arxiv.org/abs/2303.01469">2303.01469</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2412.07772">CausVid</a></td><td>双向到因果</td><td>–</td><td><a href="https://arxiv.org/abs/2412.07772">2412.07772</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2407.01392">Diffusion Forcing</a></td><td>逐帧噪声的序列扩散</td><td>–</td><td><a href="https://arxiv.org/abs/2407.01392">2407.01392</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2309.17453">StreamingLLM</a></td><td>attention sink</td><td>–</td><td><a href="https://arxiv.org/abs/2309.17453">2309.17453</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2209.03003">Rectified flow</a></td><td>训练目标</td><td>–</td><td><a href="https://arxiv.org/abs/2209.03003">2209.03003</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/madebyollin/taehv">TAEHV</a></td><td>轻量解码器</td><td>github.com/madebyollin/taehv</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.10934">ViPE</a></td><td>从视频估计相机位姿</td><td>–</td><td><a href="https://arxiv.org/abs/2508.10934">2508.10934</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>训练数据和操作基准</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://doc.i2rt.com/products/yam">YAM</a></td><td>机械臂数据</td><td>doc.i2rt.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.mecka.ai/">Mecka</a></td><td>第一人称人手数据</td><td>mecka.ai</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a></td><td>仿真机器人数据</td><td>behavior.stanford.edu</td><td><a href="https://arxiv.org/abs/2403.09227">2403.09227</a></td></tr>
+<tr><td><a class="ds" href="https://openaccess.thecvf.com/content/CVPR2026/html/Zhou_PAI-Bench_A_Comprehensive_Benchmark_For_Physical_AI_CVPR_2026_paper.html">PAI-Bench</a></td><td>画质和导航基准</td><td>–</td><td>CVPR 2026</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2605.15178">Sana-WM / Sana-WM-Bench</a></td><td>导航基准和基线</td><td>–</td><td><a href="https://arxiv.org/abs/2605.15178">2605.15178</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2607.07534">LingBot-World 2.0</a></td><td>导航基线</td><td>–</td><td><a href="https://arxiv.org/abs/2607.07534">2607.07534</a></td></tr>
+<tr><td><a class="ds" href="https://proceedings.mlr.press/v306/gao26q.html">DreamDojo</a></td><td>操作基线</td><td>–</td><td>ICML 2026</td></tr>
+<tr><td><a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a></td><td>TransferBench 来源之一</td><td>ego-exo4d-data.org</td><td><a href="https://arxiv.org/abs/2311.18259">2311.18259</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/OpenDriveLab/DriveAGI">OpenDV</a></td><td>TransferBench 来源之一</td><td>github.com/OpenDriveLab/DriveAGI</td><td><a href="https://arxiv.org/abs/2403.09630">2403.09630</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/DepthAnything/Video-Depth-Anything">Video Depth Anything</a></td><td>深度控制和深度指标</td><td>github.com/DepthAnything/Video-Depth-Anything</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a></td><td>闭环实验的物理</td><td>isaac-sim.github.io/IsaacLab</td><td><a href="https://arxiv.org/abs/2511.04831">2511.04831</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/nvidia/GR00T-N1.7-3B">GR00T N1.7</a></td><td>闭环策略</td><td><a href="gr00t.html">本站精读</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1/">Unitree G1</a></td><td>人形机器人</td><td>unitree.com/g1</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos3-Driving-Simulation-Evaluation">Driving-Sim-Eval</a></td><td>驾驶留出集，91 条</td><td>Hugging Face</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2610.19201">LidarVerse</a></td><td>LiDAR 基线和 tokenizer 参照</td><td><a href="https://huggingface.co/nvidia/lidarverse">Hugging Face</a></td><td><a href="https://arxiv.org/abs/2610.19201">2610.19201</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.03159">OmniDreams</a></td><td>分解式多视角注意力的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2606.03159">2606.03159</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/flashdreams">FlashDreams</a></td><td>Interactive Drive 演示客户端</td><td>github.com/NVIDIA/flashdreams</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/cosmos-evaluator">Cosmos Evaluator</a></td><td>AutoGrader 的对应检查</td><td>github.com/NVIDIA/cosmos-evaluator</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.15761">Waver</a></td><td>mode 采样的出处</td><td>–</td><td><a href="https://arxiv.org/abs/2508.15761">2508.15761</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2611.06627 后的整理，不是作者的官方内容。原文：NVIDIA（贡献者见原文附录 A），《Interactive World Simulation with Cosmos for Physical AI》，arXiv 2611.06627v1，arXiv 登记许可 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>（PDF 页脚另有 “© 2026 NVIDIA. All rights reserved.”）。图 1–7、9、11、13、14、16、17、19、20、22、24、27 从原文 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图。表格数字照录原文；读者注、问答和动画是本页所加。代码对照基于 NVIDIA/cosmos-framework（OpenMDW-1.1）commit e40831f。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

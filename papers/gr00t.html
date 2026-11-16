@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GR00T N1 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.14734 GR00T N1（NVIDIA）的中文精读：双系统 VLA（Eagle-2 VLM + 流匹配 DiT 动作头）、具身专用编解码、数据金字塔（真机、人类视频、仿真、神经生成轨迹、LAPA 与 IDM 伪标签）、训练、RoboCasa / DexMimicGen / GR-1 仿真基准和真机结果逐节整理；对照 Isaac-GR00T 官方代码和权重文件头；补充 N1.5 / N1.6 / N1.7 的版本变化和与 OpenWAM 的关系；11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:820px}.t-links{min-width:660px}.t-ver{min-width:900px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.t-ver td{vertical-align:top}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+figure.pfig.half img{max-width:440px}
+.src{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/gr00t/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2503.14734 · cs.RO · v2 2025 年 3 月 27 日 · NVIDIA 白皮书 · 中文精读</p>
+<h1>GR00T N1：面向通用人形机器人的开放基础模型</h1>
+<p class="orig">GR00T N1: An Open Foundation Model for Generalist Humanoid Robots</p>
+<p>作者署名 NVIDIA；附录 A 列出核心贡献者（研究负责人 Linxi “Jim” Fan、Yuke Zhu）和其他贡献者。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2503.14734">arXiv 原文</a><a href="https://arxiv.org/pdf/2503.14734v2">PDF</a><a href="https://arxiv.org/html/2503.14734v2">HTML 版</a><a href="https://github.com/NVIDIA/Isaac-GR00T">Isaac-GR00T 代码</a><a href="https://huggingface.co/nvidia/GR00T-N1-2B">GR00T-N1-2B 权重</a><a href="https://research.nvidia.com/labs/lpr/publication/gr00tn1_2025/">项目页</a><span>正文 18 页，附录 A 到 F 到第 28 页，参考文献在后</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，但 PDF 每页页脚印着“© 2025 NVIDIA. All rights reserved.”，两者矛盾（同 <a href="sonic.html">SONIC</a> 页的情况，见<a href="#n1">读者注 1</a>）。<b>这一批论文由站点作者决定放原图</b>：下面 14 张图从 arXiv PDF（v2）裁切，只做了裁切、缩放和格式转换，没有改内容，版权归原作者，每张图注写明出处和看原图链接。</p>
+<p>按原文顺序覆盖第 1 到 6 节和附录 A 到 F，小节编号和原文一致，用自己的话整理，不逐字翻译。原文只给式 (1) 编号，其余公式标“无编号”。表格数字照录原文；长表放进折叠块。“读者注”是我核算或对照时发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b><a href="https://github.com/NVIDIA/Isaac-GR00T">NVIDIA/Isaac-GR00T</a>（Apache-2.0）读了五个版本，只读没有运行：N1 用标签 <a href="https://github.com/NVIDIA/Isaac-GR00T/tree/755876a9afdb41ca6eb6383b36f4a0adb085c73f">n1-release</a>（提交 755876a，2025-06-10），N1.5 用 <a href="https://github.com/NVIDIA/Isaac-GR00T/tree/4af2b622892f7dcb5aae5a3fb70bcb02dc217b96">n1.5-release</a>（4af2b62，2025-11-05），N1.6 用 <a href="https://github.com/NVIDIA/Isaac-GR00T/tree/ead52833afbbf4243f8cd5e7664f48a94de03b19">n1.6-release</a>（ead5283，2026-04-14），N1.7 用 <a href="https://github.com/NVIDIA/Isaac-GR00T/tree/23ace64f17aa5015259b8609d371eb61a357c776">n1.7-release</a>（23ace64，2026-04-17）和当前 <a href="https://github.com/NVIDIA/Isaac-GR00T/tree/3b49067943eb1ab2eb2203b93d461c4390c78da3">main</a>（3b49067，2026-11-10）。权重许可不同：N1、N1.5、N1.6 的 HF 模型卡写 NVIDIA 单向非商业许可，N1.7 写 NVIDIA Open Model License（可商用）。参数量用 HF 上 safetensors 的文件头逐项数（只下载文件头，没下载权重）。公开代码只有微调和推理，没有预训练、LAPA、IDM、视频生成和检测损失的训练代码，这些只能和论文对字面。</p>
+<p><b>本页的位置。</b><a href="openwam.html">OpenWAM</a> 的 RoboCasa-GR1 基准就是本文 §4.1 的“GR-1 桌面任务”，GR00T 各版本也是 OpenWAM 表里的 VLA 基线。所以逐节精读之后加了两节：<a href="#later">N1.5 / N1.6 / N1.7 的变化</a>（没有正式论文，依据 README、模型卡和博客）和<a href="#openwam">和 OpenWAM 的关系</a>。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · arXiv 许可和 PDF 页脚矛盾</span><p>arXiv 摘要页（2503.14734，v1 2025-03-18、v2 2025-03-27）登记的许可是 CC BY 4.0；PDF（v2）每页页脚印着“© 2025 NVIDIA. All rights reserved.”。这和 <a href="sonic.html">SONIC</a>、<a href="graspgen.html">GraspGen</a> 两页遇到的情况一样（那两篇是 CC BY-SA 加 NVIDIA 版权声明）。本页按这一批的决定放原图，图注同时写明两种说法。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 模型</a><a href="#s2-1">2.1 结构</a><a href="#i3d">3D 框架动画</a><a href="#s2-2">2.2 数据生成</a><a href="#s2-3">2.3 训练</a><a href="#s3">3 预训练数据</a><a href="#s4">4 评测</a><a href="#s4-4">4.4 定量结果</a><a href="#s4-5">4.5 定性</a><a href="#s5">5 相关工作</a><a href="#s6">6 结论</a><a href="#appA">附录 A–F</a><a href="#code">代码对照</a><a href="#later">N1.5–N1.7 的变化</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>GR00T N1 是 NVIDIA 发布的人形机器人 VLA（视觉-语言-动作）模型。它把模型分成两半：<b>System 2</b> 是一个预训练的视觉语言模型 Eagle-2，负责“看懂场景和指令”；<b>System 1</b> 是一个用流匹配训练的扩散 Transformer（DiT），通过交叉注意力读 System 2 的输出，生成一段 16 步的连续动作。两半一起端到端训练。不同机器人的状态和动作维度不同，用每种具身各自的小 MLP 投影到共享空间。</p>
+<ul>
+<li><b>规模：</b>公开的 GR00T-N1-2B 共 2.2B 参数，VLM 占 1.34B；L40 上 bf16 采样一段 16 步动作 63.9 ms。</li>
+<li><b>数据金字塔：</b>底层是网页数据和人类第一视角视频，中层是仿真轨迹（DexMimicGen）和视频模型“做梦”生成的神经轨迹，顶层是真机遥操作。没有动作标签的视频用两种伪动作：VQ-VAE 学出的潜在动作（LAPA）和逆动力学模型（IDM）预测的动作，各当成一种“具身”。</li>
+<li><b>训练：</b>预训练 batch 16,384、20 万步，约 5 万 H100 GPU 小时；后训练按单一具身微调，语言部分始终冻结。</li>
+<li><b>结果：</b>三个仿真基准（RoboCasa 24 任务、DexMimicGen 9 任务、GR-1 桌面 24 任务）每任务 100 条示范时平均 45.0%，高于 Diffusion Policy 的 33.4%；真机 GR-1 上全量数据 76.8% 对 46.4%，只用 10% 数据也有 42.6%。</li>
+</ul>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li>“2.2B / 1.34B”按文件头精确是 2,190,019,826 和 1,335,279,856，一个不差；但动作头里有 3.15 亿参数是 32 个具身槽位各一份的编解码 MLP，大部分槽位在微调时用不到（<a href="#n2">读者注 2</a>）。</li>
+<li>论文式 (1) 的速度目标写成 \(\epsilon-A_t\)，配上它的 Euler 更新会往噪声走；代码里是 \(A_t-\epsilon\)，方向对（<a href="#n4">读者注 4</a>）。表 2 的 DexMG 数和附录表 4 对不上（<a href="#n11">读者注 11</a>）。</li>
+<li>对 OpenWAM 最要紧的是：RoboCasa-GR1 就是本文的 24 个 GR-1 桌面任务；OpenWAM 表里 GR00T N1.5 的 48.0 能在 Isaac-GR00T 的 N1.5 README 找到（0.48），N1.6 的 49.9 找不到出处（README 是 47.6），见<a href="#openwam">和 OpenWAM 的关系</a>。</li>
+</ol>
+
+<figure class="pfig half" id="fig1">
+<img src="gr00t/fig1.webp" width="823" height="579" alt="图 1：数据金字塔，顶层真实机器人数据，中层合成数据，底层网页数据和人类视频" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · NVIDIA，arXiv 2503.14734，arXiv 登记 CC BY 4.0（PDF 页脚另有 NVIDIA 版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S1.F1">看原图 ↗</a></span>训练数据的金字塔。从下到上，数量减少、和具体机器人的相关性增加：底层是网页数据和人类视频（图里画了 Ego4D、EPIC-KITCHENS、Common Crawl、维基百科、Reddit 的标志），中层是合成数据，顶层是真实机器人数据。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>作者主张通用机器人要“全栈”解决三件事：硬件（人形的身体和人类环境最匹配）、模型（要能处理开放的任务）、数据（人形真机数据太贵）。基础模型在文本和图像上已经证明了“大数据预训练 + 快速适配”的路线，但机器人没有“互联网规模的人形数据”，各家机器人的本体、传感器、自由度和控制方式都不同，数据像一个个“孤岛”。</p>
+<p>GR00T N1 的回应：</p>
+<ul>
+<li><b>模型：</b>受“系统 1 / 系统 2”认知理论启发的双系统 VLA。System 2 是 VLM，在 NVIDIA L40 上以 10 Hz 运行；System 1 是用流匹配训练的 DiT，交叉注意力读 VLM 的输出 token，用具身专用的编解码器处理不同维度的状态和动作，以更高频率（120 Hz）输出闭环动作。两者都是 Transformer，联合优化。</li>
+<li><b>数据：</b>把异构数据按规模组织成金字塔（图 1），预训练和后训练都在整个金字塔上联合训练。没有动作的视频（人类视频、神经生成视频）用潜在动作码本和 IDM 打伪标签，当作额外的“具身”。</li>
+<li><b>发布：</b>GR00T-N1-2B 检查点、训练数据和仿真基准都公开。</li>
+</ul>
+<div class="note" id="n6"><span class="lab">读者注 6 · 10 Hz 和 120 Hz 在公开代码里没有对应</span><p>正文给的数：VLM 10 Hz，动作 120 Hz，采样一段 16 步动作 63.9 ms（§2）。16 / 0.0639 s ≈ 250 步/秒，所以 120 Hz 不是推理吞吐的直接换算。公开代码（n1-release 的 <code>gr00t/model/gr00t_n1.py</code> 的 <code>get_action</code>）每次调用先跑一遍 backbone、再跑动作头，没有“VLM 慢、DiT 快”的两套频率，也没有缓存 VLM 特征复用的逻辑。GR-1 遥操作数据是 20 Hz（§3.1），16 步动作块对应 0.8 秒。120 Hz 怎么来的（例如下游控制器插值）论文没说，未核实。</p></div>
+
+<h2 id="s2"><span class="no">2</span>GR00T N1 基础模型</h2>
+<p>结构：视觉语言骨干编码图像和语言，DiT 流匹配策略输出高频动作。骨干是 NVIDIA 的 Eagle-2 VLM。GR00T-N1-2B 总共 2.2B 参数，VLM 占 1.34B。作者列了三个特点：VLM 推理模块和 DiT 动作模块组合在一个统一的学习框架里；用人类视频、仿真和神经生成数据、真机示范的混合做预训练；训练一个大规模多任务、语言条件、支持多种具身的策略，能用少量数据快速后训练。</p>
+<figure class="pfig" id="fig2">
+<img src="gr00t/fig2.webp" width="1600" height="887" alt="图 2：图像观测和语言指令被编码成 token 送入 VLM（System 2），机器人状态和动作 token 与 VLM 输出一起送入 Diffusion Transformer（System 1），去噪后输出电机动作" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S2.F2">看原图 ↗</a></span>总览。图像观测和语言指令（例句“Pick up the industry object and place in yellow bin.”）分别编码成图像 token 和文本 token，进 VLM（System 2）。机器人状态（关节位置、速度、底座位置、末端位姿等）编码后，和动作 token 一起进 Diffusion Transformer（System 1），经过多步去噪输出电机动作。</figcaption>
+</figure>
+<div class="note" id="n2"><span class="lab">读者注 2 · 2.2B 和 1.34B 逐项数出来</span><p>HF 上 <code>nvidia/GR00T-N1-2B</code> 的 <code>model.safetensors</code> 文件头（全部 bf16）合计 <b>2,190,019,826</b> 个参数。分项：</p>
+<ul>
+<li>VLM：语言模型 906,045,440（只存了前 12 层，词表 49,164 × 2048）+ 视觉编码器 412,442,352 + 视觉到语言的 MLP（<code>mlp1</code>，输入 4608 = 4 × 1152）13,644,800 + 投影层 2048 → 1536（<code>backbone.linear</code>）3,147,264 = <b>1,335,279,856</b>，四舍五入 1.34B。不算投影层是 1.33B，所以论文的 1.34B 包括这层。</li>
+<li>动作头 854,739,970：DiT 537,803,776（16 块 × 33,047,040 = 528,752,640，加时间步编码和输出层），动作编码器 228,212,736，状态编码器 52,510,720，动作解码器 34,636,800，位置编码 1,572,864，还有一个 2 维输出的 <code>decode_layer</code>（3,074，见<a href="#n17">读者注 17</a>）。</li>
+<li>三个编解码器都是 32 个具身槽位各一套（<code>max_num_embodiments = 32</code>）：每个槽位动作编码器 7,131,648、状态编码器 1,640,960、解码器 1,082,400，合计 9,855,008；32 个槽位共 3.15 亿，占总数 14%。按代码，GR-1 用第 24 号槽位，新具身微调用第 31 号（<code>gr00t/model/transforms.py</code> 的 <code>_EMBODIMENT_TAG_MAPPING</code>），其余槽位推理时不参与计算。</li>
+</ul></div>
+
+<h3 id="s2-1"><span class="no">2.1</span>模型结构</h3>
+<p>动作用流匹配学习。DiT 处理本体状态和带噪动作，并与 Eagle-2 输出的图像和文本 token 做交叉注意力，输出去噪后的动作（图 3）。</p>
+<figure class="pfig" id="fig3">
+<img src="gr00t/fig3.webp" width="1600" height="884" alt="图 3：Eagle-2 VLM 带雪花标记表示预训练并冻结；状态编码器、动作编码器、动作解码器是绿色的具身专用模块；中间是 N 个交替的交叉注意力和自注意力块，循环 K 次" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S2.F3">看原图 ↗</a></span>结构细节。左上：图像经视觉编码器、指令经文本分词器进 Eagle-2 VLM（画了雪花，图例写“预训练并冻结”）。绿色是具身专用模块：状态编码器读 \(q_t\)，动作编码器读带噪动作 \(a_t\dots a_{t+H-1}\)，动作解码器输出电机动作。中间 DiT 块交替做交叉注意力（对 VLM token）和自注意力，重复 N 块；整个去噪循环 K 次。</figcaption>
+</figure>
+<div class="note" id="n7"><span class="lab">读者注 7 · 图 3 的“冻结”只对语言部分成立</span><p>图 3 给整个 Eagle-2 VLM 画了雪花“Pre-trained and Frozen”。但 §2.3 和表 6 说预训练和后训练都只冻结语言部分，视觉编码器是训练的（表 6：vision encoder unfrozen，text tokenizer frozen）。权重配置也是 <code>tune_llm: false, tune_visual: true</code>；N1 微调脚本 <code>scripts/gr00t_finetune.py</code> 默认 <code>tune_visual = True</code>。“整个 VLM 冻结”是 N1.5 才改的（<a href="#later">见后</a>），图 3 的画法和 N1 的实际设定不符。</p></div>
+
+<h4>状态和动作编码器</h4>
+<p>不同具身的状态和动作维度不同，每个具身用一个 MLP 把它们投影到共享的嵌入维度，再送进 DiT。仿照 π0，动作编码器同时编码扩散时间步和带噪动作向量。</p>
+<p>动作按块处理：任一时刻 \(t\)，模型处理 \(A_t=[a_t,a_{t+1},\dots,a_{t+H-1}]\)，即第 \(t\) 到 \(t+H-1\) 步的动作向量，\(H=16\)。</p>
+
+<h4>视觉语言模块（System 2）</h4>
+<p>Eagle-2 由 SmolLM2 语言模型和 SigLIP-2 图像编码器微调而成，在大量视觉语言任务上对齐过。图像以 224 × 224 编码，经过 pixel shuffle，每帧得到 64 个图像 token；然后和文本一起进 LLM。训练策略时，任务描述和（可能多张）图像按 VLM 训练时的对话格式输入，取 LLM 的特征（batch × 序列长 × 隐藏维）。作者发现用<b>中间层</b>而不是最后一层的特征，推理更快、下游成功率也更高；GR00T-N1-2B 用第 12 层。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · “第 12 层”在代码里是把后面的层删掉；64 个 token 怎么来的</span><p><code>gr00t/model/backbone/eagle_backbone.py</code>：<code>while len(layers) &gt; select_layer: layers.pop(-1)</code>，<code>select_layer = 12</code>，再把 <code>lm_head</code> 换成恒等，取最后一个 hidden state。所以检查点里只存了 12 层语言模型（文件头只有第 0 到 11 层），推理也只算 12 层，这就是“更快”的来源。</p>
+<p>64 个 token：SigLIP 的 patch 是 14，224 / 14 = 16，16 × 16 = 256 个 patch；pixel shuffle 把 2 × 2 个相邻 patch 拼成一个，256 / 4 = 64，通道 1152 × 4 = 4608，正好是 <code>mlp1</code> 第一层的输入维度。配置里 <code>num_image_token: 64</code>、<code>max_input_tiles: 1</code>（不切块）。VLM 输出 2048 维，经 <code>backbone.linear</code> 投影到 1536 维再给 DiT。</p></div>
+
+<h4>扩散 Transformer 模块（System 1）</h4>
+<p>动作模型 \(V_\theta\) 是 DiT 的一个变体：用自适应 LayerNorm（adaLN）注入去噪步。它由交替的交叉注意力块和自注意力块组成（类似 Flamingo 和 VIMA）：自注意力块处理带噪动作 token \(A_t^\tau\) 和状态嵌入 \(q_t\)；交叉注意力块以 VLM 输出的视觉语言 token \(\varphi_t\) 为条件。最后一个 DiT 块之后，用具身专用的动作解码器（另一个 MLP）处理最后 \(H\) 个 token，得到动作。</p>
+<p>给定真实动作块 \(A_t\)、流匹配时间 \(\tau\in[0,1]\)、噪声 \(\epsilon\sim\mathcal N(0,I)\)，带噪动作块为 \(A_t^\tau=\tau A_t+(1-\tau)\epsilon\)。模型预测 \(V_\theta(\varphi_t,A_t^\tau,q_t)\) 去逼近去噪向量场 \(\epsilon-A_t\)，损失是</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm fm}(\theta)=\mathbb E_\tau\Big[\big\|V_\theta(\varphi_t,A_t^\tau,q_t)-(\epsilon-A_t)\big\|^2\Big] \]</div><span class="no">(1)</span></div>
+<p>和 π0 一样，时间的分布取</p>
+<div class="eq"><div class="m">\[ p(\tau)=\mathrm{Beta}\Big(\frac{s-\tau}{s};\,1.5,\,1\Big),\qquad s=0.999 \]</div><span class="no">无编号</span></div>
+<p>推理时 \(K\) 步去噪：先采 \(A_t^0\sim\mathcal N(0,I)\)，再用前向 Euler 迭代</p>
+<div class="eq"><div class="m">\[ A_t^{\tau+1/K}=A_t^\tau+\frac1K\,V_\theta(\varphi_t,A_t^\tau,q_t) \]</div><span class="no">无编号</span></div>
+<p>实践中 \(K=4\) 对所有具身都够用。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 式 (1) 的速度方向写反了，代码是对的</span><p>按 \(A_t^\tau=\tau A_t+(1-\tau)\epsilon\)，\(\tau=0\) 是纯噪声、\(\tau=1\) 是数据，沿 \(\tau\) 增大的速度是 \(\mathrm dA^\tau/\mathrm d\tau=A_t-\epsilon\)。论文让网络逼近 \(\epsilon-A_t\)，又用“\(+\frac1K V\)”从 \(\tau=0\) 往 \(\tau=1\) 积分，两者一起用会把样本推离数据。代码 <code>flow_matching_action_head.py</code>：<code>noisy_trajectory = (1 - t) * noise + t * actions</code>，<code>velocity = actions - noise</code>，推理 <code>actions = actions + dt * pred_velocity</code>，方向一致。所以是论文式 (1) 的笔误。</p>
+<p><b>时间分布。</b>代码先抽 \(x\sim\mathrm{Beta}(1.5,1)\)，再令 \(\tau=(s-x)/s\)，和论文的式子等价。\(x\) 的密度 \(\propto x^{0.5}\) 偏向 1，所以 \(\tau\) 偏向 0（噪声端）：\(\mathbb E[x]=0.6\)，\(\mathbb E[\tau]=(0.999-0.6)/0.999=0.399\)。\(\tau\) 的取值范围是 \([-0.001,1]\)，\(s\) 让它碰不到恰好 1（无噪声）。训练时 \(\tau\) 乘 1000 取整成 1000 个桶再送进时间步编码。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · K = 4：权重配置写 16，脚本默认 4</span><p>HF 上 GR00T-N1-2B 的 <code>config.json</code> 是 <code>num_inference_timesteps: 16</code>。但 n1-release 的 <code>scripts/inference_service.py</code> 和 <code>scripts/eval_policy.py</code> 都有 <code>--denoising_steps</code> 参数，默认 4，传进 <code>Gr00tPolicy</code> 覆盖配置。按代码，4 步的时间点是 \(\tau=0,\,0.25,\,0.5,\,0.75\)（桶号 0、250、500、750），步长 0.25，最后一步之后到达 \(\tau=1\)。直接 <code>from_pretrained</code> 不传参数会跑 16 步。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>从数据到部署拆成 11 幕：双系统总览、数据金字塔（表 7 当场加总）、潜在动作 LAPA、神经轨迹和 IDM、仿真轨迹、System 2 的 token 流、具身编解码槽位（当场算参数量）、DiT 的交替注意力、流匹配训练（可切换论文写法和代码写法）、K 步推理、结果和版本演进。下面嵌的是第 8 幕。</p>
+<iframe src="../interactives/gr00t/index.html?embed=1&amp;scene=8" title="GR00T N1 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/gr00t/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s2-2"><span class="no">2.2</span>训练数据生成</h3>
+<p>金字塔的底层是公开的人类第一视角视频和 VLM 预训练用的网页数据。中层：用预训练的视频生成模型生成合成神经轨迹，把内部遥操作数据从 88 小时扩到 827 小时（约 10 倍），换上新的语言指令，得到大量“反事实”轨迹（图 5）；另外生成大量仿真轨迹。顶层是真机遥操作。下面依次讲潜在动作、神经轨迹和仿真轨迹，以及各自怎么得到动作。</p>
+<h4>潜在动作</h4>
+<p>人类视频和神经轨迹没有动作。作者按 LAPA（Ye 等，2025）训练一个 VQ-VAE：编码器读当前帧 \(x_t\) 和固定窗口 \(H\) 之后的帧 \(x_{t+H}\)，输出潜在动作 \(z_t\)；解码器读 \(z_t\) 和 \(x_t\)，重建 \(x_{t+H}\)。编码器输出的连续向量被映射到码本里最近的条目。训练完后把编码器当逆动力学模型用：给一对 \(x_t,x_{t+H}\)，取<b>量化前的连续嵌入</b>当潜在动作标签，用同样的流匹配损失训练，并把它当成一个单独的“LAPA”具身。VQ-VAE 在所有异构数据上一起训练，所有数据共享同一个潜在动作空间，可能有助于跨具身泛化。图 4 是 8 种具身（含人类）里检索到的相似潜在动作。</p>
+<figure class="pfig" id="fig4">
+<img src="gr00t/fig4.webp" width="1600" height="592" alt="图 4：左边一组是不同机器人和人手都在把右臂往左移的帧对，右边一组都在往右移" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 6 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S2.F4">看原图 ↗</a></span>按潜在动作检索到的 \((x_t,x_{t+H})\) 帧对。左边“潜在动作 1”：各种具身都在把右臂（或右手）往左移；右边“潜在动作 2”：往右移。作者用它说明这个潜在动作在机器人和人类之间是一致的。</figcaption>
+</figure>
+
+<h4>神经轨迹</h4>
+<p>机器人数据量随人工线性增长。作者在全部 88 小时内部遥操作数据上微调图生视频模型，给定已有的初始帧和新的语言提示，生成 827 小时视频。为了多样性，先用一个商用多模态大模型从初始帧里识别物体，生成大量“把 {物体} 从 {位置 A} 拿到 {位置 B}”的组合，并要求只保留物理上可行的；生成后再用多模态大模型当裁判，读下采样的 8 帧，过滤掉没按指令做的视频，再重新写描述（细节见附录 F）。</p>
+<figure class="pfig" id="fig5">
+<img src="gr00t/fig5.webp" width="1600" height="1604" alt="图 5：七行生成视频，每行左边红框是初始帧，提示词各不相同" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 7 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S2.F5">看原图 ↗</a></span>生成的视频（红框是初始帧）。前三行同一初始帧、不同提示（换左右手、换放置位置）；接着两行同一初始帧、换要拿的物体；第六行是仿真难做的“把网杯里的东西倒进盒子”；最后一行从仿真初始帧生成。</figcaption>
+</figure>
+
+<h4>仿真轨迹</h4>
+<p>人形同时控制双臂和灵巧手，真机采数特别贵。作者用 DexMimicGen 自动扩增：任务分解为以物体为中心的子任务，把少量人类示范切成段，每段按物体新位置变换（保持末端和物体的相对位姿），段与段之间插值，逐步执行，最后检查成功，只保留成功的轨迹。预训练加后训练共生成 78 万条仿真轨迹，相当于 6,500 小时（连续 9 个月）的人类示范，只用了 11 小时。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 78 万条、6,500 小时和表 7 的 1,742.6 小时</span><p>6,500 小时 ÷ 78 万条 = 平均每条 30 秒；“9 个月”= 9 × 30 × 24 = 6,480 小时，对得上。§3.2 说预训练是 54 种容器组合 × 每种 1 万条 = 54 万条，表 7 的仿真预训练是 1,742.6 小时，即每条平均 11.6 秒。那么其余 24 万条（后训练）要占 6,500 − 1,742.6 = 4,757 小时，每条 71 秒；而后训练的仿真集是 DexMG 9 × 1000 和 GR-1 24 × 1000（§4.1），只有 3.3 万条，和 24 万条也对不上。78 万和 6,500 小时的口径未核实。</p></div>
+
+<h3 id="s2-3"><span class="no">2.3</span>训练细节</h3>
+<p><b>预训练。</b>在各种具身和数据源上用式 (1) 训练。人类视频只用潜在动作当目标；GR-1 人形数据、Open X-Embodiment 等机器人数据同时用真实动作和潜在动作当目标；神经轨迹同时用潜在动作和一个在真机数据上训练的 IDM 预测的动作。超参见表 6。</p>
+<p><b>后训练。</b>在单一具身的数据上微调。和预训练一样，冻结 VL 骨干的语言部分，其余全部微调。</p>
+<p><b>用神经轨迹做后训练。</b>为缓解后训练数据少，给每个下游任务也生成神经轨迹。多视角的任务把多个视角拼成网格让视频模型一起生成（图 13）。仿真任务从随机初始化的环境里收集初始帧；真机任务手工摆物体、录初始观测（也可以用 img2img 扩散自动造初始帧，留作以后）。为贴近“遥操作数据有限”的现实，视频模型只在仿真任务的人类采集轨迹、以及真机基准后训练数据的 10% 上微调；低数据设定下 IDM 也只用这部分数据训练。生成视频没有动作，用潜在动作或 IDM 动作当伪标签，当作另一个具身训练。后训练时真实轨迹和神经轨迹按 1 : 1 采样。</p>
+<p><b>基础设施。</b>NVIDIA OSMO 调度的 H100 集群，Quantum-2 InfiniBand 胖树互连，基于 Ray 的容错多机训练和数据读取。单个模型最多 1024 张 GPU；GR00T-N1-2B 预训练约 5 万 H100 GPU 小时。单张 A6000 微调：只调适配层（状态、动作编码器和动作解码器）和 DiT 时 batch 最大 200，连视觉编码器一起调时最大 16。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 预训练的量</span><p>表 6：batch 16,384 × 20 万步 = 32.8 亿个样本。5 万 GPU 小时 ÷ 1024 张卡 = 48.8 小时，约两天。表 7 的预训练数据共 5.93 亿帧，所以按帧算约 5.5 个 epoch（不同数据源的采样权重论文没给，实际每个源的 epoch 数不同，未核实）。</p></div>
+
+<h2 id="s3"><span class="no">3</span>预训练数据集</h2>
+<p>预训练语料分三类：真机数据（§3.1，塔顶）、合成数据（§3.2，中层，含仿真和神经轨迹）、人类视频（§3.3，塔底）。表 1 是哪类数据用了哪种生成方法，完整统计在表 7。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 1 · 数据生成方法</th><th class="c">潜在动作</th><th class="c">神经轨迹</th><th class="c">仿真轨迹</th></tr></thead><tbody>
+<tr><td>真机数据集</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>仿真机器人数据集</td><td class="c">✓</td><td class="c">✓</td><td class="c"></td></tr>
+<tr><td>人类视频数据集</td><td class="c">✓</td><td class="c"></td><td class="c"></td></tr>
+</tbody></table></div>
+
+<h3 id="s3-1"><span class="no">3.1</span>真机数据集</h3>
+<ol>
+<li><b>GR00T N1 人形预训练集。</b>内部采集，主要是 Fourier GR-1 的遥操作：VIVE Ultimate Tracker 跟踪手腕位姿，Xsens 手套跟踪手指（图 6 写的是 Manus 手套），也试过 Apple Vision Pro 和 Leap Motion。人的动作经逆运动学重定向到机器人，控制频率 20 Hz。每步记录头部相机图像、人的低维本体和动作。标注分两级：细粒度（抓、移、放等原子动作）和粗粒度（把一串原子动作合成高层任务）。</li>
+<li><b><a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></b>（<a href="https://arxiv.org/abs/2310.08864">论文</a>）。用了其中的 <a class="ds" href="https://robotics-transformer1.github.io/">RT-1</a>、<a class="ds" href="https://rail-berkeley.github.io/bridgedata/">Bridge-v2</a>、<a class="ds" href="https://interactive-language.github.io/">Language Table</a>、<a class="ds" href="https://droid-dataset.github.io/">DROID</a>、<a class="ds" href="https://ut-austin-rpl.github.io/MUTEX/">MUTEX</a>、<a class="ds" href="https://robopen.github.io/roboset/">RoboSet</a>、<a class="ds" href="https://microsoft.github.io/PLEX/">Plex</a>。</li>
+<li><b><a class="ds" href="https://agibot-world.com/">AgiBot-Alpha</a></b>（<a href="https://arxiv.org/abs/2503.06669">AgiBot World 论文</a>）。100 台机器人的大规模数据，用了开训时已有的 14 万条轨迹，含精细操作、工具使用和多机协作。</li>
+</ol>
+<figure class="pfig" id="fig6">
+<img src="gr00t/fig6.webp" width="1600" height="514" alt="图 6：三种遥操作硬件（Manus 手套加 Vive 追踪器、Apple Vision Pro、Leap Motion），人手动作捕捉，重定向到机器人，在真机和仿真里执行" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S3.F6">看原图 ↗</a></span>遥操作流程：硬件选项 1 是 Manus 手套 + Vive Ultimate Tracker，选项 2 Apple Vision Pro，选项 3 Leap Motion；捕捉 6 自由度手腕位姿和手部骨架，重定向成机器人动作，在真机（上）和仿真（下）里执行。注意正文写的是 Xsens 手套，图里写 Manus 手套。</figcaption>
+</figure>
+
+<h3 id="s3-2"><span class="no">3.2</span>合成数据集</h3>
+<p><b>仿真轨迹。</b>在 <a class="ds" href="https://robocasa.ai/">RoboCasa</a>（<a href="https://arxiv.org/abs/2406.02523">论文</a>）框架里搭人形桌面重排任务，形式是“把 A 从 B 移到 C”，B、C 是盘子、篮子、餐垫、架子等容器；共 54 种来源-目标容器组合，物体和容器位置随机，另放干扰物，迫使模型看语言。先用 Leap Motion 遥操作采几十条源示范，重定向后交给基于 mink 的全身 IK 控制器；再用 <a class="ds" href="https://dexmimicgen.github.io/">DexMimicGen</a>（<a href="https://arxiv.org/abs/2410.24185">论文</a>）每种组合生成 1 万条，共 54 万条。</p>
+<p><b>神经轨迹。</b>在 GR00T N1 人形预训练集上微调开源图生视频模型，训练 100 个 epoch，数据是 3,000 条带语言标注的真机样本，每条 480P、81 帧。模型能对新提示生成反事实轨迹，对没见过的初始帧、物体和动作也有泛化。生成视频再打潜在动作和 IDM 伪动作。共约 827 小时；在 L40 上生成 1 秒视频要 2 分钟，总计约 10.5 万 L40 GPU 小时，用 3,600 张 L40 约 1.5 天。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 神经轨迹的算力和长度</span><p>827 小时 × 3600 秒 × 每秒 2 分钟 = 827 × 120 = 99,240 GPU 小时，和“约 10.5 万”接近（差 6%）。10.5 万 ÷ 3,600 张 = 29.2 小时 ≈ 1.2 天，比“约 1.5 天”略短，可能含调度开销，未核实。</p>
+<p>表 7 的神经视频是 2,380 万帧、8 FPS：2,380 万 ÷ 8 ÷ 3600 = 826.4 小时，和 827.3 对上。81 帧 ÷ 8 FPS = 10.1 秒；§5 说约 30 万条神经轨迹，827.3 小时 ÷ 30 万 = 9.9 秒每条，也对上。所以一条神经轨迹就是一段 81 帧的生成视频。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>人类视频数据集</h3>
+<p>人类视频没有动作标签，但有大量人与物体交互，覆盖抓取、工具使用、做饭、组装等，多为第一视角（图 14）。用了七个：<a class="ds" href="https://ego4d-data.org/">Ego4D</a>（<a href="https://arxiv.org/abs/2110.07058">论文</a>，日常活动第一视角）、<a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a>（<a href="https://arxiv.org/abs/2311.18259">论文</a>，加第三视角）、<a class="ds" href="https://assembly-101.github.io/">Assembly-101</a>（<a href="https://arxiv.org/abs/2203.14712">论文</a>，分步组装）、<a class="ds" href="https://epic-kitchens.github.io/">EPIC-KITCHENS</a>（<a href="https://arxiv.org/abs/1804.02748">论文</a>，厨房）、<a class="ds" href="https://hoi4d.github.io/">HOI4D</a>（<a href="https://arxiv.org/abs/2203.01577">论文</a>，逐帧分割、手和物体位姿）、<a class="ds" href="https://holoassist.github.io/">HoloAssist</a>（<a href="https://arxiv.org/abs/2309.17024">论文</a>，AR 环境里的协作任务）、<a class="ds" href="https://rh20t.github.io/">RH20T</a>-Human（<a href="https://arxiv.org/abs/2307.00595">论文</a>，精细操作）。</p>
+<details class="tbl"><summary>表 7 · 预训练数据统计（附录，照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>数据集</th><th class="n">帧数</th><th class="n">时长（小时）</th><th class="n">FPS</th><th>视角</th><th>类别</th></tr></thead><tbody>
+<tr><td>GR-1 遥操作预训练</td><td class="n">6.4M</td><td class="n">88.4</td><td class="n">20</td><td>第一视角</td><td>真机</td></tr>
+<tr><td>DROID (OXE)</td><td class="n">23.1M</td><td class="n">428.3</td><td class="n">15</td><td>左、右、腕</td><td>真机</td></tr>
+<tr><td>RT-1 (OXE)</td><td class="n">3.7M</td><td class="n">338.4</td><td class="n">3</td><td>第一视角</td><td>真机</td></tr>
+<tr><td>Language Table (OXE)</td><td class="n">7.0M</td><td class="n">195.7</td><td class="n">10</td><td>正前</td><td>真机</td></tr>
+<tr><td>Bridge-v2 (OXE)</td><td class="n">2.0M</td><td class="n">111.1</td><td class="n">5</td><td>肩、左、右、腕</td><td>真机</td></tr>
+<tr><td>MUTEX (OXE)</td><td class="n">362K</td><td class="n">5.0</td><td class="n">20</td><td>腕</td><td>真机</td></tr>
+<tr><td>Plex (OXE)</td><td class="n">77K</td><td class="n">1.1</td><td class="n">20</td><td>腕</td><td>真机</td></tr>
+<tr><td>RoboSet (OXE)</td><td class="n">1.4M</td><td class="n">78.9</td><td class="n">5</td><td>左、右、腕</td><td>真机</td></tr>
+<tr><td>Agibot-Alpha</td><td class="n">213.8M</td><td class="n">1,979.4</td><td class="n">30</td><td>第一视角、左、右</td><td>真机</td></tr>
+<tr><td>RH20T-Robot</td><td class="n">4.5M</td><td class="n">62.5</td><td class="n">20</td><td>腕</td><td>真机</td></tr>
+<tr><td>Ego4D</td><td class="n">154.4M</td><td class="n">2,144.7</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>Ego-Exo4D</td><td class="n">8.9M</td><td class="n">123.0</td><td class="n">30</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>Assembly-101</td><td class="n">1.4M</td><td class="n">19.3</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>HOI4D</td><td class="n">892K</td><td class="n">12.4</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>HoloAssist</td><td class="n">12.2M</td><td class="n">169.6</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>RH20T-Human</td><td class="n">1.2M</td><td class="n">16.3</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>EPIC-KITCHENS</td><td class="n">2.3M</td><td class="n">31.7</td><td class="n">20</td><td>第一视角</td><td>人类</td></tr>
+<tr><td>GR-1 仿真预训练</td><td class="n">125.5M</td><td class="n">1,742.6</td><td class="n">20</td><td>第一视角</td><td>仿真</td></tr>
+<tr><td>GR-1 神经视频</td><td class="n">23.8M</td><td class="n">827.3</td><td class="n">8</td><td>第一视角</td><td>神经生成</td></tr>
+<tr><td><b>真机合计</b></td><td class="n">262.3M</td><td class="n">3,288.8</td><td class="n">–</td><td>–</td><td>–</td></tr>
+<tr><td><b>人类合计</b></td><td class="n">181.3M</td><td class="n">2,517.0</td><td class="n">–</td><td>–</td><td>–</td></tr>
+<tr><td><b>仿真合计</b></td><td class="n">125.5M</td><td class="n">1,742.6</td><td class="n">–</td><td>–</td><td>–</td></tr>
+<tr><td><b>神经合计</b></td><td class="n">23.8M</td><td class="n">827.3</td><td class="n">–</td><td>–</td><td>–</td></tr>
+<tr><td><b>总计</b></td><td class="n">592.9M</td><td class="n">8,375.7</td><td class="n">–</td><td>–</td><td>–</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 7 的合计都对，Ego-Exo4D 的 FPS 对不上</span><p>逐行加：真机 262.339M 帧、3,288.8 小时；人类 181.292M、2,517.0 小时；总计 592.931M、8,375.7 小时，和表里的合计一致。再用“帧数 ÷ FPS ÷ 3600”核每行时长：其他行误差都在 3% 以内（GR-1 遥操作 6.4M ÷ 20 = 88.9 对 88.4，是 6.4M 取整造成的），只有 Ego-Exo4D 是 8.9M ÷ 30 = 82.4 小时，而表里写 123.0；按 20 FPS 算是 123.6，所以它的 FPS 列可能应为 20，未核实。</p>
+<p>按时长，人类视频占 30%，仿真 21%，神经视频 10%，真机 39%；真机里 AgiBot-Alpha 一家就占 60%（1,979.4 / 3,288.8）。GR-1 自己的遥操作只有 88.4 小时，占总量 1.1%。</p></div>
+
+<h2 id="s4"><span class="no">4</span>评测</h2>
+<p>三个仿真基准评跨具身和多任务，真机在 GR-1 上做桌面操作，重点看少量示范能学到多少。</p>
+<h3 id="s4-1"><span class="no">4.1</span>仿真基准</h3>
+<figure class="pfig" id="fig7">
+<img src="gr00t/fig7.webp" width="1600" height="623" alt="图 7：三行任务渲染图，第一行 RoboCasa 厨房任务，第二行 DexMimicGen 双臂任务，第三行 GR-1 桌面任务" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 11 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S4.F7">看原图 ↗</a></span>Omniverse 渲染的仿真任务。上：RoboCasa（Pick and Place、Turn Off Stove、Setup Mug、Turn On Water、Turn On Microwave）；中：DexMimicGen（Piece Assembly、Transport、Pouring、Coffee、Tray Lift）；下：新做的 GR-1 桌面任务（Move To Pan、Move To Box、Move To Shelf、Bottle To Cabinet、Cup To Drawer）。</figcaption>
+</figure>
+<ul>
+<li><b>RoboCasa Kitchen（24 任务）。</b>厨房里的 24 个“原子”任务：抓放、开关门、按按钮、拧水龙头等。每个任务用公开的 3,000 条 Franka Panda 示范（MimicGen 生成）。观测：左、右、腕三路 RGB；状态：末端和底座的位置旋转、夹爪；动作：末端相对位置旋转和夹爪。训练和评测协议同 RoboCasa 原文。</li>
+<li><b>DexMimicGen 跨具身套件（9 任务，DexMG）。</b>三种双臂具身：双 Panda 平行夹爪（穿线、三件组装、搬运），双 Panda 灵巧手（收箱子、收抽屉、抬托盘），GR-1 人形灵巧手（倒水、做咖啡、罐子分拣，状态动作是双臂双手关节加腰和脖子）。每任务生成 1000 条示范，评对新物体布局的泛化。</li>
+<li><b>GR-1 桌面任务（24 任务，GR-1）</b>（<a class="ds" href="https://github.com/robocasa/robocasa-gr1-tabletop-tasks">任务仓库</a>）。真机人形数据的数字孪生，用带 Fourier 灵巧手的 GR-1。18 个重排任务（和 §3.2 预训练任务结构相同，但容器组合在预训练里没出现过）加 6 个“放进柜子、抽屉、微波炉再关上”的铰接任务。观测是头部一路 RGB；状态动作是双臂双手关节加腰和脖子，可选末端动作（全身 IK 控制器原生用末端）。每任务 1000 条示范。</li>
+</ul>
+
+<h3 id="s4-2"><span class="no">4.2</span>真机基准</h3>
+<p>四类桌面任务（图 8）：</p>
+<ul>
+<li><b>物体放入容器（5 任务，Pick-and-Place）：</b>托盘、盘子、砧板、篮子、餐垫、碗、锅之间搬东西，分见过和没见过的物体。</li>
+<li><b>铰接物体（3 任务，Articulated）：</b>把物体放进木箱、深色柜子、白色抽屉再关上，同样分见过和没见过的物体。</li>
+<li><b>工业物体（3 任务，Industrial）：</b>机械零件装箱（5 个零件和工具放进黄箱）、网杯倾倒（把装螺丝的网杯倒进塑料箱）、圆柱交接（左手传右手再放进黄箱）。</li>
+<li><b>多机协作（2 任务，Coordination）：</b>第 1 部分：拿圆柱放进网杯，再把网杯递给另一台机器人；第 2 部分：接收方把圆柱放进一个黄箱，把网杯里剩下的倒进另一个黄箱。</li>
+</ul>
+<p>每个任务人工采集 15 分钟到 3 小时不等的数据，去掉低质量轨迹。</p>
+<figure class="pfig" id="fig8">
+<img src="gr00t/fig8.webp" width="1600" height="1540" alt="图 8：上面是两个预训练评测任务，下面四行是后训练评测的四类任务" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S4.F8">看原图 ↗</a></span>真机任务，图像都来自 GR00T-N1-2B 或其后训练模型的实际运行。上：两个预训练评测，左手接物交给右手再放到底层架子；把新物体放进没见过的容器。下：后训练评测的四类，依次是抓放、铰接、工业、多机协作。</figcaption>
+</figure>
+
+<h3 id="s4-3"><span class="no">4.3</span>实验设置</h3>
+<p>在数据受限的设定下后训练 GR00T N1 和基线，评成功率。默认全局 batch 1024、训练 6 万步；DexMG 每种具身任务少、数据少，GR00T-N1-2B 用 batch 128。</p>
+<p><b>基线。</b>BC-Transformer（RoboMimic 里的 Transformer 行为克隆，GMM 输出，输入 10 帧观测、预测 10 步动作）和 Diffusion Policy（U-Net 去噪，输入 1 帧、一次输出 16 步）。两者都从头训练。</p>
+<p><b>评测协议。</b>仿真：每 500 步存一个检查点，取最后 5 个检查点里最好的那个的 100 次平均成功率（沿用 RoboCasa 协议）。真机：部分得分制，每任务 10 次取平均；机械零件装箱例外，按 30 秒内放进箱子的零件数（共 5 个）算，只做 5 次。低数据设定：每任务只用 10% 的数据。</p>
+
+<h3 id="s4-4"><span class="no">4.4</span>定量结果</h3>
+<p><b>预训练模型直接评测。</b>在真机 GR-1 上设计两个任务：物体放在左手左边、指令是放到底层架子，需要左手抓、交给右手、再放（协调）；把新物体放进没见过的容器（新物体）。每个任务 5 个物体 × 3 次。GR00T-N1-2B 分别得 76.6%（11.5/15）和 73.3%（11/15），0.5 表示抓对但没放进去。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 76.6%</span><p>11.5 / 15 = 76.67%，四舍五入应为 76.7%，论文截断成 76.6%。11 / 15 = 73.33%，没问题。</p></div>
+<p><b>后训练，仿真。</b>每个基准分别用每任务 30、100、300 条示范后训练（RoboCasa 24、DexMG 9、GR-1 24 个任务）。GR00T N1 在所有基准和数据量上都超过从头训练的基线，完整结果在附录 B（表 4、图 10）。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 2 · 仿真结果（每任务 100 条）</th><th class="n">RoboCasa</th><th class="n">DexMG</th><th class="n">GR-1</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>BC Transformer</td><td class="n">26.3%</td><td class="n">53.9%</td><td class="n">16.1%</td><td class="n">26.4%</td></tr>
+<tr><td>Diffusion Policy</td><td class="n">25.6%</td><td class="n">56.1%</td><td class="n">32.7%</td><td class="n">33.4%</td></tr>
+<tr><td>GR00T-N1-2B</td><td class="n">32.1%</td><td class="n">66.5%</td><td class="n">50.0%</td><td class="n">45.0%</td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 2 的 DexMG 和表 4、图 10 对不上</span><p>表 4 里 DexMG 9 个任务 100 条示范的逐项平均：Diffusion Policy 46.87，GR00T 58.50，和表 4 自己的“DexMG Average”行（46.9、58.5）以及图 10 的柱顶数一致。但表 2 写的是 56.1 和 66.5，各高 9 和 8 个点。RoboCasa（25.6、32.1）和 GR-1（32.7、50.0）两列和表 4 一致。</p>
+<p>表 2 的“平均”是按任务数加权（24 / 9 / 24，共 57 个任务）：BC (26.3 × 24 + 53.9 × 9 + 16.1 × 24) / 57 = 26.36，DP 33.41，GR00T 45.07，和表里的 26.4、33.4、45.0 对上（45.07 按四舍五入应为 45.1）。如果把 DexMG 换成表 4 的数，平均是 DP 31.95、GR00T 43.81。哪组 DexMG 数是对的，论文没说明，未核实。图注“GR-1 上领先超过 17%”：50.0 − 32.7 = 17.3，对。</p></div>
+<p><b>后训练，真机。</b>GR00T-N1-2B 对比 Diffusion Policy，分别用 10% 和全部遥操作数据（表 3、图 9）。GR00T 在 10% 数据下领先 32.4 个点，全数据领先 30.4；只用 10% 数据比 Diffusion Policy 用全数据只低 3.8。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 3 · 真机结果</th><th class="n">抓放</th><th class="n">铰接</th><th class="n">工业</th><th class="n">协作</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Diffusion Policy（10%）</td><td class="n">3.0%</td><td class="n">14.3%</td><td class="n">6.7%</td><td class="n">27.5%</td><td class="n">10.2%</td></tr>
+<tr><td>Diffusion Policy（全部）</td><td class="n">36.0%</td><td class="n">38.6%</td><td class="n">61.0%</td><td class="n">62.5%</td><td class="n">46.4%</td></tr>
+<tr><td>GR00T-N1-2B（10%）</td><td class="n">35.0%</td><td class="n">62.0%</td><td class="n">31.0%</td><td class="n">50.0%</td><td class="n">42.6%</td></tr>
+<tr><td>GR00T-N1-2B（全部）</td><td class="n">82.0%</td><td class="n">70.9%</td><td class="n">70.0%</td><td class="n">82.5%</td><td class="n">76.8%</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 3 的“平均”是 13 个任务的平均</span><p>文中的差值都对：42.6 − 10.2 = 32.4，76.8 − 46.4 = 30.4，46.4 − 42.6 = 3.8。“平均”列既不是四个类别的平均（四列平均是 12.9、49.5、44.5、76.4），也不是表 5 里 18 行的平均（8.2、43.5、40.5、78.2）。按 13 个任务算对上了：抓放 5 个任务（每个取见过/没见过两行的平均），加铰接 3、工业 3、协作 2，即 (5 × 抓放 + 3 × 铰接 + 3 × 工业 + 2 × 协作) / 13 = 10.23、46.45、42.61、76.76。表 3 各类别数也能从表 5 复算（例如 GR00T 10% 的铰接 (26.4 + 86.6 + 72.9) / 3 = 61.97）。</p></div>
+<figure class="pfig" id="fig9">
+<img src="gr00t/fig9.webp" width="1600" height="590" alt="图 9：左图 RoboCasa 三种数据量下 DP、GR00T、GR00T 加 LAPA、GR00T 加 IDM 的成功率；右图真机 GR-1 上 DP、GR00T、GR00T 加 IDM 在抓放、工业、总体上的成功率" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 16 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#S4.F9">看原图 ↗</a></span>神经轨迹消融。左（RoboCasa，每任务 3k 条神经轨迹）：30 条示范 DP 14.7、GR00T 17.4、+LAPA 21.6、+IDM 21.2；100 条 25.6、32.1、39.5、40.9；300 条 43.2、49.6、52.9、56.4。右（真机 10% 数据，每任务 100 条神经轨迹，只用 IDM）：抓放（5 任务）DP 2.0、GR00T 36.0、+IDM 42.0；工业（3 任务）6.67、31.0、36.67；总体（8 任务）4.07、33.78、39.63。</figcaption>
+</figure>
+<p><b>用神经轨迹后训练。</b>RoboCasa 和真机抓放（见过的物体）、工业任务上的初步结果（图 9）：和只用真实轨迹相比，RoboCasa 在 30、100、300 条时平均分别提升 4.2、8.8、6.8 个点，GR-1 真机 8 个任务平均提升 5.8。LAPA 和 IDM 比较：30 条时 LAPA 略好，数据多了 IDM 领先越来越多；作者的解释是 IDM 训练数据多了，伪动作更接近真实动作。GR-1 真机对作者来说是“数据较多”的情形，所以只用 IDM。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 图 9 的提升取的是 LAPA 和 IDM 里较好的那个；“总体”算不出来</span><p>RoboCasa：30 条 21.6 − 17.4 = 4.2（LAPA），100 条 40.9 − 32.1 = 8.8（IDM），300 条 56.4 − 49.6 = 6.8（IDM），所以正文的三个数每次取的都是两种标签里更好的。LAPA 和 IDM 的差：30 条 LAPA 高 0.4，100 条 IDM 高 1.4，300 条 IDM 高 3.5，和“差距变大”一致。</p>
+<p>真机：抓放 36.0、工业 31.0（DP 2.0、6.67）和表 5 的 10% 数据“见过的物体”平均、工业平均一致。“+5.8”= 39.63 − 33.78 = 5.85，对。但“总体（8 任务）”本身按任务数加权应为 (5 × 36.0 + 3 × 31.0) / 8 = 34.13，图上是 33.78；+IDM 应为 (5 × 42.0 + 3 × 36.67) / 8 = 40.0，图上 39.63；DP 应为 3.75，图上 4.07。三个都差 0.3 到 0.4，可能“总体”是按试次而不是按任务平均的（工业里的零件装箱只做 5 次），未核实。</p></div>
+
+<h3 id="s4-5"><span class="no">4.5</span>定性结果</h3>
+<p>RoboCasa 的“Turn Sink Spout”（100 条示范）：DP 11.8%，GR00T N1 42.2%（和表 4 一致）；DP 常常弄错任务语义。作者认为微调数据很多时预训练的作用会变小。</p>
+<p>用后训练基准里的指令“把红苹果放进篮子”提示<b>预训练</b>模型，并故意把苹果放在人形左手左边：预训练模型用左手抓、交给右手、再放进篮子，动作较抖（图 11）。<b>后训练</b>模型在这个摆法下失败，因为后训练数据全是右手、没有交接，模型失去了这个能力。</p>
+<p>后训练后的 GR00T N1 动作明显比 Diffusion Policy 平滑，抓取更准；DP 常在开头几帧不动、抓不准（图 12）。</p>
+
+<h3 id="s4-6"><span class="no">4.6</span>局限</h3>
+<p>目前只做短时程桌面操作；以后要做长时程的移动操作，需要硬件、模型和数据都进步。更强的 VLM 骨干应能改善空间推理和语言理解。合成数据（视频生成、自动轨迹合成）在“多样、反事实、又符合物理”上仍有困难。还会探索新的模型结构和预训练策略。</p>
+
+<h2 id="s5"><span class="no">5</span>相关工作</h2>
+<p><b>机器人基础模型。</b>一类把预训练大模型当黑盒高层规划器，配机器人专用的底层策略，前提是底层技能和接口都已有；另一类把大模型在机器人数据上微调成 VLA，端到端优化。GR00T 属后者，用 Eagle-2 当 VLM，加流匹配动作生成和动作分块。和 π0 用混合专家结构桥接 VLM 与动作模型不同，GR00T 用简单的交叉注意力，对 VLM 和动作模型的具体结构更灵活。具身专用投影器类似 Octo，但 Octo 不微调 VLM；GR00T 的投影器还支持潜在动作和 IDM 动作。</p>
+<p><b>机器人学习的数据。</b>遥操作（手机、VR 等）质量高但贵，大团队、大机队采集可到数千小时；带仪器的人类示范（手持夹爪、外骨骼、眼镜）更快但和真实机器人有差异；人类视频量大，有的用来预训练表示，有的通过中间表示和机器人数据联合训练，LAPA 表明只用人类视频的潜在动作预训练也能正迁移。GR00T 把真机、人类视频和合成数据放在一起用。</p>
+<p><b>合成数据。</b>仿真自动生成示范（MimicGen、DexMimicGen 等）便宜，但有仿真到现实的差距。以前的神经生成增强多用修补或文生图；本文用视频生成模型生成整条轨迹，规模约 30 万条、827 小时，作者说这是前所未有的。</p>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>GR00T N1 是面向通用人形机器人的开放基础模型：双系统结构、异构训练数据、支持多种具身；在仿真基准和真机 GR-1 上系统评测，显示出泛化能力和数据效率。作者希望公开的 GR00T-N1-2B、训练数据和仿真环境能推动社区进展。</p>
+
+<h2 id="appA">附录</h2>
+<h3 id="appA-1"><span class="no">A</span>贡献者和致谢</h3>
+<p>核心贡献者按方向列出：模型训练（Scott Reed、Ruijie Zheng、Guanzhi Wang、Johan Bjorck、Joel Jang 等 15 人），真机和遥操作基础设施，真机实验，仿真基础设施和实验，视频生成和潜在动作（Joel Jang、Seonghyeon Ye、Zongyu Lin、Jiannan Xiang），数据，算力和开源，项目管理；产品负责人 Spencer Huang；研究负责人 Linxi “Jim” Fan、Yuke Zhu。致谢 1X 和 Fourier 团队的硬件支持，以及 Cosmos 团队等。</p>
+
+<h3 id="appB"><span class="no">B</span>详细实验结果</h3>
+<p>表 4、表 5 是仿真和真机的逐任务对比，图 10 是仿真的平均柱状图。数据越多两者都越好，GR00T 始终领先。</p>
+<figure class="pfig" id="fig10">
+<img src="gr00t/fig10.webp" width="1600" height="572" alt="图 10：三个基准、三种示范数下 Diffusion Policy 和 GR00T-N1-2B 的平均成功率柱状图" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 20 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#A2.F10">看原图 ↗</a></span>仿真后训练平均成功率（DP / GR00T）。RoboCasa：30 条 14.7 / 17.4，100 条 25.6 / 32.1，300 条 43.2 / 49.6；DexMG：23.7 / 29.6，46.9 / 58.5，68.4 / 74.2；GR-1：21.3 / 43.2，32.7 / 50.0，40.4 / 49.3。和表 4 的平均行一致（DexMG 和表 2 不一致，见读者注 11）。</figcaption>
+</figure>
+<details class="tbl"><summary>表 4 · 仿真逐任务结果（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">任务</th><th class="c" colspan="3">Diffusion Policy</th><th class="c" colspan="3">GR00T-N1-2B</th></tr><tr><th class="n">30</th><th class="n">100</th><th class="n">300</th><th class="n">30</th><th class="n">100</th><th class="n">300</th></tr></thead><tbody>
+<tr class="grp"><th colspan="7">RoboCasa Kitchen（24 任务，PnP = 抓放）</th></tr>
+<tr><td>Close Double Door</td><td class="n">1.7</td><td class="n">26.5</td><td class="n">60.8</td><td class="n">0.0</td><td class="n">43.1</td><td class="n">74.5</td></tr>
+<tr><td>Close Drawer</td><td class="n">57.5</td><td class="n">88.2</td><td class="n">94.1</td><td class="n">76.9</td><td class="n">96.1</td><td class="n">99.0</td></tr>
+<tr><td>Close Single Door</td><td class="n">21.7</td><td class="n">46.1</td><td class="n">72.6</td><td class="n">49.1</td><td class="n">67.7</td><td class="n">83.3</td></tr>
+<tr><td>Coffee Press Button</td><td class="n">32.5</td><td class="n">46.1</td><td class="n">91.2</td><td class="n">27.8</td><td class="n">56.9</td><td class="n">85.3</td></tr>
+<tr><td>Coffee Serve Mug</td><td class="n">6.7</td><td class="n">28.4</td><td class="n">66.7</td><td class="n">3.7</td><td class="n">34.3</td><td class="n">72.6</td></tr>
+<tr><td>Coffee Setup Mug</td><td class="n">0.0</td><td class="n">19.6</td><td class="n">32.4</td><td class="n">0.0</td><td class="n">2.0</td><td class="n">22.6</td></tr>
+<tr><td>Open Double Door</td><td class="n">0.0</td><td class="n">9.8</td><td class="n">18.6</td><td class="n">0.0</td><td class="n">12.8</td><td class="n">14.7</td></tr>
+<tr><td>Open Drawer</td><td class="n">15.8</td><td class="n">42.2</td><td class="n">61.8</td><td class="n">9.3</td><td class="n">42.2</td><td class="n">79.4</td></tr>
+<tr><td>Open Single Door</td><td class="n">36.7</td><td class="n">42.2</td><td class="n">57.8</td><td class="n">20.4</td><td class="n">54.9</td><td class="n">58.8</td></tr>
+<tr><td>PnP from Cab to Counter</td><td class="n">2.5</td><td class="n">4.9</td><td class="n">9.8</td><td class="n">0.9</td><td class="n">3.9</td><td class="n">19.6</td></tr>
+<tr><td>PnP from Counter to Cab</td><td class="n">0.0</td><td class="n">2.9</td><td class="n">10.8</td><td class="n">1.9</td><td class="n">6.9</td><td class="n">36.3</td></tr>
+<tr><td>PnP from Counter to Microwave</td><td class="n">0.0</td><td class="n">2.0</td><td class="n">8.8</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">12.8</td></tr>
+<tr><td>PnP from Counter to Sink</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">13.7</td><td class="n">0.0</td><td class="n">1.0</td><td class="n">9.8</td></tr>
+<tr><td>PnP from Counter to Stove</td><td class="n">0.0</td><td class="n">1.0</td><td class="n">17.7</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">23.5</td></tr>
+<tr><td>PnP from Microwave to Counter</td><td class="n">0.0</td><td class="n">2.0</td><td class="n">11.8</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">15.7</td></tr>
+<tr><td>PnP from Sink to Counter</td><td class="n">4.2</td><td class="n">8.8</td><td class="n">42.2</td><td class="n">0.0</td><td class="n">5.9</td><td class="n">33.3</td></tr>
+<tr><td>PnP from Stove to Counter</td><td class="n">1.7</td><td class="n">2.9</td><td class="n">23.5</td><td class="n">0.0</td><td class="n">0.0</td><td class="n">29.4</td></tr>
+<tr><td>Turn Off Microwave</td><td class="n">63.3</td><td class="n">53.9</td><td class="n">52.0</td><td class="n">47.2</td><td class="n">57.8</td><td class="n">70.6</td></tr>
+<tr><td>Turn Off Sink Faucet</td><td class="n">21.7</td><td class="n">63.7</td><td class="n">72.6</td><td class="n">49.1</td><td class="n">67.7</td><td class="n">72.6</td></tr>
+<tr><td>Turn Off Stove</td><td class="n">5.0</td><td class="n">10.8</td><td class="n">19.6</td><td class="n">4.6</td><td class="n">15.7</td><td class="n">26.5</td></tr>
+<tr><td>Turn On Microwave</td><td class="n">30.0</td><td class="n">51.0</td><td class="n">75.5</td><td class="n">55.6</td><td class="n">73.5</td><td class="n">78.4</td></tr>
+<tr><td>Turn On Sink Faucet</td><td class="n">31.7</td><td class="n">27.5</td><td class="n">63.7</td><td class="n">33.3</td><td class="n">59.8</td><td class="n">62.8</td></tr>
+<tr><td>Turn On Stove</td><td class="n">12.5</td><td class="n">22.6</td><td class="n">36.3</td><td class="n">14.8</td><td class="n">25.5</td><td class="n">55.9</td></tr>
+<tr><td>Turn Sink Spout</td><td class="n">8.3</td><td class="n">11.8</td><td class="n">23.5</td><td class="n">24.1</td><td class="n">42.2</td><td class="n">52.9</td></tr>
+<tr><td><b>RoboCasa 平均</b></td><td class="n">14.7</td><td class="n">25.6</td><td class="n">43.2</td><td class="n">17.4</td><td class="n">32.1</td><td class="n">49.6</td></tr>
+<tr class="grp"><th colspan="7">DexMimicGen 跨具身套件（9 任务）</th></tr>
+<tr><td>Can Sort</td><td class="n">82.8</td><td class="n">93.1</td><td class="n">99.4</td><td class="n">94.8</td><td class="n">98.0</td><td class="n">98.0</td></tr>
+<tr><td>Coffee</td><td class="n">35.5</td><td class="n">68.1</td><td class="n">79.7</td><td class="n">44.9</td><td class="n">79.4</td><td class="n">73.5</td></tr>
+<tr><td>Pouring</td><td class="n">37.0</td><td class="n">62.3</td><td class="n">68.8</td><td class="n">54.4</td><td class="n">71.6</td><td class="n">87.3</td></tr>
+<tr><td>Threading</td><td class="n">4.2</td><td class="n">18.3</td><td class="n">27.5</td><td class="n">3.9</td><td class="n">37.3</td><td class="n">60.8</td></tr>
+<tr><td>Three Piece Assembly</td><td class="n">10.0</td><td class="n">32.5</td><td class="n">63.3</td><td class="n">10.8</td><td class="n">43.1</td><td class="n">69.6</td></tr>
+<tr><td>Transport</td><td class="n">7.5</td><td class="n">25.0</td><td class="n">53.3</td><td class="n">7.8</td><td class="n">48.0</td><td class="n">61.8</td></tr>
+<tr><td>Box Cleanup</td><td class="n">30.0</td><td class="n">80.8</td><td class="n">97.5</td><td class="n">33.3</td><td class="n">29.4</td><td class="n">95.1</td></tr>
+<tr><td>Drawer Cleanup</td><td class="n">1.7</td><td class="n">16.7</td><td class="n">52.5</td><td class="n">10.8</td><td class="n">42.2</td><td class="n">55.9</td></tr>
+<tr><td>Lift Tray</td><td class="n">5.0</td><td class="n">25.0</td><td class="n">73.3</td><td class="n">5.8</td><td class="n">77.5</td><td class="n">65.7</td></tr>
+<tr><td><b>DexMG 平均</b></td><td class="n">23.7</td><td class="n">46.9</td><td class="n">68.4</td><td class="n">29.6</td><td class="n">58.5</td><td class="n">74.2</td></tr>
+<tr class="grp"><th colspan="7">GR-1 桌面（24 任务）</th></tr>
+<tr><td>Cutting Board to Pot</td><td class="n">22.6</td><td class="n">37.3</td><td class="n">48.0</td><td class="n">58.8</td><td class="n">57.8</td><td class="n">57.8</td></tr>
+<tr><td>Cutting Board to Basket</td><td class="n">19.6</td><td class="n">42.2</td><td class="n">29.4</td><td class="n">43.1</td><td class="n">61.8</td><td class="n">56.9</td></tr>
+<tr><td>Cutting Board to Tiered Basket</td><td class="n">13.7</td><td class="n">13.7</td><td class="n">18.6</td><td class="n">13.7</td><td class="n">23.5</td><td class="n">34.3</td></tr>
+<tr><td>Cutting Board to Pan</td><td class="n">28.4</td><td class="n">48.0</td><td class="n">57.8</td><td class="n">67.7</td><td class="n">65.7</td><td class="n">68.6</td></tr>
+<tr><td>Cutting Board to Cardboard Box</td><td class="n">11.8</td><td class="n">15.7</td><td class="n">22.6</td><td class="n">31.4</td><td class="n">30.4</td><td class="n">33.3</td></tr>
+<tr><td>Placemat to Bowl</td><td class="n">14.7</td><td class="n">18.6</td><td class="n">23.5</td><td class="n">31.4</td><td class="n">39.2</td><td class="n">39.2</td></tr>
+<tr><td>Placemat to Plate</td><td class="n">15.7</td><td class="n">23.5</td><td class="n">37.3</td><td class="n">33.3</td><td class="n">37.3</td><td class="n">49.0</td></tr>
+<tr><td>Placemat to Basket</td><td class="n">15.7</td><td class="n">25.5</td><td class="n">41.2</td><td class="n">50.0</td><td class="n">46.1</td><td class="n">55.9</td></tr>
+<tr><td>Placemat to Tiered Shelf</td><td class="n">6.9</td><td class="n">5.9</td><td class="n">11.8</td><td class="n">11.8</td><td class="n">21.6</td><td class="n">19.6</td></tr>
+<tr><td>Plate to Pan</td><td class="n">13.7</td><td class="n">17.7</td><td class="n">35.3</td><td class="n">35.3</td><td class="n">48.0</td><td class="n">52.9</td></tr>
+<tr><td>Plate to Cardboard Box</td><td class="n">12.8</td><td class="n">13.7</td><td class="n">27.5</td><td class="n">34.3</td><td class="n">38.2</td><td class="n">32.4</td></tr>
+<tr><td>Plate to Bowl</td><td class="n">15.7</td><td class="n">18.6</td><td class="n">31.4</td><td class="n">41.2</td><td class="n">42.2</td><td class="n">34.3</td></tr>
+<tr><td>Plate to Plate</td><td class="n">25.5</td><td class="n">39.2</td><td class="n">61.8</td><td class="n">72.6</td><td class="n">85.3</td><td class="n">68.6</td></tr>
+<tr><td>Tray to Tiered Shelf</td><td class="n">2.0</td><td class="n">6.9</td><td class="n">15.7</td><td class="n">17.7</td><td class="n">27.5</td><td class="n">14.7</td></tr>
+<tr><td>Tray to Tiered Basket</td><td class="n">12.8</td><td class="n">34.3</td><td class="n">39.2</td><td class="n">33.3</td><td class="n">49.0</td><td class="n">45.1</td></tr>
+<tr><td>Tray to Plate</td><td class="n">26.5</td><td class="n">41.2</td><td class="n">49.0</td><td class="n">53.9</td><td class="n">68.6</td><td class="n">62.8</td></tr>
+<tr><td>Tray to Cardboard Box</td><td class="n">21.6</td><td class="n">37.3</td><td class="n">40.2</td><td class="n">51.0</td><td class="n">55.9</td><td class="n">54.9</td></tr>
+<tr><td>Tray to Pot</td><td class="n">21.6</td><td class="n">48.0</td><td class="n">52.9</td><td class="n">52.0</td><td class="n">59.8</td><td class="n">65.7</td></tr>
+<tr><td>Wine to Cabinet</td><td class="n">43.1</td><td class="n">55.9</td><td class="n">60.8</td><td class="n">57.8</td><td class="n">53.9</td><td class="n">62.8</td></tr>
+<tr><td>Place Bottle to Cabinet</td><td class="n">40.2</td><td class="n">62.8</td><td class="n">60.8</td><td class="n">60.8</td><td class="n">81.4</td><td class="n">74.5</td></tr>
+<tr><td>Place Milk to Microwave</td><td class="n">37.3</td><td class="n">41.2</td><td class="n">51.0</td><td class="n">42.2</td><td class="n">58.8</td><td class="n">49.0</td></tr>
+<tr><td>Potato to Microwave</td><td class="n">17.7</td><td class="n">30.4</td><td class="n">41.2</td><td class="n">30.4</td><td class="n">26.5</td><td class="n">34.3</td></tr>
+<tr><td>Cup to Drawer</td><td class="n">24.5</td><td class="n">32.4</td><td class="n">36.3</td><td class="n">36.3</td><td class="n">44.1</td><td class="n">40.2</td></tr>
+<tr><td>Can to Drawer</td><td class="n">48.0</td><td class="n">74.5</td><td class="n">75.5</td><td class="n">77.5</td><td class="n">76.5</td><td class="n">75.5</td></tr>
+<tr><td><b>GR-1 平均</b></td><td class="n">21.3</td><td class="n">32.7</td><td class="n">40.4</td><td class="n">43.2</td><td class="n">50.0</td><td class="n">49.3</td></tr>
+</tbody></table></div>
+</details>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 4 的平均行都能复算；GR-1 上 300 条不如 100 条</span><p>逐任务平均（DP 30 / 100 / 300，GR00T 30 / 100 / 300）：RoboCasa 14.73、25.62、43.23、17.45、32.08、49.60；DexMG 23.74、46.87、68.37、29.61、58.50、74.19；GR-1 21.34、32.69、40.37、43.23、49.96、49.26。全部和平均行一致。</p>
+<p>值得注意的是 GR00T 在 GR-1 上 300 条（49.3）比 100 条（50.0）还低，24 个任务里有 13 个 300 条不如 100 条（另 2 个持平）；DexMG 的 Box Cleanup 100 条（29.4）比 30 条（33.3）还低。论文的协议是“最后 5 个检查点取最好”，每个点 100 次试验，单任务的标准误约 ±5 个点，这类倒挂在噪声范围内。</p></div>
+<details class="tbl"><summary>表 5 · 真机逐任务结果（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">任务</th><th class="c" colspan="2">Diffusion Policy</th><th class="c" colspan="2">GR00T-N1-2B</th></tr><tr><th class="n">10%</th><th class="n">全部</th><th class="n">10%</th><th class="n">全部</th></tr></thead><tbody>
+<tr><td>Tray to Plate</td><td class="n">0.0%</td><td class="n">20.0%</td><td class="n">40.0%</td><td class="n">100.0%</td></tr>
+<tr><td>Cutting Board to Basket</td><td class="n">0.0%</td><td class="n">30.0%</td><td class="n">10.0%</td><td class="n">100.0%</td></tr>
+<tr><td>Cutting Board to Pan</td><td class="n">0.0%</td><td class="n">60.0%</td><td class="n">60.0%</td><td class="n">80.0%</td></tr>
+<tr><td>Plate to Bowl</td><td class="n">0.0%</td><td class="n">40.0%</td><td class="n">30.0%</td><td class="n">100.0%</td></tr>
+<tr><td>Placemat to Basket</td><td class="n">10.0%</td><td class="n">60.0%</td><td class="n">40.0%</td><td class="n">80.0%</td></tr>
+<tr><td><b>抓放·见过的物体 平均</b></td><td class="n">2.0%</td><td class="n">42.0%</td><td class="n">36.0%</td><td class="n">92.0%</td></tr>
+<tr><td>Tray to Plate</td><td class="n">0.0%</td><td class="n">20.0%</td><td class="n">30.0%</td><td class="n">80.0%</td></tr>
+<tr><td>Cutting Board to Basket</td><td class="n">10.0%</td><td class="n">20.0%</td><td class="n">60.0%</td><td class="n">60.0%</td></tr>
+<tr><td>Cutting Board to Pan</td><td class="n">0.0%</td><td class="n">40.0%</td><td class="n">40.0%</td><td class="n">80.0%</td></tr>
+<tr><td>Plate to Bowl</td><td class="n">0.0%</td><td class="n">20.0%</td><td class="n">10.0%</td><td class="n">40.0%</td></tr>
+<tr><td>Placemat to Basket</td><td class="n">10.0%</td><td class="n">50.0%</td><td class="n">30.0%</td><td class="n">100.0%</td></tr>
+<tr><td><b>抓放·没见过的物体 平均</b></td><td class="n">4.0%</td><td class="n">30.0%</td><td class="n">34.0%</td><td class="n">72.0%</td></tr>
+<tr><td><b>抓放 平均</b></td><td class="n">3.0%</td><td class="n">36.0%</td><td class="n">35.0%</td><td class="n">82.0%</td></tr>
+<tr><td>White Drawer</td><td class="n">6.6%</td><td class="n">36.4%</td><td class="n">26.4%</td><td class="n">79.9%</td></tr>
+<tr><td>Dark Cabinet</td><td class="n">0.0%</td><td class="n">46.2%</td><td class="n">86.6%</td><td class="n">69.7%</td></tr>
+<tr><td>Wooden Chest</td><td class="n">36.4%</td><td class="n">33.2%</td><td class="n">72.9%</td><td class="n">63.2%</td></tr>
+<tr><td><b>铰接 平均</b></td><td class="n">14.3%</td><td class="n">38.6%</td><td class="n">62.0%</td><td class="n">70.9%</td></tr>
+<tr><td>Machinery Packing</td><td class="n">20.0%</td><td class="n">44.0%</td><td class="n">8.0%</td><td class="n">56.0%</td></tr>
+<tr><td>Mesh Cup Pouring</td><td class="n">0.0%</td><td class="n">62.5%</td><td class="n">65.0%</td><td class="n">67.5%</td></tr>
+<tr><td>Cylinder Handover</td><td class="n">0.0%</td><td class="n">76.5%</td><td class="n">20.0%</td><td class="n">86.6%</td></tr>
+<tr><td><b>工业 平均</b></td><td class="n">6.7%</td><td class="n">61.0%</td><td class="n">31.0%</td><td class="n">70.0%</td></tr>
+<tr><td>Coordination Part 1</td><td class="n">45.0%</td><td class="n">65.0%</td><td class="n">70.0%</td><td class="n">80.0%</td></tr>
+<tr><td>Coordination Part 2</td><td class="n">10.0%</td><td class="n">60.0%</td><td class="n">30.0%</td><td class="n">85.0%</td></tr>
+<tr><td><b>协作 平均</b></td><td class="n">27.5%</td><td class="n">62.5%</td><td class="n">50.0%</td><td class="n">82.5%</td></tr>
+<tr><td><b>平均</b></td><td class="n">10.2%</td><td class="n">46.4%</td><td class="n">42.6%</td><td class="n">76.8%</td></tr>
+</tbody></table></div>
+</details>
+
+<h3 id="appC"><span class="no">C</span>更多定性结果</h3>
+<figure class="pfig" id="fig11">
+<img src="gr00t/fig11.webp" width="1600" height="278" alt="图 11：六帧，预训练模型左手抓起红苹果交给右手，放进篮子" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 21 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#A3.F11">看原图 ↗</a></span>预训练模型的定性例子：任务“把红苹果放进篮子”，苹果放在两只手的左边；模型双手交接后放进篮子，动作较抖。</figcaption>
+</figure>
+<figure class="pfig" id="fig12">
+<img src="gr00t/fig12.webp" width="1600" height="940" alt="图 12：上面一组任务是把柠檬从砧板放进篮子，下面一组是把黄瓜从餐垫放进篮子，每组上行 GR00T，下行 Diffusion Policy" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 21 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#A3.F12">看原图 ↗</a></span>后训练模型和 Diffusion Policy 对比。图里上面一组是“把柠檬从砧板放进篮子”，下面一组是“把黄瓜从餐垫放进篮子”；每组上行 GR00T 成功，下行 DP 抓不准或卡住。原图注把上下两组说反了，见读者注 16。</figcaption>
+</figure>
+<div class="note" id="n16"><span class="lab">读者注 16 · 图 12 的图注上下颠倒</span><p>原图注说“上：黄瓜放进篮子，DP 抓不准；下：柠檬从砧板放进<b>锅</b>，DP 卡住”。图里的顺序正相反：上面一组标题是“Pick up lemon from cutting board to the basket”，下面是“Pick up cucumber from placemat to the basket”；柠檬的目标在图标题里是篮子，图注写的是锅（pan）。</p></div>
+
+<h3 id="appD"><span class="no">D</span>超参数</h3>
+<p>预训练和后训练大多数超参相同；后训练用更小的 batch 防止数据少时过拟合。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 6 · 超参数</th><th>预训练</th><th>后训练</th></tr></thead><tbody>
+<tr><td>学习率</td><td colspan="2">1e-4</td></tr>
+<tr><td>优化器</td><td colspan="2">AdamW，β₁ 0.95，β₂ 0.999，ε 1e-8</td></tr>
+<tr><td>权重衰减</td><td colspan="2">1e-5</td></tr>
+<tr><td>学习率调度</td><td colspan="2">余弦，warmup 比例 0.05</td></tr>
+<tr><td>Batch</td><td>16,384</td><td>128 或 1024</td></tr>
+<tr><td>梯度步数</td><td>200,000</td><td>20,000 – 60,000</td></tr>
+<tr><td>骨干视觉编码器</td><td colspan="2">训练</td></tr>
+<tr><td>骨干文本部分</td><td colspan="2">冻结</td></tr>
+<tr><td>DiT</td><td colspan="2">训练</td></tr>
+</tbody></table></div>
+
+<h3 id="appE"><span class="no">E</span>系统设计</h3>
+<p><b>E.1 数据格式。</b>基于 Hugging Face 的 <a class="ds" href="https://github.com/huggingface/lerobot">LeRobot</a> 数据格式：状态、动作和元数据存 parquet；图像存 MP4（或 PNG 序列），parquet 里存引用；统计和索引存 JSON。每帧是同步的观测和动作对（<code>observation.images.*</code>、<code>observation.state</code>、动作）。为跨具身训练加了四个约束：meta 目录必须有 <code>modality.json</code>，说明状态和动作向量每一维的语义；把状态和动作拆成有语义的字段（末端位置、朝向、夹爪等），各带数据类型、范围和变换说明；支持多种标注（任务描述、有效性、成功标志），沿用 LeRobot“parquet 存索引、JSON 存内容”的做法；显式声明旋转表示（四元数、欧拉角、轴角）。好处是语义清楚、可以按字段归一化和增广、便于校验、和 LeRobot 生态向后兼容。</p>
+<p><b>E.2 统一动作空间。</b>尽量统一各数据集的状态和动作：状态里的末端旋转转成 6D 表示（避免欧拉角的奇异和不连续）；动作里的末端旋转用轴角；关节状态、关节动作、末端位置和末端动作做 min-max 归一化；顺序统一为“末端旋转、末端位置、夹爪开合”，从左臂到右臂。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · GR-1 在代码里的状态和动作</span><p>n1-release 的示例数据 <code>demo_data/robot_sim.PickNPlace/meta/modality.json</code> 是 GR-1 全身 44 维：左臂 7、左手 6、左腿 6、脖子 3、右臂 7、右手 6、右腿 6、腰 3。默认数据配置 <code>Gr1ArmsOnlyDataConfig</code> 只取双臂双手：7 + 7 + 6 + 6 = 26 维，动作 min-max 归一化，补零到 32 维（<code>max_action_dim</code>）。状态额外做了 <code>StateActionSinCosTransform</code>（每个关节角变成 sin 和 cos 两个数，26 → 52，补零到 64 维 <code>max_state_dim</code>），这一步论文没有提。图像中心裁 95% 再缩到 224 × 224，只用 1 帧观测（<code>observation_indices = [0]</code>），动作 16 步。</p></div>
+
+<h3 id="appF"><span class="no">F</span>其他训练细节</h3>
+<p><b>辅助目标检测损失。</b>为了增强空间理解，训练时加一个辅助任务：根据语言指令定位目标物体。用 OWL-v2 检测器给轨迹片段的每一帧标出目标物体的框，取框中心并按图宽高归一化得到 \(x_{gt}\)；在最终视觉语言 token 上接一个线性层预测二维坐标，平方损失 \(\mathcal L_{\rm det}=\|x_{\rm pred}-x_{gt}\|^2\)，总损失 \(\mathcal L=\mathcal L_{\rm fm}+\mathcal L_{\rm det}\)（无编号）。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 检测头在权重里，训练代码不公开</span><p>GR00T-N1-2B 的文件头里有 <code>action_head.decode_layer.weight [2, 1536]</code> 和 bias [2]，共 3,074 个参数：输入 1536 维、输出 2 维，正好是“线性层预测二维坐标”。它挂在 <code>action_head</code> 下，输入宽度是投影后的视觉语言维度（1536）。配置里有 <code>freeze_decode_layer</code>、<code>load_pretrained_det_decode_layer_path</code> 两个键，但 n1-release 的 Python 代码里没有任何地方用到 <code>decode_layer</code>，推理时不计算它。具体取哪些 token、怎样池化，无法核对，未核实。</p></div>
+<p><b>神经轨迹生成。</b>用 LoRA 在遥操作轨迹上微调 WAN2.1-I2V-14B（见本站 <a href="wan.html">Wan 精读</a>），轨迹均匀下采样到 81 帧、480P。为保证质量，每段生成视频取 8 帧，问商用多模态大模型是否符合指令；不符合的重新写描述，此时视频下采样到 16 帧、256P。</p>
+<figure class="pfig" id="fig13">
+<img src="gr00t/fig13.webp" width="1600" height="1928" alt="图 13：多视角拼成四格的生成视频、两轮连续生成、铰接物体和液体、修补首帧生成" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 22 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#A3.F13">看原图 ↗</a></span>更多神经轨迹，红框是初始帧。(1) 前三行：RoboCasa 后训练用的多视角轨迹，训练时把左、右、腕三个视角拼成 4 格视频；(2) 接着两行：两轮连续生成（“拿起青椒”“把青椒放进袋子”），后一段的首帧是前一段的末帧；(3) 再两行：铰接物体（茄子放进微波炉再关门）和液体（往蓝碗倒水）；(4) 最后一行：用修补过的首帧生成（“把热熔胶枪放进狗碗”）。</figcaption>
+</figure>
+<p><b>IDM 训练。</b>IDM 以轨迹里的两帧（当前帧和未来帧）为条件，生成两帧之间的动作块。初步实验发现加状态或更多帧对验证集上的动作预测帮助不大。结构用 System 1 的 DiT 加 SigLIP-2 视觉嵌入，流匹配训练；每个具身训练 3 万或 6 万步，看数据量。训练后对神经轨迹的每一步用两帧（动作长度和训练时相同）打伪标签。</p>
+<figure class="pfig" id="fig14">
+<img src="gr00t/fig14.webp" width="1600" height="1994" alt="图 14：七个人类视频数据集各一行样例帧和语言标注" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 25 页 · NVIDIA，arXiv 2503.14734，CC BY 4.0（PDF 页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.14734v2#A6.F14">看原图 ↗</a></span>七个人类第一视角数据集的样例和语言标注：Ego4D（把干手器放进柜子）、Ego-Exo4D（把蒜倒进碗）、HOI4D（拿放订书机）、EPIC-KITCHENS（打开水龙头）、Assembly-101（装轮子）、HoloAssist（检查 GoPro）、RH20T-Human（拧旋钮调大音量）。</figcaption>
+</figure>
+
+<h2 id="code">代码对照：论文写的和代码里的</h2>
+<p>对照的是 n1-release（755876a）和 GR00T-N1-2B 的 <code>config.json</code>、文件头。仓库只有微调和推理；预训练的数据混合、LAPA、IDM、视频生成、检测损失都没有代码。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项目</th><th>论文</th><th>代码 / HF 配置</th></tr></thead><tbody>
+<tr><td>VLM</td><td>Eagle-2（SmolLM2 + SigLIP-2），第 12 层</td><td>本地 <code>eagle2_hg_model</code>，<code>select_layer 12</code>（删掉 12 层以后的层），<code>template qwen2-chat</code>，词表 49,164</td></tr>
+<tr><td>图像</td><td>224 × 224，每帧 64 token</td><td><code>num_image_token 64</code>，<code>max_input_tiles 1</code>；裁 95% 后缩放到 224</td></tr>
+<tr><td>VLM 输出</td><td>未给维度</td><td>2048 → <code>backbone.linear</code> → 1536</td></tr>
+<tr><td>冻结</td><td>只冻结语言部分</td><td><code>tune_llm false</code>，<code>tune_visual true</code>，投影器和 DiT 训练</td></tr>
+<tr><td>DiT</td><td>交替交叉 / 自注意力，adaLN</td><td>16 块，32 头 × 48 = 1536 宽，<code>interleave_self_attention</code>：偶数块交叉、奇数块自注意力，各 8 块；FFN 6144，GELU；dropout 0.2</td></tr>
+<tr><td>DiT 的序列</td><td>状态 + 带噪动作</td><td>1 个状态 token + 16 个动作 token（动作 token 加可学位置编码），交叉注意力块只看 VL token</td></tr>
+<tr><td>编解码器</td><td>每具身一个 MLP</td><td>状态 2 层 MLP（64 → 1024 → 1536）；动作编码器 3 层，第 2 层拼接正弦时间编码；解码器 2 层（1024 → 1024 → 32）；32 个槽位</td></tr>
+<tr><td>维度上限</td><td>未给</td><td>状态 64，动作 32，动作块 16</td></tr>
+<tr><td>流匹配</td><td>目标 \(\epsilon-A\)（读者注 4）</td><td><code>velocity = actions - noise</code></td></tr>
+<tr><td>时间分布</td><td>Beta((s − τ)/s; 1.5, 1)，s = 0.999</td><td>同；τ × 1000 取整成桶</td></tr>
+<tr><td>推理步数</td><td>K = 4</td><td>配置 16，脚本 <code>--denoising_steps</code> 默认 4（读者注 5）</td></tr>
+<tr><td>交叉注意力的填充掩码</td><td>未提</td><td>DiT 调用时 <code>attention_mask=None</code>，块内 <code>encoder_attention_mask</code> 一行被注释掉：交叉注意力会看到填充的 VL token</td></tr>
+<tr><td>微调默认</td><td>表 6：lr 1e-4，wd 1e-5，warmup 0.05</td><td><code>gr00t_finetune.py</code> 同；batch 16、1 万步；可选 LoRA（rank 默认 0）</td></tr>
+</tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · N1 的交叉注意力没有屏蔽填充 token</span><p><code>cross_attention_dit.py</code> 的 <code>DiT.forward</code> 对每个块都传 <code>attention_mask=None</code>，<code>BasicTransformerBlock</code> 里本该传 <code>encoder_attention_mask</code> 的那行被注释掉了。同一 batch 里提示词长短不一时，短的那条会补齐，补的 token 也参与交叉注意力，所以一条观测的动作会随同 batch 里别的样本的提示长度略有变化。当前 main 的 README 为此加了 <code>--strict_vl_padding_mask</code>，说这对发布的检查点约占动作幅度的 2%（N1.7 动作头上测的），默认关闭以保持旧行为。N1 上的影响大小我没测，未核实；单条推理（batch 1）不受影响。</p></div>
+
+<h2 id="later">N1.5 / N1.6 / N1.7 的变化</h2>
+<p>N1 之后的三个版本都没有正式论文。下面依据 Isaac-GR00T 各版本的 README（n1.5-release、n1.6-release、main）、HF 模型卡和 <code>config.json</code>、权重文件头，以及 NVIDIA GEAR 的研究博客（<a href="https://research.nvidia.com/labs/gear/gr00t-n1_5/">N1.5，2025-06-11</a>、<a href="https://research.nvidia.com/labs/gear/gr00t-n1_6/">N1.6，2025-12-15</a>）整理。N1.7 没有找到研究博客（<code>research.nvidia.com/labs/gear/gr00t-n1_7/</code> 返回 403）。每格后面的方括号是出处：[R] README，[C] HF config.json，[W] 权重文件头，[B] 博客，[M] 模型卡。</p>
+<div class="tablewrap"><table class="t-ver"><thead><tr><th>项目</th><th>N1（2025-03）</th><th>N1.5（2025-06）</th><th>N1.6（2025-12）</th><th>N1.7（2026-04 EA，之后 GA）</th></tr></thead><tbody>
+<tr><td>HF 检查点</td><td>GR00T-N1-2B</td><td>GR00T-N1.5-3B</td><td>GR00T-N1.6-3B</td><td>GR00T-N1.7-3B</td></tr>
+<tr><td>参数量（文件头）</td><td>2,190,019,826 [W]</td><td>2,724,163,520 [W]</td><td>3,286,608,832 [W]</td><td>3,455,180,928，其中 <code>lm_head</code> 311,164,928；不计它 3,144,016,000，和 index 的 total_parameters 一致 [W]</td></tr>
+<tr><td>VLM 骨干</td><td>Eagle-2：SmolLM2 + SigLIP-2 [论文]</td><td>Eagle 2.5，针对定位和物理理解调过 [R][B]；路径名 <code>eagle_er-qwen3_1_7B-Siglip2_400M</code> [C]</td><td>博客：内部 Cosmos-2B 变体；README：内部 Cosmos-Reason-2B 变体 [B][R]；config：<code>nvidia/Eagle-Block2A-2B-v2</code> [C]（读者注 23）</td><td>Cosmos-Reason2-2B（Qwen3-VL 结构），支持原生分辨率和宽高比 [R][M][C]</td></tr>
+<tr><td>取 LLM 第几层</td><td>12 [C]</td><td>12 [C]（文件头 12 层）</td><td>16 [C]（文件头 16 层）</td><td>config 16，文件头 16 层；README 说 16 → 12（读者注 22）</td></tr>
+<tr><td>VLM 是否冻结</td><td>语言冻结，视觉训练 [论文][C]</td><td>整个 VLM 冻结（预训练和微调）[R][B]；但 config 写 <code>tune_visual: true</code>（读者注 24）</td><td>解冻 VLM 最上面 4 层（预训练）[R][B]；<code>tune_top_llm_layers 4</code> [C]</td><td>代码默认 <code>tune_top_llm_layers 0</code>、VLM 冻结 [R]；base 检查点 config 写 <code>tune_llm/tune_visual true</code>，未核实预训练实际设置</td></tr>
+<tr><td>VLM 和 DiT 之间</td><td>线性投影 2048 → 1536</td><td>简化的 MLP 连接器并加 LayerNorm [R][B]；另加 4 层自注意力适配器 <code>vl_self_attention</code> [C][W]</td><td>去掉 4 层适配器 [R][B]（文件头里没有）</td><td>4 层 <code>vl_self_attention</code> 又出现在 config 和文件头 [C][W]，README 没提</td></tr>
+<tr><td>DiT 层数</td><td>16 [C]</td><td>16 [C]</td><td>32（“2 倍大”）[R][B][C]</td><td>config 和文件头 32；README 说 32 → 16（读者注 22）</td></tr>
+<tr><td>DiT 交叉注意力</td><td>每个交叉块看全部 VL token</td><td>同 N1</td><td><code>AlternateVLDiT</code>：交叉块轮流只看文本 token 或只看图像 token [C][代码]</td><td>同 N1.6 [C][代码]</td></tr>
+<tr><td>动作块 / 维度</td><td>16 / 32，状态 64 [C]</td><td>16 / 32，状态 64 [C]</td><td>50 / 128，状态 128 [C]；README 说 16（读者注 22）</td><td>40 / 132，状态 132 [R][C]</td></tr>
+<tr><td>动作表示</td><td>多为绝对关节或末端</td><td>同 N1；新增 OXE_DROID（末端）和 AGIBOT_GENIE1 两个预训练头 [R]</td><td>多数具身改为相对当前状态的动作块 [R][B]</td><td>机器人和人类共享相对末端动作空间 [R]</td></tr>
+<tr><td>去噪步数</td><td>4（脚本）</td><td>4 [C]</td><td>4 [C]</td><td>4 [C][M]</td></tr>
+<tr><td>额外目标</td><td>辅助检测损失 [论文附录 F]</td><td>FLARE（未来潜在表示对齐），系数 0.2 [B]；权重里有 32 个 <code>future_tokens</code>，公开代码注释“not using flare now”（读者注 24）</td><td>模型卡沿用“流匹配 + 世界建模目标”的说法 [M]，具体未核实</td><td>未核实</td></tr>
+<tr><td>预训练数据</td><td>表 7：8,376 小时</td><td>内部 GR-1、OXE、仿真 GR-1（DexMG）、DreamGen 神经轨迹、AgiBot-Beta [B]</td><td>N1.5 数据之外加数千小时遥操作：双臂 YAM、AgiBot Genie1、BEHAVIOR 上的仿真 Galaxea R1 Pro、Unitree G1 全身移动操作 [R][B]</td><td>加入 2 万小时 EgoScale 人类视频 [R]；模型卡：21.6M 个数据点、13 个数据集 [M]</td></tr>
+<tr><td>预训练规模</td><td>batch 16,384，20 万步，约 5 万 H100 小时</td><td>batch 16,384，25 万步，1K 张 H100 [B]</td><td>batch 16,384，30 万步 [B]</td><td>模型卡能耗估算按 64 个 GB200 节点 × 4 卡 × 120 小时 [M]</td></tr>
+<tr><td>权重许可</td><td>NVIDIA 单向非商业 [M]</td><td>同左 [M]</td><td>同左 [M]</td><td>NVIDIA Open Model License（可商用）[R][M]</td></tr>
+</tbody></table></div>
+<p><b>各版本自己报的基准分数</b>（都是官方 README 或博客，测法各不相同，不能直接横比）：</p>
+<div class="tablewrap"><table class="t-ver"><thead><tr><th>基准</th><th>N1</th><th>N1.5</th><th>N1.6</th><th>N1.7</th></tr></thead><tbody>
+<tr><td>RoboCasa（Panda，24 任务）</td><td>每任务 30 / 100 / 300 条：17.4 / 32.1 / 49.6 [论文表 4]</td><td>30 条：47.5（博客里 N1 同设定 17.4）[B]</td><td>66.22%（README 标 base 检查点）[R]</td><td>70.8%（微调）[R main]</td></tr>
+<tr><td>RoboCasa-GR1 桌面（24 任务）</td><td>30 / 100 / 300 条：43.2 / 50.0 / 49.3 [论文表 4]</td><td>0-shot 43.9（N1 39.6），30 条 47.4（N1 43.2）[B]；README 微调（24k 条）0.48，每任务 50 次 [R n1.5]</td><td>47.6%（base 检查点，24 任务逐项平均 47.61）[R n1.6]</td><td>44.5%（微调，8 步动作，每任务 20 次，逐项平均 44.51）[R main]</td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a>（Spatial / Goal / Object / Long）</td><td>–</td><td>92 / 86 / 92 / 76（各 50 次），LIBERO-90 89.3 [R n1.5]</td><td>97.65 / 97.5 / 98.45 / 94.35 [R n1.6]</td><td>README 表和 N1.6 完全相同 [R main]（读者注 25）</td></tr>
+<tr><td><a class="ds" href="https://simpler-env.github.io/">SimplerEnv</a> Bridge / Fractal</td><td>–</td><td>63% / 41% [R n1.5]</td><td>n1.6-release README：62.07% / 67.66%；main README：56.6% / 52.0%（读者注 26）</td><td>62.3% / 72.5% [R main]</td></tr>
+<tr><td>真机 GR-1 语言跟随</td><td>46.6%，总成功 43.3% [B]</td><td>93.3%，总成功 83.0% [B]</td><td>–</td><td>–</td></tr>
+<tr><td>其他</td><td>–</td><td>新物体 0-shot 15.0%（N1 0%），加人类视频 FLARE 后训练 55.0%；DreamGen 12 个新动词 38.3%（N1 13.1%）；Unitree G1 1K 示范 98.8%（N1 44.0%）[B]</td><td>BEHAVIOR-1K：README 平均 26.30% / 11.30%（两列口径未细读）[R n1.6]</td><td>推理（模型卡，4 步、1 路相机）：H100 TensorRT 全流程 27.9 ms（35.9 Hz），Jetson AGX Thor 93.8 ms（10.7 Hz）[M]；README 另写 RTX PRO 6000 约 40 Hz、Thor 约 28 Hz（LIBERO，batch 1）[R]，两处测法不同，未核实</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · N1.5 博客里的 N1 数和本文一致</span><p>N1.5 博客的“RoboCasa，每任务 30 条”给 N1 17.4，“Sim GR-1，30 条”给 N1 43.2，正好是本文表 4 的两个平均。所以博客的 N1.5 数（47.5、47.4）是按本文协议测的，可以和表 4 直接比：RoboCasa 30 条从 17.4 涨到 47.5，GR-1 30 条只从 43.2 涨到 47.4。</p></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · README 写的 N1.7 结构和发布的检查点不一致</span><p>main README 的“Detailed changes from N1.6”说：<code>select_layer</code> 16 → 12，扩散层 32 → 16，动作块 16 → 40，状态动作维度 29 → 132。核对：</p>
+<ul>
+<li><code>nvidia/GR00T-N1.7-3B</code> 的 config 是 <code>num_layers: 32</code>、<code>select_layer: 16</code>；文件头里 DiT 块编号 0 到 31（32 块），语言模型层 0 到 15（16 层）。所以发布的 N1.7 base 检查点是 32 层 DiT、取第 16 层，和 README 相反。</li>
+<li>代码 <code>gr00t/configs/model/gr00t_n1d7.py</code> 的默认值确实是 16 层、<code>select_layer 12</code>。<code>from_pretrained</code> 时检查点的 config 覆盖默认值，所以 README 描述的是代码默认，不是检查点。</li>
+<li>N1.6 的 config 是 <code>action_horizon 50</code>、<code>max_action_dim 128</code>，不是 README 说的 16 和 29。“29”是 GR1 仿真基准的状态维度（双臂 14 + 双手 12 + 腰 3），可能指 GR1 具身而不是模型上限，未核实。</li>
+</ul></div>
+<div class="note" id="n23"><span class="lab">读者注 23 · N1.6 的 VLM 叫什么</span><p>四处说法：N1.6 博客“internal NVIDIA Cosmos-2B VLM variant”；n1.6-release README“internal NVIDIA Cosmos-Reason-2B VLM variant”；N1.6-3B 的 config <code>model_name: nvidia/Eagle-Block2A-2B-v2</code>、<code>backbone_model_type: eagle</code>；main README 说 N1.7 “replacing the Eagle backbone used in N1.6”。文件头：语言模型 16 层，词表 151,680 × 2048 和 N1.5 相同；视觉编码器 427,680,704 个参数，也和 N1.5 的完全相同。我的理解是 N1.6 的 VLM 代码上走 Eagle 的结构、训练数据来自 Cosmos-Reason 的配方，但这只是推断，未核实。</p></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · N1.5 的“冻结 VLM”和 FLARE 在公开代码里</span><p>N1.5 README 和博客都说 VLM 在预训练和微调中冻结，但 N1.5-3B 的 config 写 <code>tune_visual: true</code>（N1.5 微调脚本默认 <code>tune_visual = False</code>）。config 记录的可能是别的阶段的设置，未核实。</p>
+<p>FLARE：权重里有 <code>action_head.future_tokens</code>（32 × 1536 = 49,152 个参数，对应 <code>num_target_vision_tokens 32</code>），代码会把它们拼进 DiT 的序列（状态、未来 token、动作），但 <code>flow_matching_action_head.py</code> 里写着 <code>return_all_hidden_states=False  # NOTE (YL): not using flare now</code>，没有对齐损失。所以公开代码微调 N1.5 时 FLARE 不生效，只是多了 32 个可学 token。</p></div>
+<div class="note" id="n25"><span class="lab">读者注 25 · LIBERO 表里的分数和分子分母对不上</span><p>N1.6 和 main（N1.7）README 的 LIBERO 表完全相同：Spatial 195/200（97.65%）、Goal 195/200（97.5%）、Object 197/200（98.45%）、10（Long）189/200（94.35%）。按分数算 195/200 = 97.5%，197/200 = 98.5%，189/200 = 94.5%，只有 Goal 对得上；97.65、98.45、94.35 可能是多次评测的平均，和“/200”不是同一组数。OpenWAM 表 13 的 GR00T-N1.6 行（97.7、98.5、97.5、94.4，平均 97.0）就是这组百分比四舍五入，平均 (97.65 + 98.45 + 97.5 + 94.35) / 4 = 96.99。N1.7 是否重新测过 LIBERO，README 没说，未核实。</p></div>
+<div class="note" id="n26"><span class="lab">读者注 26 · N1.6 的 SimplerEnv 分数前后两版 README 不同</span><p>n1.6-release README：Bridge 62.07%、Fractal 67.66%；当前 main README 的 N1.6 列：Bridge 56.6%、Fractal 52.0%（每个任务 100 次左右，逐项列出）。差别最大的是 Fractal 的 open drawer（main 里 N1.6 0/100）。哪一次是重测、用的什么设置，README 没说，未核实。比较 N1.6 和 N1.7 时，main README 用的是较低的那组。</p></div>
+<p><b>第三方：单步动作头。</b>arXiv <a href="https://arxiv.org/abs/2609.18108">2609.18108</a>（Xihe Shao，2026-09，CC BY 4.0）是一篇技术报告，把 N1.7 的多步 DiT 动作头换成单步 “drifting” 动作头。摘要给的数：LIBERO 上动作头前向从约 45.3 ms 降到 5.0 ms，骨干加动作头从 70.0 ms 降到 30.6 ms，但成功率明显下降（三个种子：Spatial 64.0 ± 4.0%、Goal 52.0 ± 1.0%、Long 26.0 ± 2.6%），作者自己把它定位为“速度换成功率”。本页没有精读这篇。</p>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><a href="openwam.html">OpenWAM</a> 在两处用到 GR00T：一是它的 8 个仿真基准之一 RoboCasa-GR1 来自本文；二是 GR00T N1.5 / N1.6 / N1.7 作为 VLA 基线出现在附录 D 的表里。</p>
+<h3 id="openwam-bench">RoboCasa-GR1 就是本文的“GR-1 桌面任务”</h3>
+<ul>
+<li><b>任务。</b>OpenWAM 的客户端在官方 <a class="ds" href="https://github.com/robocasa/robocasa-gr1-tabletop-tasks">robocasa-gr1-tabletop-tasks</a> 上评测，24 个 <code>gr1_unified/*_GR1ArmsAndWaistFourierHands_Env</code>：18 个 <code>PosttrainPnPNovelFrom…SplitA</code> 重排任务加 6 个“放进柜子 / 抽屉 / 微波炉再关上”，和本文 §4.1 的 18 + 6 一一对应（OpenWAM 代码 <code>benchmarks/robocasa_gr1/README.md</code>，每回合最多 720 步）。</li>
+<li><b>状态和动作。</b>官方数据是 GR-1 全身关节（本页<a href="#n18">读者注 18</a> 的 44 维布局；评测时环境给 29 维：双臂 14、双手 12、腰 3）。OpenWAM 只支持末端动作，用转换过的 <b>EEF33</b> 版本：每臂 位置 3 + rot6d 6 + 手指 6，两臂共 30，再加腰 3（<code>configs/dataloader/robocasa_gr1.yaml</code>）。客户端在线用正运动学把 29 维关节状态转成 EEF33，把模型输出的 EEF33 用逆运动学解回 7 + 7 个手臂关节，手和腰直接透传（<code>benchmarks/robocasa_gr1/policy_config.yml</code> 的注释）。33 维散射进 OpenWAM 80 维统一动作空间的 0–8、10–15、34–42、44–49、68–70 槽，夹爪槽 9 和 43 空着，见 <a href="openwam.html#act-tool">OpenWAM 的槽位图</a>。</li>
+<li><b>和本文设定的差别。</b>本文 GR-1 基准用关节空间（可选末端）、单路头部相机、每任务 1000 条示范、30 / 100 / 300 条后训练、100 次试验；OpenWAM 用 EEF33、384 × 320 的 L 形画布（只放头部相机，另两格补黑）、33 帧窗口（动作块 32 步，视频每 4 帧取 1）、batch 256 训练 10 万步（OpenWAM 表 10）。两边分数不是同一协议。</li>
+</ul>
+<h3 id="openwam-base">OpenWAM 表里的 GR00T 分数</h3>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>OpenWAM 表</th><th>基准</th><th>GR00T 行</th><th class="n">分数</th><th>能否在 Isaac-GR00T 找到</th></tr></thead><tbody>
+<tr><td>表 13</td><td>LIBERO（Spatial / Object / Goal / Long / Avg）</td><td>N1.6</td><td class="n">97.7 / 98.5 / 97.5 / 94.4 / 97.0</td><td>能：n1.6 README 的百分比四舍五入（读者注 25）</td></tr>
+<tr><td>表 15</td><td>RoboTwin2.0-Clean2Random（Clean / Randomized / Avg）</td><td>N1.7</td><td class="n">43.6 / 20.7 / 32.2</td><td>README 没有 RoboTwin，未核实</td></tr>
+<tr><td>表 19</td><td>RoboCasa365（Atomic / Comp.-Seen / Comp.-Unseen / Avg）</td><td>N1.5</td><td class="n">50.7 / 14.8 / 2.7 / 23.9</td><td>README 没有 RoboCasa365，未核实（可能来自 RoboCasa365 原文）</td></tr>
+<tr><td>表 20</td><td>RoboCasa-GR1</td><td>N1.5</td><td class="n">48.0</td><td>能：n1.5-release <code>examples/RoboCasa/README.md</code> 平均 0.48（24 任务逐项平均 0.482，每任务 50 次）</td></tr>
+<tr><td>表 20</td><td>RoboCasa-GR1</td><td>N1.6</td><td class="n">49.9</td><td>不能：n1.6 README 是 47.6%（逐项平均 47.61）；未核实</td></tr>
+</tbody></table></div>
+<p>OpenWAM-α 在 RoboCasa-GR1 上是 60.5，比表里的 GR00T N1.5 高 12.5、比 N1.6 高 10.6。作为参照：本文 N1 在每任务 100 条示范时是 50.0（表 4），N1.7 README 的微调结果是 44.5。这些数的训练数据量、动作空间和试验次数都不同，只能当大致的量级参照。</p>
+<p>另外两个间接联系：本文的神经轨迹用 WAN2.1-I2V-14B 生成（附录 F），和 OpenWAM 的视频骨干是同一系列（<a href="wan.html">Wan 精读</a>）；N1.6 / N1.7 的 VLM 走向 Cosmos-Reason（<a href="cosmos-reason1.html">Cosmos-Reason1 精读</a>），而 OpenWAM 也支持 Cosmos-Predict2.5 和 Cosmos 3 当视频骨干（<a href="cosmos-predict25.html">Cosmos-Predict2.5</a>、<a href="cosmos3.html">Cosmos 3</a>）。GR00T 是“VLM + 动作头”的 VLA，OpenWAM 是“视频模型 + 动作头”的 WAM，两者的动作头都是流匹配 DiT，最大的区别是条件来自语言模型的中间层还是视频生成模型。</p>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa-sys">问 1：System 2 和 System 1 是两个独立的网络吗？</h3>
+<p>不是两个独立训练的网络。按代码，它们是一个 <code>GR00T_N1</code> 模型里的 <code>backbone</code> 和 <code>action_head</code>，一次前向里依次算：VLM 把图像和指令算到第 12 层，输出一串 token；动作头拿这串 token 当交叉注意力的键值，跑 4 次去噪。训练时一个损失（流匹配），梯度从动作头传回 VLM 的视觉编码器（语言部分冻结）。“系统 1 / 系统 2”的说法主要是对分工的比喻；论文说的 10 Hz 和 120 Hz 两种频率，在公开代码里没有对应的异步实现（<a href="#n6">读者注 6</a>）。</p>
+<h3 id="qa-cmp">问 2：要在 RoboCasa-GR1 上拿 GR00T 当基线，该引哪个数？</h3>
+<p>先看协议是否一致。本文表 4 是关节空间、每任务 30 / 100 / 300 条示范、100 次试验、最后 5 个检查点取最好；N1.5 README 是用 24k 条（每任务 1000 条）微调、每任务 50 次；N1.6 README 是 base 检查点直接评（GR1 在 N1.6 的预训练具身里）；N1.7 README 是微调、每任务 20 次、执行 8 步动作。要和 OpenWAM 那样的“全量数据微调”比，最接近的是 N1.5 README 的 48.2（逐项平均）或 N1.7 的 44.5；本文的 49.3（300 条）也可以，但动作空间不同。OpenWAM 表里 N1.6 的 49.9 我找不到出处（<a href="#openwam-base">见上表</a>）。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。按编号排列，点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可矛盾</a>：arXiv 登记 CC BY 4.0，PDF 每页页脚“© 2025 NVIDIA. All rights reserved.”。</li>
+<li><a href="#n2">参数量</a>：2,190,019,826 和 1,335,279,856 都对上；32 个具身槽位的编解码器共 3.15 亿。</li>
+<li><a href="#n3">第 12 层和 64 个 token</a>：代码删掉后面的层；256 个 patch 经 2 × 2 pixel shuffle 成 64 个。</li>
+<li><a href="#n4">速度方向</a>：式 (1) 写 ε − A，代码是 A − ε；E[τ] = 0.399。</li>
+<li><a href="#n5">K = 4</a>：config 写 16，脚本默认 4。</li>
+<li><a href="#n6">10 Hz / 120 Hz</a>：公开代码没有两种频率；16 步 / 63.9 ms ≈ 250 步每秒。</li>
+<li><a href="#n7">图 3 的雪花</a>：N1 只冻结语言部分，视觉编码器训练。</li>
+<li><a href="#n8">神经轨迹算力</a>：827 × 120 = 99,240 GPU 小时；一条 = 81 帧 ≈ 10 秒。</li>
+<li><a href="#n9">78 万条仿真轨迹</a>：和 54 万条、1,742.6 小时的口径对不上。</li>
+<li><a href="#n10">表 7</a>：合计都对；Ego-Exo4D 的 FPS 应为 20。</li>
+<li><a href="#n11">表 2 的 DexMG</a>：56.1 / 66.5 对表 4 的 46.9 / 58.5；平均按任务数加权。</li>
+<li><a href="#n12">表 3 的平均</a>：是 13 个任务的平均，不是四类或 18 行的平均。</li>
+<li><a href="#n13">76.6%</a>：11.5 / 15 = 76.67%。</li>
+<li><a href="#n14">图 9</a>：提升取 LAPA 和 IDM 中较好者；“总体 8 任务”按任务加权复算不出来。</li>
+<li><a href="#n15">表 4</a>：平均行都能复算；GR-1 上 300 条比 100 条还低。</li>
+<li><a href="#n16">图 12 图注</a>：上下颠倒，柠檬的目标写成了锅。</li>
+<li><a href="#n17">检测头</a>：权重里有 2 维 <code>decode_layer</code>，代码不用它。</li>
+<li><a href="#n18">GR-1 的状态动作</a>：44 维全身取 26 维；状态做 sin/cos，论文没提。</li>
+<li><a href="#n19">交叉注意力不屏蔽填充</a>：<code>encoder_attention_mask</code> 被注释掉。</li>
+<li><a href="#n20">预训练的量</a>：32.8 亿样本；5 万 GPU 小时 ÷ 1024 卡 ≈ 49 小时。</li>
+<li><a href="#n21">N1.5 博客</a>：其中 N1 的 17.4、43.2 和表 4 一致。</li>
+<li><a href="#n22">N1.7 结构</a>：README 说 16 层 DiT、第 12 层，检查点是 32 层、第 16 层。</li>
+<li><a href="#n23">N1.6 的 VLM 名字</a>：Cosmos-2B / Cosmos-Reason-2B / Eagle-Block2A-2B-v2 三种说法。</li>
+<li><a href="#n24">N1.5 的冻结和 FLARE</a>：config 写 tune_visual true；公开代码没有 FLARE 损失。</li>
+<li><a href="#n25">LIBERO 分数</a>：百分比和 x/200 对不上；N1.7 README 照搬 N1.6 的表。</li>
+<li><a href="#n26">SimplerEnv</a>：N1.6 前后两版 README 分数不同。</li>
+</ol>
+<p><b>和 OpenWAM 页的对照（不一致处）：</b>OpenWAM 表 20 里 GR00T-N1.6 的 49.9 和 Isaac-GR00T N1.6 README 的 47.6 不一致；N1.5 的 48.0 能对上。OpenWAM 页 <code>#act-tool</code> 写的 RoboCasa-GR1 槽位（0–8、10–15、34–42、44–49、68–70）和 OpenWAM 代码一致。</p>
+<p>论文没写、我也没找到的：预训练各数据源的采样权重；LAPA 的窗口 \(H\)、码本大小；IDM 的动作长度；检测损失取哪些 token；120 Hz 的来历；N1.6 / N1.7 的训练细节（除博客里的步数和 batch）。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、代码和权重。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/Isaac-GR00T">Isaac-GR00T</a></td><td>本文代码（Apache-2.0）</td><td><a href="https://huggingface.co/nvidia/GR00T-N1-2B">HF GR00T-N1-2B</a></td><td><a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GR00T-X-Embodiment-Sim">GR00T X-Embodiment-Sim</a></td><td>公开的仿真训练数据</td><td>huggingface.co/datasets/nvidia</td><td>本文</td></tr>
+<tr><td><a class="ds" href="https://robocasa.ai/">RoboCasa</a></td><td>厨房仿真框架和 24 个原子任务</td><td>robocasa.ai</td><td><a href="https://arxiv.org/abs/2406.02523">2406.02523</a></td></tr>
+<tr><td><a class="ds" href="https://dexmimicgen.github.io/">DexMimicGen</a></td><td>双臂灵巧手数据生成和 9 任务基准</td><td>dexmimicgen.github.io</td><td><a href="https://arxiv.org/abs/2410.24185">2410.24185</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/robocasa/robocasa-gr1-tabletop-tasks">RoboCasa-GR1 桌面任务</a></td><td>本文的 GR-1 24 任务基准</td><td>github.com/robocasa</td><td><a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></td><td>跨具身真机数据集合</td><td>robotics-transformer-x.github.io</td><td><a href="https://arxiv.org/abs/2310.08864">2310.08864</a></td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>OXE 子集</td><td>droid-dataset.github.io</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer1.github.io/">RT-1</a></td><td>OXE 子集</td><td>robotics-transformer1.github.io</td><td><a href="https://arxiv.org/abs/2212.06817">2212.06817</a></td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">Bridge-v2</a></td><td>OXE 子集；SimplerEnv Bridge</td><td>rail-berkeley.github.io/bridgedata</td><td><a href="https://arxiv.org/abs/2308.12952">2308.12952</a></td></tr>
+<tr><td><a class="ds" href="https://interactive-language.github.io/">Language Table</a></td><td>OXE 子集</td><td>interactive-language.github.io</td><td><a href="https://arxiv.org/abs/2210.06407">2210.06407</a></td></tr>
+<tr><td><a class="ds" href="https://ut-austin-rpl.github.io/MUTEX/">MUTEX</a></td><td>OXE 子集</td><td>ut-austin-rpl.github.io/MUTEX</td><td><a href="https://arxiv.org/abs/2309.14320">2309.14320</a></td></tr>
+<tr><td><a class="ds" href="https://robopen.github.io/roboset/">RoboSet</a></td><td>OXE 子集</td><td>robopen.github.io/roboset</td><td><a href="https://arxiv.org/abs/2309.01918">2309.01918</a></td></tr>
+<tr><td><a class="ds" href="https://microsoft.github.io/PLEX/">Plex</a></td><td>OXE 子集</td><td>microsoft.github.io/PLEX</td><td><a href="https://arxiv.org/abs/2303.08789">2303.08789</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>AgiBot-Alpha 真机数据</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://rh20t.github.io/">RH20T</a></td><td>真机和人类部分都用了</td><td>rh20t.github.io</td><td><a href="https://arxiv.org/abs/2307.00595">2307.00595</a></td></tr>
+<tr><td><a class="ds" href="https://ego4d-data.org/">Ego4D</a></td><td>人类第一视角视频</td><td>ego4d-data.org</td><td><a href="https://arxiv.org/abs/2110.07058">2110.07058</a></td></tr>
+<tr><td><a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a></td><td>第一 + 第三视角</td><td>ego-exo4d-data.org</td><td><a href="https://arxiv.org/abs/2311.18259">2311.18259</a></td></tr>
+<tr><td><a class="ds" href="https://assembly-101.github.io/">Assembly-101</a></td><td>组装视频</td><td>assembly-101.github.io</td><td><a href="https://arxiv.org/abs/2203.14712">2203.14712</a></td></tr>
+<tr><td><a class="ds" href="https://epic-kitchens.github.io/">EPIC-KITCHENS</a></td><td>厨房第一视角</td><td>epic-kitchens.github.io</td><td><a href="https://arxiv.org/abs/1804.02748">1804.02748</a></td></tr>
+<tr><td><a class="ds" href="https://hoi4d.github.io/">HOI4D</a></td><td>手物交互 4D</td><td>hoi4d.github.io</td><td><a href="https://arxiv.org/abs/2203.01577">2203.01577</a></td></tr>
+<tr><td><a class="ds" href="https://holoassist.github.io/">HoloAssist</a></td><td>AR 协作任务</td><td>holoassist.github.io</td><td><a href="https://arxiv.org/abs/2309.17024">2309.17024</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/huggingface/lerobot">LeRobot</a></td><td>数据格式基础</td><td>github.com/huggingface/lerobot</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>N1.5 以后的 README 基准</td><td>libero-project.github.io</td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://simpler-env.github.io/">SimplerEnv</a></td><td>N1.5 以后的 README 基准</td><td>simpler-env.github.io</td><td><a href="https://arxiv.org/abs/2405.05941">2405.05941</a></td></tr>
+<tr><td><a href="https://research.nvidia.com/labs/gear/gr00t-n1_5/">GR00T N1.5 博客</a></td><td>N1.5 结构、数据和结果</td><td>research.nvidia.com/labs/gear</td><td>无论文</td></tr>
+<tr><td><a href="https://research.nvidia.com/labs/gear/gr00t-n1_6/">GR00T N1.6 博客</a></td><td>N1.6 结构和数据</td><td>research.nvidia.com/labs/gear</td><td>无论文</td></tr>
+<tr><td><a href="https://research.nvidia.com/labs/gear/flare/">FLARE</a></td><td>N1.5 的未来潜在对齐目标</td><td>research.nvidia.com/labs/gear/flare</td><td><a href="https://arxiv.org/abs/2505.15659">2505.15659</a></td></tr>
+<tr><td><a href="https://huggingface.co/nvidia/GR00T-N1.7-3B">GR00T-N1.7-3B</a></td><td>N1.7 base 权重</td><td>huggingface.co/nvidia</td><td>无论文；第三方 <a href="https://arxiv.org/abs/2609.18108">2609.18108</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2503.14734 后的整理，不是作者的官方内容。原文：NVIDIA（Johan Bjorck、Linxi “Jim” Fan、Yuke Zhu 等），《GR00T N1: An Open Foundation Model for Generalist Humanoid Robots》，arXiv 2503.14734v2；arXiv 登记许可为 CC BY 4.0，PDF 页脚另印“© 2025 NVIDIA. All rights reserved.”。文中原图从 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图，版权归原作者。代码引用来自 NVIDIA/Isaac-GR00T（Apache-2.0）。表格数字照录原文；读者注、代码对照、版本对照和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -792,6 +792,8 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <p>README 说训练加速预设 <code>presets/fast.env</code> 默认加载，不改变数学，只影响速度；要完全按原样跑可加 <code>training.speed_preset=null</code>。</p>
 </details>
 
+<div class="note" id="n24"><span class="lab">读者注 24 · Cosmos-Predict2.5 骨干可能漏设 timestep_scale（只读代码）</span><p>OpenWAM 的 <code>cosmos_predict25/pipeline_builder.py</code> 里 2B DiT 的参数表 <code>_COSMOS25_2B_NET_KWARGS</code> 没有 <code>timestep_scale</code>，按默认 1.0；它的调度器传给 DiT 的时间步是 \(\sigma\times1000\)（<code>scheduler.py</code> 第 65 行）。上游发布配置是 0.001（据 <a href="cosmos-predict25.html#openwam">Cosmos-Predict2.5 页</a>的核对），OpenWAM 自己接 Cosmos 3 时也显式写了 <code>timestep_scale=0.001</code>（<code>cosmos3/pipeline_builder.py</code> 第 73 行）。若如此，时间嵌入收到的数比预训练时大 1000 倍。§4.1.1 里 Cosmos-Predict2.5 的 91.64 可能就是在这个设置下得到的。我没有运行验证，上游默认值也没亲自读到，标“未核实”。用 Wan2.2-TI2V-5B 骨干（本页复现的配置）不受影响。另外它训练时间步是均匀抽样再 shift，σ ≥ 0.98 占 9.3%，上游 logit-normal 只占 1.1%。</p></div>
+<div class="note" id="n25"><span class="lab">读者注 25 · 表里 GR00T 各版本分数的出处</span><p>按 <a href="gr00t.html#openwam">GR00T 页</a>对 Isaac-GR00T 各版本 README 的核对：RoboCasa-GR1 上 N1.5 = 48.0 和 README 的 0.48 对得上；N1.6 = 49.9 找不到出处，N1.6 README 是 47.6（逐任务平均 47.61）；N1.7 的 RoboTwin 分数和 N1.5 的 RoboCasa365 分数在仓库里找不到，未核实。</p></div>
 <h2 id="qa">读者问答</h2>
 <p>复现时问过的基础问题，答案整理在这里。不属于论文内容；每个设置都标了出处，出处里的代码我只读没跑。</p>
 
@@ -842,6 +844,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <tr><td>渲染分辨率</td><td>128</td><td>256，旋转 180°</td><td>256，旋转 180°</td><td>360，旋转 180°，模型内缩放到 378</td></tr>
 <tr><td>出处</td><td>论文附录 D；分辨率是环境默认值</td><td><code>run_libero_eval.py</code> 第 66–85、174–180 行</td><td>本页<a href="#t-repro">复现表</a>、<a href="#n19">读者注 19</a></td><td><a href="molmoact2.html#repro-3">MolmoAct2 页复现要点 3</a></td></tr>
 </tbody></table></div>
+<p>另外两家 NVIDIA 的 LIBERO 设置也不同：<a href="cosmos-policy.html#repro">Cosmos Policy</a>（98.5%）自己重生成了 1,700 条数据、图像只上下翻转（OpenVLA 版是旋转 180°），步数上限用 OpenVLA 的 220/280/300/520，三个种子平均；<a href="cosmos3.html">Cosmos 3</a> 的官方配方只训练和测试 libero_10，动作是 10 维相对位姿。</p>
 <p>每套件 500 回合，所以单个套件的分数只能是 0.2 的整数倍，四套件平均只能是 0.05 的整数倍。99.3% 的 95% 置信区间大约是 98.8% 到 99.6%（<a href="#n18">读者注 18</a>），复现差 0.3 个点以内基本就是随机波动。</p>
 
 <p><b>复现时对 LIBERO 要核对的五件事：</b></p>
@@ -1086,6 +1089,8 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <li><a href="#n21">“每 4 帧平均”的准确含义</a>：首帧单独、其余每 4 帧平均；V-JEPA 自带 tubelet 2，只再平均一次。</li>
 <li><a href="#n22">FLUX.2-VAE 不是 48 维</a>：128 通道，DiT token 输入 512 维，图 7 里它和 Wan2.2-VAE 的差别混着多个因素。</li>
 <li><a href="#n23">S-VAE 的训练数据</a>：在 WAM 自己的训练集上收集特征再训练，不是通用模块。</li>
+<li><a href="#n24">Cosmos-Predict2.5 的 timestep_scale</a>：OpenWAM 可能按 1.0 而上游是 0.001，差 1000 倍（只读代码，未核实）。</li>
+<li><a href="#n25">GR00T 分数出处</a>：N1.5 的 48.0 对得上，N1.6 的 49.9 找不到出处。</li>
 </ol>
 <p>论文没写、我也没找到的：LIBERO 评测是单次还是多次、用的哪个检查点；第一视角数据集是否公开（README 2026/10/25 说公开了四个机器人数据集，没提第一视角）；§4 各消融的训练步数和重复次数。</p>
 

@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 平台论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2501.03575 Cosmos World Foundation Model Platform（NVIDIA）的中文精读：数据整理管线、Cosmos Tokenizer、扩散与自回归世界基础模型、三类后训练、护栏和评测，逐节整理，含编号公式、全部结果表、裁切原图、cosmos-predict1 代码对照、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:820px}.t-links{min-width:660px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2501.03575 · cs.CV · v3 2025 年 7 月 9 日（v1 2025 年 1 月 7 日）· NVIDIA 技术报告 · 中文精读</p>
+<h1>Cosmos：给物理 AI 用的世界基础模型平台</h1>
+<p class="orig">Cosmos World Foundation Model Platform for Physical AI</p>
+<p>作者署名 NVIDIA，arXiv 上列了 77 位作者；附录 A 按组列出贡献者（数据、Tokenizer、扩散和自回归预训练、后训练、护栏等），平台架构负责人 Ming-Yu Liu。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2501.03575">arXiv 原文</a><a href="https://arxiv.org/pdf/2501.03575v3">PDF</a><a href="https://arxiv.org/html/2501.03575v3">HTML 版</a><a href="https://research.nvidia.com/labs/dir/cosmos-predict1">项目主页</a><a href="https://github.com/nvidia-cosmos/cosmos-predict1">官方代码</a><span>75 页：正文 58 页，附录 A 2 页，参考文献 15 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇报告在 arXiv 上登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>，但 PDF 第 1 页页脚印着 “© 2025 NVIDIA. All rights reserved.”，两者矛盾（和 <a href="sonic.html">SONIC</a>、<a href="graspgen.html">GraspGen</a> 的情况相同，见<a href="#n1">读者注 1</a>）。<b>这一批 Cosmos / GR00T 论文由站点作者决定都放原图</b>，所以下面的图从 arXiv PDF v3 裁切，只做了裁切、缩放和格式转换，没有改内容，版权归原作者。展示生成样例的大图（图 1、12、13、17、22、23、25、27、28）没有放，只写文字说明并链接原图。</p>
+<p>按原文顺序覆盖第 1 到 9 节和附录 A，小节编号和原文一致，用自己的话整理，不逐字翻译。每节先给结论。公式按原文编号，表格数字照录原文，长表放在可折叠的框里。“读者注”是我核算或对照时发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>论文对应的仓库是 <a href="https://github.com/nvidia-cosmos/cosmos-predict1">nvidia-cosmos/cosmos-predict1</a>（报告摘要里直接链到它）。我读的是提交 <a href="https://github.com/nvidia-cosmos/cosmos-predict1/tree/724daa1b2df5ec96bdf111bb947479d2216b3b08">724daa1</a>（2026-06-07），Apache-2.0 许可；模型权重是另一份 NVIDIA Open Model License。仓库 README 写明它已停止主要开发、转向 Cosmos 3。Tokenizer 另有独立仓库 <a href="https://github.com/NVIDIA/Cosmos-Tokenizer">NVIDIA/Cosmos-Tokenizer</a>（提交 <a href="https://github.com/NVIDIA/Cosmos-Tokenizer/tree/3584ae752ce8ebdbe06a420bf60d7513c0e878cc">3584ae7</a>，2025-02-10，Apache-2.0），内容已并入 cosmos-predict1 的 <code>cosmos_predict1/tokenizer/</code>，我以后者为准。<a href="https://github.com/NVIDIA/Cosmos">NVIDIA/Cosmos</a> 现在是 Cosmos 3 的总入口（提交 5401062，OpenMDW-1.1），不含本文的代码。全部只读，没有运行；数据整理管线和自回归模型的预训练代码没有公开，相关数字无法对照。</p>
+<p><b>本页的位置。</b>这是 NVIDIA Cosmos 系列的第一篇，后面的 <a href="cosmos-transfer1.html">Cosmos-Transfer1</a>、<a href="cosmos-reason1.html">Cosmos-Reason1</a>、<a href="cosmos-predict25.html">Cosmos-Predict2.5</a>、<a href="cosmos-policy.html">Cosmos Policy</a>、<a href="cosmos3.html">Cosmos 3</a>、<a href="cosmos-interactive.html">交互式 Cosmos</a> 都在它之后发布。视频生成这条线沿用了本文 §5.1 的 DiT 结构，但 tokenizer 和训练目标后来换过（至少 OpenWAM 用的 Predict2.5 是这样）；和 <a href="openwam.html">OpenWAM</a> 的关系见<a href="#openwam">文末一节</a>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 平台</a><a href="#s3">3 数据整理</a><a href="#s4">4 Tokenizer</a><a href="#s5">5 预训练</a><a href="#s5-1">5.1 扩散 WFM</a><a href="#i3d">3D 框架动画</a><a href="#s5-2">5.2 自回归 WFM</a><a href="#s5-3">5.3 评测</a><a href="#s6">6 后训练</a><a href="#s6-1">6.1 相机控制</a><a href="#s6-2">6.2 机器人操作</a><a href="#s6-3">6.3 自动驾驶</a><a href="#s7">7 护栏</a><a href="#s8">8 相关工作</a><a href="#s9">9 结论</a><a href="#apA">附录 A</a><a href="#openwam">和 OpenWAM 的关系</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>物理 AI（带传感器和执行器的系统）缺的是“观测与动作交错”的大规模数据，而且探索性动作在真实世界里有代价。作者的答案是先训一个通用的<b>世界基础模型</b>（world foundation model，WFM），即一个能根据过去的视频和扰动（动作、文字等）预测未来视频的模型，再用目标场景的小数据集把它<b>后训练</b>成专用世界模型。</p>
+<p>这篇报告与其说是一个模型，不如说是一套平台的说明书。五个部件：</p>
+<ul>
+<li><b>视频整理管线</b>：约 2,000 万小时原始视频，经切分、过滤、VLM 描述、语义去重和分片，得到约 1 亿段 2 到 60 秒的预训练片段（另有约 1,000 万段微调片段）。</li>
+<li><b>Cosmos Tokenizer</b>：时间因果的编解码器，先做 Haar 小波，再用因果卷积和因果注意力压缩。连续版（AE，16 通道）给扩散模型用，离散版（FSQ，词表 64,000）给自回归模型用。主力是 CV8×8×8 和 DV8×16×16。</li>
+<li><b>预训练 WFM</b>：扩散系列 7B / 14B（Text2World，再微调出 Video2World），EDM 公式加 DiT；自回归系列 4B / 12B（纯视频续写），加交叉注意力得到 5B / 13B Video2World。另有提示词扩写器和把离散 token 解成高清视频的扩散解码器。全部在 1 万张 H100 上训练约三个月。</li>
+<li><b>后训练样例</b>：相机位姿控制、机器人指令和动作条件预测、六路相机的驾驶视频。</li>
+<li><b>护栏</b>：输入端关键词表加 Aegis，输出端逐帧安全分类器加人脸打码。</li>
+</ul>
+<p>读完我认为值得记住的四点：</p>
+<ol>
+<li>评测是“3D 一致性”和“物理对齐”两项。扩散模型在 3D 一致性上明显好，但在 8 个刚体物理场景里，各模型的 IoU 都在 0.33 到 0.60 之间，<b>模型变大没有带来更好的物理</b>（表 20），作者自己也承认这一点。</li>
+<li>Tokenizer 的“压缩率”只算时空下采样倍数（如 8×16×16 = 2048），不算通道。按元素数算，CV8×8×8 是 96 倍，DV8×16×16 用比特算约 3,079 倍（<a href="#n6">读者注 6</a>）。</li>
+<li>表格和正文有几处对不上：自回归模型的配置表写了 8 个 KV 头（即 GQA），正文却说没用 GQA（<a href="#n19">读者注 19</a>）；说 Tokenizer “所有指标都是最好”，离散版在 TokenBench 上并不成立（<a href="#n10">读者注 10</a>）。</li>
+<li>代码和论文的差别主要在细节：z-loss 的定义和系数、视频噪声放大用的是隐帧数而不是帧数、动作条件同时加在时间嵌入和 AdaLN-LoRA 上、开源护栏换成了 Llama Guard 3（<a href="#n18">18</a>、<a href="#n15">15</a>、<a href="#n26">26</a>、<a href="#n30">30</a>）。</li>
+</ol>
+<p>原文图 1 是一张样例总图：五行分别是扩散预训练、自回归预训练、相机控制、机器人操作、自动驾驶的生成帧。<a href="https://arxiv.org/html/2501.03575v3#S1.F1">看原图 ↗</a></p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>结论：</b>先在海量视频上预训练一个通才 WFM，再用目标物理 AI 系统采集的小数据集后训练，这是作者给出的整体范式（图 2）。</p>
+<p>物理 AI 的数据难扩展，因为需要观测和动作交错的序列，而动作会扰动世界、可能造成损坏，在系统初期探索时尤其如此。WFM 被看作物理世界的数字孪生，让 AI 能安全地与之交互。</p>
+<p>报告主要关心视觉 WFM：观测是视频，扰动形式多样。预训练 WFM 用大而多样的视频获得通用视觉经验；后训练 WFM 用特定环境的数据专门化。各节内容：</p>
+<ul>
+<li>§3 整理管线：从 2,000 万小时视频中取出约 1 亿段 2 到 60 秒的片段，每 256 帧用 VLM 写一段描述；用 GPU 硬件编解码（H.264）和 Ray 编排提高吞吐。</li>
+<li>§5 两种可扩展的路线：Transformer 扩散模型（逐步去噪）和 Transformer 自回归模型（按预设顺序逐块生成）。前者用连续 token（向量），后者用离散 token（整数）。</li>
+<li>§4 视频 tokenization 很像做视频编解码器，作者用基于注意力的编解码结构同时学连续和离散 token。</li>
+<li>§6 后训练：相机位姿条件（可漫游的虚拟世界）、机器人视频-动作序列、自动驾驶。</li>
+<li>§7 护栏：pre-Guard 拦输入，post-Guard 拦输出。</li>
+</ul>
+<p>模型和 Tokenizer 以 NVIDIA Open Model License 发布。作者说 WFM 问题远没有解决。</p>
+<figure class="pfig" id="fig2">
+<img src="cosmos/fig2.webp" width="1552" height="824" alt="图 2：左边一个预训练 WFM，分出四路，每路是自定义数据集、后训练 WFM 和一个目标系统（汽车、机械臂、四足机器人、人形），虚线把系统连回数据集" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S1.F2">看原图 ↗</a></span>左边是地球图标和预训练 WFM。它分出四条线，每条经过一个“自定义数据集”和一个“后训练 WFM”，接到一种物理 AI：汽车、机械臂、带臂的四足机器人、人形机器人。虚线从机器人连回各自的数据集，表示数据闭环。图注说后训练数据通常是“提示–视频”对，提示可以是动作指令、轨迹、语言指令等，所以后训练数据可以小得多。</figcaption>
+</figure>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可的矛盾</span><p>arXiv 摘要页登记的是 CC BY 4.0（v1 到 v3 同一许可）；PDF 第 1 页页脚却写 “© 2025 NVIDIA. All rights reserved.”。这和站内 SONIC、GraspGen 两页的情况一样。按站点规则，本页的原图按用户对这一批的决定处理（见页首），图注里同时写出 CC BY 4.0。代码是 Apache-2.0，权重是 NVIDIA Open Model License，两者也不同。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 模型名在 v1 和 v3 之间改过</span><p>v1（2025 年 1 月）的模型叫 Cosmos-1.0-Diffusion-7B-Text2World、Cosmos-1.0-Autoregressive-4B、Cosmos-1.0-Tokenizer-CV8x8x8 等；v3 统一改成 Cosmos-Predict1-…、Cosmos-Tokenize1-…（我对照了 arXiv v1 的 HTML 版）。v3 里还留着旧名的痕迹：§6.3.2 写了 “Cosmos-Predict1-7B-Text2World-Sample-AV-MultiView” 和 “Diffusion-7B-Video2World-Sample-MultiView”，这两个名字在表 21 里都没有。读老博客或 HF 旧卡片时，按这个对应关系换名即可。表 4、表 5 等还保留了 “Cosmos-0.1-Tokenizer” 一组旧版 tokenizer 作对比。</p></div>
+
+<h2 id="s2"><span class="no">2</span>世界基础模型平台</h2>
+<p><b>结论：</b>WFM 被定义成 \(\hat x_{t+1}=\mathcal W(x_{0:t},c_t)\)：给过去的 RGB 视频 \(x_{0:t}\) 和当前扰动 \(c_t\)，预测下一时刻的观测。扰动可以是物理 AI 的动作、随机扰动或文字描述（图 3）。</p>
+<figure class="pfig" id="fig3">
+<img src="cosmos/fig3.webp" width="995" height="218" alt="图 3：x_0:t 和 c_t 两个输入进入标着 World Foundation Model 𝒲 的方框，输出 x̂_t+1" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S2.F3">看原图 ↗</a></span>一个方框，左边进 \(x_{0:t}\) 和 \(c_t\)，右边出 \(\hat x_{t+1}\)。</figcaption>
+</figure>
+<h3 id="s2-1"><span class="no">2.1</span>未来的 Cosmos</h3>
+<p>作者列了五种用途：<b>策略评估</b>（让策略和 WFM 交互，代替上真机，先淘汰不行的策略）、<b>策略初始化</b>（WFM 学到的动态作为策略的起点）、<b>策略训练</b>（WFM 加奖励模型当强化学习的环境）、<b>规划或 MPC</b>（模拟不同动作序列的后果，选最好的；世界模型的精度决定这类方法的上限）、<b>合成数据</b>（也可以条件于深度、语义图做 Sim2Real）。作者明确说这篇报告没有给出这些用途的实验结果。</p>
+<h3 id="s2-2"><span class="no">2.2</span>当前的 Cosmos</h3>
+<figure class="pfig" id="fig4">
+<img src="cosmos/fig4.webp" width="1565" height="343" alt="图 4：标着 Cosmos 的大框里并排五个方框：视频整理器、Tokenizer、预训练世界基础模型、世界基础模型后训练样例、护栏" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 5 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S2.F4">看原图 ↗</a></span>平台的五个部件并排放在一个 “Cosmos” 框里：Video Curator、Tokenizers、Pre-trained World Foundation Models、World Foundation Model Post-Training Samples、Guardrail。</figcaption>
+</figure>
+<ul>
+<li><b>视频整理器</b>：切成无场景切换的镜头，过滤出高质量、动态丰富的片段，用 VLM 标注，再做语义去重。</li>
+<li><b>Tokenizer</b>：一族不同压缩率的因果 tokenizer。因果的好处是单张图就是长度为 1 的视频，所以能图像视频联合训练；而且物理 AI 本身活在因果的世界里。</li>
+<li><b>预训练</b>：扩散 WFM 分两步，先 Text2World，再微调成 Video2World（给过去的视频和文字预测未来）。自回归 WFM 也两步，先纯视频续写（“foresight”），再加文字条件。另有把扩散模型微调成的扩散解码器，和基于 LLM 的提示词扩写器。</li>
+<li><b>后训练</b>：相机位姿作为提示，在生成的世界里自由走动；人形机器人和自动驾驶的例子。</li>
+<li><b>护栏</b>：拦有害的输入和输出。</li>
+</ul>
+
+<h2 id="s3"><span class="no">3</span>数据整理</h2>
+<p><b>结论：</b>五步管线（切分、过滤、标注、去重、分片），把约 2,000 万小时的 720p 到 4K 视频变成约 10⁸ 段预训练片段和约 10⁷ 段微调片段；图像数据也走同一套管线。工程上的重点是用 GPU 硬件编解码和 Ray 流水线提高吞吐。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos/fig5.webp" width="1587" height="322" alt="图 5：从原始视频依次经过切分、过滤、标注、视频片段数据库、去重、分片的流程图，下面列出每步的子步骤" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 6 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S3.F5">看原图 ↗</a></span>流程：Raw Input Video → Split（镜头检测、GPU 转码）→ Filtering（运动、质量、叠加文字、视频类型）→ Annotation（生成视频描述）→ Video Clip Database → Dedup → Sharding。片段先入库；要做训练集时，再从库里去重和分片。</figcaption>
+</figure>
+<h3 id="s3-1"><span class="no">3.1</span>数据集</h3>
+<p>专有视频和公开的互联网视频混用，按物理 AI 的需求定了 9 个类别：驾驶 11%、手部动作和物体操作 16%、人体动作 10%、空间感知和导航 16%、第一人称 8%、自然动态 20%、动态镜头运动 8%、合成渲染 4%、其他 7%（合计 100%）。视频编码、宽高比、分辨率、长度各异，很多还有后期特效，会带来伪影。原始视频约 2,000 万小时，分辨率 720p 到 4K。也收集图像，因为图像视频联合训练能提升画质、加快训练。</p>
+<h3 id="s3-2"><span class="no">3.2</span>切分</h3>
+<p><b>3.2.1 镜头检测。</b>把视频切成无镜头切换的片段，输出每个镜头的起止帧。短于 2 秒的丢掉（可能是转场或特效），长于 60 秒的再切到最多 60 秒。作者比较了四种方法：<a href="https://www.scenedetect.com/">PySceneDetect</a>（HSV 颜色直方图变化阈值，MovieGen 也用它）、Panda70M（PySceneDetect 加 CLIP 嵌入拼接）、<a href="https://github.com/soCzech/TransNetV2">TransNetV2</a> 和 <a href="https://github.com/wentaozhu/AutoShot">AutoShot</a>（神经网络，看 100 帧滑窗，输出每帧是转场的概率）。为此建了基准 <a class="ds" href="https://github.com/NVlabs/ShotBench">ShotBench</a>，包含 RAI、<a class="ds" href="https://aimagelab.ing.unimore.it/imagelab/researchActivity.asp?idActivity=19">BBC Planet Earth</a>、<a class="ds" href="https://github.com/Tangshitao/ClipShots">ClipShots</a> 和 SHOT（AutoShot 的数据集）。ClipShots 的转场帧定义为标注起止的中点。</p>
+<p>结果（表 1）：端到端的神经网络方法明显好于手工特征。TransNetV2 和 AutoShot 在已有数据上相近，作者发现 TransNetV2 对更难的转场更好，而且纯神经网络便于在 GPU 上加速，于是选它。两个网络的置信度阈值都设 0.4。</p>
+<div class="tablewrap"><table class="t-m">
+<caption class="tcap">表 1 · 镜头切分算法比较（ShotBench）</caption>
+<thead><tr><th>数据集</th><th>指标</th><th>PySceneDetect</th><th>Panda70M</th><th>TransNetV2</th><th>AutoShot</th></tr></thead><tbody>
+<tr><td rowspan="3">BBC</td><td>Precision ↑</td><td class="n">0.894</td><td class="n">0.959</td><td class="n">0.983</td><td class="n best">0.984</td></tr>
+<tr><td>Recall ↑</td><td class="n">0.884</td><td class="n">0.653</td><td class="n best">0.951</td><td class="n">0.922</td></tr>
+<tr><td>F1 ↑</td><td class="n">0.889</td><td class="n">0.777</td><td class="n best">0.967</td><td class="n">0.952</td></tr>
+<tr><td rowspan="3">RAI</td><td>Precision ↑</td><td class="n">0.856</td><td class="n best">0.933</td><td class="n">0.918</td><td class="n">0.889</td></tr>
+<tr><td>Recall ↑</td><td class="n">0.807</td><td class="n">0.746</td><td class="n">0.921</td><td class="n best">0.923</td></tr>
+<tr><td>F1 ↑</td><td class="n">0.831</td><td class="n">0.829</td><td class="n best">0.919</td><td class="n">0.906</td></tr>
+<tr><td rowspan="3">SHOT</td><td>Precision ↑</td><td class="n">0.769</td><td class="n best">0.949</td><td class="n">0.883</td><td class="n">0.866</td></tr>
+<tr><td>Recall ↑</td><td class="n">0.673</td><td class="n">0.462</td><td class="n">0.767</td><td class="n best">0.804</td></tr>
+<tr><td>F1 ↑</td><td class="n">0.718</td><td class="n">0.622</td><td class="n">0.821</td><td class="n best">0.834</td></tr>
+<tr><td rowspan="3">ClipShots</td><td>Precision ↑</td><td class="n">0.395</td><td class="n">0.649</td><td class="n best">0.685</td><td class="n">0.653</td></tr>
+<tr><td>Recall ↑</td><td class="n">0.602</td><td class="n">0.424</td><td class="n">0.772</td><td class="n best">0.781</td></tr>
+<tr><td>F1 ↑</td><td class="n">0.477</td><td class="n">0.513</td><td class="n best">0.726</td><td class="n">0.711</td></tr>
+</tbody></table></div>
+<p><b>3.2.2 转码。</b>把每段统一重新编码为高码率 mp4（h264_nvenc），用快速运动和高频纹理的视频压测，保证看不出损失；统一编码也让训练数据加载更稳更快。表 2 比较软硬件配置：L40S 有 NVDEC 和 NVENC，H100 只有 NVDEC，所以给 H100 配 28 个 CPU 核来公平比较。把 ffmpeg 换成 PyNvideoCodec 做视频流转码（ffmpeg 只留着混音），加速最大。全部改进合起来吞吐约提升 6.5 倍。</p>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 2 · 不同软件设置下的转码吞吐</caption>
+<thead><tr><th>方法</th><th>GPU</th><th>CPU</th><th>编码器</th><th>批</th><th>NVDEC 数</th><th>NVENC 数</th><th>吞吐（视频/秒）</th></tr></thead><tbody>
+<tr><td>ffmpeg</td><td>H100</td><td class="n">28</td><td>libx264</td><td class="n">1</td><td class="n">7</td><td class="n">0</td><td class="n">0.0574</td></tr>
+<tr><td>ffmpeg</td><td>L40S</td><td class="n">1</td><td>h264_nvenc</td><td class="n">1</td><td class="n">3</td><td class="n">3</td><td class="n">0.0674</td></tr>
+<tr><td>ffmpeg</td><td>L40S</td><td class="n">1</td><td>h264_nvenc</td><td class="n">16</td><td class="n">3</td><td class="n">3</td><td class="n">0.1026</td></tr>
+<tr><td>pynvc+ffmpeg</td><td>L40S</td><td class="n">1</td><td>h264_nvenc</td><td class="n">1</td><td class="n">3</td><td class="n">3</td><td class="n best">0.3702</td></tr>
+</tbody></table></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 2 的倍数</span><p>“约 6.5 倍”是 0.3702 / 0.0574 = 6.45；“L40S 高约 17%”是 0.0674 / 0.0574 = 1.174。正文说 PyNvideoCodec 一项提升最大（0.3702 对 0.1026，3.6 倍），但这两行批大小不同（1 对 16），所以 3.6 倍里混着“批 16 → 批 1”的变化；表里没有“pynvc + 批 16”这一行，单独换库的效果没法从表里读出。</p></div>
+<h3 id="s3-3"><span class="no">3.3</span>过滤</h3>
+<p>目的有三：去掉画质不达标的片段，挑出适合微调的高质量片段，调整数据分布。四种过滤：</p>
+<ul>
+<li><b>运动过滤</b>：去掉静止或手持乱抖的片段，并给镜头运动打标签（平移、变焦、俯仰等）。一个基于 ViT 的轻量分类器，输入是运动矢量或光流序列。比较了 H.264 运动矢量、Farneback 光流和 TensorRT 加速的光流网络，最后一种最好。</li>
+<li><b>画质过滤</b>：一是失真（噪声、模糊、过曝等），用基于 DOVER 的视频质量模型打分，去掉最低的 15%；二是外观，用图像美学模型，阈值 3.5，偏保守，因为美观对物理 AI 不那么重要。</li>
+<li><b>叠加文字过滤</b>：去掉后期加了大量字幕的视频（场景里本来就有的字，比如路牌，不算）。InternVideo2 嵌入上的 MLP 二分类器，训练标签由一个专有 VLM 生成。</li>
+<li><b>视频类型过滤</b>：按内容和风格建了分类体系，去掉抽象图案、游戏画面、动画等，上采样人体动作、人物交互，下采样自然风景。标签同样由专有 VLM 看 8 帧给出，再在 InternVideo2 嵌入上训 MLP。</li>
+</ul>
+<h3 id="s3-4"><span class="no">3.4</span>标注</h3>
+<p>用 VLM 写描述，而不是用网页的 alt 文字，这样文字风格统一，模型不用适应多种格式。比较了 VFC、Qwen2-VL 和 VILA，小规模人工评估后选 VILA：内部 13B 版本，为视频描述微调，输入最长 5,904 个 token，输出最长 256 个。提示是“详细描述视频的视觉和叙事要素”，输入 8 帧均匀采样。平均描述 559 个字符、97 个词。用 FP8 的 TensorRT-LLM 引擎，比 PyTorch FP16 快约 10 倍（表 3）。</p>
+<div class="tablewrap"><table class="t-m">
+<caption class="tcap">表 3 · VILA 在单张 H100 上的推理吞吐</caption>
+<thead><tr><th>引擎</th><th>精度</th><th>批</th><th>片段/秒</th><th>token/秒</th></tr></thead><tbody>
+<tr><td>PyTorch</td><td>FP16</td><td class="n">1</td><td class="n">0.21</td><td class="n">49.6</td></tr>
+<tr><td>TRT-LLM</td><td>FP16</td><td class="n">1</td><td class="n">0.40</td><td class="n">95.6</td></tr>
+<tr><td>TRT-LLM</td><td>FP16</td><td class="n">16</td><td class="n">1.09</td><td class="n">260.9</td></tr>
+<tr><td>TRT-LLM</td><td>FP8</td><td class="n">16</td><td class="n best">1.96</td><td class="n best">470.6</td></tr>
+</tbody></table></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 表 3 内部一致，“10 倍”略有进位</span><p>每行 token/秒 ÷ 片段/秒 = 236、239、239、240，约 240 个输出 token 一段，和 256 的输出上限、以及表内各行都一致。加速比：1.96 / 0.21 = 9.3 倍，470.6 / 49.6 = 9.5 倍，正文写“10 倍”是取整。平均 97 个英文词对应约 240 个 token，比常见的约 1.3 token/词偏多，这里的“token”是否含提示或特殊 token，原文没说，未核实。</p></div>
+<h3 id="s3-5"><span class="no">3.5</span>去重</h3>
+<p>按 SemDeDup 和 DataComp 的做法做语义去重：复用 InternVideo2 嵌入，用多机 GPU 版 k-means（RAPIDS）聚成 k = 10,000 类，类内算两两距离找重复；遇到重复保留分辨率最高的那段。为了不在显存里存整个距离矩阵，按 256 一块现算上三角并做 argmax 归约。去重去掉约 30% 的训练数据。同一套嵌入和聚类还做成了一个可以用文字或视频检索整个训练集的搜索引擎，用来排查数据问题、看预训练和下游的差距。</p>
+<h3 id="s3-6"><span class="no">3.6</span>分片</h3>
+<p>把片段打包成 webdataset，按分辨率、宽高比和长度分片，配合训练课程。微调集用更严的过滤阈值生成。</p>
+<h3 id="s3-7"><span class="no">3.7</span>基础设施</h3>
+<p>用 AnyScale Ray 搭流式流水线，跨地理分布的集群运行，数据传输和计算解耦，内存随流水线复杂度而不是数据量增长，因此能无限流式处理。不同阶段并行使用网络带宽、NVDEC 和 GPU 计算；作者扩展了 Fragmentation Gradient Descent 算法做多资源分配，调度器自动伸缩各阶段，使吞吐平衡。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · §3 的几个数</span><p>9 个类别比例 11 + 16 + 10 + 16 + 8 + 20 + 8 + 4 + 7 = 100，没问题。§1 说“约 1 亿段片段”，§3.1 说“约 10⁸ 段预训练、10⁷ 段微调”，两处一致。各步过滤各去掉多少、1 亿段是去重前还是去重后，原文没给；整理管线的代码不在 cosmos-predict1 仓库里，我没有找别的仓库对照。</p></div>
+
+<h2 id="s4"><span class="no">4</span>Tokenizer</h2>
+<p><b>结论：</b>Cosmos Tokenizer 是一族时间因果的编解码器，先用两级 Haar 小波把视频在 x、y、t 上各降 4 倍，再用因果的分解卷积和因果注意力继续压缩。连续版是普通 AE（16 通道），离散版用 FSQ（6 维，词表 64,000）。只监督解码输出，不加 KL 或 commitment 之类的隐空间损失。主表里，同样 4×8×8 压缩时它在 DAVIS 和 <a class="ds" href="https://github.com/NVlabs/TokenBench">TokenBench</a> 上普遍优于对比方法，速度快 2 到 12 倍。</p>
+<figure class="pfig" id="fig6">
+<img src="cosmos/fig6.webp" width="1503" height="315" alt="图 6：输入视频经 token 编码器得到一叠 token，再经 token 解码器得到重建视频" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 11 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S4.F6">看原图 ↗</a></span>Input Video → Token Encoder → Tokens → Token Decoder → Reconstructed Video。训练目标是让瓶颈处的 token 尽量保留输入的视觉信息。</figcaption>
+</figure>
+<p>tokenizer 分两类：连续的把视觉数据编成连续向量，给 Stable Diffusion、VideoLDM 这类隐空间扩散用；离散的编成量化索引，给 VideoPoet 这类用交叉熵训练的自回归 Transformer 用（图 7）。难点在压缩率和重建质量的权衡。</p>
+<figure class="pfig" id="fig7">
+<img src="cosmos/fig7.webp" width="1141" height="546" alt="图 7：左边是连续 token 的长条立方体，时间轴 1 + T/s_T，空间 H/s_HW × W/s_HW，通道 C；右边是离散 token，每格一个彩色整数" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 12 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S4.F7">看原图 ↗</a></span>(a) 连续 token：时间方向 \(1+T/s_T\) 个，空间 \(H/s_{HW}\times W/s_{HW}\)，每个是 C 维向量。(b) 离散 token：同样的网格，每格是一个整数索引（图中 4、7、9、3 等，颜色表示不同码字）。第一个时间 token 只对应第一帧，所以图像（T = 0）和视频共用同一个隐空间。</figcaption>
+</figure>
+<p>表 4 是功能对比：Cosmos-Tokenize1 是唯一同时满足因果、图像、视频、图像视频联合、离散、连续六项的。</p>
+<details class="tbl"><summary>表 4 · 各 tokenizer 的能力（点开）</summary>
+<div class="tablewrap"><table class="t-w">
+<thead><tr><th>模型</th><th>因果</th><th>图像</th><th>视频</th><th>联合</th><th>离散</th><th>连续</th></tr></thead><tbody>
+<tr><td>FLUX-Tokenizer</td><td>–</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td></tr>
+<tr><td>Open-MAGVIT2-Tokenizer</td><td>–</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td></tr>
+<tr><td>LlamaGen-Tokenizer</td><td>–</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td></tr>
+<tr><td>VideoGPT-Tokenizer</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td></tr>
+<tr><td>Omni-Tokenizer</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>CogVideoX-Tokenizer</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td></tr>
+<tr><td>Cosmos-Tokenize1</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+</tbody></table></div></details>
+<p>设计要点：轻量、时间因果（因果时间卷积和因果时间注意力），直接在高分辨率图像和长视频上训练，不限类别和宽高比（1:1、3:4、4:3、9:16、16:9），推理时长度不受训练长度限制。评测集是 <a class="ds" href="https://cocodataset.org/">MS-COCO 2017</a>、<a class="ds" href="https://www.image-net.org/">ImageNet-1K</a>、<a class="ds" href="https://davischallenge.org/">DAVIS</a>，以及作者新建的 TokenBench（鱼眼、机器人、驾驶、人体活动、导航）。单张 A100 80GB 能一次编码 1080p 8 秒或 720p 10 秒视频。</p>
+<figure class="pfig" id="fig8">
+<img src="cosmos/fig8.webp" width="1576" height="650" alt="图 8：两张散点图，横轴是对数尺度的时空压缩率，纵轴是 DAVIS 上的 PSNR；左边连续 tokenizer，右边离散 tokenizer，Cosmos 的点位于左上" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S4.F8">看原图 ↗</a></span>横轴是时空压缩率（对数，10² 到 10³ 附近），纵轴是 DAVIS 上的 PSNR，图像 tokenizer 按逐帧计算。左图连续：最上面是 Cosmos-Tokenize1 CI8×8-360p，其下有 FLUX 8×8、Cosmos-0.1 的 CV4×8×8 / CV8×8×8 / CV8×16×16、CogVideoX 4×8×8，最低是 Omni 4×8×8。右图离散：Cosmos-0.1 DI8×8 在上，LlamaGen、VideoGPT 4×4×4、Open-MAGVIT2、Omni 在下。整体上同样压缩率下 Cosmos 的点更高。我没有逐点从矢量图读数。</figcaption>
+</figure>
+<h3 id="s4-1"><span class="no">4.1</span>架构</h3>
+<p>输入 \(x_{0:T}\in\mathbb R^{(1+T)\times H\times W\times3}\)，编码器 \(\mathcal E\) 输出 \(z_{0:T'}\in\mathbb R^{(1+T')\times H'\times W'\times C}\)，空间压缩 \(s_{HW}=H/H'=W/W'\)，时间压缩 \(s_T=T/T'\)。解码器 \(\mathcal D\) 重建：</p>
+<div class="eq"><div class="m">\[ \hat x_{0:T}=\mathcal D\big(\mathcal E(x_{0:T})\big) \]</div><span class="no">(1)</span></div>
+<ul>
+<li><b>小波在前。</b>先做 2 级 Haar 小波，按组把 x、y、t 各降 4 倍：\(\{x_0,x_{1:4},x_{5:8},\dots\}\to\{g_0,g_1,g_2,\dots\}\)。首帧单独成组。作者说这去掉了像素冗余，让后面的层专注语义压缩。</li>
+<li><b>因果。</b>之后每一级只看当前和过去：\(\{g_0,g_{0:1},g_{0:2},\dots\}\to\{\xi_0,\xi_1,\xi_2,\dots\}\)。</li>
+<li><b>块结构。</b>残差块和下采样块交替；卷积是时空分解的：先 \(1\times k\times k\) 空间卷积，再 \(k\times1\times1\) 时间卷积，时间方向左填充 \(k-1\) 保证因果。长程依赖用时空分解的因果自注意力，最后一级的感受野是全部 \(1+T'\)。激活用 Swish，归一化用 LayerNorm 而不是 GroupNorm，避免隐空间或输出某些区域数值过大。解码器镜像编码器，下采样换成上采样。</li>
+<li><b>隐空间。</b>连续版用普通 AE，隐维 16；离散版用 FSQ，6 维，各维级数 (8, 8, 8, 5, 5, 5)，词表 64,000。</li>
+</ul>
+<figure class="pfig" id="fig9">
+<img src="cosmos/fig9.webp" width="1600" height="680" alt="图 9：左边是 x0 到 x12 十三帧经小波分组成 g0 到 g3，再经因果卷积和注意力得到 ξ0 到 ξ3 的连线图；右边是编码器和解码器的竖条模块序列" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S4.F9">看原图 ↗</a></span>(a) 时间因果：13 帧 \(x_0\dots x_{12}\) 中，\(x_0\) 单独连到 \(g_0\)，之后每 4 帧连到一个 \(g\)；每个 \(\xi_k\) 只从 \(g_0\dots g_k\) 收到连线，没有从后面来的线。(b) 编码器：Haar Wavelet3D → 因果 ResBlock3D → 因果 DownSample3D（重复 N 次）→ 因果时空注意力；解码器反过来，最后是逆 Haar 小波。下面 3D 动画第 3 幕可以单步看这张图。</figcaption>
+</figure>
+<h3 id="s4-2"><span class="no">4.2</span>训练策略</h3>
+<p>图像和视频按预设频率交替成批，联合训练。只监督解码器输出。两阶段损失。第一阶段是 L1 重建：</p>
+<div class="eq"><div class="m">\[ \mathcal L_1=\big\|\hat x_{0:T}-x_{0:T}\big\|_1 \]</div><span class="no">(2)</span></div>
+<p>加 VGG-19 特征的感知损失（\(\alpha_l\) 是第 \(l\) 层的权重）：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Perceptual}=\frac1L\sum_{l=1}^{L}\sum_t\alpha_l\big\|{\rm VGG}_l(\hat x_t)-{\rm VGG}_l(x_t)\big\|_1 \]</div><span class="no">(3)</span></div>
+<p>第二阶段加光流损失（RAFT 光流，前后两个方向）让重建在时间上平滑，原文这个式子没有编号：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Flow}=\frac1T\sum_{t=1}^{T}\big\|{\rm OF}(\hat x_t,\hat x_{t-1})-{\rm OF}(x_t,x_{t-1})\big\|_1+\frac1T\sum_{t=0}^{T-1}\big\|{\rm OF}(\hat x_t,\hat x_{t+1})-{\rm OF}(x_t,x_{t+1})\big\|_1 \]</div><span class="no"></span></div>
+<p>以及 Gram 矩阵损失增强锐度：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm Gram}=\frac1L\sum_{l=1}^{L}\sum_t\alpha_l\big\|{\rm GM}_l(\hat x_t)-{\rm GM}_l(x_t)\big\|_1 \]</div><span class="no">(4)</span></div>
+<p>微调阶段再加对抗损失，尤其帮大压缩率保细节。图像 tokenizer（CI、DI）有 8×8 和 16×16 两档；视频（CV、DV）有 4×8×8、8×8×8、8×16×16 三档（T×H×W）。视频分两代：Cosmos-0.1-Tokenizer 用 720p 的较短片段训练（CV 49 帧、DV 17 帧）；Cosmos-Tokenize1 用 360p 或 720p 的较长片段（CV 121 帧、DV 49 帧）。</p>
+<figure class="pfig" id="fig10">
+<img src="cosmos/fig10.webp" width="1600" height="912" alt="图 10：TokenBench 示例帧拼图，含鱼眼第一人称、驾驶、机器人操作和网络视频" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 15 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S4.F10">看原图 ↗</a></span>TokenBench 的样例帧：第一行多是鱼眼的第一人称画面，下面几行是驾驶、桌面机器人操作和网络视频。</figcaption>
+</figure>
+<h3 id="s4-3"><span class="no">4.3</span>结果</h3>
+<p>图像在 MS-COCO 2017 验证集 5,000 张和 ImageNet-1K 验证集 50,000 张上评测。视频新建 TokenBench：从 <a class="ds" href="https://github.com/bdd100k/bdd100k">BDD100K</a>、<a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a>、<a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a>、<a class="ds" href="https://snap-research.github.io/Panda-70M/">Panda-70M</a> 各随机取 100 段，取前 10 秒，短边缩到 1080；Panda-70M 手工去掉低质量和小运动的；Ego-Exo4D 取 100 个场景、每个一段第一人称加一段第三人称，所以共 500 段。DAVIS 也在 1080p 上评测。指标：PSNR、SSIM，图像用 rFID，视频用 rFVD。</p>
+<div class="tablewrap"><table class="t-xw">
+<caption class="tcap">表 5 · 连续视频（CV）tokenizer，DAVIS 和 TokenBench</caption>
+<thead><tr><th rowspan="2">Tokenizer</th><th rowspan="2">帧</th><th rowspan="2">形式</th><th colspan="3">DAVIS</th><th colspan="3">TokenBench</th></tr><tr><th>PSNR ↑</th><th>SSIM ↑</th><th>rFVD ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>rFVD ↓</th></tr></thead><tbody>
+<tr><td>CogVideoX-Tokenizer 4×8×8</td><td class="n">17</td><td>VAE</td><td class="n">29.29</td><td class="n">0.864</td><td class="n">19.58</td><td class="n">32.06</td><td class="n">0.909</td><td class="n">6.97</td></tr>
+<tr><td>Omni-Tokenizer 4×8×8</td><td class="n">17</td><td>VAE</td><td class="n">22.23</td><td class="n">0.713</td><td class="n">117.66</td><td class="n">24.48</td><td class="n">0.830</td><td class="n">35.86</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CV4×8×8</td><td class="n">49</td><td>AE</td><td class="n">32.80</td><td class="n">0.900</td><td class="n">15.93</td><td class="n">35.45</td><td class="n">0.928</td><td class="n">6.85</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CV8×8×8</td><td class="n">49</td><td>AE</td><td class="n">30.61</td><td class="n">0.856</td><td class="n">30.16</td><td class="n">34.44</td><td class="n">0.917</td><td class="n">11.62</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CV8×16×16</td><td class="n">49</td><td>AE</td><td class="n">27.60</td><td class="n">0.779</td><td class="n">93.82</td><td class="n">31.61</td><td class="n">0.875</td><td class="n">43.08</td></tr>
+<tr><td>Cosmos-Tokenize1-CV4×8×8-360p</td><td class="n">49</td><td>AE</td><td class="n best">35.85</td><td class="n best">0.920</td><td class="n best">10.057</td><td class="n best">38.42</td><td class="n best">0.950</td><td class="n best">3.34</td></tr>
+<tr><td>Cosmos-Tokenize1-CV8×8×8-720p</td><td class="n">121</td><td>AE</td><td class="n">31.28</td><td class="n">0.868</td><td class="n">23.49</td><td class="n">35.13</td><td class="n">0.926</td><td class="n">9.82</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-xw">
+<caption class="tcap">表 6 · 离散视频（DV）tokenizer，DAVIS 和 TokenBench</caption>
+<thead><tr><th rowspan="2">Tokenizer</th><th rowspan="2">帧</th><th rowspan="2">量化</th><th colspan="3">DAVIS</th><th colspan="3">TokenBench</th></tr><tr><th>PSNR ↑</th><th>SSIM ↑</th><th>rFVD ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>rFVD ↓</th></tr></thead><tbody>
+<tr><td>VideoGPT-Tokenizer 4×4×4</td><td class="n">–</td><td>VQ</td><td class="n">28.17</td><td class="n best">0.850</td><td class="n">72.33</td><td class="n">33.66</td><td class="n best">0.914</td><td class="n best">13.85</td></tr>
+<tr><td>Omni-Tokenizer 4×8×8</td><td class="n">17</td><td>VQ</td><td class="n">20.02</td><td class="n">0.703</td><td class="n">188.60</td><td class="n">25.31</td><td class="n">0.827</td><td class="n">53.55</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DV4×8×8</td><td class="n">17</td><td>FSQ</td><td class="n">28.81</td><td class="n">0.818</td><td class="n best">37.36</td><td class="n">31.97</td><td class="n">0.888</td><td class="n">19.67</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DV8×8×8</td><td class="n">17</td><td>FSQ</td><td class="n">27.51</td><td class="n">0.789</td><td class="n">100.15</td><td class="n">30.95</td><td class="n">0.873</td><td class="n">43.86</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DV8×16×16</td><td class="n">17</td><td>FSQ</td><td class="n">25.09</td><td class="n">0.714</td><td class="n">241.52</td><td class="n">28.91</td><td class="n">0.829</td><td class="n">113.48</td></tr>
+<tr><td>Cosmos-Tokenize1-DV4×8×8-360p</td><td class="n">49</td><td>FSQ</td><td class="n best">32.97</td><td class="n">0.840</td><td class="n">53.44</td><td class="n best">35.74</td><td class="n">0.910</td><td class="n">19.25</td></tr>
+<tr><td>Cosmos-Tokenize1-DV8×16×16-720p</td><td class="n">49</td><td>FSQ</td><td class="n">25.49</td><td class="n">0.719</td><td class="n">259.33</td><td class="n">29.33</td><td class="n">0.838</td><td class="n">107.43</td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 7、表 8 · 连续和离散图像 tokenizer，MS-COCO 2017 和 ImageNet-1K（点开）</summary>
+<div class="tablewrap"><table class="t-xw">
+<caption class="tcap">表 7 · 连续图像（CI）tokenizer</caption>
+<thead><tr><th rowspan="2">Tokenizer</th><th rowspan="2">高度</th><th rowspan="2">形式</th><th colspan="3">MS-COCO 2017</th><th colspan="3">ImageNet-1K</th></tr><tr><th>PSNR ↑</th><th>SSIM ↑</th><th>rFID ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>rFID ↓</th></tr></thead><tbody>
+<tr><td>FLUX-Tokenizer 8×8</td><td>–</td><td>VAE</td><td class="n">24.00</td><td class="n">0.682</td><td class="n">2.501</td><td class="n">20.09</td><td class="n">0.518</td><td class="n">1.229</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CI8×8</td><td class="n">1024</td><td>AE</td><td class="n">28.66</td><td class="n">0.836</td><td class="n">1.760</td><td class="n">28.83</td><td class="n">0.837</td><td class="n">0.689</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CI16×16</td><td class="n">1024</td><td>AE</td><td class="n">23.63</td><td class="n">0.663</td><td class="n">3.823</td><td class="n">23.72</td><td class="n">0.655</td><td class="n">1.031</td></tr>
+<tr><td>Cosmos-Tokenize1-CI8×8-360p</td><td class="n">1024</td><td>AE</td><td class="n">32.79</td><td class="n">0.824</td><td class="n">1.874</td><td class="n">32.91</td><td class="n">0.824</td><td class="n">0.785</td></tr>
+<tr><td>Cosmos-Tokenize1-CI16×16-360p</td><td class="n">1024</td><td>AE</td><td class="n">31.28</td><td class="n">0.682</td><td class="n">4.294</td><td class="n">31.29</td><td class="n">0.675</td><td class="n">0.701</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-xw">
+<caption class="tcap">表 8 · 离散图像（DI）tokenizer</caption>
+<thead><tr><th rowspan="2">Tokenizer</th><th rowspan="2">高度</th><th rowspan="2">量化</th><th colspan="3">MS-COCO 2017</th><th colspan="3">ImageNet-1K</th></tr><tr><th>PSNR ↑</th><th>SSIM ↑</th><th>rFID ↓</th><th>PSNR ↑</th><th>SSIM ↑</th><th>rFID ↓</th></tr></thead><tbody>
+<tr><td>Open-MAGVIT2-Tokenizer 16×16</td><td>–</td><td>LFQ</td><td class="n">19.50</td><td class="n">0.502</td><td class="n">6.649</td><td class="n">17.00</td><td class="n">0.398</td><td class="n">2.701</td></tr>
+<tr><td>LlamaGen-Tokenizer 8×8</td><td>–</td><td>VQ</td><td class="n">21.99</td><td class="n">0.616</td><td class="n">4.123</td><td class="n">19.64</td><td class="n">0.498</td><td class="n">1.403</td></tr>
+<tr><td>LlamaGen-Tokenizer 16×16</td><td>–</td><td>VQ</td><td class="n">19.11</td><td class="n">0.491</td><td class="n">6.077</td><td class="n">18.38</td><td class="n">0.448</td><td class="n">1.657</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DI8×8</td><td class="n">1024</td><td>FSQ</td><td class="n">24.40</td><td class="n">0.704</td><td class="n">3.710</td><td class="n">24.48</td><td class="n">0.701</td><td class="n">1.265</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DI16×16</td><td class="n">1024</td><td>FSQ</td><td class="n">20.45</td><td class="n">0.529</td><td class="n">7.234</td><td class="n">20.49</td><td class="n">0.518</td><td class="n">2.518</td></tr>
+<tr><td>Cosmos-Tokenize1-DI8×8-360p</td><td class="n">1024</td><td>AE（原文如此）</td><td class="n">31.36</td><td class="n">0.714</td><td class="n">4.133</td><td class="n">31.34</td><td class="n">0.707</td><td class="n">1.324</td></tr>
+<tr><td>Cosmos-Tokenize1-DI16×16-360p</td><td class="n">1024</td><td>AE（原文如此）</td><td class="n">30.54</td><td class="n">0.565</td><td class="n">7.557</td><td class="n">30.46</td><td class="n">0.549</td><td class="n">2.147</td></tr>
+</tbody></table></div></details>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 9 · 运行速度（单张 A100 80GB，每张图或每帧的编码加解码时间）</caption>
+<thead><tr><th>Tokenizer</th><th>类型</th><th>分辨率</th><th>帧</th><th>参数</th><th>时间（ms）</th></tr></thead><tbody>
+<tr><td>FLUX-Tokenizer 8×8</td><td>连续图像</td><td>1024 × 1024</td><td>–</td><td class="n">84M</td><td class="n">242</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CI8×8</td><td>连续图像</td><td>1024 × 1024</td><td>–</td><td class="n">77M</td><td class="n">62.7</td></tr>
+<tr><td>LlamaGen-Tokenizer 8×8</td><td>离散图像</td><td>1024 × 1024</td><td>–</td><td class="n">70M</td><td class="n">475</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DI8×8</td><td>离散图像</td><td>1024 × 1024</td><td>–</td><td class="n">79M</td><td class="n">64.2</td></tr>
+<tr><td>CogVideoX-Tokenizer 4×8×8</td><td>连续视频</td><td>720 × 1280</td><td class="n">17</td><td class="n">216M</td><td class="n">414</td></tr>
+<tr><td>Omni-Tokenizer 4×8×8</td><td>连续视频</td><td>720 × 1280</td><td class="n">17</td><td class="n">54M</td><td class="n">82.9</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-CV4×8×8</td><td>连续视频</td><td>720 × 1280</td><td class="n">49</td><td class="n">105M</td><td class="n">34.8</td></tr>
+<tr><td>Omni-Tokenizer 4×8×8</td><td>离散视频</td><td>720 × 1280</td><td class="n">17</td><td class="n">54M</td><td class="n">53.2</td></tr>
+<tr><td>Cosmos-0.1-Tokenizer-DV4×8×8</td><td>离散视频</td><td>720 × 1280</td><td class="n">17</td><td class="n">105M</td><td class="n">51.5</td></tr>
+</tbody></table></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · “压缩率”只算时空倍数</span><p>论文和图 8 的压缩率是 \(s_T\times s_H\times s_W\)：4×8×8 = 256，8×8×8 = 512，8×16×16 = 2048。它不看通道。按元素数算：CV8×8×8 把 8 × 8 × 8 × 3 = 1,536 个像素值变成 16 个隐变量，是 <b>96 倍</b>；DV8×16×16 把 8 × 16 × 16 × 3 = 6,144 个 8 位像素值变成 1 个整数，词表 \(8^3\times5^3=64{,}000\)，\(\log_2 64000=15.97\) 位，按比特是 6,144 × 8 / 15.97 ≈ <b>3,079 倍</b>。所以 DV8×16×16 比 CV8×8×8 的信息压缩大约多一个量级，这也解释了 §5.2.5 为什么要扩散解码器。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 8 的“AE”</span><p>表 8 最后两行 Cosmos-Tokenize1-DI8×8-360p 和 DI16×16-360p 的量化一栏写的是 “AE”。这两行是离散 tokenizer，代码里 <code>discrete_image_8x8_360p</code> 和 <code>discrete_image_16x16_360p</code> 都是 <code>quantizer=FSQ</code>（<code>cosmos_predict1/tokenizer/networks/configs.py</code>），所以应是 FSQ，我认为是复制表 7 时留下的笔误。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 5 的帧数和正文不一致</span><p>§4.2 说 Cosmos-Tokenize1 的 CV 用 121 帧训练。表 5 里 CV8×8×8-720p 是 121 帧，但 CV4×8×8-360p 写 49 帧。可能是 360p 版另有设定，原文没解释。另外它的 DAVIS rFVD 写成 10.057（三位小数），其他行都是两位，大概是 10.06。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · “2 到 12 倍更快、模型最小”核对</span><p>按表 9 算加速比：FLUX / CI8×8 = 242 / 62.7 = 3.9；LlamaGen / DI8×8 = 475 / 64.2 = 7.4；CogVideoX / CV4×8×8 = 414 / 34.8 = 11.9；Omni(连续) / CV4×8×8 = 82.9 / 34.8 = 2.4；Omni(离散) / DV4×8×8 = 53.2 / 51.5 = <b>1.03</b>。所以离散视频这一对几乎一样快，不到 2 倍。“模型最小”也不完全成立：Omni-Tokenizer 是 54M，Cosmos 视频版是 105M。另外比较的帧数不同（Cosmos CV 49 帧，其余 17 帧），每帧时间会受长度影响。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · “所有指标都是最好”只对连续版成立</span><p>正文说在 4×8×8 下 Cosmos 在 DAVIS 和 TokenBench 的所有指标上都是最好。表 5（连续）确实如此。表 6（离散）不是：VideoGPT 4×4×4 在 DAVIS 的 SSIM（0.850）和 TokenBench 的 SSIM（0.914）、rFVD（13.85）上都好于 Cosmos-Tokenize1-DV4×8×8-360p（0.840、0.910、19.25）。VideoGPT 的压缩率低 4 倍（64 对 256），所以不算不公平，但“全部指标”这句话不准。摘要里的“+4 dB”：连续版 Tokenize1-CV4×8×8 比 CogVideoX 高 35.85 − 29.29 = 6.56 dB，0.1 版高 3.51 dB；离散版 Tokenize1-DV4×8×8 比 VideoGPT 高 32.97 − 28.17 = 4.80 dB。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · Tokenizer 的代码和论文</span><p>对得上的：FSQ 级数 [8, 8, 8, 5, 5, 5]、embedding_dim 6；连续版 latent_channels 16、formulation AE；patch_method "haar"、patch_size 4（两级小波，4 倍）；视频编码器类型 FACTORIZED（分解卷积）；num_groups = 1 的 GroupNorm 即对通道的 LayerNorm 形式。有差别的：① 360p 的几个版本（CI8×8-360p、CV4×8×8-360p、DI8×8-360p 等）是 <code>patch_size = 2</code>，只做一级小波；② 离散图像的默认 <code>num_groups = 32</code>，是真正的 GroupNorm，只有 DI16×16-360p 改成 1；③ 训练损失的默认权重（<code>training/configs/base/loss.py</code>）：L1 权重 1；感知损失 0.1，第 50 万步后 0.073；Gram 损失前 50 万步为 0、之后 0.062；光流损失 <code>enabled=False</code>，开启时前 25 万步为 0、之后 0.01；④ 公开的训练代码里没有对抗损失和判别器。论文说的两阶段在代码里是按步数切换的权重表。</p></div>
+
+<h2 id="s5"><span class="no">5</span>世界基础模型预训练</h2>
+<p><b>结论：</b>两个家族，各有两个基础模型和两个派生模型，加两个辅助模型（表 10）。所有 WFM 在 10,000 张 H100 的集群上训练了约三个月。</p>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 10 · Cosmos WFM 一览（原表是两列箭头图，这里改写成表）</caption>
+<thead><tr><th></th><th>扩散</th><th>自回归</th></tr></thead><tbody>
+<tr><td>模型 1</td><td>Cosmos-Predict1-7B-Text2World → 7B-Video2World</td><td>Cosmos-Predict1-4B → 5B-Video2World</td></tr>
+<tr><td>模型 2</td><td>Cosmos-Predict1-14B-Text2World → 14B-Video2World</td><td>Cosmos-Predict1-12B → 13B-Video2World</td></tr>
+<tr><td>Tokenizer</td><td>Cosmos-Tokenize1-CV8×8×8-720p</td><td>Cosmos-Tokenize1-DV8×16×16-720p</td></tr>
+<tr><td>辅助</td><td>Cosmos-UpsamplePrompt1-12B-Text2World（提示词扩写）</td><td>Cosmos-Predict1-7B-Decoder-DV8×16×16ToCV8×8×8-720p（扩散解码器）</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>扩散家族</b>：先训 Text2World（文字到视频），再加视频输入微调成 Video2World。都是隐空间扩散，用 CV8×8×8 的连续 token。训练提示是 VLM 写的描述，和人写的提示分布不同，所以用 Mistral-NeMo-12B-Instruct 做了一个扩写器，把用户提示改成模型喜欢的样子。</li>
+<li><b>自回归家族</b>：4B 和 12B 是从零训练的 Llama3 式 GPT，只看视频、不懂语言；加 T5 文本嵌入的交叉注意力层得到 5B / 13B Video2World。用 DV8×16×16 的离散 token；压缩太狠会失真，所以把 7B-Text2World 微调成扩散解码器，把离散 token 映射到 CV8×8×8 空间。</li>
+</ul>
+
+<h3 id="s5-1"><span class="no">5.1</span>扩散世界基础模型</h3>
+<p><b>结论：</b>EDM 公式的隐空间扩散加改造过的 DiT。几个关键改动：3D 分解 RoPE 加可学习绝对位置、T5-XXL 交叉注意力、QK 归一化、把 AdaLN 换成 AdaLN-LoRA（7B 从 11B 降到 7B 参数）。训练上：图像视频交替、按帧和通道标准化隐变量、视频噪声按帧数平方根放大、三阶段渐进分辨率、五档宽高比。</p>
+<h4 id="s5-1-1">5.1.1 公式</h4>
+<p>沿用 EDM。去噪器 \(D_\theta\) 在噪声水平 \(\sigma\) 下的去噪得分匹配损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L(D_\theta,\sigma)=\mathbb E_{\mathbf x_0,\mathbf n}\Big[\big\|D_\theta(\mathbf x_0+\mathbf n;\sigma)-\mathbf x_0\big\|_2^2\Big] \]</div><span class="no">(5)</span></div>
+<p>\(\mathbf x_0\) 是训练集的干净图像或视频，\(\mathbf n\sim\mathcal N(0,\sigma^2\mathbf I)\)。\(D_\theta\) 用 EDM 的预条件参数化。总损失是对噪声水平的加权期望：</p>
+<div class="eq"><div class="m">\[ \mathcal L(D_\theta)=\mathbb E_\sigma\Big[\frac{\lambda(\sigma)}{e^{u(\sigma)}}\,\mathcal L(D_\theta,\sigma)+u(\sigma)\Big] \]</div><span class="no">(6)</span></div>
+<div class="eq"><div class="m">\[ \lambda(\sigma)=\big(\sigma^2+\sigma_{\rm data}^2\big)\big/(\sigma\cdot\sigma_{\rm data})^2 \]</div><span class="no">(7)</span></div>
+<div class="eq"><div class="m">\[ \ln(\sigma)\sim\mathcal N\big(P_{\rm mean},P_{\rm std}^2\big) \]</div><span class="no">(8)</span></div>
+<p>\(\lambda(\sigma)\) 让训练开始时各噪声水平贡献相当，但训练中这种平衡会被打破。作者把不同噪声水平看成多任务，用基于不确定性的加权：\(u(\sigma)\) 是一个小 MLP，模型对某个 \(\sigma\) 不确定（\(u\) 大）时这一项权重变小，但 \(+u(\sigma)\) 又惩罚不确定性本身。作者说 EDM 和高斯流匹配在理论上等价，差别只在预条件和超参数，实际没遇到 EDM 的限制。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 式 (6) 在代码里</span><p><code>cosmos_predict1/diffusion/training/models/model_image.py</code>：\(u(\sigma)\) 叫 <code>logvar</code>，是 <code>FourierFeatures(128)</code> 接一个无偏置的 <code>Linear(128, 1)</code>，输入是噪声条件 \(c_{\rm noise}\)；损失 <code>kendall_loss = edm_loss · exp(−logvar) + logvar</code>，和式 (6) 一致，开关 <code>loss_add_logvar=True</code> 默认打开。<code>sigma_data = 0.5</code>。基础 SDE 的默认 \(P_{\rm mean}=0,\ P_{\rm std}=1\)（<code>config/base/model.py</code>），<code>edm_sde.py</code> 的类默认是 −1.2 / 1.2，论文没给主训练用的值。§5.1.3 说的“损失乘 10”在 Text2World 的实验配置里是 <code>loss_scale=10.0</code>，对得上。</p></div>
+<h4 id="s5-1-2">5.1.2 架构</h4>
+<figure class="pfig" id="fig11">
+<img src="cosmos/fig11.webp" width="1566" height="883" alt="图 11：输入视频经 CV8x8x8 编码器、加高斯噪声、3D patchify 后进入 N 个块，每块是自注意力、交叉注意力、MLP，受时间步的 scale、shift、gate 调制，最后经 CV8x8x8 解码器输出视频" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 20 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F11">看原图 ↗</a></span>左下：输入视频经 Cosmos-Tokenize1-CV8×8×8-720p 编码器，加高斯噪声得到“损坏的 token”，3D patchify 后展平。虚线框是重复 N 次的块：先加绝对位置嵌入（⊕），再自注意力（带 3D RoPE）、交叉注意力（读 T5 编码的文本）、MLP，三者都受时间步 t 经 scale、shift、gate 调制。右侧去噪后的 token 由同一 tokenizer 的解码器还原成视频。</figcaption>
+</figure>
+<ul>
+<li><b>3D patch 化</b>：隐变量 \(T\times C\times H\times W\)（图像是 1 帧的视频），用线性层把 \((p_t,p_h,p_w)=(1,2,2)\) 的小立方体变成 token，序列长 \(THW/(p_tp_hp_w)\)。</li>
+<li><b>混合位置编码</b>：特征维分三份分别做时间、高、宽的 RoPE，可生成任意尺寸、宽高比和长度；时间频率按训练视频的 FPS 缩放；改分辨率或长度时用 NTK-RoPE，作者说 5,000 步内就能收敛到合理水平。另外每个块加一个可学习的绝对位置嵌入，降低训练损失、减少形变伪影。</li>
+<li><b>交叉注意力</b>：每块依次是自注意力、交叉注意力、FFN；交叉注意力的 K、V 来自 T5-XXL。</li>
+<li><b>QK 归一化</b>：训练早期注意力 logit 增长导致熵塌缩，所以对 Q、K 做带可学习尺度的 RMSNorm。</li>
+<li><b>AdaLN-LoRA</b>：DiT 的 AdaLN 层参数多、计算少。借 W.A.L.T 的做法把它的稠密投影分解成低秩，7B 从 11B 降到 7B 参数（少 36%），各项指标不变。</li>
+</ul>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 11 · 扩散模型配置</caption>
+<thead><tr><th>配置</th><th>7B-Text2World</th><th>14B-Text2World</th><th>7B-Video2World</th><th>14B-Video2World</th></tr></thead><tbody>
+<tr><td>层数</td><td class="n">28</td><td class="n">36</td><td class="n">28</td><td class="n">36</td></tr>
+<tr><td>模型宽度</td><td class="n">4,096</td><td class="n">5,120</td><td class="n">4,096</td><td class="n">5,120</td></tr>
+<tr><td>FFN 隐层</td><td class="n">16,384</td><td class="n">20,480</td><td class="n">16,384</td><td class="n">20,480</td></tr>
+<tr><td>AdaLN-LoRA 维度</td><td class="n">256</td><td class="n">256</td><td class="n">256</td><td class="n">256</td></tr>
+<tr><td>注意力头 / KV 头</td><td class="n">32 / 32</td><td class="n">40 / 40</td><td class="n">32 / 32</td><td class="n">40 / 40</td></tr>
+<tr><td>MLP 激活</td><td colspan="4">GELU</td></tr>
+<tr><td>位置编码</td><td colspan="4">混合位置编码</td></tr>
+<tr><td>条件</td><td>文本；FPS</td><td>文本；FPS</td><td>文本；FPS；帧</td><td>文本；FPS；帧</td></tr>
+<tr><td>基础学习率</td><td class="n">2⁻¹⁵</td><td class="n">2⁻¹⁶</td><td class="n">2⁻¹⁵</td><td class="n">2⁻¹⁶</td></tr>
+<tr><td>权重衰减</td><td class="n">0.1</td><td class="n">0.2</td><td class="n">0.1</td><td class="n">0.2</td></tr>
+<tr><td>预热</td><td colspan="4">线性，2,500 步</td></tr>
+<tr><td>AdamW</td><td colspan="4">β₁, β₂ = 0.9, 0.99；ε = 10⁻¹⁰</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · AdaLN-LoRA 的 11B → 7B 可以算出来</span><p>按表 11 和代码（<code>diffusion/config/base/net.py</code>：<code>model_channels=4096, num_blocks=28, num_heads=32, adaln_lora_dim=256</code>，交叉注意力的文本维 <code>crossattn_emb_channels=1024</code>）逐项算，不计偏置和归一化：每块自注意力 \(4d^2\)，交叉注意力 \(2d^2+2\cdot1024\,d\)，FFN \(2\cdot d\cdot4d\)，合计 6.81B。三处调制（自注意力、交叉注意力、MLP）每处要输出 shift、scale、gate 三组：稠密时每块 \(3\times d\times3d=9d^2\)，28 块共 4.23B；LoRA 秩 256 时每处 \(256d+256\cdot3d\)，共 0.35B。所以稠密 11.04B，LoRA 7.16B，少 35.1%，和原文“11B → 7B、36%”一致（36% 是按 11 和 7 两个整数算的）。14B 同样算：LoRA 14.16B，稠密 22.08B。表 11 的 FFN 隐层正好是 4 倍宽度，头维 4096/32 = 5120/40 = 128。</p></div>
+<h4 id="s5-1-3">5.1.3 训练策略</h4>
+<ul>
+<li><b>图像视频联合。</b>图像批和视频批交替。分别估计图像和视频隐变量的统计量做领域内归一化；视频隐变量在时间和通道上统计量不平稳，所以逐帧、逐通道标准化，更接近各向同性高斯。好处之一是信噪比的尺度不变：方差为 4 的隐变量要加 \(\mathcal N(0,4\sigma^2)\) 才和单位方差的信噪比相同，统一标准化后就不用管，换 tokenizer 时模型也好适应。两类批的显存占用对齐。视频批损失收敛慢，作者归因于帧间冗余使梯度变小，于是<b>视频批的噪声水平按帧数的平方根放大</b>。</li>
+<li><b>渐进训练</b>（表 12）：先 512p、57 帧，再 720p、121 帧，最后在高质量子集上用线性衰减学习率微调 𝒪(10k) 步。</li>
+<li><b>多宽高比</b>：五个桶 1:1、3:4、4:3、9:16、16:9，每个数据并行组从一个桶采样；按最长边缩放，反射填充，并把填充掩码交给网络。</li>
+<li><b>混合精度</b>：BF16 前向反向，FP32 主权重更新。式 (5) 的损失乘 10。AdamW 用较低的 β 和 ε 能大幅减少损失尖峰，14B 训练中很少出现尖峰，没有出现不可恢复的尖峰。</li>
+<li><b>文本条件</b>：T5-XXL，零填充到 512 个 token。用无分类器引导，但训练时不随机清空文本嵌入（作者说推理时负提示已经足够有效）。图像生成不用引导也很好，视频因为缺同等质量的数据，需要较高的引导强度。</li>
+<li><b>图像和视频条件</b>：Video2World 把条件帧和生成帧在时间维拼接；条件帧加增强噪声提高鲁棒性，其 \(\sigma\) 按 \(P_{\rm mean}=-3.0,\ P_{\rm std}=2.0\) 采样；输入在通道维再拼一个区分条件帧的二值掩码；损失不算条件帧位置；训练时随机改变条件帧数，推理可给 1 帧（图）或多帧（视频）。</li>
+</ul>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 12 · 渐进训练的阶段</caption>
+<thead><tr><th>阶段</th><th>分辨率</th><th>帧数</th><th>上下文长度</th><th>FSDP</th><th>CP</th></tr></thead><tbody>
+<tr><td>低分辨率预训练</td><td>512p（640 × 512）</td><td class="n">57</td><td class="n">10,240</td><td class="n">64</td><td class="n">2</td></tr>
+<tr><td>高分辨率预训练</td><td>720p（1280 × 704）</td><td class="n">121</td><td class="n">56,320</td><td class="n">64</td><td class="n">8</td></tr>
+<tr><td>高质量微调</td><td>720p（1280 × 704）</td><td class="n">121</td><td class="n">56,320</td><td class="n">64</td><td class="n">8</td></tr>
+</tbody></table></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 12 的上下文长度</span><p>原表脚注给了算法，我复算：640/8/2 × 512/8/2 × [(57 − 1)/8 + 1] = 40 × 32 × 8 = <b>10,240</b>；1280/8/2 × 704/8/2 × [(121 − 1)/8 + 1] = 80 × 44 × 16 = <b>56,320</b>。都对。121 帧对应 16 个隐帧，57 帧对应 8 个。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · “按帧数平方根放大噪声”在代码里是隐帧数</span><p><code>diffusion/training/models/model.py</code> 第 147–150 行：<code>adjust_video_noise=True</code> 时 <code>video_noise_multiplier = sqrt(state_shape[1])</code>，<code>state_shape[1]</code> 是隐变量的时间长度。121 帧对应 16 个隐帧，倍数是 4，而不是 \(\sqrt{121}=11\)。Video2World 的实验配置都打开了这个开关。论文写“帧数”，按代码应理解为隐帧数。</p></div>
+<h4 id="s5-1-4">5.1.4 扩展</h4>
+<p><b>显存四项。</b>参数每个 10 字节（FP32 和 BF16 各一份，加 FP32 的 EMA）；梯度 2 字节（BF16）；优化器状态 8 字节（AdamW 两个矩，FP32）；激活约 \(2\times\text{层数}\times15\times\text{seq\_len}\times\text{batch}\times d\) 字节（BF16，表 13 列了各项，归一化等用选择性重算）。14B 模型参数、梯度、优化器约 280 GB，720p 预训练的激活约 310 GB，超过 H100 的 80 GB，所以用 FSDP 和上下文并行（CP）。</p>
+<p><b>FSDP</b>：参数、梯度、优化器状态都分片，用时才聚合。7B 分片因子 32，14B 为 64。<b>CP</b>：把 Q 和 K、V 沿序列切成 CP_SIZE 份，每张卡持一份 Q，轮流接收 K、V 块累加注意力；用 TransformerEngine 的 P2P 版，计算和通信重叠。CP 组放在 NVLink 相连的卡内，和 FSDP 组交叠。图像批上下文短，关掉 CP；交叉注意力的 K、V 短，不用 CP。14B 用 FSDP 64 后约 280 / 64 ≈ 4 GB / 卡，CP 8 后激活约 310 / 8 ≈ 40 GB / 卡，实际还要加 tokenizer 和未分片参数。</p>
+<p><b>和其他模型比。</b>HunyuanVideo 和 MovieGen 用了张量并行（TP）和序列并行（SP），Cosmos 不用 TP/SP 也达到相近的 MFU。LLM 常用的 \(6\times\text{seq\_len}\times P\) 估算 FLOPs 在这里不准，因为长上下文下注意力的平方项占比大，所以表 13 单独列出每项操作的前向 FLOPs。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 280 GB 和 310 GB 复算</span><p>14B × (10 + 2 + 8) 字节 = 280 GB，对。激活按公式：2 × 36 层 × 15 × 56,320 × 1 × 5,120 = 3.11 × 10¹¹ 字节 ≈ <b>311 GB</b>，和“310 GB”一致，说明原文按 batch = 1 算。分片后 280 / 64 = 4.4 GB，310 / 8 = 38.8 GB。</p></div>
+<details class="tbl"><summary>表 13 · 扩散 Transformer 各操作的 FLOPs 和激活显存（点开）</summary>
+<div class="tablewrap"><table class="t-xw">
+<thead><tr><th>层</th><th>操作</th><th>FLOPs</th><th>激活（张量形状）</th></tr></thead><tbody>
+<tr><td rowspan="6">自注意力</td><td>Q, K, V 投影</td><td>2 × 3 × seq_len × d²</td><td>seq_len × batch × d（存共享输入）</td></tr>
+<tr><td>QK 归一化</td><td>—</td><td>2 × seq_len × batch × d（存 Q、K）</td></tr>
+<tr><td>A = Q@Kᵀ</td><td>2 × seq_len² × d</td><td>—（归一化后的 Q、K 重算）</td></tr>
+<tr><td>A′ = Softmax(A)</td><td>—</td><td>—（注意力分数重算）</td></tr>
+<tr><td>A′@V</td><td>2 × seq_len² × d</td><td>seq_len × batch × d（存 V）</td></tr>
+<tr><td>输出投影</td><td>2 × seq_len × d²</td><td>seq_len × batch × d</td></tr>
+<tr><td rowspan="6">交叉注意力</td><td>Q, K, V 投影</td><td>2 × seq_len × d²</td><td>seq_len × batch × d</td></tr>
+<tr><td>QK 归一化</td><td>—</td><td>seq_len × batch × d（只计 Q）</td></tr>
+<tr><td>A = Q@Kᵀ</td><td>—</td><td>—</td></tr>
+<tr><td>A′ = Softmax(A)</td><td>—</td><td>—</td></tr>
+<tr><td>A′@V</td><td>—</td><td>—（V 序列很短）</td></tr>
+<tr><td>输出投影</td><td>2 × seq_len × d²</td><td>seq_len × batch × d</td></tr>
+<tr><td rowspan="3">前馈</td><td>上投影</td><td>4 × seq_len × d²</td><td>seq_len × batch × d</td></tr>
+<tr><td>GELU</td><td>—</td><td>4 × seq_len × batch × d</td></tr>
+<tr><td>下投影</td><td>4 × seq_len × d²</td><td>—（输入由 GELU 重算）</td></tr>
+<tr><td rowspan="4">AdaLN</td><td>LayerNorm</td><td>—</td><td>seq_len × batch × d</td></tr>
+<tr><td>Scale</td><td>—</td><td>—（由 LayerNorm 重算）</td></tr>
+<tr><td>Shift</td><td>—</td><td>—</td></tr>
+<tr><td>Gate</td><td>—</td><td>seq_len × batch × d</td></tr>
+</tbody></table></div>
+<p>原表的“前馈上投影 4 × seq_len × d²”按 FFN 宽 4d 算，应是 2 × seq_len × d × 4d = 8 × seq_len × d²；下投影同理。表里写 4，可能是把乘加的系数 2 漏掉了，或按不同约定写的，未核实。</p></details>
+<p>原文图 12 是 7B 和 14B Text2World 对同一提示（双手熨衬衫）的第 0、29、59、89、120 帧，作者说 14B 的细节和动作更复杂。<a href="https://arxiv.org/html/2501.03575v3#S5.F12">看原图 ↗</a></p>
+<h4 id="s5-1-5">5.1.5 提示词扩写器</h4>
+<p>训练用的是详细的 VLM 描述，用户提示往往很短，所以要把提示扩写得更详细、结构一致。三个要求：忠于原意（主体、动作、属性）、贴近训练提示的分布（长度、句式、风格）、补充视觉细节。</p>
+<ul>
+<li><b>Text2World</b>：微调 Mistral-NeMo-12B-Instruct。配对数据用“长到短”的办法：让 VLM 根据训练用的长描述和视频写一个短描述，于是短→长的配对既保留真实视频内容，又保证短长一致。得到 Cosmos-UpsamplePrompt1-12B-Text2World。</li>
+<li><b>Video2World</b>：直接用开源的 Pixtral-12B 零样本加提示工程，结合条件视频和用户提示写详细描述，没有再微调。</li>
+</ul>
+<h4 id="s5-1-6">5.1.6 结果</h4>
+<p>只有定性结果。原文图 13 上半是 7B / 14B Video2World 以 9 帧为条件生成 5 秒（机械臂端红酒杯）；下半是长视频：先从一张图生成，之后 5 次都以前一段的最后 9 帧为条件续写，共到第 680 帧（工厂内景）。作者说 14B 场景更丰富、运动更稳定。<a href="https://arxiv.org/html/2501.03575v3#S5.F13">看原图 ↗</a></p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 11 的学习率和代码</span><p>Text2World 实验配置（<code>diffusion/training/config/text2world/experiment.py</code>）里 14B 一项是 <code>lr=2**(-16)</code>、<code>weight_decay=0.2</code>、<code>betas=[0.9, 0.99]</code>、<code>eps=1e-10</code>、预热 2,500 步，和表 11 一致。7B 的后训练示例用 <code>lr=2**(-14.3)</code>（约 5 × 10⁻⁵），比表 11 的 2⁻¹⁵ ≈ 3.05 × 10⁻⁵ 大；这是后训练示例，不是预训练值。2⁻¹⁶ ≈ 1.53 × 10⁻⁵。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个平台拆成 11 幕：总览、数据管线、Tokenizer 的因果分组（第 3 幕可单步）、压缩率和 token 数（当场算）、DiT 块和 AdaLN-LoRA（当场算参数量）、EDM 训练和 Video2World 条件、自回归模型和 Medusa、扩散解码器、三类后训练、护栏、评测结果。可以暂停、拖进度、旋转画面、切换开关。</p>
+<iframe src="../interactives/cosmos/index.html?embed=1&amp;scene=4" title="Cosmos 平台 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s5-2"><span class="no">5.2</span>自回归世界基础模型</h3>
+<p><b>结论：</b>把视频变成离散 token 序列，像语言模型一样做下一个 token 预测。结构刻意贴近 LLM（Llama3 式），只加了 3D 位置编码、文本交叉注意力和 QK 归一化，以便直接用 LLM 的并行和推理加速（KV 缓存、Medusa 投机解码）。代价是 DV8×16×16 压缩很狠，输出偏糊，要靠扩散解码器补细节。</p>
+<p>视频经离散 tokenizer 变成 \(\mathcal V=\{v_1,\dots,v_n\}\)，训练 Transformer 解码器最小化负对数似然：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{NLL}=\sum_i-\log P(v_i\,|\,v_1,v_2,\dots,v_{i-1};\Theta) \]</div><span class="no">(9)</span></div>
+<h4 id="s5-2-1">5.2.1 架构</h4>
+<figure class="pfig" id="fig14">
+<img src="cosmos/fig14.webp" width="1530" height="821" alt="图 14：输入视频经 DV8x16x16 编码器得到离散 token，经词表嵌入后进入 N 个块，每块加绝对位置嵌入，自注意力带 3D RoPE，再交叉注意力读 T5 文本，最后 MLP；输出 token 由 DV8x16x16 解码器还原" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 28 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F14">看原图 ↗</a></span>和图 11 的布局几乎相同，差别是：入口是 DV8×16×16 编码器加“词表嵌入”，没有噪声和时间步调制；块里是自注意力（3D RoPE）、交叉注意力（T5）、MLP；出口是同一 tokenizer 的解码器。</figcaption>
+</figure>
+<ul>
+<li><b>3D 位置编码</b>：3D 分解 RoPE 编相对位置；训练中视频长度逐阶段变长，只在时间轴上用 YaRN 外推。另加每块一个 3D 分解的绝对位置嵌入（APE），这里用正弦而不是扩散模型里的可学习嵌入，同样能降损失、减形变。</li>
+<li><b>词表</b>：DV8×16×16 的 FSQ (8, 8, 8, 5, 5, 5)，词表 8 × 8 × 8 × 5 × 5 × 5 = 64,000。</li>
+<li><b>交叉注意力</b>：每个自注意力层后加一个，读 T5-XXL 文本嵌入。</li>
+<li><b>QK 归一化</b>：Q、K 归一化后用可学习的 \(\gamma\) 代替固定的 \(1/\sqrt{d_k}\)。</li>
+<li><b>z-loss</b>：\(\mathcal L_{\rm z\text{-}loss}=\lambda\sum_i z_i^2\)，惩罚 logit 偏离 0，防数值不稳和梯度爆炸，扩到很多节点时很关键。系数 \(\lambda=3\times10^{-4}\)。</li>
+</ul>
+<div class="note" id="n18"><span class="lab">读者注 18 · z-loss 的定义和系数，代码不同</span><p>论文写的是“logit 平方和”\(\lambda\sum_i z_i^2\)，\(\lambda=3\times10^{-4}\)。代码（<code>autoregressive/training/model.py</code> 第 246–247 行）是 <code>log_z = logsumexp(logits)</code>，<code>z_loss = z_loss_coeff · mean(log_z²)</code>，即 PaLM 式的“对数配分函数平方”，不是每个 logit 的平方；默认 <code>z_loss_coeff = 1e-4</code>（<code>configs/base/model.py</code> 第 274 行）。两者都让 logit 不要飘太大，但量级和梯度完全不同。论文值是预训练用的，代码默认值是后训练用的，可能本来就不一样；论文的写法我认为不准确。</p></div>
+<h4 id="s5-2-2">5.2.2 扩展</h4>
+<p>显存四项：参数每个 6 字节（BF16 加 FP32），梯度 2 字节，优化器 8 字节，激活约 \(2\times\text{层数}\times17\times\text{seq\_len}\times\text{batch}\times d\) 字节。12B 模型前三项约 192 GB（12B × 16 字节），所以用张量并行（TP，把线性层权重按输入或输出维切开，每卡存 1/TP_SIZE）和序列并行（SP，把 LayerNorm、Dropout 这类逐 token 的操作沿序列切开，激活也只存 1/TP_SIZE）。作者说除了没用 MQA、GQA，模型刻意贴近 LLM；CP 和流水线并行留待以后。</p>
+<h4 id="s5-2-3">5.2.3 训练策略</h4>
+<ul>
+<li><b>阶段 1</b>：给第 1 帧，预测后面 16 帧，上下文 17 帧。</li>
+<li><b>阶段 1.1</b>：上下文加到 34 帧，用 YaRN 扩时间轴 RoPE。</li>
+<li><b>阶段 2</b>：加新初始化的交叉注意力层引入文本，34 帧，图像视频联合训练（图像批更大）。</li>
+<li>全部固定 640 × 1024 分辨率。之后用高质量数据做 3 万步“冷却”，学习率线性降到 0。</li>
+</ul>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 14 · 自回归模型配置</caption>
+<thead><tr><th>配置</th><th>4B</th><th>5B-Video2World</th><th>12B</th><th>13B-Video2World</th></tr></thead><tbody>
+<tr><td>层数</td><td class="n">16</td><td class="n">16</td><td class="n">40</td><td class="n">40</td></tr>
+<tr><td>模型宽度</td><td class="n">4,096</td><td class="n">4,096</td><td class="n">5,120</td><td class="n">5,120</td></tr>
+<tr><td>交叉注意力</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td></tr>
+<tr><td>基础学习率</td><td class="n">1 × 10⁻³</td><td class="n">3 × 10⁻⁴</td><td class="n">1 × 10⁻³</td><td class="n">5 × 10⁻⁴</td></tr>
+<tr><td>权重衰减</td><td colspan="4">0.01</td></tr>
+<tr><td>预热</td><td colspan="4">线性，5,000 步</td></tr>
+<tr><td>激活</td><td colspan="4">SwiGLU</td></tr>
+<tr><td>FFN 隐层</td><td colspan="4">14,336</td></tr>
+<tr><td>注意力头 / KV 头</td><td colspan="4">32 / 8</td></tr>
+<tr><td>token 数</td><td colspan="4">12,800</td></tr>
+<tr><td>词表</td><td colspan="4">64,000</td></tr>
+<tr><td>位置编码</td><td colspan="4">3D RoPE（θ = 500,000）+ 3D APE</td></tr>
+</tbody></table></div>
+<p>4B 和 12B 只用阶段 1 和 1.1 训练，是纯视频 token 预测器；5B、13B 分别从 4B、12B 出发再加阶段 2。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 14 写了 GQA，正文说没用</span><p>表 14 的“注意力头 32、KV 头 8”就是分组查询注意力（GQA，4 个查询头共用一组 K、V）。代码 <code>autoregressive/configs/base/model_config.py</code> 第 37 行 <code>BASE_CONFIG = {"n_kv_heads": 8, ...}</code> 也是 8。但 §5.2.2 写“我们的模型没有用 MQA 或 GQA 这类省显存的注意力”。按表和代码，这句话不对。</p><p>参数量可以复算（代码：4B 是 16 层、宽 4096、32 头；12B 是 40 层、宽 5120、32 头但 <code>head_dim=128</code>，所以注意力内部宽 4096，不是 5120）：每层注意力 \(d\cdot4096\times2+2\times d\cdot1024\)，SwiGLU \(3\times d\times14336\)，输入输出嵌入各 \(64000\times d\)。4B 得 <b>4.01B</b>，12B 得 <b>11.56B</b>。加交叉注意力（文本维 1024，代码 <code>context_dim=1024</code>）后约 4.69B 和 13.57B，对应“5B”“13B”的名字（这两项是我的估算，没对过权重文件）。</p></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 12,800 个 token 是 33 帧，不是 34 帧</span><p>640 × 1024 经 16 倍空间压缩是 40 × 64 = 2,560 个 token / 隐帧。12,800 / 2,560 = 5 个隐帧，按 \(1+(F-1)/8\) 对应 <b>33 帧</b>。代码的示例配置也是 <code>num_video_frames=33</code>、<code>pixel_chunk_duration=33</code>（<code>configs/experiment/video2video/basic.py</code>），并断言帧数必须是 8k + 1。阶段 1 的 17 帧是 3 个隐帧、7,680 个 token，正是代码里 YaRN 的 <code>original_latent_shape=[3, 40, 64]</code>。所以正文的“34 帧”我认为应是 33 帧（或者是把 17 帧翻倍得来的说法）。</p></div>
+<h4 id="s5-2-4">5.2.4 推理优化：走向实时生成</h4>
+<p>借用 LLM 的加速：KV 缓存、张量并行、torch.compile（参考 gpt-fast）。再用 <b>Medusa 投机解码</b>：在最后一层隐状态后加几个额外的解码头并行预测后面多个 token，用拒绝采样验证，不需要单独的草稿模型。每个头是一层带 SiLU 和残差的 FFN，多个头的权重合并成一个大 FFN；不用 Medusa 原文的树注意力。消融发现：只训头效果差，全量微调会掉质量；<b>冻结主干、只解冻最后两层和输出层</b>最好。</p>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 15 · Medusa 头数对吞吐和前向次数的影响（8 × H100，50 段 640 × 1024 测试视频）</caption>
+<thead><tr><th>模型</th><th>指标</th><th>0</th><th>3</th><th>6</th><th>9</th><th>12</th></tr></thead><tbody>
+<tr><td rowspan="2">4B</td><td>token 吞吐（token/s）</td><td class="n">444.95</td><td class="n">663.51</td><td class="n">829.59</td><td class="n best">894.67</td><td class="n">890.64</td></tr>
+<tr><td>前向次数</td><td class="n">7680</td><td class="n">2860</td><td class="n">2073</td><td class="n">1812</td><td class="n best">1682</td></tr>
+<tr><td rowspan="2">5B</td><td>token 吞吐（token/s）</td><td class="n">303.61</td><td class="n">659.94</td><td class="n">758.58</td><td class="n best">982.77</td><td class="n">978.80</td></tr>
+<tr><td>前向次数</td><td class="n">10240</td><td class="n">2857</td><td class="n">2382</td><td class="n">1799</td><td class="n best">1673</td></tr>
+</tbody></table></div>
+<p>作者据此选 9 个头：头越多前向次数越少，但吞吐在 9 个之后不再上升。表 16 是整段生成的耗时（1 帧条件，生成 32 帧）。</p>
+<details class="tbl"><summary>表 16 · 自回归模型在 640 × 1024 上的推理耗时和显存（点开）</summary>
+<div class="tablewrap"><table class="t-w">
+<thead><tr><th>模型</th><th>GPU</th><th>无 DD（s）</th><th>无 DD + Medusa（s）</th><th>有 DD（s）</th><th>有 DD + Medusa（s）</th><th>显存（GB）</th></tr></thead><tbody>
+<tr><td rowspan="3">4B</td><td class="n">1</td><td class="n">31.04</td><td class="n">23.52</td><td class="n">61.49</td><td class="n">53.08</td><td class="n">29</td></tr>
+<tr><td class="n">4</td><td class="n">18.20</td><td class="n">13.87</td><td class="n">29.60</td><td class="n">25.63</td><td class="n">31</td></tr>
+<tr><td class="n">8</td><td class="n">17.62</td><td class="n">9.91</td><td class="n">30.30</td><td class="n">22.83</td><td class="n">34</td></tr>
+<tr><td rowspan="3">5B</td><td class="n">1</td><td class="n">39.68</td><td class="n">24.97</td><td class="n">70.39</td><td class="n">54.72</td><td class="n">59</td></tr>
+<tr><td class="n">4</td><td class="n">25.59</td><td class="n">20.96</td><td class="n">37.29</td><td class="n">33.35</td><td class="n">51</td></tr>
+<tr><td class="n">8</td><td class="n">25.70</td><td class="n">11.67</td><td class="n">38.41</td><td class="n">24.35</td><td class="n">49</td></tr>
+<tr><td rowspan="3">12B</td><td class="n">1</td><td class="n">84.78</td><td>—</td><td class="n">116.66</td><td>—</td><td class="n">45</td></tr>
+<tr><td class="n">4</td><td class="n">47.49</td><td>—</td><td class="n">60.27</td><td>—</td><td class="n">36</td></tr>
+<tr><td class="n">8</td><td class="n">45.69</td><td>—</td><td class="n">58.81</td><td>—</td><td class="n">37</td></tr>
+<tr><td rowspan="3">13B</td><td class="n">1</td><td class="n">109.18</td><td>—</td><td class="n">140.24</td><td>—</td><td class="n">77</td></tr>
+<tr><td class="n">4</td><td class="n">67.80</td><td>—</td><td class="n">80.76</td><td>—</td><td class="n">55</td></tr>
+<tr><td class="n">8</td><td class="n">67.22</td><td>—</td><td class="n">80.93</td><td>—</td><td class="n">55</td></tr>
+</tbody></table></div>
+<p>DD = 扩散解码器。生成 32 帧，1 帧条件，BF16。</p></details>
+<p><b>低分辨率实时化。</b>先在目标领域的 320p 视频上微调 DV8×16×16，再把 640 × 1024 预训练的 4B 换上这个 tokenizer 在 320 × 512 上微调，最后加 Medusa 头。8 × H100、torch.compile max-autotune、BF16、10 FPS 输入，结果见表 17：不到 1 秒生成 10 帧，即 10 FPS 实时。</p>
+<div class="tablewrap"><table class="t-s">
+<caption class="tcap">表 17 · 低分辨率 4B（带 Medusa）的解码吞吐</caption>
+<thead><tr><th>模型（320 × 512）</th><th>token/s</th><th>帧/s</th></tr></thead><tbody>
+<tr><td>Cosmos-Predict1-4B（带 Medusa）</td><td class="n">806.61</td><td class="n">10.08</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · Medusa 的几个倍数和一处对不上</span><p>正文的倍数可以复算，但用的是不同的头数：4B 吞吐 894.67 / 444.95 = 2.01 倍（9 个头），前向次数 7680 / 1682 = 4.57 倍（12 个头）；5B 982.77 / 303.61 = 3.24 倍、10240 / 1673 = 6.12 倍。按选定的 9 个头，前向减少是 4.24 倍和 5.69 倍。</p><p>对不上的是 0 个头时的前向次数：没有投机解码时一次前向出一个 token，所以它就是生成的 token 数。4B 是 7,680（3 个隐帧 × 2,560），5B 是 10,240（4 个隐帧）。同样“1 帧条件、生成 32 帧”的任务（33 帧 = 5 个隐帧，去掉 1 个条件隐帧，应生成 4 个即 10,240 个 token），4B 这一行少了一个隐帧，原文没解释，未核实。</p><p>表 16 里 Medusa 的端到端加速小于吞吐的倍数：4B 单卡 31.04 / 23.52 = 1.32 倍，8 卡 17.62 / 9.91 = 1.78 倍。表 17：320 / 16 × 512 / 16 = 640 个 token / 隐帧，一个隐帧 8 帧，即 80 个 token / 帧，806.61 / 80 = 10.08 帧/秒，对得上。代码里 Medusa 的默认 <code>medusa_num_heads=7</code>，可选 <code>ft_medusa_option</code> 中有“head_out_last_k_layer”，对应论文的做法，但默认是 “fft”（全量微调）。</p></div>
+<h4 id="s5-2-5">5.2.5 扩散解码器</h4>
+<p>把 Cosmos-Predict1-7B-Text2World 微调成一个更强的“tokenizer 解码器”：每段训练视频同时过 CV8×8×8 和 DV8×16×16，得到连续和离散两份 token；离散 token 经可学习的词表嵌入变成 16 维向量，在 x、y 上上采样 2 倍，对齐连续 token 的网格，和加了噪声的连续 token 在通道维拼接，作为去噪器输入（第一层相应扩宽通道）。离散条件不加噪声，所以去噪器学会利用它。推理时先由自回归模型输出的离散 token 生成连续 token，再用 CV8×8×8 解码成 RGB。</p>
+<figure class="pfig" id="fig15">
+<img src="cosmos/fig15.webp" width="1562" height="528" alt="图 15：输入视频分两路，上路经 CV8x8x8 编码器得到连续 token 加噪声进入 7B 去噪器，下路经 DV8x16x16 编码器得到离散 token，经词表嵌入和 2 倍上采样作为条件输入；去噪结果经 CV8x8x8 解码器输出" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 33 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/pdf/2501.03575v3#page=33">看原图 ↗</a></span>训练：同一段视频在上路被 CV8×8×8 编码成连续 token，加高斯噪声后送入 Cosmos-Predict1-7B-Text2World 的去噪器；下路被 DV8×16×16 编成离散 token，经词表嵌入、2 倍上采样，作为条件输入从下方接入去噪器。去噪后的连续 token 由 CV8×8×8 解码器还原。</figcaption>
+</figure>
+<figure class="pfig" id="fig16">
+<img src="cosmos/fig16.webp" width="1469" height="565" alt="图 16：推理时自回归模型输出离散 token，经词表嵌入和 2 倍上采样作为条件，去噪器从噪声生成连续 token，再由 CV8x8x8 解码器输出视频" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 33 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F16">看原图 ↗</a></span>推理：条件来自自回归 Cosmos-Predict1 输出的离散 token（不再经过 DV 编码器），去噪器反复迭代（图中的循环箭头）生成连续 token，再由 CV8×8×8 解码器输出视频。</figcaption>
+</figure>
+<p>维度是对得上的：DV 的空间格子是 16 倍下采样，CV 是 8 倍，所以上采样 2 倍正好对齐；时间都是 8 倍；嵌入维 16 等于连续隐变量的通道数。</p>
+<h4 id="s5-2-6">5.2.6 结果</h4>
+<p>原文图 17：无提示时 12B 比 4B 运动更好、细节更锐；有提示时 13B 比 5B 运动更好（高速公路驾驶）。<a href="https://arxiv.org/html/2501.03575v3#S5.F17">看原图 ↗</a> 图 18 比较 13B-Video2World 加不加扩散解码器：自回归直接解出来偏糊，扩散解码器保留内容、变清晰。作者还发现自回归模型用扩写后的提示并没有变好，猜测是大部分训练都是纯视频，没被逼着用文字。</p>
+<figure class="pfig" id="fig18">
+<img src="cosmos/fig18.webp" width="1600" height="634" alt="图 18：上下两行仓库驾驶画面，上行是 13B 自回归输出，较模糊；下行经扩散解码器后更清晰" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 35 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F18">看原图 ↗</a></span>条件帧 0 和第 10、20、30 帧。上行是 Cosmos-Predict1-13B-Video2World 的直接输出，下行是同一结果经扩散解码器后的画面，街道两侧的建筑和车辆纹理明显更清楚。</figcaption>
+</figure>
+<h4 id="s5-2-7">5.2.7 局限</h4>
+<p>典型失败是物体从画面下方凭空冒出来（图 19）。作者用 100 个物理 AI 输入、单帧和 9 帧两种条件逐个人工检查（表 18）：小模型单帧条件失败率高，9 帧条件下所有模型都低于 2%（原文如此；5B 正好是 2%）。</p>
+<figure class="pfig" id="fig19">
+<img src="cosmos/fig19.webp" width="1600" height="343" alt="图 19：仓库货架画面，4B 模型生成的后几帧下方出现了红框标出的凭空物体" loading="lazy">
+<figcaption><span class="lab">图 19 · 原文第 35 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F19">看原图 ↗</a></span>Cosmos-Predict1-4B 的输出。仓库货架前，第 10、20、30 帧的画面下方出现了一个本不存在的物体（红色标出），越来越大。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-s">
+<caption class="tcap">表 18 · 自回归模型的失败率（100 个输入）</caption>
+<thead><tr><th>模型</th><th>图像条件</th><th>视频条件（9 帧）</th></tr></thead><tbody>
+<tr><td>Cosmos-Predict1-4B</td><td class="n">15%</td><td class="n">1%</td></tr>
+<tr><td>Cosmos-Predict1-5B-Video2World</td><td class="n">7%</td><td class="n">2%</td></tr>
+<tr><td>Cosmos-Predict1-12B</td><td class="n">2%</td><td class="n">1%</td></tr>
+<tr><td>Cosmos-Predict1-13B-Video2World</td><td class="n">3%</td><td class="n">0%</td></tr>
+</tbody></table></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>评测</h3>
+<p><b>结论：</b>只评了两项。3D 一致性上，扩散 7B 远好于 VideoLDM，有的指标甚至好过真实视频；物理对齐上，各模型都差不多地吃力，模型变大没有更好。</p>
+<h4 id="s5-3-1">5.3.1 3D 一致性</h4>
+<p>只看静态场景，这样能直接用多视图几何工具。从 <a class="ds" href="https://google.github.io/realestate10k/">RealEstate10K</a> 测试集随机取 500 段，用专有 VLM 写成“静态场景”的提示，基线是 VideoLDM。两类指标：</p>
+<ul>
+<li><b>几何一致性</b>：Sampson 误差（点到对应极线距离的一阶近似）和相机位姿估计的成功率。</li>
+<li><b>视图合成一致性</b>：每 8 帧留 1 帧做测试，其余帧拟合 3D 高斯溅射（Nerfstudio 默认设置），在留出帧上算 PSNR、SSIM、LPIPS。</li>
+</ul>
+<div class="eq"><div class="m">\[ \epsilon_{\rm samp}=\frac1N\sum_{i=1}^{N}\frac{|\bar{\mathbf y}_i^\top\mathbf F\bar{\mathbf x}_i|}{\sqrt{\|\mathbf S\mathbf F\bar{\mathbf x}_i\|_2^2+\|\mathbf S\mathbf F^\top\bar{\mathbf y}_i\|_2^2}},\qquad \mathbf S=\begin{bmatrix}1&0&0\\0&1&0\\0&0&0\end{bmatrix} \]</div><span class="no">(10)</span></div>
+<p>\(\{(\bar{\mathbf x}_i,\bar{\mathbf y}_i)\}\) 是一对帧的 N 组齐次坐标对应点，F 是由它们估计的基础矩阵。对应点用 SuperPoint 加 LightGlue，F 用 OpenCV 的 8 点 RANSAC。用平方根形式让单位接近像素，并按 960 × 540 画布的对角线（约 1,101 像素）归一化。</p>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 19 · 3D 一致性</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="2">几何一致性</th><th colspan="3">视图合成一致性</th></tr><tr><th>Sampson 误差 ↓</th><th>位姿估计成功率 ↑</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th></tr></thead><tbody>
+<tr><td>VideoLDM</td><td class="n">0.841</td><td class="n">4.4%</td><td class="n">26.23</td><td class="n">0.783</td><td class="n">0.135</td></tr>
+<tr><td>Cosmos-Predict1-7B-Text2World</td><td class="n best">0.355</td><td class="n">62.6%</td><td class="n best">33.02</td><td class="n best">0.939</td><td class="n best">0.070</td></tr>
+<tr><td>Cosmos-Predict1-7B-Video2World</td><td class="n">0.473</td><td class="n best">68.4%</td><td class="n">30.66</td><td class="n">0.929</td><td class="n">0.085</td></tr>
+<tr><td>Cosmos-Predict1-4B</td><td class="n">0.433</td><td class="n">35.6%</td><td class="n">32.56</td><td class="n">0.933</td><td class="n">0.090</td></tr>
+<tr><td>Cosmos-Predict1-5B-Video2World</td><td class="n">0.392</td><td class="n">27.0%</td><td class="n">32.18</td><td class="n">0.931</td><td class="n">0.090</td></tr>
+<tr><td>真实视频（参考）</td><td class="n">0.431</td><td class="n">56.4%</td><td class="n">35.38</td><td class="n">0.962</td><td class="n">0.054</td></tr>
+</tbody></table></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · 比真实视频还“一致”怎么读</span><p>7B-Text2World 的 Sampson 误差 0.355 低于真实视频 0.431，位姿成功率 62.6% 高于真实视频 56.4%。原文只说“达到真实视频的水平”。我的推断：生成视频可能相机运动更小、更平滑，或者纹理更规整，更容易匹配，这类指标衡量的是“几何上自洽”，不等于“像真实视频一样运动”。视图合成的三项仍是真实视频最好。另外自回归 4B 和 5B 的 Sampson 误差不差，但位姿成功率只有 35.6% 和 27.0%，低于真实视频，说明成功率和误差要一起看（误差只在估计成功的样本上算）。</p></div>
+<h4 id="s5-3-2">5.3.2 物理对齐</h4>
+<p>用 PhysX 和 Isaac Sim 搭了 8 个刚体场景：自由落体、斜面滚动、U 形坡、稳定堆叠、不稳定堆叠、多米诺、跷跷板、陀螺。每个场景随机物体（Omniverse 资产）和背景，4 个固定机位，共 800 段 1080p、100 帧的视频；物体从第一帧起都可见。给 WFM 前 1 帧或 9 帧真值（以及描述物体运动状态的提示），比较之后的预测：像素级 PSNR、SSIM，特征级 DreamSim，物体级用 SAMURAI 把第一帧的真值掩码传播到预测视频，算逐帧 IoU。对帧、视频和 4 个随机种子取平均，算 33 帧（自回归模型能生成的最大长度），PSNR / SSIM 不含条件帧。</p>
+<figure class="pfig" id="fig20">
+<img src="cosmos/fig20.webp" width="1600" height="1431" alt="图 20：三组仿真与 WFM 预测的对比：斜面上滚动的物体、U 形坡两端滚下的两个物体、倒塌的不稳定堆叠；每组上行是仿真，下行是 WFM，蓝框标出被跟踪的物体" loading="lazy">
+<figcaption><span class="lab">图 20 · 原文第 38 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S5.F20">看原图 ↗</a></span>三个场景由易到难：斜面滚动、U 形坡、不稳定堆叠。每组上行是物理正确的仿真，下行是 Cosmos-Predict1-7B-Video2World 以 9 帧和提示为条件的预测，显示 t = 0（条件）、11、22、32。蓝框和掩码是用来算 IoU 的跟踪物体。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 20 · 物理对齐（33 帧）</caption>
+<thead><tr><th>模型</th><th>条件</th><th>PSNR ↑</th><th>SSIM ↑</th><th>DreamSim ↑</th><th>平均 IoU ↑</th></tr></thead><tbody>
+<tr><td>7B-Video2World</td><td>提示 + 1 帧</td><td class="n">17.34</td><td class="n">0.538</td><td class="n">0.836</td><td class="n">0.332</td></tr>
+<tr><td>7B-Video2World</td><td>提示 + 9 帧</td><td class="n best">21.06</td><td class="n best">0.691</td><td class="n">0.859</td><td class="n">0.592</td></tr>
+<tr><td>14B-Video2World</td><td>提示 + 1 帧</td><td class="n">16.81</td><td class="n">0.521</td><td class="n">0.836</td><td class="n">0.338</td></tr>
+<tr><td>14B-Video2World</td><td>提示 + 9 帧</td><td class="n">20.21</td><td class="n">0.635</td><td class="n">0.860</td><td class="n best">0.598</td></tr>
+<tr><td>4B</td><td>1 帧</td><td class="n">17.91</td><td class="n">0.486</td><td class="n">0.827</td><td class="n">0.394</td></tr>
+<tr><td>4B</td><td>9 帧</td><td class="n">18.13</td><td class="n">0.482</td><td class="n">0.859</td><td class="n">0.481</td></tr>
+<tr><td>5B-Video2World</td><td>提示 + 1 帧</td><td class="n">17.67</td><td class="n">0.478</td><td class="n">0.818</td><td class="n">0.376</td></tr>
+<tr><td>5B-Video2World</td><td>提示 + 9 帧</td><td class="n">18.29</td><td class="n">0.481</td><td class="n">0.864</td><td class="n">0.481</td></tr>
+<tr><td>12B</td><td>1 帧</td><td class="n">17.94</td><td class="n">0.486</td><td class="n">0.829</td><td class="n">0.395</td></tr>
+<tr><td>12B</td><td>9 帧</td><td class="n">18.22</td><td class="n">0.487</td><td class="n best">0.869</td><td class="n">0.487</td></tr>
+<tr><td>13B-Video2World</td><td>提示 + 1 帧</td><td class="n">18.00</td><td class="n">0.486</td><td class="n">0.830</td><td class="n">0.397</td></tr>
+<tr><td>13B-Video2World</td><td>提示 + 9 帧</td><td class="n">18.26</td><td class="n">0.482</td><td class="n">0.865</td><td class="n">0.482</td></tr>
+</tbody></table></div>
+<p>观察：条件帧越多，越能推断速度、加速度，预测越好；9 帧时扩散模型的像素指标好于自回归模型；大模型没有在物理上更好。失败从物体恒存性（凭空出现、消失）、形变，到违反重力的运动都有。作者打算加入更复杂的场景、提高仿真的真实感来缩小和真实视频的差距。</p>
+<div class="note" id="n23"><span class="lab">读者注 23 · 1 帧条件时自回归反而更好</span><p>原文只说“9 帧时扩散模型像素指标更好”。1 帧条件下反过来：自回归 4B / 12B / 13B 的 PSNR 17.91 / 17.94 / 18.00 都高于扩散 7B / 14B 的 17.34 / 16.81，IoU 0.394 到 0.397 也高于 0.332 和 0.338。另一面是自回归从 1 帧到 9 帧几乎不涨（4B 的 PSNR 只 +0.22，SSIM 还降了），扩散涨得多（7B 的 PSNR +3.72，IoU +0.26）。我的推断：自回归模型受 DV8×16×16 的重建上限限制（表 6 的 TokenBench PSNR 只有 29.33），多给几帧也很难在像素上更准。</p></div>
+
+<h2 id="s6"><span class="no">6</span>后训练的世界基础模型</h2>
+<p><b>结论：</b>三类样例，都从 7B 扩散模型（机器人一节另有 5B 自回归）出发微调。名字里的 “-Sample” 表示只是示范，不是能直接用的产品；开发者要用自己的数据再微调。</p>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 21 · 后训练模型一览（照录原表）</caption>
+<thead><tr><th>节</th><th>模型</th><th>条件</th></tr></thead><tbody>
+<tr><td>6.1</td><td>Cosmos-Predict1-7B-Video2World-Sample-CameraCond</td><td>文本 + 图像 + 相机</td></tr>
+<tr><td>6.2</td><td>Cosmos-Predict1-7B-Video2World-Sample-Instruction</td><td>文本 + 视频</td></tr>
+<tr><td>6.2</td><td>Cosmos-Predict1-7B-Video2World-Sample-Instruction</td><td>文本 + 视频</td></tr>
+<tr><td>6.2</td><td>Cosmos-Predict1-7B-Video2World-Sample-ActionCond</td><td>动作 + 视频</td></tr>
+<tr><td>6.2</td><td>Cosmos-Predict1-7B-Video2World-Sample-ActionCond</td><td>动作 + 视频</td></tr>
+<tr><td>6.3</td><td>Cosmos-Predict1-7B-Text2World-Sample-MultiView</td><td>文本</td></tr>
+<tr><td>6.3</td><td>Cosmos-Predict1-7B-Text2World-Sample-MultiView-TrajectoryCond</td><td>文本 + 轨迹</td></tr>
+<tr><td>6.3</td><td>Cosmos-Predict1-7B-Video2World-Sample-MultiView</td><td>文本 + 视频</td></tr>
+</tbody></table></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · 表 21 有两行重复</span><p>6.2 的 Instruction 和 ActionCond 各出现两次，名字完全相同。按 §6.2.2，其中一行应是 5B 自回归版本（Cosmos-Predict1-5B-Video2World-Sample-Instruction 和 …-ActionCond），表里都写成了 7B。</p></div>
+<h3 id="s6-1"><span class="no">6.1</span>相机控制</h3>
+<p><b>结论：</b>给 7B-Video2World 加 Plücker 射线作为相机条件，单张图加相机轨迹就能生成 3D 一致的视频。在 RealEstate10K 上，位姿估计成功率 82.0% 对 CamCo 的 43.0%，旋转误差 1.646° 对 8.277°，FID / FVD 也低得多（表 22）。</p>
+<p><b>数据。</b>用静态场景视频集 <a class="ds" href="https://dl3dv-10k.github.io/DL3DV-10K/">DL3DV-10K</a>，切成 256 帧一段，用 GLOMAP 做 SfM 得到每帧位姿，第一帧设为单位变换，其余是相对位姿；用专有 VLM 写静态场景描述。</p>
+<p><b>微调。</b>把采样的隐变量和同尺寸的 Plücker 嵌入拼接。每个隐变量像素（把隐变量当成下采样的图像）的射线：</p>
+<div class="eq"><div class="m">\[ \mathbf r=(\mathbf d,\mathbf m)\in\mathbb R^6,\qquad \mathbf m=\mathbf c\times\mathbf d \]</div><span class="no">(11)</span></div>
+<p>\(\mathbf c\) 是相机中心，\(\mathbf d\) 是单位射线方向，位姿都相对第一帧。tokenizer 时间压缩 8 倍，所以每 8 帧取第 4 帧的 Plücker 嵌入，拼到对应隐帧上。训练帧缩放到 704 × 1252，反射填充到 704 × 1280，取 57 帧，其他和基础训练相同。</p>
+<p><b>评测。</b>单张参考图生成后续视频，对比 CamCo（也在 DL3DV-10K 上微调）。Cosmos 生成 57 帧，CamCo 只能 14 帧，所以同样 57 帧的轨迹给 CamCo 时间上降采样 4 倍；CamCo 分辨率只有 256 × 256，评测时都做最大中心裁切。测试数据是 §5.3.1 的同 500 段 RealEstate10K，首帧作参考，数据集自带轨迹作相机输入，并把轨迹两端距离归一化为 1。视频质量用 FID、FVD；3D 一致性用 SfM 重新估计位姿，和输入轨迹比较（先做 Procrustes 对齐消除相似变换的歧义）：</p>
+<div class="eq"><div class="m">\[ \epsilon_{\rm rot}=\frac1N\sum_{i=1}^{N}\cos^{-1}\frac{{\rm trace}(\hat{\mathbf R}_i\mathbf R_i^\top)-1}{2},\qquad \epsilon_{\rm trans}=\frac1N\sum_{i=1}^{N}\big\|\hat{\mathbf t}_i-\mathbf t_i\big\|_2 \]</div><span class="no">(12)</span></div>
+<figure class="pfig" id="fig21">
+<img src="cosmos/fig21.webp" width="1600" height="1948" alt="图 21：三组室内场景，每组左边 CamCo、右边 Cosmos：输入帧、输入相机轨迹、生成的帧序列、重新估计的相机轨迹" loading="lazy">
+<figcaption><span class="lab">图 21 · 原文第 42 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S6.F21">看原图 ↗</a></span>三组室内场景（客厅、厨房、台球室），每组 CamCo 和 Cosmos 并列。从上到下是输入帧、输入相机轨迹（颜色由红到紫表示时间）、生成帧、重新估计的轨迹。CamCo 有一组标着 “(failed)”，生成内容超出分布，位姿估不出来；Cosmos 的重估轨迹和输入基本重合。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-w">
+<caption class="tcap">表 22 · 相机控制后训练模型的定量比较</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="3">相机轨迹对齐</th><th colspan="2">视频生成质量</th></tr><tr><th>位姿估计成功率 ↑</th><th>旋转误差（°）↓</th><th>平移误差 ↓</th><th>FID ↓</th><th>FVD ↓</th></tr></thead><tbody>
+<tr><td>CamCo</td><td class="n">43.0%</td><td class="n">8.277</td><td class="n">0.185</td><td class="n">57.49</td><td class="n">433.24</td></tr>
+<tr><td>Cosmos-Predict1-7B-Video2World-Sample-CameraCond</td><td class="n best">82.0%</td><td class="n best">1.646</td><td class="n best">0.038</td><td class="n best">14.30</td><td class="n best">120.49</td></tr>
+</tbody></table></div>
+<p>两个模型都在 DL3DV-10K 上训练、在 RealEstate10K 上测，分布差异明显，Cosmos 能跨过去，也能泛化到没见过的轨迹。原文图 22 是摇杆式控制（前进、后退、左转、右转）的第 14、28、42、57 帧；图 23 是同一输入和相机、不同随机种子生成的不同世界。<a href="https://arxiv.org/html/2501.03575v3#S6.F22">看图 22 ↗</a> <a href="https://arxiv.org/html/2501.03575v3#S6.F23">看图 23 ↗</a></p>
+<div class="note" id="n25"><span class="lab">读者注 25 · 相机条件的几个数</span><p>57 帧对应 1 + 56 / 8 = 8 个隐帧，每个隐帧（除首帧外）覆盖 8 帧，取其中第 4 帧的射线。CamCo 降采样 4 倍：第 0、4、…、52 帧共 14 帧，正好是它的上限。平移误差在轨迹长度归一化为 1 之后算，所以 0.038 可以读作“全程长度的 3.8%”。论文没说相机条件的模型权重是否在 cosmos-predict1 里公开，我在 README 的模型列表里没找到 CameraCond。</p></div>
+
+<h3 id="s6-2"><span class="no">6.2</span>机器人操作</h3>
+<p><b>结论：</b>两个任务。指令条件的视频预测（当前帧 + 文字指令 → 未来视频），在 1X 人形的数据上，人工评测 7B 的综合偏好 78.3% 对 VideoLDM 的 13.0%。动作条件的下一帧预测（当前帧 + 7 维动作 → 下一帧，自回归滚动），在 Bridge 上 7B 的 FVD 190 对 IRASim 的 593。</p>
+<p><b>数据。</b>指令任务用内部的 Cosmos-1X 数据集：1X 公司 EVE 人形机器人约 200 小时的第一人称视频（导航、叠衣服、擦桌子、拿东西等），选出约 12,000 段 1 到 9 秒的片段，每段一句指令，再由专有 VLM 扩写；30 FPS，512 × 512。动作任务用公开的 <a class="ds" href="https://rail-berkeley.github.io/bridgedata/">Bridge</a>，按 IRASim 的设置：约 20,000 段第三人称厨房机械臂视频，320 × 256，5 FPS；每帧的动作是夹爪坐标系下的 7 维向量 \((\Delta x,\Delta y,\Delta z,\Delta\theta_r,\Delta\theta_p,\Delta\theta_y,\Delta{\rm Gripper})\)，同 OpenVLA。</p>
+<p><b>微调。</b>7B 扩散和 5B 自回归都做。指令：把指令的 T5 嵌入经交叉注意力加进来。动作是预训练没见过的模态，要加模块：5B 用一个动作嵌入 MLP，把结果经交叉注意力注入；7B 也用动作嵌入 MLP，但加到 DiT 的时间步嵌入上。</p>
+<div class="note" id="n26"><span class="lab">读者注 26 · 7B 动作条件在代码里加在两处</span><p><code>diffusion/training/networks/general_dit_action.py</code>：两个 MLP，输入都是 7 维（<code>in_features=7</code>），隐层 4d，一个输出 d 维、加到时间步嵌入上（第 486 行），另一个输出 3d 维、加到 AdaLN-LoRA 的低秩输出上（第 487 行）。论文只提了前者。训练只用当前帧和下一帧两帧（<code>video2world_action/experiment.py</code> 的 <code>num_frames=2</code>；推理配置的隐变量形状 [16, 2, 32, 40]，每帧单独过 tokenizer，<code>pixel_chunk_duration=1</code>），只取第一个时刻的动作（第 483 行的注释）。所以“自回归滚动”是每次生成一帧再喂回去。</p></div>
+<p><b>评测。</b>指令任务的基线是在 Cosmos-1X 上微调的 VideoLDM（VideoLDM-Instruction）。四个维度：指令遵循、物体恒存、真实性（没有凭空的物体）、综合（能否据此规划）。十位评估者在 23 个测试片段上两两比较匿名视频（图 24）。</p>
+<figure class="pfig" id="fig24">
+<img src="cosmos/fig24.webp" width="1600" height="703" alt="图 24：两张堆叠柱状图，左边 7B 对 VideoLDM-Instruction，右边 5B 对 VideoLDM-Instruction，四个维度各一根柱，绿色是 Cosmos 胜，黄色是平，粉色是 VideoLDM 胜" loading="lazy">
+<figcaption><span class="lab">图 24 · 原文第 46 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S6.F24">看原图 ↗</a></span>每根柱从下到上是 Cosmos 胜（绿）、平（黄）、VideoLDM 胜（粉）。(a) 7B：指令遵循 65.2 / 17.4 / 17.4，物体恒存 82.6 / 8.7 / 8.7，真实性 73.9 / 13.0 / 13.0，综合 78.3 / 8.7 / 13.0。(b) 5B：43.5 / 21.7 / 34.8，47.8 / 17.4 / 34.8，43.5 / 30.4 / 26.1，56.5 / 13.0 / 30.4（单位 %，按矢量图里的文字标签读出）。</figcaption>
+</figure>
+<div class="note" id="n27"><span class="lab">读者注 27 · 图 24 的百分比都是 k/23</span><p>图 24 里出现的 24 个百分比全是 23 的整数分之一：17.4 = 4/23，8.7 = 2/23，13.0 = 3/23，65.2 = 15/23，82.6 = 19/23，73.9 = 17/23，78.3 = 18/23，43.5 = 10/23，21.7 = 5/23，34.8 = 8/23，47.8 = 11/23，30.4 = 7/23，26.1 = 6/23，56.5 = 13/23。所以每个片段只计一票，十位评估者的意见是怎样合成一票的（多数？），原文没说。样本量只有 23，5B 的指令遵循 43.5% 对 34.8% 只差 2 票。</p></div>
+<p>动作任务的基线是微调的 IRASim（IRASim-Action），在官方测试集随机 100 段上逐帧自回归生成，和真值比较：</p>
+<div class="tablewrap"><table class="t-m">
+<caption class="tcap">表 23 · Bridge 上的动作条件下一帧预测</caption>
+<thead><tr><th>方法</th><th>PSNR ↑</th><th>SSIM ↑</th><th>Latent L2 ↓</th><th>FVD ↓</th></tr></thead><tbody>
+<tr><td>IRASim-Action</td><td class="n">19.13</td><td class="n">0.64</td><td class="n">0.38</td><td class="n">593</td></tr>
+<tr><td>Cosmos-Predict1-5B-Video2World-Sample-ActionCond</td><td class="n">19.95</td><td class="n">0.80</td><td class="n">0.36</td><td class="n">434</td></tr>
+<tr><td>Cosmos-Predict1-7B-Video2World-Sample-ActionCond</td><td class="n best">21.14</td><td class="n best">0.82</td><td class="n best">0.32</td><td class="n best">190</td></tr>
+</tbody></table></div>
+<figure class="pfig" id="fig26">
+<img src="cosmos/fig26.webp" width="1600" height="488" alt="图 26：Bridge 上两组机械臂操作，每组上行是预测帧，下行是真值帧，左边 7B，右边 5B" loading="lazy">
+<figcaption><span class="lab">图 26 · 原文第 47 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S6.F26">看原图 ↗</a></span>左边 7B-ActionCond（水槽前拿蓝色物体），右边 5B-ActionCond（木台上的物体），上行预测、下行真值，几帧之内两者很接近。原文图 25 是指令条件的样例（把书竖着放、叠绿布、从箱里拿绿色物体、从货架取箱子）。<a href="https://arxiv.org/html/2501.03575v3#S6.F25">看图 25 ↗</a></figcaption>
+</figure>
+
+<h3 id="s6-3"><span class="no">6.3</span>自动驾驶</h3>
+<p><b>结论：</b>把 7B-Text2World 微调成同时生成 6 路相机视频的模型，另有轨迹条件版和视频续写版。和同样微调的 VideoLDM 比，FID 32.16 对 60.84，FVD 210.23 对 884.46；跨视角 Sampson 误差 2.11 对 6.48，接近真实视频的 1.71；轨迹条件版的跟随误差 20.20 cm，比真值估计多约 7 cm。</p>
+<p><b>数据。</b>内部的 Real Driving Scene（RDS）：约 360 万段 20 秒环视视频（约 2 万小时），NVIDIA 内部驾驶平台采集，6 路相机（前、左、右、后、左后、右后），带自车运动；以前视相机时间戳同步其他视角。按属性分布挑选：车流密度、天气、光照、自车速度、自车行为（曲率和加速度）、道路类型（按 OpenStreetMap 分乡村、住宅、城市），再补挖一轮罕见结构（收费站、桥、隧道、减速带）。每个视角单独写描述，以固定句式开头：“视频由装在车上的相机拍摄，相机朝向前方 / 左 / 右 / 后 / 左后 / 右后。”</p>
+<p><b>微调。</b>三个模型都输出 6 路、57 帧、848 × 480。</p>
+<ul>
+<li><b>视角无关的位置编码加视角嵌入</b>：不把 RoPE 扩到视角维，而是每个视角各自用 §5.1 的位置编码，视角差别由一个全局视角嵌入告诉去噪器。</li>
+<li><b>视角相关的交叉注意力</b>：6 个视角一起作为扩散状态、互相做自注意力，但每个视角的交叉注意力只读自己那段描述。</li>
+<li><b>轨迹条件</b>（可选）：轨迹是 64 个三维点，从 (0, 0, 0) 出发，间隔 0.1 秒，嵌入后作为去噪器的条件输入。作者说也可以像 §6.2 那样给逐步的动作向量，留待以后。</li>
+<li>Video2World-Sample-MultiView 能接着 Text2World 版的输出往后续写。</li>
+</ul>
+<p><b>评测。</b>基线是同样配方微调的 VideoLDM-MultiView。生成质量用 1,000 个样本、每个视角取 16 帧算 FID / FVD，再对视角平均。一致性类指标把真值轨迹分成直行、左转、右转、其他四类，每类 200 个，共 800 个。</p>
+<ul>
+<li><b>多视角一致性</b>：真值视频的相机是相似的鱼眼内参，用中位标定把关键点去畸变到 960 × 540、120° 水平视场的针孔相机。时间 Sampson 误差（TSE）是每个视角相邻帧的 Sampson 误差中位数；跨视角 Sampson 误差（CSE）是不同视角之间的误差按时间平均，基础矩阵用全部帧累积的关键点估计。</li>
+<li><b>轨迹一致性（TAE）</b>：类似 Liang 等的多视角位姿估计（基于 DROID-SLAM 式的公式，带动态掩码和稠密 BA），分别用“前 + 左前”和“前 + 右前”两组估计前视相机位姿，算两者的 ATE、RPE-t、RPE-R；轨迹长度归一化为 1，去掉几乎不动的片段（如等红灯）。</li>
+<li><b>轨迹跟随（TFE）</b>：对轨迹条件模型，估计的前视位姿和输入轨迹比较。</li>
+<li><b>物体跟踪一致性</b>：用 YOLOv11x 检测跟踪 8 秒生成视频，人工检查有没有物理上不可能的情况（比如人和车合并成一个轨迹）。20 段视频 157 个物体，一例都没有。</li>
+</ul>
+<div class="tablewrap"><table class="t-m">
+<caption class="tcap">表 24 · 多视角驾驶视频的生成质量和多视角一致性</caption>
+<thead><tr><th>方法</th><th>FID ↓</th><th>FVD ↓</th><th>TSE ↓</th><th>CSE ↓</th></tr></thead><tbody>
+<tr><td>VideoLDM-MultiView</td><td class="n">60.84</td><td class="n">884.46</td><td class="n">1.24</td><td class="n">6.48</td></tr>
+<tr><td>Cosmos-Predict1-7B-Text2World-Sample-MultiView</td><td class="n best">32.16</td><td class="n best">210.23</td><td class="n">0.68</td><td class="n">2.11</td></tr>
+<tr><td>…-MultiView-TrajectoryCond</td><td>-</td><td>-</td><td class="n best">0.59</td><td class="n best">2.02</td></tr>
+<tr><td>真实视频（参考）</td><td>-</td><td>-</td><td class="n">0.69</td><td class="n">1.71</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-m">
+<caption class="tcap">表 25 · 轨迹一致性（TAE 各项 × 10²，TFE 单位 cm）</caption>
+<thead><tr><th>方法</th><th>TAE-ATE ↓</th><th>TAE-RPE-R ↓</th><th>TAE-RPE-t ↓</th><th>TFE ↓</th></tr></thead><tbody>
+<tr><td>VideoLDM-MultiView</td><td class="n">0.88</td><td class="n">22.94</td><td class="n">0.77</td><td>-</td></tr>
+<tr><td>Cosmos-Predict1-7B-Text2World-Sample-MultiView</td><td class="n">0.77</td><td class="n best">4.25</td><td class="n">0.29</td><td>-</td></tr>
+<tr><td>…-MultiView-TrajectoryCond</td><td class="n best">0.54</td><td class="n">4.31</td><td class="n best">0.18</td><td class="n">20.20</td></tr>
+<tr><td>真实视频（参考）</td><td class="n">0.49</td><td class="n">4.60</td><td class="n">0.14</td><td class="n">13.49</td></tr>
+</tbody></table></div>
+<figure class="pfig" id="fig29">
+<img src="cosmos/fig29.webp" width="1600" height="1146" alt="图 29：左列是黑底上的输入轨迹曲线，右边是对应的前视生成帧，第 25、50、75、100 帧，车按轨迹转弯" loading="lazy">
+<figcaption><span class="lab">图 29 · 原文第 53 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S6.F29">看原图 ↗</a></span>轨迹条件模型的前视画面。左列是输入轨迹（黑底上的白色曲线），右边四列是第 25、50、75、100 帧：右弯的轨迹对应画面向右转过路口，直行的轨迹对应一直向前。原文图 27、28 是文字条件的 6 路样例（高速上的卡车和摩托、浓雾连环追尾、开向冰雪城堡、在河上行驶）。<a href="https://arxiv.org/html/2501.03575v3#S6.F27">看图 27 ↗</a> <a href="https://arxiv.org/html/2501.03575v3#S6.F28">看图 28 ↗</a></figcaption>
+</figure>
+<div class="note" id="n28"><span class="lab">读者注 28 · 驾驶一节的数</span><p>360 万 × 20 秒 = 7,200 万秒 = <b>20,000 小时</b>，对。TFE 20.20 − 13.49 = 6.71 cm，即原文的“不到 7 cm”。时长有一处没交代清：文字说 57 帧扩到 201 帧是“8 秒”，即约 25 FPS，57 帧约 2.3 秒；但轨迹是 64 个点 × 0.1 秒 = 6.4 秒，比 57 帧长得多，轨迹和帧怎么对齐原文没说。图 29 显示到第 100 帧，超过 57 帧，应是续写后的结果。表 25 的 RPE-R 一列 Cosmos（4.25、4.31）比真实视频（4.60）还低，和读者注 22 的情况类似。</p></div>
+<div class="note" id="n29"><span class="lab">读者注 29 · 多视角在代码里</span><p><code>diffusion/config/base/net.py</code> 的 <code>FADITV2_Multiview_Config</code>：<code>n_views=6</code>、<code>view_condition_dim=6</code>（视角嵌入），其余和 7B 相同（28 层、宽 4096）。有一处不同：多视角版的每块额外绝对位置嵌入是 <code>extra_per_block_abs_pos_emb_type="sincos"</code>，而 7B Text2World 的推理配置是 <code>"learnable"</code>。§5.1.2 说扩散模型用可学习的嵌入，多视角版在代码里换成了正弦。</p></div>
+
+<h2 id="s7"><span class="no">7</span>护栏</h2>
+<p><b>结论：</b>两段。pre-Guard 在文字上：先查关键词表，再用 Aegis（一个按 13 类安全风险微调的 Llama-Guard）。post-Guard 在画面上：逐帧安全分类器，任一帧不安全就拦整段；再用 RetinaFace 把大于 20 × 20 像素的人脸打马赛克。</p>
+<figure class="pfig" id="fig30">
+<img src="cosmos/fig30.webp" width="1573" height="326" alt="图 30：WFM 输入依次经关键词拦截、Aegis、世界基础模型、视频内容安全分类器、人脸模糊，得到输出；前两项标为 pre-Guard，后两项标为 post-Guard" loading="lazy">
+<figcaption><span class="lab">图 30 · 原文第 54 页 · NVIDIA，arXiv 2501.03575，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2501.03575v3#S7.F30">看原图 ↗</a></span>WFM Inputs → Keyword Blocking → Aegis → World Foundation Model → Video Content Safety Classifier → Face Blur → WFM Outputs。前两个是 pre-Guard，后两个是 post-Guard。</figcaption>
+</figure>
+<ul>
+<li><b>7.1.1 关键词拦截</b>：先用 WordNetLemmatizer 把词还原成词根（例如 “abacii” → “abacus”），再和一份硬编码的大词表比对，命中任一个就拒绝整条提示。</li>
+<li><b>7.1.2 Aegis</b>：Aegis-AI-Content-Safety-LlamaGuard-LLM-Defensive-1.0，在 NVIDIA 的 Aegis 安全数据集上微调的 Llama-Guard，用更严的 defensive 版。落在暴力、色情、犯罪策划、武器、药物滥用、自杀、儿童性虐待内容、仇恨、骚扰、威胁、脏话这些类别就判不安全，不生成并报错。</li>
+<li><b>7.2.1 视频内容安全过滤</b>：逐帧多分类器，有的类安全、有的不安全；要平衡误报和漏报。三种标注：从数据集抽帧让 VLM 标；用 WFM 按一批提示生成视频补足少见类别和边角情况；人工给一部分“金标准”。对每帧提 SigLIP 嵌入，训一个简单 MLP。任一帧不安全，整段判不安全。</li>
+<li><b>7.2.2 人脸模糊</b>：RetinaFace 检测高置信度的人脸，大于 20 × 20 像素的打马赛克，保留整体构图。</li>
+<li><b>7.3 红队</b>：专门的红队用标准和对抗样本（内部攻击提示集）测试，经训练的标注员给视频在多个危害类别上打 1 到 5 分，并标出不安全内容的起止帧；也单独测各组件。截至发表，已测试并标注 1 万多个提示-视频对。</li>
+</ul>
+<div class="note" id="n30"><span class="lab">读者注 30 · 开源护栏用的是 Llama Guard 3</span><p><code>cosmos_predict1/auxiliary/guardrail/common/presets.py</code> 第 33 行：文本护栏是 <code>[Blocklist, LlamaGuard3]</code>，没有 Aegis；<code>aegis/</code> 目录还在，但默认不用。README 也写着安全过滤由 Llama Guard 3 提供。视频护栏是 <code>VideoContentSafetyFilter</code> 加后处理 <code>RetinaFaceFilter</code>，和论文一致。细节：安全分类器输入 1152 维的 SigLIP 嵌入、输出 7 类（<code>video_content_safety_filter.py</code> 第 56 行）；人脸检测置信度阈值 0.7，最小尺寸 (20, 20)；关键词表除了词形还原，还用 better-profanity 做模糊匹配，再把白名单词放回去（<code>blocklist.py</code>）。</p></div>
+
+<h2 id="s8"><span class="no">8</span>相关工作</h2>
+<p><b>结论：</b>作者把 Cosmos 放在“生成式视频世界模型”这条线上，并说扩散和自回归各有长处，所以两种都做。</p>
+<ul>
+<li><b>世界模型</b>：概念源自 Ha 和 Schmidhuber（2018）；传统机器人和自动化早就用基于物理和系统辨识的模型，但只限于低维状态、难迁移。大多数工作（<a href="dreamer.html">Dreamer</a> 系列、<a href="td-mpc.html">TD-MPC2</a> 等）用循环网络在自编码器的隐空间里建模；新趋势是把世界模型当作条件视频生成模型，可以是自回归（Genie 等）或扩散（DIAMOND、GameNGen 等）；另一条路是生成式仿真。应用包括验证、MPC 规划和基于模型的强化学习，领域有游戏、真实机器人和自动驾驶。</li>
+<li><b>视频生成</b>：Sora、Dream Machine、Gen 3、Kling 等；任务有文生视频、图生视频、视频到视频、动作到视频。多数是扩散，自回归能统一多模态。作者认为扩散画质更好，自回归能用上 LLM 社区的各种技术。</li>
+<li><b>相机控制的视频生成</b>：从神经渲染和单图视图合成，到用 Transformer 直接以相机为条件生成新视图，再到在扩散视频模型上加相机控制（CameraCtrl、CamCo 等）。</li>
+<li><b>用于机器人控制的生成模型</b>：扩散策略；用图像或视频生成做运动规划（生成视觉子目标而不是动作）；用视频做生成式预训练（GR-2 等先预测未来帧再联合预测动作）。</li>
+<li><b>用于自动驾驶的生成模型</b>：以文字、图像、轨迹、3D、地图为条件的驾驶视频生成，以往受限于数据规模、分辨率和相机数。</li>
+<li><b>Tokenizer</b>：连续（AE、VAE）给扩散用；离散多一个量化器，便于并入 LLM 和 VLM。Cosmos tokenizer 建立在 FSQ 和因果结构（Yu 等 2023）之上。</li>
+</ul>
+
+<h2 id="s9"><span class="no">9</span>结论与讨论</h2>
+<p>作者认为这是走向通用物理世界模拟器的一大步：数据管线、两类 tokenizer、两类 WFM 架构和多种下游微调，并在 3D 导航、机器人操作、自动驾驶上展示了 3D 一致性和动作可控性。</p>
+<p><b>局限。</b>WFM 还在早期，包括 Cosmos 在内都还不是可靠的物理模拟器：缺物体恒存性、接触丰富的动态不准、指令遵循不一致；画面逼真不等于守物理（重力、光照、流体）。评测本身也难：人工评物理真实性受主观影响，而且不一定和下游物理 AI 指标正相关。可能的方向是用多模态 LLM 做自动评估器，或借助现有物理仿真器做可复现、可交互的评测。</p>
+<p><b>自回归还是扩散。</b>3D 一致性（§5.3.1）和机器人视频生成（§6.2）的结果都说明扩散目前画质更好，也更容易通过微调接入各种控制信号（相机、末端位置、车辆轨迹）和多视角输出。但自回归有两点潜力：继承 LLM 预训练权重里的世界知识；用因果注意力的推理优化实现更快生成，适合交互控制和实时场景。两者界限也不死：双向扩散 Transformer 可以蒸馏成因果的学生模型以支持 KV 缓存（CausVid），自回归也可以带局部双向注意力加扩散头（Transfusion）。</p>
+
+<h2 id="apA"><span class="no">A</span>附录 A：贡献者和致谢</h2>
+<p>附录只有名单，没有技术内容。按组列出核心贡献者：数据整理、Tokenizer、扩散预训练、自回归预训练、提示词扩写、扩散解码器、3D 一致性评测、物理对齐评测、相机控制、机器人、自动驾驶、护栏，平台架构是 Ming-Yu Liu；另有一组贡献者。致谢里感谢 1X Technologies 提供人形机器人数据。</p>
+<details class="tbl"><summary>附录 A 的分组和人数（点开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>组</th><th>人数</th></tr></thead><tbody>
+<tr><td>数据整理</td><td class="n">30</td></tr><tr><td>Tokenizer</td><td class="n">6</td></tr><tr><td>扩散 WFM 预训练</td><td class="n">11</td></tr><tr><td>自回归 WFM 预训练</td><td class="n">6</td></tr><tr><td>提示词扩写</td><td class="n">4</td></tr><tr><td>扩散解码器</td><td class="n">6</td></tr><tr><td>3D 一致性评测</td><td class="n">2</td></tr><tr><td>物理对齐评测</td><td class="n">6</td></tr><tr><td>相机控制后训练评测</td><td class="n">4</td></tr><tr><td>机器人后训练评测</td><td class="n">12</td></tr><tr><td>自动驾驶后训练评测</td><td class="n">12</td></tr><tr><td>护栏</td><td class="n">4</td></tr><tr><td>平台架构</td><td class="n">1</td></tr><tr><td>其他贡献者（A.2）</td><td class="n">13</td></tr>
+</tbody></table></div>
+<p>人数是我数的，同一人可在多组出现。</p></details>
+
+<h2 id="openwam">和 OpenWAM 的关系</h2>
+<p><b>结论：</b>这篇是 Cosmos-Predict 系列的起点。<a href="openwam.html">OpenWAM</a> 用的不是这里的 Predict1，而是后来的 <a href="cosmos-predict25.html">Cosmos-Predict2.5-2B</a>（§4.1.1 里得 91.64）和 <a href="cosmos3.html">Cosmos 3</a>；但这些后继模型的 DiT 骨架，仍是本文 §5.1.2 那一套。</p>
+<p>我对照了 OpenWAM 仓库（只读，提交 1dcaeea）的 <code>configs/model/video_backbone/cosmos_predict25_2b.yaml</code> 和 <code>openwam/model/video_backbone/cosmos_predict25/</code>：</p>
+<ul>
+<li><b>沿用下来的</b>：块里的调制仍是 AdaLN-LoRA（<code>block_split.py</code> 第 44–52 行，自注意力、交叉注意力、MLP 三处调制各加上同一个低秩 <code>adaln_lora_B_T_3D</code>），位置编码仍是 3D RoPE 加每块额外的绝对位置嵌入（<code>rope_emb_L_1_1_D</code>、<code>extra_per_block_pos_emb</code>），这些变量名和 cosmos-predict1 的 <code>general_dit.py</code> 基本相同（那里叫 <code>adaln_lora_B_3D</code>，多了时间维）。也就是说本页第 5 幕画的块结构，在 OpenWAM 的 Cosmos 骨干里还在。</li>
+<li><b>换掉了的</b>：tokenizer 不再是本文的 Cosmos-Tokenize1-CV8×8×8，而是 Wan2.1 的 VAE（配置注释写 “wan2pt1 (Cosmos-Predict2.5 tokenizer; stride 4x8x8, z_dim=16)”，时间压缩 4 倍而不是 8 倍）；文本编码器从 T5 换成 <a href="cosmos-reason1.html">Cosmos-Reason1-7B</a>；训练目标从 EDM 换成流匹配（<code>shift_video: 5.0</code>）。这些变化的来龙去脉见 <a href="cosmos-predict25.html">Cosmos-Predict2.5 页</a>。</li>
+<li><b>和动作有关的</b>：本文 §6.2 的动作条件做法（7 维动作经 MLP 加到时间步嵌入）是“世界模型吃动作”；OpenWAM 是“世界模型旁边再长一个动作流”，两者方向不同。OpenWAM 的 <code>model_variant</code> 里列了 Predict2.5 的 <code>robot/action-cond</code> 变体，但它是否用到，要看具体实验配置，我没有逐个核对。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<p>共 30 条。“代码”指 cosmos-predict1 提交 724daa1。</p>
+<ol class="notes">
+<li><a href="#n1">许可的矛盾</a>：arXiv CC BY 4.0，PDF 页脚 “All rights reserved”。</li>
+<li><a href="#n2">模型名改过</a>：v1 的 Cosmos-1.0-Diffusion / Autoregressive 改成 Predict1；§6.3.2 留有旧名。</li>
+<li><a href="#n3">表 2 的倍数</a>：6.45 倍、17% 对得上；3.6 倍混着批大小的变化。</li>
+<li><a href="#n4">表 3</a>：每段约 240 个 token，一致；“10 倍”实为 9.3 到 9.5 倍。</li>
+<li><a href="#n5">§3 的几个数</a>：类别比例合计 100%；各步过滤量没给。</li>
+<li><a href="#n6">压缩率只算时空</a>：按元素 CV8×8×8 是 96 倍，DV8×16×16 按比特约 3,079 倍。</li>
+<li><a href="#n7">表 8 的 “AE”</a>：离散图像 tokenizer 应为 FSQ。</li>
+<li><a href="#n8">表 5 的帧数</a>：CV4×8×8-360p 写 49 帧，和正文 121 帧不一致。</li>
+<li><a href="#n9">“2 到 12 倍更快、最小”</a>：离散视频只快 1.03 倍；Omni 54M 比 Cosmos 105M 小。</li>
+<li><a href="#n10">“所有指标最好”</a>：离散版在 TokenBench 的 SSIM、rFVD 上不如 VideoGPT。</li>
+<li><a href="#n11">Tokenizer 代码</a>：360p 版只做一级小波；光流损失默认关闭；公开代码没有对抗损失。</li>
+<li><a href="#n12">式 (6) 在代码里</a>：logvar = Fourier 特征 + 线性层，和式 (6) 一致；loss_scale 10 对得上。</li>
+<li><a href="#n13">AdaLN-LoRA 参数量</a>：稠密 11.04B，LoRA 7.16B，少 35.1%。</li>
+<li><a href="#n14">表 12 上下文长度</a>：10,240 和 56,320 复算无误。</li>
+<li><a href="#n15">视频噪声放大</a>：代码按隐帧数开方（121 帧 → 16 → 4 倍），不是帧数。</li>
+<li><a href="#n16">280 GB 和 310 GB</a>：按 batch 1 复算 280 GB、311 GB。</li>
+<li><a href="#n17">表 11 学习率</a>：14B 配置一致；7B 后训练示例用 2⁻¹⁴·³。</li>
+<li><a href="#n18">z-loss</a>：论文是 logit 平方和、3 × 10⁻⁴；代码是 logsumexp 平方、默认 1 × 10⁻⁴。</li>
+<li><a href="#n19">GQA</a>：表 14 和代码都是 32 头 8 组 KV，正文说没用 GQA；4B / 12B 参数量复算 4.01B / 11.56B。</li>
+<li><a href="#n20">12,800 个 token</a>：对应 33 帧，不是 34 帧。</li>
+<li><a href="#n21">Medusa</a>：前向次数的倍数用的是 12 个头；4B 的 7,680 次前向少一个隐帧，未解释。</li>
+<li><a href="#n22">比真实视频还一致</a>：Sampson 误差和成功率要一起看。</li>
+<li><a href="#n23">1 帧条件时自回归更好</a>：PSNR、IoU 都高于扩散；9 帧时才反过来。</li>
+<li><a href="#n24">表 21 重复两行</a>：5B 版本被写成 7B。</li>
+<li><a href="#n25">相机条件的数</a>：8 个隐帧、CamCo 14 帧对得上。</li>
+<li><a href="#n26">动作条件在代码里</a>：同时加到时间步嵌入和 AdaLN-LoRA；只训两帧。</li>
+<li><a href="#n27">图 24 是 k/23</a>：每个片段一票；5B 的差距只有两三票。</li>
+<li><a href="#n28">驾驶一节</a>：2 万小时、“不到 7 cm”对得上；6.4 秒的轨迹和 57 帧怎样对齐没说。</li>
+<li><a href="#n29">多视角代码</a>：额外位置嵌入换成了正弦。</li>
+<li><a href="#n30">开源护栏</a>：用 Llama Guard 3 代替 Aegis；分类器 7 类。</li>
+</ol>
+<p>论文没写、我也没找到的：数据管线各步的过滤比例和代码；扩散主训练的 \(P_{\rm mean}\)、\(P_{\rm std}\)；自回归模型的预训练代码；相机控制和指令条件模型的公开权重；驾驶模型的帧率和轨迹对齐方式。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、代码和模型。除标注的以外，链接在 2026 年 11 月 16 日用脚本核对都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-predict1">Cosmos-Predict1</a></td><td>本文</td><td><a href="https://github.com/nvidia-cosmos/cosmos-predict1">代码</a> · <a href="https://huggingface.co/nvidia/Cosmos-Predict1-7B-Text2World">HF 权重</a></td><td><a href="https://arxiv.org/abs/2501.03575">2501.03575</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/Cosmos-Tokenizer">Cosmos-Tokenizer</a></td><td>独立的 tokenizer 仓库，已并入 predict1</td><td>github.com/NVIDIA/Cosmos-Tokenizer</td><td>同上 §4</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/ShotBench">ShotBench</a></td><td>镜头切分基准（本文新建）</td><td>github.com/NVlabs/ShotBench</td><td>本文 §3.2.1</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/TokenBench">TokenBench</a></td><td>视频 tokenizer 基准（本文新建）</td><td>github.com/NVlabs/TokenBench</td><td>本文 §4.3</td></tr>
+<tr><td><a class="ds" href="https://aimagelab.ing.unimore.it/imagelab/researchActivity.asp?idActivity=19">BBC Planet Earth</a></td><td>镜头切分数据</td><td>aimagelab.ing.unimore.it</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/Tangshitao/ClipShots">ClipShots</a></td><td>镜头切分数据</td><td>github.com/Tangshitao/ClipShots</td><td>Tang 等 2018</td></tr>
+<tr><td><a class="ds" href="https://github.com/wentaozhu/AutoShot">SHOT / AutoShot</a></td><td>镜头切分数据和方法</td><td>github.com/wentaozhu/AutoShot</td><td>Zhu 等，CVPRW 2023</td></tr>
+<tr><td><a class="ds" href="https://github.com/soCzech/TransNetV2">TransNetV2</a></td><td>选用的镜头检测网络</td><td>github.com/soCzech/TransNetV2</td><td>Souček、Lokoč 2024</td></tr>
+<tr><td><a class="ds" href="https://davischallenge.org/">DAVIS</a></td><td>视频 tokenizer 评测</td><td>davischallenge.org</td><td>Perazzi 等，CVPR 2016</td></tr>
+<tr><td><a class="ds" href="https://cocodataset.org/">MS-COCO 2017</a></td><td>图像 tokenizer 评测</td><td>cocodataset.org</td><td>Lin 等，ECCV 2014</td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet-1K</a></td><td>图像 tokenizer 评测（本机脚本访问超时，站内其他页同一链接）</td><td>image-net.org</td><td>Deng 等，CVPR 2009</td></tr>
+<tr><td><a class="ds" href="https://github.com/bdd100k/bdd100k">BDD100K</a></td><td>TokenBench 来源之一（官网脚本访问超时，用 GitHub）</td><td>github.com/bdd100k/bdd100k</td><td>Yu 等，CVPR 2020</td></tr>
+<tr><td><a class="ds" href="https://ego-exo4d-data.org/">Ego-Exo4D</a></td><td>TokenBench 来源之一</td><td>ego-exo4d-data.org</td><td>Grauman 等，CVPR 2024</td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2 / Bridge</a></td><td>TokenBench 来源；§6.2 动作条件数据</td><td>rail-berkeley.github.io/bridgedata</td><td>Walke 等 2023；Ebert 等，RSS 2022</td></tr>
+<tr><td><a class="ds" href="https://snap-research.github.io/Panda-70M/">Panda-70M</a></td><td>TokenBench 来源；切分基线</td><td>snap-research.github.io/Panda-70M</td><td>Chen 等，CVPR 2024</td></tr>
+<tr><td><a class="ds" href="https://google.github.io/realestate10k/">RealEstate10K</a></td><td>3D 一致性和相机控制评测</td><td>google.github.io/realestate10k</td><td>Zhou 等，SIGGRAPH 2018</td></tr>
+<tr><td><a class="ds" href="https://dl3dv-10k.github.io/DL3DV-10K/">DL3DV-10K</a></td><td>相机控制训练数据</td><td>dl3dv-10k.github.io</td><td>Ling 等，CVPR 2024</td></tr>
+<tr><td><a class="ds" href="https://www.1x.tech/">1X / EVE</a></td><td>Cosmos-1X 数据的机器人</td><td>1x.tech</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a></td><td>物理对齐场景的仿真器</td><td>developer.nvidia.com/isaac/sim</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/nvidia/Aegis-AI-Content-Safety-LlamaGuard-Defensive-1.0">Aegis Defensive 1.0</a></td><td>pre-Guard 的 LLM 过滤器</td><td>huggingface.co/nvidia</td><td><a href="https://arxiv.org/abs/2404.05993">2404.05993</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/Cosmos">NVIDIA/Cosmos</a></td><td>Cosmos 3 总入口（不含本文代码）</td><td>github.com/NVIDIA/Cosmos</td><td>见 <a href="cosmos3.html">Cosmos 3 页</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2501.03575 后的整理，不是作者的官方内容。原文：NVIDIA（77 位作者，见附录 A），《Cosmos World Foundation Model Platform for Physical AI》，arXiv 2501.03575 v3，arXiv 登记许可 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>（PDF 页脚另有 “© 2025 NVIDIA. All rights reserved.”）。图从原文 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图。表格数字照录原文；读者注和动画是本页所加。代码对照基于 nvidia-cosmos/cosmos-predict1 提交 724daa1（Apache-2.0）。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

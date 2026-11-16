@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos 平台拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2501.03575 Cosmos 世界基础模型平台做成 11 幕 3D 动画：数据整理管线、Tokenizer 的因果分组、压缩率和 token 数、DiT 与 AdaLN-LoRA、EDM 训练和 Video2World 条件、自回归模型与 Medusa、扩散解码器、三类后训练、护栏、评测结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="cosmos.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/cosmos.html">返回精读</a><a href="../../papers/cosmos.html#s4">原文 §4</a><a href="../../papers/cosmos.html#s5-1">原文 §5.1</a><a href="https://arxiv.org/abs/2501.03575">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2501.03575 · NVIDIA Cosmos 平台（Cosmos-Predict1）</p>
+<h1>一个世界基础模型平台，从数据到护栏</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2 幕是数据整理管线；<b>第 3 幕可以单步看 tokenizer 的因果分组</b>；第 4 幕当场算压缩率和 token 数；<b>第 5 幕是 DiT 块和 AdaLN-LoRA，当场算参数量</b>；第 6 幕是 EDM 训练和 Video2World 的条件帧；第 7 幕是自回归模型和 Medusa；第 8 幕是扩散解码器；第 9 幕是三种后训练；第 10 幕是护栏；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结构数字来自论文和官方代码（nvidia-cosmos/cosmos-predict1 提交 724daa1）；标“现算”的数是页面按公式当场算的。没有任何 Cosmos 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 nvidia-cosmos/cosmos-predict1 提交 724daa1（2026-06-07），Apache-2.0，只读未运行。数据整理管线和自回归预训练的代码不在仓库里。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（724daa1）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">Tokenizer</td></tr>
+<tr><td>K1</td><td>小波</td><td>2 级 Haar，x、y、t 各降 4 倍</td><td>patch_method "haar"，patch_size 4；360p 版 patch_size 2</td></tr>
+<tr><td>K2</td><td>编码器</td><td>因果分解卷积（1×k×k + k×1×1，左填充 k−1）+ 因果时空注意力；Swish；LayerNorm</td><td>Encoder3DType.FACTORIZED；channels 128，mult [2, 4, 4]，num_res_blocks 2；num_groups 1（DI 默认 32）</td></tr>
+<tr><td>K3</td><td>连续隐空间</td><td>AE，16 维</td><td>latent_channels 16，formulation AE</td></tr>
+<tr><td>K4</td><td>离散隐空间</td><td>FSQ (8, 8, 8, 5, 5, 5)，词表 64,000</td><td>levels [8, 8, 8, 5, 5, 5]，embedding_dim 6</td></tr>
+<tr><td>K5</td><td>损失</td><td>阶段 1：L1 + VGG 感知；阶段 2：光流 + Gram；微调加对抗</td><td>L1 1；感知 0.1 → 0.073（50 万步）；Gram 0 → 0.062（50 万步）；光流默认关闭；无判别器</td></tr>
+<tr class="grp"><td colspan="4">扩散 WFM</td></tr>
+<tr><td>D1</td><td>7B / 14B</td><td>28 层宽 4096 / 36 层宽 5120，32 / 40 头，FFN 4 倍，GELU</td><td>FADITV2Config：model_channels 4096，num_blocks 28，num_heads 32；14B 5120 / 36 / 40</td></tr>
+<tr><td>D2</td><td>patch</td><td>(1, 2, 2)</td><td>patch_temporal 1，patch_spatial 2；in / out 16 通道</td></tr>
+<tr><td>D3</td><td>位置</td><td>3D RoPE（按 FPS 缩放，NTK）+ 每块可学习绝对位置</td><td>pos_emb_cls "rope3d"；extra_per_block_abs_pos_emb_type "learnable"（多视角版 "sincos"）</td></tr>
+<tr><td>D4</td><td>AdaLN-LoRA</td><td>秩 256；7B 从 11B 降到 7B</td><td>use_adaln_lora True，adaln_lora_dim 256；现算 11.04B → 7.16B</td></tr>
+<tr><td>D5</td><td>损失</td><td>式 (5)–(8)，不确定性加权 u(σ)，损失 × 10</td><td>logvar = FourierFeatures(128) + Linear；kendall_loss；sigma_data 0.5；loss_scale 10</td></tr>
+<tr><td>D6</td><td>视频噪声</td><td>按帧数平方根放大</td><td>sqrt(state_shape[1])，即隐帧数：16 → 4 倍</td></tr>
+<tr><td>D7</td><td>条件帧</td><td>时间维拼接，掩码通道，增强噪声 P_mean −3、P_std 2，不算损失</td><td>augment_sigma_sample_p_mean −3.0，p_std 2.0</td></tr>
+<tr><td>D8</td><td>文本</td><td>T5-XXL，补零到 512 token</td><td>crossattn_emb_channels 1024</td></tr>
+<tr class="grp"><td colspan="4">自回归 WFM</td></tr>
+<tr><td>A1</td><td>4B / 12B</td><td>16 层宽 4096 / 40 层宽 5120；32 头、8 KV 头；FFN 14,336；SwiGLU</td><td>COSMOS_ARCHITECTURES 相同；12B head_dim 128；n_kv_heads 8</td></tr>
+<tr><td>A2</td><td>序列</td><td>12,800 个 token（正文说 34 帧）</td><td>num_video_frames 33 → 5 × 40 × 64 = 12,800</td></tr>
+<tr><td>A3</td><td>YaRN</td><td>只在时间轴</td><td>original_latent_shape [3, 40, 64]，yarn_scale 2</td></tr>
+<tr><td>A4</td><td>z-loss</td><td>λ Σ zᵢ²，λ = 3 × 10⁻⁴</td><td>1e-4 · mean(logsumexp(logits)²)</td></tr>
+<tr><td>A5</td><td>Medusa</td><td>9 个头，冻结主干，只解冻最后 2 层和输出层</td><td>默认 medusa_num_heads 7，ft_medusa_option "fft"；可选 "head_out_last_k_layer"</td></tr>
+<tr class="grp"><td colspan="4">后训练和护栏</td></tr>
+<tr><td>P1</td><td>相机</td><td>Plücker (d, c × d)，每 8 帧取第 4 帧，57 帧</td><td>README 模型列表里没有 CameraCond 权重</td></tr>
+<tr><td>P2</td><td>动作</td><td>7 维 → MLP → 时间步嵌入（7B）；交叉注意力（5B）</td><td>两个 MLP：→ d 加到时间步，→ 3d 加到 AdaLN-LoRA；训练 2 帧</td></tr>
+<tr><td>P3</td><td>多视角</td><td>6 路，视角嵌入，视角相关的交叉注意力，848 × 480，57 帧</td><td>n_views 6，view_condition_dim 6</td></tr>
+<tr><td>G1</td><td>pre-Guard</td><td>关键词表（WordNet 词形还原）+ Aegis defensive</td><td>Blocklist（另有 better-profanity 模糊匹配）+ LlamaGuard3</td></tr>
+<tr><td>G2</td><td>post-Guard</td><td>逐帧 SigLIP + MLP；RetinaFace，> 20 × 20 打码</td><td>SigLIP 1152 维，7 类；人脸置信度 0.7，min_size (20, 20)</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的漏斗宽度</b>是示意；右边的柱子是原文 §3.1 和表 2 的数字。</li>
+<li><b>第 3 幕的 13 帧</b>照图 9(a) 画；17 帧和 1 帧是我加的对照。</li>
+<li><b>第 4 幕</b>的网格按 1/8 左右缩小画；比特倍数里连续隐变量按 BF16（16 位）算，这个口径是我设的。</li>
+<li><b>第 5 幕</b>块数画成 10 层；参数量不计偏置和归一化，所以和权重文件的精确总数会差一点。</li>
+<li><b>第 6 幕</b>的直方图是固定种子抽的 3,000 个样本，P_mean = 0、P_std = 1 是代码默认值，论文没给主训练值；u(σ) 没有画。</li>
+<li><b>第 7 幕</b>的网格按 5 × 8 × 12 缩小；每次前向接受的 token 数取表 15 的平均值。</li>
+<li><b>第 9 幕</b>的相机轨迹、动作数值、六个视角的摆放都是示意。</li>
+<li><b>第 10 幕</b>的三个示例是我设的情形。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2501.03575 后的理解，不是作者的官方图。原图见<a href="../../papers/cosmos.html">精读页</a>（arXiv 登记 CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

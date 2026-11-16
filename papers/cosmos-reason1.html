@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosmos-Reason1 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.15558v3 Cosmos-Reason1（NVIDIA，2025）的中文精读：按原文章节逐节整理正文和附录 A 到 C，物理常识与具身推理两套本体、数据构造、7B / 56B 两种骨干、SFT 加 GRPO 强化学习、三套评测；含裁切原图、v1 与 v3 的版本差异、官方代码与 Hugging Face 数据对照、11 幕 3D 框架动画和 24 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:720px}.t-m{min-width:600px}.t-s{min-width:460px}.t-links{min-width:640px}.t-ver{min-width:700px}
+.t-w td,.t-w th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details{border:1px solid var(--line);border-radius:10px;padding:6px 14px;margin:14px 0;background:var(--bg2)}
+details>summary{cursor:pointer;font-size:14.5px;color:var(--fg);font-weight:600}
+details[open]>summary{margin-bottom:6px}
+.ok{color:#4fc98a;font-weight:600}.bad{color:#e46d6d;font-weight:600}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/cosmos-reason1/index.html">3D 框架动画</a><a href="#code">代码对照</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2503.15558 · cs.AI · v3 2025 年 5 月 19 日 · NVIDIA 技术报告 · 中文精读</p>
+<h1>Cosmos-Reason1：让多模态大模型先想清楚物理，再说下一步该做什么</h1>
+<p class="orig">Cosmos-Reason1: From Physical Common Sense To Embodied Reasoning</p>
+<p>作者署名 NVIDIA，共 52 人（Alisson Azzolini、Junjie Bai、Yin Cui、Tsung-Yi Lin、Ming-Yu Liu、Shuran Song 等），贡献明细在原文附录 C。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2503.15558">arXiv 原文</a><a href="https://arxiv.org/pdf/2503.15558v3">PDF（v3）</a><a href="https://arxiv.org/html/2503.15558v3">HTML 版</a><a href="https://research.nvidia.com/labs/dir/cosmos-reason1/">项目主页</a><a href="https://github.com/nvidia-cosmos/cosmos-reason1">官方代码</a><a href="https://huggingface.co/nvidia/Cosmos-Reason1-7B">模型权重</a><span>正文 25 页，附录到第 32 页，参考文献到第 36 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 登记，但 PDF 第 1 页页脚印着 “© 2025 NVIDIA. All rights reserved.”，两者有矛盾（<a href="#n1">读者注 1</a>）。这一批（第八批，NVIDIA Cosmos 与 GR00T）由站点作者决定一律放原图：图 1 到图 12 从 v3 PDF 裁切，只做了裁切和格式转换，没有改内容；图 9 到 12 是很长的文字框，只裁了带视频帧和问题的上半部分，回答部分用文字概述。图下的文字是我写的。</p>
+<p>我读的是最新的 v3（2025-05-19），按原文顺序覆盖第 1 到 9 节和附录 A 到 C，小节编号同原文。<b>v1 和 v3 差别很大：小模型从自研混合骨干的 8B 换成了基于 Qwen2.5-VL 的 7B，训练从四段缩成两段</b>，见下面的<a href="#ver">版本差异</a>一节。用自己的话写，不逐字翻译；表格数字照录原文。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方仓库 <a href="https://github.com/nvidia-cosmos/cosmos-reason1">nvidia-cosmos/cosmos-reason1</a>，我读的是 commit <code>b84a3fa</code>（2026-06-07，“Add Cosmos 3 README redirect”），只读，没有运行。代码 Apache 2.0，权重 NVIDIA Open Model License。仓库自己说它只有文档、示例和工具，训练框架在另一个仓库 <a href="https://github.com/nvidia-cosmos/cosmos-rl">cosmos-rl</a>（我没有读）。README 顶部已写明不再积极维护，新工作转到 Cosmos 3。我还读了 Hugging Face 上模型卡、<code>config.json</code> 和三个数据集仓库的标注 JSON（只有文本标注，没有下载视频和权重）。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#ver">版本差异 v1 → v3</a><a href="#s1">1 引言</a><a href="#s2">2 物理 AI 推理</a><a href="#s3">3 模型</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 强化学习</a><a href="#s5">5 数据</a><a href="#s6">6 基准</a><a href="#s7">7 实验</a><a href="#s8">8 相关工作</a><a href="#s9">9 结论</a><a href="#apA">附录 A 提示词</a><a href="#apB">附录 B 补充结果</a><a href="#apC">附录 C 贡献者</a><a href="#code">代码对照</a><a href="#batch">和本批其他页</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>大语言模型做数学和编程推理已经很强，但看一段视频、判断物理上会发生什么、机器人下一步该做什么，它们常常答不好。Cosmos-Reason1 是一组视频输入、文字输出的多模态大模型，先在 <code>&lt;think&gt;</code> 里写长思维链，再给出答案，答案可以是一个判断，也可以是下一步动作（用自然语言说）。</p>
+<p>论文的做法分四块：</p>
+<ul>
+<li><b>两套本体（ontology）。</b>物理常识分成空间、时间、基础物理 3 大类 16 小类；具身推理是一张二维表，4 种能力 × 5 类主体（人、动物、机械臂、人形、自动驾驶车）。</li>
+<li><b>模型。</b>7B 版直接从 Qwen2.5-VL-7B 出发（稠密 Transformer）；56B 版用 InternViT-300M 视觉编码器加 Nemotron-H 混合 Mamba-MLP-Transformer 骨干。只有 7B 公开了权重。</li>
+<li><b>两段训练。</b>物理 AI 监督微调（SFT，约 375 万条标注，推理链大多用 DeepSeek-R1 从文字描述里“蒸馏”出来），再做 GRPO 强化学习，奖励全是规则可验证的：选择题答对没有、格式对不对。</li>
+<li><b>三套评测。</b>物理常识 604 题、具身推理 610 题（6 个子集）、直觉物理 300 题（时间箭头、空间拼图、物体恒存）。</li>
+</ul>
+<p>主要数字：7B 版物理常识 47.4 → 54.3（SFT），具身推理 50.8 → 61.8（SFT），加 RL 后六项具身加常识平均 60.7 → 65.7；直觉物理 42.1 → 74.5 → 81.5。56B 版物理常识 60.2，略高于 OpenAI o1 的 59.9。</p>
+<p>读完我认为值得记住的三点：</p>
+<ol>
+<li>RL 数据很小：具身部分每个来源只有 200 到 252 题，总共 30,304 题里八成是自动生成的直觉物理题。可验证的奖励靠“全部改成选择题”。</li>
+<li>v3 的正文有几处没跟着表格更新：例如说 RL 唯独没提升 RoboFail，但 v3 表 9 里 RoboFail 涨了 2 个点，掉的是 HoloAssist（<a href="#n18">读者注 18</a>）；表 3 的视觉 FFN 宽度 3,456 和发布的权重 3,420 不符，而 “ViT-676M” 恰好要按 3,420 才算得出（<a href="#n3">读者注 3</a>）。</li>
+<li>公开的数据不全：Hugging Face 上的基准只有 5 个具身子集（没有 AV 和 604 道常识题），RL 数据只有 4 个具身子集共 892 题（<a href="#n12">读者注 12</a>、<a href="#n14">14</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="cosmos-reason1/fig1.webp" width="1586" height="673" alt="图 1：Cosmos-Reason1 的四栏总览：模型、训练、本体、基准" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · NVIDIA，arXiv 2503.15558v3 · 原文许可 CC BY 4.0（页脚另有 NVIDIA 版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S1.F1">看原图 ↗</a></span>四栏：模型（视觉编码器 → 投影器 → 预训练 LLM），训练（物理 AI SFT → 物理 AI RL），本体（物理常识、具身推理），基准（同样两类）。v1 的这张图训练栏有四格，多了视觉预训练和通用 SFT。</figcaption>
+</figure>
+
+<h2 id="ver">版本差异：v1（2025-03-18）→ v3（2025-05-19）</h2>
+<p>v2（2025-04-02）和 v1 只差贡献者名单里多了一个人，正文和表格相同。v3 改动大，我把三个版本的 PDF 文本逐行比对过，主要差别如下。</p>
+<div class="tablewrap"><table class="t-ver"><thead><tr><th>项目</th><th>v1 / v2</th><th>v3（本页所读）</th></tr></thead><tbody>
+<tr><td>小模型</td><td>Cosmos-Reason1-<b>8B</b>：InternViT-300M + 混合 Mamba-MLP-Transformer（52 层，d = 4096）</td><td>Cosmos-Reason1-<b>7B</b>：直接用 Qwen2.5-VL-7B（ViT-676M + 28 层稠密 Transformer）</td></tr>
+<tr><td>大模型</td><td>56B，InternViT-300M + Nemotron-H 混合骨干</td><td>同左，配置和结果数字完全不变</td></tr>
+<tr><td>训练阶段</td><td>4 段：视觉预训练（只训投影器，1.3 亿样本）、通用 SFT（600 万图文 + 200 万视频）、物理 AI SFT、物理 AI RL</td><td>2 段：物理 AI SFT、物理 AI RL（前两段由 Qwen2.5-VL / Nemotron-H-VLM 自带）</td></tr>
+<tr><td>小模型 SFT</td><td>40K 步 1e-5 + 40K 步 1e-6，批 32</td><td>12.5K 步，余弦从 1e-5 降到 1e-6，批 256</td></tr>
+<tr><td>RL 框架</td><td>基于 Ray 的自研框架，渐进批处理，vLLM 推理</td><td>新写一节 §4.2：完全异步、异构部署、容错，图 5 是新图</td></tr>
+<tr><td>表 4、表 5</td><td>BridgeData 129.5K、RoboVQA 221.9K / 930K、AgiBot 19.8K、HoloAssist 136.7K；RL RoboVQA 250 题，总 30,302</td><td>略小：129.2K / 129.1K、218.5K / 920.0K、19.4K、136.3K；RL RoboVQA 252，总 30,304（正文的数没改，见<a href="#n10">读者注 10</a>）</td></tr>
+<tr><td>表 7、8 基线</td><td>有 Qwen2.5-VL-72B 和 “8B pre-trained backbone” 两行</td><td>删掉 72B；小模型基线换成 Qwen2.5-VL-7B，且具身那一行的数字变了（<a href="#n17">读者注 17</a>）</td></tr>
+<tr><td>小模型结果</td><td>常识 52.3；具身 60.0；RL 后 9 项平均 58.9 → 67.1（+8.2）；直觉物理 65.7 → 68.7</td><td>常识 54.3；具身 61.8；RL 后 60.7 → 65.7（+5.0）；直觉物理 74.5 → 81.5</td></tr>
+<tr><td>开源说法</td><td>“will make … available”</td><td>“we make … available”（5 月 17 日已放出 7B 权重和数据）</td></tr>
+</tbody></table></div>
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可和 PDF 元数据</span><p>arXiv 摘要页登记 CC BY 4.0（三个版本相同），PDF 第 1 页页脚却写 “© 2025 NVIDIA. All rights reserved.”。这和本站 SONIC、GraspGen 的情况一样，按 AGENTS.md 的规则在这里写明。另一个小事：v3 PDF 的元数据标题是 “Cosmos World Foundation Model Platform for Physical AI”（<code>pdfinfo</code> 读出），那是另一篇 Cosmos 论文（<a href="cosmos.html">cosmos 页</a>）的标题，应是沿用了 LaTeX 模板，不影响内容。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 换骨干后，56B 的数字为什么不变</span><p>v3 表 7、表 8 里 Cosmos-Reason1-56B 和它的骨干（v1 叫 “56B pre-trained backbone”，v3 叫 Nemotron-H-56B）每一格都和 v1 相同，包括 Space/Time/Physics 61.3/65.5/53.9、具身平均 63.7。所以 v3 只重做了小模型。这也意味着 v3 里两种尺寸的模型骨干、视觉编码器、视频处理都不一样（7B 动态分辨率，56B 固定 448×448），7B 和 56B 的差距不能只归因于参数量。论文没有解释为什么放弃 8B 混合模型；我推测和公开权重有关（发布的只有 7B，模型卡写明基于 Qwen2.5-VL-7B-Instruct），但这是推测。</p></div>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>长思维链（chain-of-thought，CoT）和测试时扩展让 LLM 在代码和数学上推理很强，但它们的知识没有扎根在物理世界：读过大量文字，未必能把知识和真实的交互、动力学联系起来。</p>
+<p><b>做法。</b>先定义物理 AI 需要的能力（§2），用两套本体组织：物理常识按空间、时间、基础物理分 16 个子类；具身推理是 4 种能力 × 5 类主体。模型是解码器式（decoder-only）多模态 LLM：视频经视觉编码器和投影器变成和文字 token 同一空间的向量，拼在文字前面送进 LLM（§3）。骨干试了稠密 Transformer 和混合 Mamba-MLP-Transformer 两种。</p>
+<p><b>能不能像数学题那样设计规则可验证的奖励？</b>论文的答案是用选择题：一类来自人工标注；另一类借鉴视频自监督，从视频结构本身自动生成，比如打乱的时空小块拼图、判断视频是正放还是倒放（时间箭头）。这些奖励都能用规则判对错（§4）。</p>
+<p><b>数据。</b>约 400 万条视频-文本标注，包括理解用的描述、选择题、长推理链（§5）。<b>基准。</b>物理常识 604 题（426 段视频），具身推理 610 题（600 段视频），覆盖人、机械臂、人形、自动驾驶（§6）。<b>结果</b>在 §7。代码和模型按 NVIDIA Open Model License 发布。</p>
+
+<h2 id="s2"><span class="no">2</span>物理 AI 推理</h2>
+<p>两种能力：<b>物理常识</b>是与本体无关的对环境的一般理解，是判断什么合理、什么不合理的基础；<b>具身推理</b>是帮具身主体感知、推理、规划和环境的交互。两者都想同时覆盖“系统 1”（快速直觉）和“系统 2”（慢速推敲）。</p>
+
+<h3 id="s2-1"><span class="no">2.1</span>常识推理</h3>
+<p>婴儿几个月就懂物体恒存和重力，靠的主要是被动观察。真实环境里训练 AI 贵且危险，有物理常识的系统可以少试错、少犯致命错误。论文的本体只规定<b>能力</b>，不规定实现机制或身体形态（参考 Morris 等 2024 的 AGI 分级思路）：要懂物体之间的空间关系、事件的时间顺序、物体恒存，但不必像人一样用五指抓或两条腿走。</p>
+<figure class="pfig narrow" id="fig2">
+<img src="cosmos-reason1/fig2.webp" width="883" height="787" alt="图 2：物理常识本体的饼图，内圈三大类，外圈 16 个子类" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S2.F2">看原图 ↗</a></span>内圈三块：基础物理（蓝，最大）、空间（红）、时间（绿）。外圈：空间有关系、合理性、可供性、环境 4 个；时间有动作、顺序、因果、相机、规划 5 个；基础物理有属性、状态、物体恒存、力学、电磁、热力学、反物理 7 个。扇区大小只是排版，不代表题数。</figcaption>
+</figure>
+<details><summary>表 1：16 个子类的能力定义（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>类：子类</th><th>能力（我的概括）</th></tr></thead><tbody>
+<tr><td>空间：关系</td><td>判断场景中物体的空间关系，注意视角（人的左边还是相机的左边）</td></tr>
+<tr><td>空间：合理性</td><td>判断某种空间关系是否可能</td></tr>
+<tr><td>空间：可供性</td><td>理解物体和人、动物、机器人等主体的交互方式</td></tr>
+<tr><td>空间：环境</td><td>理解场景和周围环境</td></tr>
+<tr><td>时间：动作</td><td>描述动作（运动、方向、力度），判断目的、分解子任务，判断任务是否完成</td></tr>
+<tr><td>时间：顺序</td><td>理解时间戳和事件先后</td></tr>
+<tr><td>时间：因果</td><td>判断事件 A 是否导致 B</td></tr>
+<tr><td>时间：相机</td><td>相机位置和运动：运镜、机位角度、转场</td></tr>
+<tr><td>时间：规划</td><td>根据过去的观察给出未来计划</td></tr>
+<tr><td>基础物理：属性</td><td>语义、尺寸、颜色、材质、质量、温度、固态（物体能否互相穿过）等</td></tr>
+<tr><td>基础物理：状态</td><td>物体状态和状态变化（冰化成水、蛋从生到熟）</td></tr>
+<tr><td>基础物理：物体恒存</td><td>哪些性质在一定条件下能变、不能变（重量、形状、大小、颜色）</td></tr>
+<tr><td>基础物理：力学</td><td>静力学（平衡、支撑、弹性、形变、质心）、运动学（速度、加速度、转动）、动力学（重力、碰撞、摩擦、惯性、动量守恒、流体和颗粒）</td></tr>
+<tr><td>基础物理：电磁</td><td>光学（光照、阴影、遮挡、反射、折射、衍射、吸收、透射）、电、磁</td></tr>
+<tr><td>基础物理：热力学</td><td>热、温度变化、蒸发、传热、热胀冷缩</td></tr>
+<tr><td>基础物理：反物理</td><td>违反物理定律的情形：反重力、时间倒流、永动、突然消失</td></tr>
+</tbody></table></div>
+</details>
+
+<h3 id="s2-2"><span class="no">2.2</span>具身推理</h3>
+<p>和数学、编程那种在干净符号上的确定性推理不同，具身推理要立足于动作，在不确定的动态环境里理解当下、规划未来。论文列了四种能力：</p>
+<ol>
+<li><b>处理复杂的感官输入</b>：从原始、不完整、含糊的观测里提取模式。</li>
+<li><b>预测动作的效果</b>：物体受力怎样反应，机器人身体怎样和环境接触，车辆怎样受路面影响。</li>
+<li><b>遵守物理约束</b>：惯性、摩擦、材料性质；长时程计划要可行、稳定、安全。</li>
+<li><b>从交互中学习</b>：每个动作都改变环境并产生反馈，要据此更新理解。</li>
+</ol>
+<p>这些能力对人、动物、机械臂、人形、自动驾驶车都适用，所以做成二维表（表 2）。</p>
+<details><summary>表 2：具身推理本体，能力 × 主体的例子（展开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>能力</th><th>自然主体（人、动物）</th><th>机器人系统（机械臂、人形、自动驾驶车）</th></tr></thead><tbody>
+<tr><td>处理感官输入</td><td>看菜谱视频；蝙蝠回声定位</td><td>机械臂用相机认物体；机器人走路时发现障碍；车认出停车标志和行人</td></tr>
+<tr><td>预测动作效果</td><td>木匠预料锯木会劈裂；狗估计球落点</td><td>机械臂抓取前补偿动量；机器人抬起前估重量；车预测冰面打滑</td></tr>
+<tr><td>遵守物理约束</td><td>飞行员保持在气动极限内；猎豹限速防拉伤</td><td>夹爪限力防夹碎；调关节力矩防摔；无人机不超风阻阈值</td></tr>
+<tr><td>从交互中学习</td><td>高尔夫球手看轨迹改站姿；狗反复尝试学会开门</td><td>工厂机器人发现错位后改进对齐；机器人学新握手；车调整刹车距离</td></tr>
+</tbody></table></div>
+</details>
+<p><b>本文实际覆盖的范围</b>只是前三种能力，“从交互中学习”留作以后。“处理感官输入”只看视频；“预测动作效果”落到两个任务：<b>任务完成验证</b>（这个子任务做成了吗）和<b>下一步合理动作预测</b>；“遵守物理约束”落到<b>动作可供性</b>（这个动作现在能不能做）。主体只有人、机械臂、人形、自动驾驶车四类，没有动物。</p>
+
+<h2 id="s3"><span class="no">3</span>Cosmos-Reason1</h2>
+<p>一个专做物理 AI 推理的多模态 LLM 家族，两种尺寸：7B 和 56B。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>多模态结构</h3>
+<p>多模态 LLM 常见两种结构：解码器式（LLaVA）把图像 token 和文字 token 放进同一个自注意力序列；交叉注意力式（Flamingo、Llama 3-V）让文字通过交叉注意力层看图像。论文选解码器式，理由是简单、所有模态统一对齐到文字嵌入空间（NVLM-D 的对比结论是它在多学科和数学视觉推理上更强）。结构是：视觉编码器 → 带下采样的两层 MLP 投影器 → 解码器 LLM。</p>
+<ul>
+<li><b>7B</b>：直接用 Qwen2.5-VL-7B 作为预训练模型，图像和视频处理都照它的做法。</li>
+<li><b>56B</b>：视觉编码器 InternViT-300M-V2.5，LLM 骨干 Nemotron-H。图像按长宽比切成 1 到 12 块 448×448，再加一张缩略图保留全局；视频最多均匀取 32 帧、最高 2 fps，每帧缩放到 448×448。每帧经 14×14 的 patch 得到 1024 个视觉 token，用 PixelShuffle 做 2×2 下采样（把空间维度挪进通道），剩 256 个。多块图像的 token 之间插入块编号标记，多帧视频的 token 直接拼接。</li>
+</ul>
+<figure class="pfig" id="fig3">
+<img src="cosmos-reason1/fig3.webp" width="1586" height="817" alt="图 3：输入视频经视觉编码器和投影器变成视频 token，和文字 token 拼接送入稠密或混合 LLM，输出带 think 标签的推理和答案" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 7 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S3.F3">看原图 ↗</a></span>左下是两帧机器人视频，经视觉编码器、一摞 3D 小块（视觉特征）、投影器变成一列视频 token；下面的文字问题 “What’s the next action?” 变成文字 token。两列加起来送进中间的 LLM，上面一个是稠密版（自注意力和 MLP 交替），下面是混合版（多数是 Mamba 和 MLP，偶尔一层自注意力）。右边输出先是 <code>&lt;think&gt;</code> 里的推理，再是答案 “Put the apple in the right hand into the bag on the table.”</figcaption>
+</figure>
+<p>表 3 是两种模型的配置，照录原文：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>配置</th><th class="n">Cosmos-Reason1-7B</th><th class="n">Cosmos-Reason1-56B</th></tr></thead><tbody>
+<tr class="grp"><th colspan="3">视觉编码器</th></tr>
+<tr><td>结构</td><td class="n">ViT-676M</td><td class="n">ViT-300M</td></tr>
+<tr><td>输入尺寸</td><td class="n">动态</td><td class="n">448 × 448</td></tr>
+<tr><td>Patch</td><td class="n">14 × 14</td><td class="n">14 × 14</td></tr>
+<tr><td>层数</td><td class="n">32</td><td class="n">24</td></tr>
+<tr><td>模型维度</td><td class="n">1,280</td><td class="n">1,024</td></tr>
+<tr><td>FFN 隐层</td><td class="n">3,456</td><td class="n">4,096</td></tr>
+<tr class="grp"><th colspan="3">投影器</th></tr>
+<tr><td>下采样（H×W×T）</td><td class="n">2×2×2</td><td class="n">2×2×1</td></tr>
+<tr><td>层数</td><td class="n">2</td><td class="n">2</td></tr>
+<tr><td>输入 / 隐层 / 输出维度</td><td class="n">1,280 / 5,120 / 3,584</td><td class="n">4,096 / 32,768 / 8,192</td></tr>
+<tr class="grp"><th colspan="3">LLM 骨干</th></tr>
+<tr><td>结构</td><td class="n">Transformer</td><td class="n">Mamba-MLP-Transformer</td></tr>
+<tr><td>层数</td><td class="n">28</td><td class="n">118</td></tr>
+<tr><td>模型维度</td><td class="n">3,584</td><td class="n">8,192</td></tr>
+<tr><td>FFN 隐层</td><td class="n">18,944</td><td class="n">32,768</td></tr>
+<tr><td>注意力头数</td><td class="n">28</td><td class="n">64</td></tr>
+</tbody></table></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 视觉 FFN 是 3,420 不是 3,456，而 “676M” 正好按 3,420 算出</span><p>Hugging Face 上 <code>nvidia/Cosmos-Reason1-7B</code> 的 <code>config.json</code>（commit 375e240）里 <code>vision_config.intermediate_size = 3420</code>，Qwen2.5-VL 原版也是这个值。我按 Qwen2.5-VL 的视觉塔结构数参数：patch 嵌入 3×2×14×14×1280，每块 qkv 和输出投影带偏置、SwiGLU 三个矩阵带偏置、两个 RMSNorm，32 块共 631.98M；加上 merger（LayerNorm 1280，5120→5120→3584 两层带偏置）44.57M，合计 <b>676.55M</b>。用表里的 3,456 则是 680.98M。所以 “ViT-676M” 指的是视觉塔加投影器，且对应 3,420；表里的 3,456 我认为是笔误。另外 config 里视觉塔用窗口注意力（window_size 112，只有第 7、15、23、31 块是全局注意力），论文没提。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 两种模型的视频 token 预算其实一样大</span><p>56B：每帧 \((448/14)^2=1024\) 个 patch，2×2 下采样后 256 个，最多 32 帧，\(32\times256=8192\) 个视频 token。7B：论文只说“照 Qwen2.5-VL 的处理”，没给帧率和分辨率；代码 <code>configs/vision_config.yaml</code> 和模型卡用 fps = 4、<code>total_pixels = 6422528</code>，注释写着 \(6422528=8192\times28^2\)，即每个视觉 token 管 28×28 像素（14 的 patch 再 2×2 合并）且时间上 2 帧合 1，于是整段视频最多约 8192 个 token。两者上限相同，但 7B 用更高帧率换更低的每帧分辨率。“2×2×2” 里的时间维 2 是 Qwen2.5-VL 的 patch 嵌入（temporal_patch_size = 2）做的，不在投影器里；表 3 把它记在投影器下，读的时候要注意。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 投影器的大小</span><p>按表 3 算两层 MLP 的权重：56B 是 \(4096\times32768+32768\times8192=4.03\times10^8\)，约 4 亿参数，比它的 ViT-300M 还大；7B 是 \(5120\times5120+5120\times3584=4.46\times10^7\)。56B 的输入 4,096 = 1,024 × 4，正是 PixelShuffle 把 2×2 个 1024 维向量拼成一个。v1 的 8B 投影器是 4096 → 21504 → 4096，约 1.76 亿。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>混合 Mamba-MLP-Transformer 骨干</h3>
+<p>自注意力的计算量随上下文长度平方增长；Mamba 用选择性状态空间做线性时间的序列建模，处理长序列更省。但状态空间未必能记住长序列里的每个细节，所以加入少量 Transformer 层，就成了混合结构（Waleffe 等 2024）。56B 用的就是预训练好的 Nemotron-H。7B 用张量并行 TP = 4 训练，56B 用 TP = 8、流水线并行 PP = 2。</p>
+<figure class="pfig" id="fig4">
+<img src="cosmos-reason1/fig4.webp" width="1600" height="413" alt="图 4：56B 骨干由交替 Mamba-MLP 模块和 Transformer 块串成，中间一组重复 9 次" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 8 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S3.F4">看原图 ↗</a></span>上排是图例：一个 Transformer 块 = 自注意力 + MLP；“交替 Mamba-MLP ×7” = Mamba、MLP、Mamba、MLP、Mamba、MLP、Mamba 共 7 层。下排是整条骨干：Mamba-MLP ×7 → Transformer → [Mamba-MLP ×9 → Transformer] 重复 9 次 → Mamba-MLP ×10。</figcaption>
+</figure>
+<div class="note" id="n6"><span class="lab">读者注 6 · 从图 4 数出 118 层</span><p>把 “×k” 读成 k 层（图例那样以 Mamba 开头、交替排列）：\(7+2+9\times(9+2)+10=118\)，和表 3 的 118 层对上。再分类：Mamba \(4+9\times5+5=54\)，MLP \(3+10+9\times4+5=54\)，自注意力 \(1+9=10\)，合计 118，注意力只占 8.5%。另外，图 3 的图例里自注意力是浅蓝、Mamba 是粉色，图 4 里正好反过来（注意力粉、Mamba 蓝），两张图配色不一致，对照着看容易看反。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>整个框架拆成 11 幕：总览、两套本体、视频变 token（可切 7B / 56B）、混合骨干的 118 层、SFT 数据流水线、直觉物理的三种自监督题（第 6 幕当场生成拼图和倒放）、SFT 数据配比、GRPO 的组内优势（第 8 幕当场算）、RL 框架、基准与结果、推理部署。论文和代码不一致的地方会标出来。</p>
+<iframe src="../interactives/cosmos-reason1/index.html?embed=1&amp;scene=3" title="Cosmos-Reason1 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/cosmos-reason1/index.html">全屏打开，还有完整结构表（论文、代码、HF 并列）↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>强化学习</h2>
+<p>两段训练把预训练好的视觉语言模型（Qwen2.5-VL 或 Nemotron-H-VLM）变成物理 AI 推理模型：先物理 AI SFT，再用物理 AI 任务做 RL。这一节讲算法和训练框架，数据在 §5，实验在 §7.2。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>算法</h3>
+<p>用 GRPO（组相对策略优化，来自 DeepSeekMath），不用训练单独的价值网络（critic）。对每个提示采样一组回答 \(\mathcal G=\{o_1,\dots,o_G\}\)，用组内的均值和标准差把奖励归一化成优势：</p>
+<div class="eq"><div class="m">\[ A_i=\frac{R(o_i)-\mathrm{mean}(\mathcal G)}{\mathrm{std}(\mathcal G)} \]</div><span class="no"></span></div>
+<p>原文这个式子没有编号。完整的 GRPO 目标（重要性比、截断、KL 项）论文没写，只在 §7.2.1 给了 KL 系数。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 全对或全错的组没有学习信号</span><p>选择题奖励只有对错两种值。同一题的 \(G\) 个回答如果全对或全错，分子全是 0（分母也是 0，实现里通常加一个小常数），这一组对梯度没有贡献。设模型答对概率为 \(p\)，\(G=9\)（§7.2.1）时一组全同的概率是 \(p^9+(1-p)^9\)：\(p=0.5\) 时 0.4%，0.7 时 4.0%，0.8 时 13.4%，0.9 时 38.7%，0.95 时 63.0%。所以太容易的题大多浪费算力。论文 §5.2 把常识 RL 题按四个模型是否全答对分成易、难两组，我认为和这个有关，但论文没说两组怎么用，也没说是否过滤全同组。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>训练框架</h3>
+<p>论文提出一个完全异步、容错的 RL 训练框架。主流框架（OpenRLHF、veRL）把训练和采样放在同一批卡上（colocated），同步开销导致资源利用率低。这里改为<b>异构部署</b>：策略训练和采样（rollout）分开放，由统一的调度器（dispatcher）分发提示，整条流水线异步并行，论文说训练效率比 colocated 框架提高约 160%。另外：任一节点故障时训练网格能快速重组、继续当前步，不用重启；调度器有冗余；容错设计天然支持动态扩缩容。</p>
+<figure class="pfig" id="fig5">
+<img src="cosmos-reason1/fig5.webp" width="1586" height="840" alt="图 5：调度器给采样节点发提示和指令，采样节点生成回答并算奖励，数据流向策略训练节点，参数经 NCCL 从训练节点送回采样节点，参考模型提供 KL" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 9 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S4.F5">看原图 ↗</a></span>左边绿色长条是调度器，蓝线把提示、指令、数据搬运、初始化通信组发给右边。右上黄色的 Actor Rollout（多份叠放，内部用 PP、TP）生成回答，经 “Reward Calc” 算奖励后变成数据，大箭头流向下方蓝色的 Policy Training（内部 DP、PP、CP、SP、TP）。训练后的参数通过 NCCL 送回采样节点（灰色弯箭头）。右边虚线椭圆是参考模型，给训练加 KL 约束。</figcaption>
+</figure>
+<div class="note" id="n8"><span class="lab">读者注 8 · 图注和图不一致；160% 没有依据</span><p>图注说策略训练节点支持 5D 并行：DP、PP、CP、<b>FSDP</b>、TP；图里写的是 DP、PP、CP、<b>SP</b>、TP。序列并行（SP）和全分片数据并行（FSDP）是两回事。“约 160% 的效率提升”正文和附录都没有给测量条件、模型尺寸或吞吐数字，无法核对。这个框架后来以 <a href="https://github.com/nvidia-cosmos/cosmos-rl">cosmos-rl</a> 开源，本页没读它的代码。</p></div>
+
+<h2 id="s5"><span class="no">5</span>数据</h2>
+<p>这一节讲物理 AI SFT 和 RL 两个阶段的数据来源和整理流程。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>物理 AI 监督微调</h3>
+<p>目标是两件事：在物理 AI 数据上增强视觉语言能力；培养物理常识推理和具身推理。现成数据不能直接用，所以专门做了整理流水线，一部分 VQA 对由模型在环生成。物理常识做自由问答和选择题；具身推理从现有数据集里抽样改造，覆盖人、机械臂、人形、自动驾驶车。每个数据集有两类标注：<b>理解</b>（常识题的问答，或对视频中状态和动作的结构化描述）和<b>推理</b>（给定提示和视频的长思维链）。另外专门做了<b>直觉物理</b>数据：空间拼图、时间箭头、物体恒存。</p>
+<p>表 4 照录原文：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th class="n">常识 自由问答</th><th class="n">常识 选择题</th><th class="n">BridgeData V2</th><th class="n">RoboVQA</th><th class="n">AgiBot</th><th class="n">HoloAssist</th><th class="n">AV</th><th class="n">拼图</th><th class="n">时间箭头</th><th class="n">物体恒存</th><th class="n">合计</th></tr></thead><tbody>
+<tr><td>理解</td><td class="n">99K</td><td class="n">1.2M</td><td class="n">129.2K</td><td class="n">218.5K</td><td class="n">19.4K</td><td class="n">136.3K</td><td class="n">12.4K</td><td class="n">-</td><td class="n">-</td><td class="n">-</td><td class="n">1.81M</td></tr>
+<tr><td>推理</td><td class="n">59.4K</td><td class="n">605.0K</td><td class="n">129.1K</td><td class="n">920.0K</td><td class="n">19.4K</td><td class="n">136.3K</td><td class="n">12.3K</td><td class="n">11.0K</td><td class="n">30.0K</td><td class="n">10.0k</td><td class="n">1.93M</td></tr>
+</tbody></table></div>
+<p class="tcap">数据集链接：<a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a>（<a href="https://arxiv.org/abs/2308.12952">论文</a>）、<a class="ds" href="https://robovqa.github.io/">RoboVQA</a>（<a href="https://arxiv.org/abs/2311.00899">论文</a>）、<a class="ds" href="https://github.com/OpenDriveLab/AgiBot-World">AgiBot World</a>（<a href="https://arxiv.org/abs/2503.06669">论文</a>）、<a class="ds" href="https://holoassist.github.io/">HoloAssist</a>（<a href="https://arxiv.org/abs/2309.17024">论文</a>）。AV 是 NVIDIA 私有数据。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 表 4 的合计和正文的几个数</span><ul>
+<li>理解行加起来 1,814.8K ≈ 1.81M，推理行 1,932.5K ≈ 1.93M，都对。两行合计 3.75M，引言说“约 4M”。</li>
+<li><b>自由问答</b>：9.9K 段视频，推理题 59.4K 正好是 9.9K × 6，和附录 A.1 提示词要求“每段描述出 6 个问题”一致；理解题 99K 是每段 10 题。</li>
+<li><b>选择题</b>：正文说用 VLM 给约 1.2M 段片段写描述，再构造出“约 2.4M 道理解选择题”；表里理解选择题是 1.2M。表格填的是片段数还是题数，或者 2.4M 只用了一半，论文没说。推理选择题正文是从约 356K 段片段出约 600K 题，表里 605.0K，对得上。</li>
+</ul></div>
+
+<figure class="pfig" id="fig6">
+<img src="cosmos-reason1/fig6.webp" width="1586" height="677" alt="图 6：六张 SFT 数据的视频帧：狼、水槽里的机械臂、货架上的零食、超市里的双臂机器人、键盘和鼠标的第一人称视角、街道驾驶" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S5.F6">看原图 ↗</a></span>六张样例帧，大致对应六个来源：自然视频（常识题）、玩具水槽里的 WidowX 机械臂（BridgeData V2）、零食（RoboVQA）、超市双臂机器人（AgiBot）、第一人称装电脑（HoloAssist）、车前摄像头（AV）。对应关系是我按画面猜的，原文只说是“SFT 数据的样例帧”。</figcaption>
+</figure>
+
+<h4 id="s5-1-1"><span class="no">5.1.1</span>物理常识 SFT</h4>
+<p>五步流水线：</p>
+<ol>
+<li><b>人在环的视频筛选</b>：按人的偏好挑高质量视频，切成短片段。</li>
+<li><b>详细描述</b>：由可靠的人工标注员或预训练 VLM 写详细描述，作为后续构造问答的“文字版视频”。</li>
+<li><b>构造问答</b>：让 LLM 根据描述出自由题或选择题。两类：“理解”题问视频里有什么；“推理”题需要描述里的信息才能出，但不能直接从描述里读到答案，要多想一步，侧重常识、空间、时间推理。</li>
+<li><b>提取推理链</b>：把描述作为上下文，让 DeepSeek-R1 回答推理题，拆成思考过程和答案。关键是问题不能直接从描述里答出来，否则 R1 只是检索，思考过程没有用。</li>
+<li><b>清洗和改写</b>：规则清洗；因为视觉信息被压成了文字，要把“描述中提到”“caption”之类的说法改掉。</li>
+</ol>
+<p><b>自由问答</b>：9.9K 段高质量片段，人工描述平均 297.4 ± 46.4 词，得到约 99K 理解样本和 59.4K 推理样本。<b>选择题</b>：先用 VLM 给约 1.2M 段高质量片段写描述，构造约 2.4M 道理解选择题；再从中取约 356K 段，出约 600K 道推理选择题。</p>
+
+<h4 id="s5-1-2"><span class="no">5.1.2</span>具身推理 SFT</h4>
+<figure class="pfig" id="fig7">
+<img src="cosmos-reason1/fig7.webp" width="1586" height="806" alt="图 7：AgiBot 例子：总目标超市取物，前一个、当前、下一个子任务；当前片段先描述，再构造问答，交给 DeepSeek-R1 提取推理，清洗改写后得到 SFT 样本" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 11 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S5.F7">看原图 ↗</a></span>上方三组帧是 AgiBot 一条演示里相邻的三个子任务：“从货架取红苹果”“把手里的红苹果放进塑料袋”（当前）“从货架取橙子”。当前片段往下走两条路：描述（状态-动作上下文，即物体和动作）；用子任务标注构造问题“下一个合理的子任务是什么”。两者一起交给 DeepSeek-R1 提取推理，再清洗改写，得到 &lt;片段, 问题, 答案, 思考过程&gt; 样本。</figcaption>
+</figure>
+<p>关注三种决策能力：<b>任务完成验证</b>、<b>动作可供性</b>、<b>下一步合理动作预测</b>，都是短时程的（下一个动作或下一个子任务）。每条数据有视觉描述、问题、答案、推理链四部分。通用步骤：</p>
+<ol>
+<li><b>切短时程片段</b>：长演示切成单个动作（“向左移”）或子任务（“打开冰箱门”）。数据集有现成分段或时间戳就直接用，否则借助动作原语和计划标注。</li>
+<li><b>标注状态-动作上下文</b>：用 VLM 写结构化描述（物体、属性、动作），有附加标注就放进 VLM 的提示。这就是“理解”标注。AV 直接用人工描述。</li>
+<li><b>构造推理问答</b>：基于子任务和动作标注出题；已有合适问答的数据集只做少量规则预处理。</li>
+<li><b>提取推理链</b>：R1 看不到画面，所以提示里放状态-动作上下文、问题和额外信息（子任务说明、总目标）。</li>
+<li><b>清洗和改写</b>：同 §5.1.1。</li>
+</ol>
+<p>各数据源的处理：</p>
+<ul>
+<li><b>BridgeData V2</b>：60,096 条轨迹（50,365 条遥操作 + 9,731 条脚本抓放），13 种技能、24 个环境，多数来自 7 个玩具厨房。从 train 划分切出 129.5K 段，VLM 描述时还提供 <a class="ds" href="https://embodied-cot.github.io/">ECoT</a>（<a href="https://arxiv.org/abs/2407.08693">论文</a>）里检测到的物体和动作序列。只出“下一步动作”题，答案是动作原语，如“向左移”。</li>
+<li><b>RoboVQA</b>：机器人、人、拿工具的人执行任务的视频和问答，6 种题型（规划、完成验证、判别式可供性、生成式可供性、过去描述、未来预测）。不再切分，约 220K 段，结合任务上下文、描述和问题提取出约 930K 条带推理的问答，过滤后用 train 划分。覆盖全部三种能力。</li>
+<li><b>AgiBot World</b>：AgiBot G1 平台，36 个任务。每个任务抽一部分回合，共 3,300 段视频，按子任务起止帧切成 19.8K 段。只出“下一个子任务”题，答案如“把黄瓜放进袋子”。</li>
+<li><b>HoloAssist</b>：166 小时第一人称视频，以物体为中心的操作，难点是相机晃动、细微动作、遮挡、视野外物体；特别之处是包含人犯错和纠正。用粗、细两级动作标注把 1,758 段视频切成 139,653 段；只出“下一个子任务”题，粗标注作总目标、细标注作当前子任务。</li>
+<li><b>AV</b>：为避免描述幻觉，用 NVIDIA 私有数据和人工描述。约 12.4K 段、每段 20 秒、共约 70 小时。描述分三部分：总体描述（自车行为、环境、关键物体）、驾驶难度、需要注意的事件。R1 据此推理自车下一个最可能的动作。</li>
+</ul>
+<div class="note" id="n10"><span class="lab">读者注 10 · 正文的片段数是 v1 的，表 4 是 v3 的</span><p>正文：BridgeData 129.5K 段、RoboVQA 约 220K 段 / 约 930K 问答、AgiBot 19.8K 段、HoloAssist 139,653 段。v1 的表 4 恰好是 129.5K、221.9K / 930K、19.8K、136.7K；v3 表 4 改成 129.2K / 129.1K、218.5K / 920.0K、19.4K、136.3K，正文没跟着改。Hugging Face 数据卡给的 SFT 条数是 RoboVQA 1.14m、BridgeData 258k、AgiBot 38.9k、HoloAssist 273k、AV 24.7k，正好是 v3 表 4 理解加推理两行之和（218.5 + 920.0 = 1138.5K；129.2 + 129.1 = 258.3K；12.4 + 12.3 = 24.7K），所以发布的数据对应 v3 的表。</p></div>
+
+<h4 id="s5-1-3"><span class="no">5.1.3</span>直觉物理 SFT：空间拼图、时间箭头、物体恒存</h4>
+<p>前面的数据培养领域内推理，这里补更基础的能力。三类题都是构造时自带答案的自监督任务，数据整理简单。论文说当前最强的 VLM 在这些简单任务上仍明显不行。</p>
+<ul>
+<li><b>空间连续性：拼图。</b>3,000 段视频（背景、运动、相机位姿多样），取首帧切成 2×2 四块，打乱成一段“视频”（一帧一块）；再加 7 张干扰图，每张也切 4 块，共 32 帧。题型：首帧的左、上、下、右分别是哪一帧；以及哪两三帧和首帧来自同一张图（类似对比学习）。推理链：先让 VLM 描述 32 块，再让 R1 解题，只保留 R1 答对的。每张图换不同干扰和顺序多次处理，过滤后 11K 段。</li>
+<li><b>时间：时间箭头（AoT）。</b>宏观上时间不可逆，倒放的视频含有违反物理的痕迹。从 Cosmos-Predict1 的训练视频里取 30,000 段大运动的短片段及其倒放版。这里不用 R1，而是直接让 VLM 写推理，并在提示里告诉它正放还是倒放（R1 那套流程效果不好），控制两种方向的推理风格和长度一致；每个方向写两条不同的推理。</li>
+<li><b>物体恒存。</b>用 <a class="ds" href="https://libero-project.github.io/">LIBERO</a>（<a href="https://arxiv.org/abs/2306.03310">论文</a>，本站有<a href="libero.html">精读</a>）仿真合成 10K 段：随机取 130 个任务里的布置，打乱和扰动物体，相机对准桌面中心、在球面上从随机起点平滑移到终点再回到起点附近，同时回放预录的机械臂动作。物体被完全遮挡后可能被随机删掉。问题是“有没有物体意外消失、违反物体恒存”。为了让推理链导向正确答案，生成时在提示里写明哪个物体消失了，最终 SFT 数据里去掉这个提示。这里“描述压成文字再给 R1”效果不好，所以推理链来自 Cosmos-Reason1-7B 的一个中间版本。</li>
+</ul>
+<div class="note" id="n11"><span class="lab">读者注 11 · 时间箭头的 30K 是什么单位，未核实</span><p>正文：30,000 段片段加各自的倒放版，“每个正放和倒放视频各写两条推理”。按这个说法推理样本最多应有 \(30000\times2\times2=120{,}000\) 条，表 4 写 30.0K。可能 30K 是原始片段数，也可能最终只抽了一部分，论文没交代。HF 上没有发布直觉物理数据，无法核对。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>物理 AI 强化学习</h3>
+<p>数学和代码的答案有明确格式，物理常识和具身推理通常是开放式回答，奖励不好定。做法是把 SFT 推理数据（去掉推理链）改成只有一个正确选项的选择题，用规则判断对错。拼图、时间箭头、物体恒存本来就是二选一或选择题。RL 样本都经过人工检查。表 5：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th class="n">常识选择题</th><th class="n">BridgeData V2</th><th class="n">RoboVQA</th><th class="n">AgiBot</th><th class="n">HoloAssist</th><th class="n">AV</th><th class="n">拼图</th><th class="n">时间箭头</th><th class="n">物体恒存</th><th class="n">合计</th></tr></thead><tbody>
+<tr><td>推理</td><td class="n">5,133</td><td class="n">240</td><td class="n">252</td><td class="n">200</td><td class="n">200</td><td class="n">200</td><td class="n">3,998</td><td class="n">9,994</td><td class="n">10,087</td><td class="n">30,304</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>常识 RL 数据</b>：1,989 段视频上的 5,133 道人工标注的是非题和选择题。用 GPT-4o、Gemini 2.0 Flash（原文拼成 “Gemini Flason 2.0”）、Qwen2.5-VL-7B 和 Cosmos-Reason1-7B 四个模型答一遍：全答对的归“易”，至少一个答错的归“难”。</li>
+<li><b>具身 RL 数据</b>：每个来源选 200 到 250 条 SFT 样本改成选择题，人工确认答案和指令没有歧义，选项分布均衡以防奖励投机。非二选一的题要人工挑看似合理但明显错误的干扰项，所以难以大规模生成。</li>
+<li><b>直觉物理 RL 数据</b>：天然是选择题，容易扩量；保证选项均衡，并且和 SFT 用过的片段不重叠，防止 RL 早早饱和。三项共 24,079 题。</li>
+</ul>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 5 的算术，以及实际公开了多少</span><p>\(5133+240+252+200+200+200+3998+9994+10087=30{,}304\)，和合计一致；直觉物理三项 \(3998+9994+10087=24{,}079\)，和正文一致。v1 的 RoboVQA 是 250，合计 30,302，也自洽。HF 数据集 <code>nvidia/Cosmos-Reason1-RL-Dataset</code>（commit 5095534）只有四个文件：AgiBot 200、BridgeData 240、HoloAssist 200、RoboVQA 252（来自 250 段视频），共 892 题，等于表 5 里这四格；常识 5,133 题、AV 200 题和直觉物理 24,079 题没有发布（数据卡说 AV “即将上传”）。选项均衡这一点在公开数据里能看到：BridgeData 240 题的正确答案 A/B/C/D 各 60 题，RoboVQA 252 题 A/B 各 126。</p></div>
+
+<h2 id="s6"><span class="no">6</span>基准</h2>
+<p>用视频加是非题或选择题评测，只看最终答案是否正确，不评价推理链的质量。论文说这些题“按构造必须推理才能答对”。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th class="n">常识选择题</th><th class="n">BridgeData V2</th><th class="n">RoboVQA</th><th class="n">RoboFail</th><th class="n">AgiBot</th><th class="n">HoloAssist</th><th class="n">AV</th><th class="n">合计</th></tr></thead><tbody>
+<tr><td class="n">604</td><td class="n">100</td><td class="n">110</td><td class="n">100</td><td class="n">100</td><td class="n">100</td><td class="n">100</td><td class="n">1214</td></tr>
+</tbody></table></div>
+<p class="tcap">表 6 · 基准统计。<a class="ds" href="https://robot-reflect.github.io/">RoboFail</a> 来自 REFLECT（<a href="https://arxiv.org/abs/2306.15724">论文</a>）。公开部分在 <a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos-Reason1-Benchmark">Cosmos-Reason1-Benchmark</a>。</p>
+
+<h3 id="s6-1"><span class="no">6.1</span>物理常识推理</h3>
+<p>按 §2.1 的本体，对互联网视频片段人工出题。先收集 5,737 题（2,828 道是非、2,909 道选择），再人工精选 604 题（426 段视频）：336 道是非、268 道选择；空间 80 题（13.25%）、时间 298 题（49.33%）、基础物理 226 题（37.4%）。</p>
+<figure class="pfig" id="fig8">
+<img src="cosmos-reason1/fig8.webp" width="1586" height="803" alt="图 8：16 个子类的初始题数柱状图，时间-动作最多 1043，时间-规划最少 27" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 17 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S6.F8">看原图 ↗</a></span>初始 5,737 题按子类的分布（不是最终的 604 题）。最多的是时间-动作 1,043、基础物理-属性 775、空间-环境 691、时间-相机 639；最少的是时间-规划 27、反物理 43、时间-因果 82。</figcaption>
+</figure>
+<div class="note" id="n13"><span class="lab">读者注 13 · 图 8 与正文对得上；但最终 604 题的子类分布没给</span><p>图 8 的 16 根柱子：\(43+775+516+325+294+277+125+144+691+124+292+1043+639+82+340+27=5737\)，等于 \(2828+2909\)。最终 604 题只给了三大类：\(80+298+226=604\)，\(336+268=604\)；百分比 \(80/604=13.25\%\)，\(298/604=49.34\%\)（原文 49.33），\(226/604=37.42\%\)。每个子类在最终基准里有多少题论文没给，所以“规划”“因果”这些小类在 604 题里可能只有个位数，表 7 也只按三大类报。</p></div>
+
+<h3 id="s6-2"><span class="no">6.2</span>具身推理</h3>
+<p>和 SFT 一样只考三种能力：任务完成验证、动作可供性、下一步合理动作预测。全部做成选择题以便自动评测。三个措施：</p>
+<ol>
+<li><b>统一问题模板</b>：让推理依赖画面而不是文字线索，也统一不同数据集的动作粒度。</li>
+<li><b>统一动作粒度</b>：“浇花”可以拆成拿壶、移壶、倒水，还可以再拆成“向左移”“向下倾斜”，几个选项可能都对。参照 RT-H 的动作层级：原子级叫“动作”，较粗的叫“子任务”，数据集级的任务叫“目标”。</li>
+<li><b>人工修订</b>：去掉过于相似的选项，防止只看文字就能答，强调看完整个片段而不是只看前几帧。</li>
+</ol>
+<ul>
+<li><b>RoboVQA</b>：从 val 划分（未用于 SFT）抽 101 段，只保留任务完成验证和可供性两类，做成是非选择题。</li>
+<li><b>RoboFail</b>：人工整理 100 例，作为更难的可供性和完成验证测试：需要细致观察或完整的时间上下文；可供性的障碍来自物理约束（RoboVQA 里做不到多是因为感知不符或指令无关）；问题更微妙。</li>
+<li><b>BridgeData V2</b>：val 划分按训练集同样方式切片，抽 100 段，给出任务，问下一步最合理的动作。</li>
+<li><b>AgiBot</b>：从处理好的数据抽 100 段，给出任务，问下一个子任务，选项从该轨迹的子任务序列里随机抽；这些轨迹不在训练集里。</li>
+<li><b>HoloAssist</b>：抽 100 段，粗粒度动作作为总目标，选项从同一粗动作下的其他细粒度动作抽；涉及的 34 段视频（共 1,758 段）全部从训练集排除。</li>
+<li><b>AV</b>：100 段私有视频，含多样的横向和纵向行为，题目问下一步动作、已执行动作是否完成、某个动作是否可行。</li>
+</ul>
+<div class="note" id="n14"><span class="lab">读者注 14 · 610 题、600 段视频，和公开的基准</span><p>具身部分 \(100+110+100+100+100+100=610\) 题，引言说来自 600 段视频；但 RoboVQA 是 101 段，其余五个各 100 段，合起来是 601。HF 的 <code>nvidia/Cosmos-Reason1-Benchmark</code>（commit dc73eea）我数了标注文件：RoboVQA 110 题来自 101 段视频（和正文一致），RoboFail、AgiBot、BridgeData、HoloAssist 各 100 题。没有 AV，也没有 604 道常识题。RoboVQA 和 RoboFail 全是二选一，答案 A/B 各占一半，所以这两项的随机水平是 50%；BridgeData 100 题都是四选一，A/B/C/D 各 25；AgiBot 有 83 道四选一、14 道三选一、3 道二选一。</p></div>
+
+<h2 id="s7"><span class="no">7</span>实验</h2>
+
+<h3 id="s7-1"><span class="no">7.1</span>物理 AI 监督微调</h3>
+<p><b>设置。</b>7B 训 12.5K 步，学习率余弦从 \(1\times10^{-5}\) 降到 \(1\times10^{-6}\)，全局批 256。56B 先以 \(1\times10^{-5}\) 训 30K 步，再以 \(1\times10^{-6}\) 训 20K 步，全局批 32。融合 Adam，\(\beta_1,\beta_2=(0.9,0.95)\)，权重衰减 0.1。按领域均衡采样，避免某个领域过多。自己的模型报 5 次推理的平均准确率（温度 0.6，top-p 0.95，不同随机种子）。其他模型用零样本思维链提示，GPT-4o、OpenAI o1、Gemini 2.0 Flash 调 API，Qwen2.5-VL 用开源权重。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 训练量</span><p>SFT 见过的样本数：7B \(12{,}500\times256=3.2\)M，56B \(50{,}000\times32=1.6\)M，v1 的 8B \(80{,}000\times32=2.56\)M。表 4 共 3.75M 条，所以名义上都不到一轮，而且是均衡采样，小来源会被重复、大来源（常识选择题、RoboVQA）只用到一部分。RL：500 步 × 128 题 = 64,000 题，约是 30,304 题的 2.1 轮；每题 9 个回答，共 576,000 条回答，每条最长 6,144 token。</p></div>
+
+<h4 id="s7-1-1"><span class="no">7.1.1</span>物理常识结果</h4>
+<p>两个模型都比各自的骨干明显提高，56B 最好，略高于 OpenAI o1。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>方法</th><th class="n">空间</th><th class="n">时间</th><th class="n">其他物理</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Gemini 2.0 Flash</td><td class="n">53.8</td><td class="n">50.0</td><td class="n">46.9</td><td class="n">50.2</td></tr>
+<tr><td>GPT-4o</td><td class="n">61.3</td><td class="n">54.7</td><td class="n">50.9</td><td class="n">55.6</td></tr>
+<tr><td>OpenAI o1</td><td class="n">63.8</td><td class="n">58.1</td><td class="n">58.0</td><td class="n">59.9</td></tr>
+<tr><td>Qwen2.5-VL-7B</td><td class="n">48.8</td><td class="n">56.4</td><td class="n">37.2</td><td class="n">47.4</td></tr>
+<tr><td>Nemotron-H-56B</td><td class="n">61.3</td><td class="n">68.1</td><td class="n">45.1</td><td class="n">58.2</td></tr>
+<tr><td>Cosmos-Reason1-7B</td><td class="n">54.2</td><td class="n">58.7</td><td class="n">50.0</td><td class="n">54.3 (+6.9)</td></tr>
+<tr><td>Cosmos-Reason1-56B</td><td class="n">61.3</td><td class="n">65.5</td><td class="n">53.9</td><td class="n best">60.2 (+2.0)</td></tr>
+</tbody></table></div>
+<p class="tcap">表 7 · 物理常识基准，照录原文。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · “平均”是三类的简单平均，不是 604 题的总准确率</span><p>每行的平均都等于三列的算术平均（Gemini \((53.8+50.0+46.9)/3=50.23\)）。按题数加权（80、298、226）结果不同：o1 是 58.82 而不是 59.9，Cosmos-Reason1-56B 是 60.60。基线的分数都能还原成整数题数：o1 空间 51/80 = 63.75%、时间 173/298 = 58.05%、物理 131/226 = 57.96%，三者平均 59.92 → 59.9；Qwen2.5-VL-7B 39/80、168/298、84/226，平均 47.43 → 47.4。所以基线是单次评测。另外注意 56B 的时间类 65.5 <b>低于</b>它的骨干 68.1，提升全来自物理类（45.1 → 53.9）。</p></div>
+
+<h4 id="s7-1-2"><span class="no">7.1.2</span>具身推理结果</h4>
+<p>两个尺寸都比各自骨干高 10 个点以上。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">BridgeData V2</th><th class="n">RoboVQA</th><th class="n">AgiBot</th><th class="n">HoloAssist</th><th class="n">AV</th><th class="n">RoboFail</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Gemini 2.0 Flash</td><td class="n">25.0</td><td class="n">78.2</td><td class="n">29.0</td><td class="n">44.0</td><td class="n">37.0</td><td class="n">67.0</td><td class="n">46.7</td></tr>
+<tr><td>GPT-4o</td><td class="n">42.0</td><td class="n">71.8</td><td class="n">32.0</td><td class="n">65.0</td><td class="n">46.0</td><td class="n">63.0</td><td class="n">53.3</td></tr>
+<tr><td>OpenAI o1</td><td class="n">42.0</td><td class="n">80.0</td><td class="n">44.0</td><td class="n">63.0</td><td class="n">37.0</td><td class="n">61.0</td><td class="n">54.5</td></tr>
+<tr><td>Qwen2.5-VL-7B</td><td class="n">38.0</td><td class="n">82.5</td><td class="n">40.4</td><td class="n">50.0</td><td class="n">36.0</td><td class="n">57.6</td><td class="n">50.8</td></tr>
+<tr><td>Nemotron-H-56B</td><td class="n">37.0</td><td class="n">77.2</td><td class="n">37.0</td><td class="n">65.0</td><td class="n">41.0</td><td class="n">64.0</td><td class="n">53.5</td></tr>
+<tr><td>Cosmos-Reason1-7B</td><td class="n">58.8</td><td class="n">83.8</td><td class="n">49.4</td><td class="n">63.0</td><td class="n">55.6</td><td class="n">60.0</td><td class="n">61.8 (+11.0)</td></tr>
+<tr><td>Cosmos-Reason1-56B</td><td class="n">65.0</td><td class="n">80.0</td><td class="n">47.6</td><td class="n">57.8</td><td class="n">65.8</td><td class="n">66.2</td><td class="n best">63.7 (+10.2)</td></tr>
+</tbody></table></div>
+<p class="tcap">表 8 · 具身推理基准，照录原文。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 8 的 Qwen2.5-VL-7B 一行</span><p>平均也是六列简单平均（Qwen \((38+82.5+40.4+50+36+57.6)/6=50.75\) → 50.8）。单次评测在 100 题的子集上应是整数、在 RoboVQA 110 题上应是 \(k/110\)：Gemini、GPT-4o、o1、Nemotron-H-56B 都满足（如 78.2 = 86/110，77.2 = 85/110）。Qwen2.5-VL-7B 这一行不满足：40.4、57.6 不是整数，82.5% × 110 = 90.75 题。看起来是多次平均，但 §7.1 说 5 次平均只用于“我们的模型”。这一行在 v1 是 34.0 / 85.5 / 44.0 / 43.0 / 39.0 / 63.0（平均 51.4），v3 换成现在的数，论文没说明改了什么评测设置。另外 RoboVQA 和 RoboFail 是二选一（随机 50%），Qwen 在 RoboFail 上 57.6 只比随机高 7.6 个点。</p></div>
+
+<h4 id="s7-1-3"><span class="no">7.1.3</span>直觉物理结果</h4>
+<p>为三个任务各整理 100 段视频、100 道题，按 §5.1.3 的流程生成，并做了去重，保证和训练数据不重叠。结果见表 10（在 §7.2 后）。现有模型在时间箭头和物体恒存上几乎是随机水平；GPT-4o 和 o1 的空间拼图明显高于随机。论文的解读是现有多模态模型更擅长空间关系而不是时间动态，而它们在 MMMU 这类标准基准上表现好，说明现有评测没有测到对物理世界的理解。Cosmos-Reason1-7B 在三项上都大幅提高。</p>
+
+<h3 id="s7-2"><span class="no">7.2</span>物理 AI 强化学习</h3>
+
+<h4 id="s7-2-1"><span class="no">7.2.1</span>实验设置</h4>
+<p>两种规则奖励：</p>
+<ol>
+<li><b>准确率奖励</b>：<code>&lt;answer&gt;&lt;/answer&gt;</code> 里的内容和标准答案做字符串匹配（只用选择题，所以可行）。</li>
+<li><b>格式奖励</b>：思考放在 <code>&lt;think&gt;&lt;/think&gt;</code>、答案放在 <code>&lt;answer&gt;&lt;/answer&gt;</code>，用正则判断。</li>
+</ol>
+<p>训练时每个 RL 数据集等概率采样，选项顺序每次随机打乱。全局批 128 题，每题采样 9 个回答，每个最长 6,144 token；学习率 \(4\times10^{-6}\)，KL 惩罚系数 0.005，训 500 步。两个奖励怎样加权论文没写。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th class="n">常识</th><th class="n">BridgeData V2</th><th class="n">RoboVQA</th><th class="n">AgiBot</th><th class="n">HoloAssist</th><th class="n">AV</th><th class="n">RoboFail</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Cosmos-Reason1-7B</td><td class="n">54.3</td><td class="n">58.8</td><td class="n">83.8</td><td class="n">49.4</td><td class="n">63.0</td><td class="n">55.6</td><td class="n">60.0</td><td class="n">60.7</td></tr>
+<tr><td>+ 物理 AI RL</td><td class="n">56.2</td><td class="n">73.5</td><td class="n">86.8</td><td class="n">54.2</td><td class="n">60.0</td><td class="n">67.0</td><td class="n">62.0</td><td class="n best">65.7 (+5.0)</td></tr>
+</tbody></table></div>
+<p class="tcap">表 9 · 物理常识与具身推理，RL 前后（只有 7B）。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>模型</th><th class="n">时间箭头</th><th class="n">空间拼图</th><th class="n">物体恒存</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>随机猜</td><td class="n">50.0</td><td class="n">25.0</td><td class="n">50.0</td><td class="n">41.7</td></tr>
+<tr><td>Gemini 2.0 Flash</td><td class="n">50.0</td><td class="n">31.0</td><td class="n">48.0</td><td class="n">43.0</td></tr>
+<tr><td>GPT-4o</td><td class="n">50.0</td><td class="n">77.0</td><td class="n">48.0</td><td class="n">58.3</td></tr>
+<tr><td>OpenAI o1</td><td class="n">51.0</td><td class="n">64.0</td><td class="n">49.0</td><td class="n">54.7</td></tr>
+<tr><td>Qwen2.5-VL-7B</td><td class="n">50.2</td><td class="n">27.2</td><td class="n">48.8</td><td class="n">42.1</td></tr>
+<tr><td>Cosmos-Reason1-7B</td><td class="n">56.0</td><td class="n">85.4</td><td class="n">82.0</td><td class="n">74.5 (+32.4)</td></tr>
+<tr><td>+ 物理 AI RL</td><td class="n">64.5</td><td class="n">94.0</td><td class="n">86.0</td><td class="n best">81.5 (+7.0)</td></tr>
+</tbody></table></div>
+<p class="tcap">表 10 · 直觉物理基准，每项 100 题。</p>
+
+<h4 id="s7-2-2"><span class="no">7.2.2</span>物理常识与具身推理结果</h4>
+<p>论文说 RL 让多数子项提高，<b>唯一的例外是 RoboFail</b>，它在 SFT 和 RL 两个阶段都难。原因：RoboFail 是手工挑的难题，要求细致观察或完整时间上下文，可供性题涉及复杂的物理约束。作者把停滞归因于缺少有代表性的训练数据，错误模式包括复杂可供性推理不足、没注意到关键视觉细节、遇到分布外的微妙问题时想太多；他们有意把 RoboFail 留在评测里作为待改进的指标。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 这段话是 v1 的，v3 的表 9 里没提升的是 HoloAssist</span><p>v3 表 9：RoboFail 60.0 → 62.0（<b>+2.0</b>），HoloAssist 63.0 → 60.0（<b>−3.0</b>），其余五项都涨。所以 v3 里唯一下降的是 HoloAssist，正文却说 RoboFail 是例外。v1 表 9 里 RoboFail 是 62.0 → 61.2（下降），HoloAssist 57.6 → 72.2，正文那段话和 v1 吻合，v3 换了模型和数字但没改文字。表 9 平均：SFT 行 \(425.0/7=60.71\)，RL 行 \(459.7/7=65.67\)，差 4.96，表里写 +5.0。</p></div>
+<figure class="pfig" id="fig9">
+<img src="cosmos-reason1/fig9.webp" width="1567" height="484" alt="图 9 上半部分：三帧车前视角的街道画面，问题是自车下一步最可能做什么，选项右转、左转、向右并线、向左并线" loading="lazy">
+<figcaption><span class="lab">图 9（上半部分）· 原文第 21 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S7.F9">看原图 ↗</a></span>具身推理基准里一道 AV 题：三帧住宅街道，两侧停着车。问自车下一步最可能的动作，A 右转、B 左转、C 向右并线、D 向左并线。原图下半部分是两段回答（这里没裁）：RL 前，模型推理说向左并线会进入对向车道、不可能，却最后选了 D，前后矛盾；RL 后，模型逐个排除四个选项（双黄线不能变道，画面里没有路口），最后回答“none”，即一个都不选。</figcaption>
+</figure>
+<p>论文认为这是有意思的现象：RL 之后，模型遇到有歧义的题会逐个评估选项，必要时全部拒绝，采取选项之外的保守动作（图 9）。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 回答 “none” 在这套奖励下拿不到准确率奖励</span><p>§7.2.1 的准确率奖励是 <code>&lt;answer&gt;</code> 内容和标准答案做字符串匹配，选项又是单一正确答案的选择题，所以回答 “none” 的准确率奖励是 0（格式对的话还有格式奖励）。这种行为不是这套奖励直接鼓励的，论文也没说训练集里有没有“都不对”的题，以及这道题的标准答案是什么。我认为它更像是一个有趣的个例，不宜读成 RL 学到了“拒绝”能力。另外图 10 的 RL 后回答里，“The text on the screen remains constant …”整句重复了两遍，是 CoT 的复读现象，原图如此。</p></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 结论里的“10% 以上”和“5% 以上”</span><p>§9 说 SFT 让骨干在物理常识和具身推理基准上提高 10% 以上，RL 再提高 5% 以上。按表 7、8：具身 +11.0 和 +10.2 成立，物理常识只有 +6.9（7B）和 +2.0（56B）。RL 的 +5.0 实际是 4.96（读者注 18），也不算“超过”。这些是百分点，不是相对提高。</p></div>
+
+<h4 id="s7-2-3"><span class="no">7.2.3</span>直觉物理结果</h4>
+<p>直觉物理像自监督学习一样容易扩量：时间箭头只要倒放视频，拼图对任何图片都能做，物体恒存在任何仿真环境里都能实现，而且都能直接用于带可验证奖励的 RL，所以 RL 数据量比常识和具身大得多，几乎不需要人工。</p>
+<p>表 10：SFT 让三项都大幅提高，RL 进一步提高拼图和物体恒存；论文说时间箭头“仍是难点”（不过 v3 表里它从 56.0 涨到 64.5，是三项里涨得最多的，见读者注 21）。定性例子：</p>
+<figure class="pfig" id="fig10">
+<img src="cosmos-reason1/fig10.webp" width="1567" height="510" alt="图 10 上半部分：绿色碗里倒粉色粉末的四帧，问视频是正放还是倒放" loading="lazy">
+<figcaption><span class="lab">图 10（上半部分）· 原文第 23 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#S7.F10">看原图 ↗</a></span>四帧：手把粉色粉末从勺里“倒进”绿碗，但按帧顺序看，碗里的粉越来越少、勺里越来越多，是倒放。画面左上角有一行静止的字幕。原图下半部分：RL 前模型按“倒粉是正常流程”判为正放；RL 后模型注意到粉末从碗里回到容器、动作在被“撤销”，判为倒放，并说明静止字幕不影响判断。</figcaption>
+</figure>
+<p>论文的解读：RL 后模型能识别违反重力的运动（粉末升回碗里），不受静止干扰物影响，说明它的推理不只是感知。图 11（附录 B）里，RL 前的模型把空间题当成时间题，默认按帧顺序选；RL 后会先提取首帧的关键特征，再逐帧比较。图 12 里，RL 前的模型在物体恒存题上写了很长的思维链反而把自己绕晕；RL 后推理直接、简短。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 表 10 的算术，以及 v1 → v3 的变化</span><p>平均都是三项简单平均：随机 \((50+25+50)/3=41.67\)；7B \((56.0+85.4+82.0)/3=74.47\) → 74.5；RL \((64.5+94.0+86.0)/3=81.5\)。拼图四选一，随机 25% 对。“时间箭头仍是难点”这句话来自 v1：v1 的 8B 是 57.0 → 56.7（RL 后略降），物体恒存 54.8 → 62.0。v3 的 7B 是 56.0 → 64.5、物体恒存 82.0 → 86.0，结论的措辞没跟着变。100 题时 1 题 = 1 个点，85.4、64.5 这类小数来自 5 次平均。</p></div>
+
+<h2 id="s8"><span class="no">8</span>相关工作</h2>
+<p><b>8.1 物理 AI 的基础模型。</b>早期把现成 LLM / VLM 当静态模块：零样本任务规划（SayCan 等）、Code as Policies 生成控制代码。这些模型不是为物理交互设计的，缺物理常识。另一条路是端到端训练视觉-语言-动作模型（VLA：RT-2、PaLM-E、OpenVLA、Magma、Gemini Robotics），从 VLM 出发用机器人数据微调；其中分层方法（Hi Robot、HAMSTER）让高层 VLM 出计划、低层 VLA 做精细控制。增强推理的工作有具身思维链 ECoT、REFLECT（RoboFail 的来源）等失败解释与纠正方法，以及先预测未来图像再预测动作的 CoT-VLA。自动驾驶方面有 CoVLA 数据集。</p>
+<p><b>8.2 视觉语言模型。</b>Flamingo、LLaVA、InternVL、QwenVL、NVLM、Llama-3.2-Vision。解码器式（LLaVA、InternVL）把图像 token 放进自注意力；交叉注意力式（Flamingo、Llama-3.2-Vision）通过交叉注意力层。NVLM 的对比发现解码器式在多学科和数学视觉推理上更强，所以本文用解码器式。</p>
+<p><b>8.3 有推理能力的 LLM / VLM。</b>从数学、代码上的基础推理，到 CoT 提示，再到 o1 用大规模 RL 增强推理，DeepSeek-R1 公开了训练方法。已有工作主要在代码、数学、STEM，近期很多工作把 R1 式推理接到 VLM 上（Vision-R1 等）。本文研究物理 AI 场景下的推理。</p>
+
+<h2 id="s9"><span class="no">9</span>结论</h2>
+<p>论文提出 Cosmos-Reason1：定义物理 AI 需要的基础能力的两套本体，据此构造 SFT 数据和基准；用规则可验证的奖励做 RL，提升空间、时间和直觉物理推理。实验结论是 SFT 让骨干在物理常识和具身推理基准上提高 10% 以上，RL 再提高 5% 以上（这两个说法的精确程度见<a href="#n20">读者注 20</a>），模型能学会时间箭头、物体恒存这些现有模型做不好的直觉物理。代码和模型开源、开放权重。</p>
+
+<h2 id="apA">附录 A：数据整理用的提示词</h2>
+<p>六个提示词模板，用来说明数据是怎样“把视频变成文字再交给 LLM”的。要点概括如下，全文可以<a href="https://arxiv.org/pdf/2503.15558v3#page=26">看原文第 26 到 29 页 ↗</a>。</p>
+<details><summary>A.1 到 A.6 的要点（展开）</summary>
+<ul>
+<li><b>A.1 物理常识出题。</b>给一段详细描述，要求出 6 道“极具挑战”的题：2 道常识与规划、2 道空间、2 道时间，每题不超过 10 个词。规则：必须同时用到描述里的信息和外部知识；答案不能直接出现在描述里；不能只靠外部知识答；措辞要当作在看视频，不能提“描述”“caption”。常识类列了重力、平衡、弹性、形变、光照、热、物体状态变化、物体恒存等。</li>
+<li><b>A.2 物理常识推理提取。</b>例子是煮面：一大锅沸水里六个不锈钢小格，右手用木筷搅面，左手用金属棒按住小格，蒸汽和气泡说明在沸腾，相机交替推拉。问题：“如果锅没在沸腾会怎样？”交给 R1 回答。</li>
+<li><b>A.3 AgiBot 推理提取。</b>结构化地给出环境（超市水果架、灯光、地砖）、相机、各物体（水果架、购物车、塑料袋、葡萄、苹果）的位置和状态、任务“在超市取物”（可能没做完）、两只机械臂各自在做什么，要求输出 <code>&lt;action&gt;</code> 下一步动作 <code>&lt;/action&gt;</code>。</li>
+<li><b>A.4 空间拼图。</b>8 张图各切成 2×2，共 32 帧，给出首帧描述和各帧描述，问另外 31 帧中哪 3 帧和首帧同图、其中哪一帧在首帧的某个方向。</li>
+<li><b>A.5 时间箭头。</b>两轮对话：先问正放还是倒放，助手直接给出正确答案（如“正放”）；再要求描述有哪些视觉线索说明时间是向前的，不重复问题、不用列表、只给证据不下结论。倒放版类似。</li>
+<li><b>A.6 物体恒存。</b>说明这是机器人仿真、机械臂和相机运动都可能造成遮挡、相机最后回到起点附近；列出场景物体（两个 akita 黑碗、饼干、釉边瓷烤碗、盘子、木柜、平灶，都是 LIBERO 的资产名）；给出提示“akita 黑碗在中间被遮挡后意外消失”；问是否有物体被遮挡后没再出现，按 <code>&lt;think&gt;</code>/<code>&lt;answer&gt;</code> 格式回答。最终 SFT 数据去掉了这条提示。</li>
+</ul>
+</details>
+
+<h2 id="apB">附录 B：补充结果</h2>
+<figure class="pfig" id="fig11">
+<img src="cosmos-reason1/fig11.webp" width="1567" height="634" alt="图 11 上半部分：八个拼图帧，问第一帧右边最可能是哪一帧，选项 Frame 2、30、9、11" loading="lazy">
+<figcaption><span class="lab">图 11（上半部分）· 原文第 30 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#A2.F11">看原图 ↗</a></span>32 帧里选出的 8 帧（Frame 1、2、9、11、14、17、24、30）。首帧是一个赤膊男子的局部，问哪一帧最可能在它右边：A Frame 2、B Frame 30、C Frame 9、D Frame 11。RL 前的回答认为帧按顺序排列，就选“紧跟着的” Frame 2；RL 后的回答比较人物外貌和房间特征，选 Frame 11（同一男子做引体向上）。</figcaption>
+</figure>
+<figure class="pfig" id="fig12">
+<img src="cosmos-reason1/fig12.webp" width="1567" height="367" alt="图 12 上半部分：八帧 LIBERO 仿真画面，机械臂在桌上移动，问是否有物体被遮挡后不再出现" loading="lazy">
+<figcaption><span class="lab">图 12（上半部分）· 原文第 31 页 · NVIDIA，CC BY 4.0（页脚另有版权声明）· 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.15558v3#A2.F12">看原图 ↗</a></span>八帧仿真：相机绕桌转动，机械臂伸向几个碗盘。问题：有没有物体暂时被遮挡后再没出现、违反物体恒存？A 是、B 否。RL 前的回答很长，把“物体被移走”和“物体消失”混在一起，最后选 B；RL 后简短地指出黑碗被遮挡后消失，选 A。注意 RL 后的回答里直接引用了“akita black bowl is occluded … vanishes unexpectedly”，这正是 A.6 里给生成器的提示原文，说明这个例子的输入里带着提示（我的推断，原文没说明）。</figcaption>
+</figure>
+
+<h2 id="apC">附录 C：贡献者和致谢</h2>
+<p>核心贡献者 36 人，另有 16 位贡献者。分工大致是：Yin Cui、Shuran Song、Ming-Yu Liu、Tsung-Yi Lin 定义两套本体；多人分别负责常识数据和基准、具身数据和基准、描述方法、直觉物理数据与推理链；Boxin Wang、Nayeon Lee、Zhuolin Yang、Wei Ping 训练基础 VLM；另有 SFT 基础设施、SFT 训练、RL 基础设施、RL 训练各组；Yin Cui、Tsung-Yi Lin 组织写作，Ming-Yu Liu、Tsung-Yi Lin 设计整体系统。致谢里提到 Moo Jin Kim 搭了物体恒存数据采集的仿真环境（他也是 OpenVLA 的作者）。</p>
+
+<h2 id="code">代码对照</h2>
+<p>仓库 <a href="https://github.com/nvidia-cosmos/cosmos-reason1/tree/b84a3fae3284c375bb0cefab7b53aeb1d5059ab6">nvidia-cosmos/cosmos-reason1 @ b84a3fa</a>（2026-06-07），Apache 2.0。它只包含推理脚本、提示词、后训练示例和基准评测示例，不包含论文的训练代码和 56B 模型（全仓库没有 56B 或 Nemotron 字样）。模型 <code>nvidia/Cosmos-Reason1-7B</code> 是 <code>Qwen2_5_VLForConditionalGeneration</code>，transformers ≥ 4.51.3 可直接加载。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>项目</th><th>论文（v3）</th><th>代码 / HF</th></tr></thead><tbody>
+<tr><td>骨干</td><td>7B：Qwen2.5-VL-7B</td><td class="ok"><code>config.json</code>：28 层、3584、FFN 18944、28 头（KV 头 4）；视觉 32 层、1280、FFN <b>3420</b>（表 3 写 3,456，见注 3）</td></tr>
+<tr><td>视频输入</td><td>“照 Qwen2.5-VL 处理”</td><td>fps 4，total_pixels 6,422,528（≤ 8192 个视觉 token）；模型卡建议 fps 4 以匹配训练</td></tr>
+<tr><td>评测采样</td><td>温度 0.6、top-p 0.95，5 个种子平均</td><td><code>examples/benchmark/configs/evaluate.yaml</code>：温度 0.6、seed 1（单次）、max_tokens 1024，空答案最多重试 10 次、每次加 256 token；top-p 0.95 写死在 <code>evaluate.py</code> 第 378 行</td></tr>
+<tr><td>答案判定</td><td>字符串匹配</td><td><code>utils/output.py</code> 从 <code>&lt;answer&gt;</code> 里取一个大写字母，和标准答案忽略大小写比较</td></tr>
+<tr><td>RL 示例</td><td>lr 4e-6，每题 9 个回答，KL 0.005，最长 6144，500 步</td><td><code>examples/post_training/configs/rl.toml</code>：GRPO，lr 2e-6，n_generation 8，kl_beta 0.0，max_response_length 6144，rollout 温度 0.9，截断 ε = 0.2，奖励 <code>["single_choice", "format"]</code>，只用 RoboVQA 子集</td></tr>
+<tr><td>SFT 示例</td><td>lr 1e-5 → 1e-6，Adam β = (0.9, 0.95)，wd 0.1，批 256</td><td><code>sft.toml</code>：AdamW lr 2e-6，β = (0.9, 0.999)，wd 0.01，每副本批 32，1 个 epoch，RoboVQA 理解子集</td></tr>
+<tr><td>公开数据</td><td>表 4、5、6</td><td>SFT：BridgeData、RoboVQA、AgiBot、HoloAssist 的标注（AV 待传），只有 RoboVQA 带视频；RL：四个具身子集 892 题；基准：5 个具身子集（含 RoboFail 视频），无 AV、无常识 604 题</td></tr>
+</tbody></table></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · 后训练示例不是论文配方</span><p><code>rl.toml</code> 和 <code>sft.toml</code> 是在 <code>Cosmos-Reason1-7B</code> 上继续微调 RoboVQA 子集的教程，超参和论文表述的训练不同：RL 学习率 2e-6 对 4e-6，每题 8 个回答对 9 个，KL 系数 0 对 0.005；SFT 学习率 2e-6、β₂ 0.999、权重衰减 0.01 对论文的 1e-5、0.95、0.1。论文也没给 GRPO 的截断 ε 和 rollout 温度，教程里分别是 0.2 和 0.9。想复现论文数字的话，这些示例只能当起点。</p></div>
+<div class="note" id="n23"><span class="lab">读者注 23 · 评测脚本和论文评测的差别</span><p>(1) 论文报 5 次平均，脚本默认单次（seed 1）。(2) 脚本默认 max_tokens 1024，而 RL 训练允许 6,144、模型卡建议 ≥ 4096；推理链被截断时脚本靠“空答案重试、每次加 256 token”补救，最多到 3,584。(3) <code>utils/input.py</code> 第 169 行先写 “Answer with the option's letter from the given choices directly.”，第 173 行在推理模式下又追加“按 &lt;think&gt;…&lt;/think&gt; &lt;answer&gt;…&lt;/answer&gt; 格式回答”，两条指令相互矛盾。(4) 模型卡给出的当前权重（2025-08-01 版）在具身基准上是 RoboVQA 87.3、AV 70.8、BridgeData 63.7、AgiBot 48.9、HoloAssist 62.7、RoboFail 57.2，平均 65.1；卡上说明“和表 9 不同，因为后来为更多任务做了额外训练”。按表 9 的 RL 行算六项具身平均是 \((73.5+86.8+54.2+60.0+67.0+62.0)/6=67.25\)，所以现在下载到的权重和论文报告的不是同一个检查点。我没有运行任何评测。</p></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · 56B 没有发布</span><p>论文正文多处写“我们开放代码和预训练模型”，但仓库、模型卡和 Hugging Face 合集里只有 7B。56B 的混合骨干、投影器和训练都只能读论文。另外 7B 的权重从 2025-05-17 首发后更新过两次（6 月加强物理合理性判断，8 月加时间戳描述和 Set-of-Mark 提示），用的时候注意版本。</p></div>
+
+<h2 id="batch">和本批其他页的关系</h2>
+<p>这一页和 OpenWAM 没有直接关系（OpenWAM 用的是 Cosmos-Predict2.5 和 Cosmos 3 的视频骨干，不用 Cosmos-Reason1），所以不设“和 OpenWAM 的关系”一节。和同批页面的联系：</p>
+<ul>
+<li>时间箭头数据取自 Cosmos-Predict1 的训练视频，Predict1 属于 <a href="cosmos.html">Cosmos 世界模型平台</a>那一篇。</li>
+<li>仓库 README 顶部说 <a href="cosmos3.html">Cosmos 3</a> 用一个模型统一了推理、预测、迁移和动作生成，取代 Cosmos-Reason1；具体它怎样继承这里的数据和基准，要看那一页（我没有读 Cosmos 3 原文，不做推断）。</li>
+<li>物体恒存数据来自 <a href="libero.html">LIBERO</a> 仿真，这和用户在复现的 LIBERO 是同一个基准，但这里只用它的场景资产渲染视频，不涉及策略评测。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可和 PDF 元数据</a>：arXiv CC BY 4.0，PDF 页脚写 All rights reserved；元数据标题是另一篇 Cosmos 论文。</li>
+<li><a href="#n2">换骨干后 56B 的数字不变</a>：v3 只重做了小模型；7B 和 56B 的差别不只是参数量。</li>
+<li><a href="#n3">视觉 FFN 3,420 不是 3,456</a>：ViT + merger 按 3,420 算正好 676.55M。</li>
+<li><a href="#n4">两种模型的视频 token 预算</a>：都是 8,192；表 3 的时间下采样其实在 patch 嵌入里。</li>
+<li><a href="#n5">投影器大小</a>：56B 的投影器约 4.0 亿参数，比它的 ViT 还大。</li>
+<li><a href="#n6">从图 4 数出 118 层</a>：54 Mamba、54 MLP、10 注意力；图 3 与图 4 配色相反。</li>
+<li><a href="#n7">GRPO 全同组没有信号</a>：9 个回答时，答对率 0.9 的题有 38.7% 的组全同。</li>
+<li><a href="#n8">图 5 图注 FSDP、图里 SP</a>：160% 没有给测量条件。</li>
+<li><a href="#n9">表 4 的合计</a>：1.81M、1.93M 对；自由题 59.4K = 9.9K × 6；理解选择题 1.2M 对 2.4M 不符。</li>
+<li><a href="#n10">正文片段数是 v1 的</a>：v3 表 4 变小，HF 数据卡等于 v3 表 4。</li>
+<li><a href="#n11">时间箭头 30K 的单位</a>：按正文最多 120K，未核实。</li>
+<li><a href="#n12">表 5 和公开的 RL 数据</a>：30,304 对；HF 只发布 892 题。</li>
+<li><a href="#n13">图 8 与正文</a>：5,737 = 2,828 + 2,909；最终 604 题的子类分布没给；49.33% 应为 49.34%。</li>
+<li><a href="#n14">610 题、601 段视频</a>：公开基准缺 AV 和常识；两个二选一子集随机 50%。</li>
+<li><a href="#n15">训练量</a>：SFT 3.2M / 1.6M 样本不到一轮；RL 64,000 题、576,000 条回答。</li>
+<li><a href="#n16">表 7 的平均是三类简单平均</a>：按题数加权 o1 为 58.82；56B 时间类低于骨干。</li>
+<li><a href="#n17">表 8 Qwen2.5-VL-7B 一行</a>：数字不是单次评测的格子，且和 v1 不同。</li>
+<li><a href="#n18">RoboFail 是例外，是 v1 的说法</a>：v3 里 RoboFail +2.0，下降的是 HoloAssist −3.0。</li>
+<li><a href="#n19">回答 “none” 拿不到准确率奖励</a>；图 10 的回答有一句重复。</li>
+<li><a href="#n20">“10% 以上”“5% 以上”</a>：常识只涨 6.9 / 2.0；RL 实为 4.96。</li>
+<li><a href="#n21">表 10 与 v1</a>：“时间箭头仍是难点”来自 v1，v3 里它涨得最多。</li>
+<li><a href="#n22">后训练示例不是论文配方</a>：lr、回答数、KL 都不同。</li>
+<li><a href="#n23">评测脚本与论文评测</a>：单次、1024 token、提示词矛盾；当前权重不是论文检查点。</li>
+<li><a href="#n24">56B 没有发布</a>；7B 权重更新过两次。</li>
+</ol>
+<p>论文没写、我也没找到的：两个 RL 奖励的权重；GRPO 的截断和是否过滤全同组；常识 RL 数据易、难两组怎么用；最终 604 题的子类分布；AV 数据的来源和地区；SFT 各来源的采样权重。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和模型。链接在 2026 年 11 月 16 日用脚本核对，除标注外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-reason1/">Cosmos-Reason1</a></td><td>本文</td><td><a href="https://github.com/nvidia-cosmos/cosmos-reason1">代码</a> · <a href="https://huggingface.co/nvidia/Cosmos-Reason1-7B">权重</a></td><td><a href="https://arxiv.org/abs/2503.15558">2503.15558</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos-Reason1-Benchmark">Cosmos-Reason1-Benchmark</a></td><td>公开的具身基准</td><td>huggingface.co</td><td>本文</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos-Reason1-SFT-Dataset">Cosmos-Reason1-SFT-Dataset</a></td><td>公开的 SFT 标注，CC BY 4.0</td><td>huggingface.co</td><td>本文</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/nvidia/Cosmos-Reason1-RL-Dataset">Cosmos-Reason1-RL-Dataset</a></td><td>公开的 RL 选择题</td><td>huggingface.co</td><td>本文</td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a></td><td>机械臂操作数据</td><td>rail-berkeley.github.io/bridgedata</td><td><a href="https://arxiv.org/abs/2308.12952">2308.12952</a></td></tr>
+<tr><td><a class="ds" href="https://robovqa.github.io/">RoboVQA</a></td><td>机器人视频问答</td><td>robovqa.github.io</td><td><a href="https://arxiv.org/abs/2311.00899">2311.00899</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/OpenDriveLab/AgiBot-World">AgiBot World</a></td><td>AgiBot G1 操作数据</td><td>github.com/OpenDriveLab/AgiBot-World</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://holoassist.github.io/">HoloAssist</a></td><td>第一人称操作视频</td><td>holoassist.github.io</td><td><a href="https://arxiv.org/abs/2309.17024">2309.17024</a></td></tr>
+<tr><td><a class="ds" href="https://robot-reflect.github.io/">RoboFail（REFLECT）</a></td><td>机器人失败解释</td><td>robot-reflect.github.io</td><td><a href="https://arxiv.org/abs/2306.15724">2306.15724</a></td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>物体恒存数据的仿真来源</td><td>libero-project.github.io · <a href="libero.html">本站精读</a></td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://embodied-cot.github.io/">ECoT</a></td><td>BridgeData 的物体和动作标注</td><td>embodied-cot.github.io</td><td><a href="https://arxiv.org/abs/2407.08693">2407.08693</a></td></tr>
+<tr><td><a class="ds" href="https://mmmu-benchmark.github.io/">MMMU</a></td><td>§7.1.3 提到的通用基准</td><td>mmmu-benchmark.github.io</td><td><a href="https://arxiv.org/abs/2311.16502">2311.16502</a></td></tr>
+<tr><td>Qwen2.5-VL</td><td>7B 的骨干</td><td><a href="https://github.com/QwenLM/Qwen2.5-VL">github.com/QwenLM/Qwen2.5-VL</a></td><td><a href="https://arxiv.org/abs/2502.13923">2502.13923</a></td></tr>
+<tr><td>Nemotron-H</td><td>56B 的混合骨干</td><td>–</td><td><a href="https://arxiv.org/abs/2504.03624">2504.03624</a></td></tr>
+<tr><td>InternVL 2.5 / InternViT-300M</td><td>56B 的视觉编码器</td><td><a href="https://github.com/OpenGVLab/InternVL">github.com/OpenGVLab/InternVL</a></td><td><a href="https://arxiv.org/abs/2412.05271">2412.05271</a></td></tr>
+<tr><td>NVLM</td><td>结构和 56B 图像处理的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2409.11402">2409.11402</a></td></tr>
+<tr><td>DeepSeek-R1</td><td>推理链来源、规则奖励思路</td><td>–</td><td><a href="https://arxiv.org/abs/2501.12948">2501.12948</a></td></tr>
+<tr><td>GRPO（DeepSeekMath）</td><td>RL 算法</td><td>–</td><td><a href="https://arxiv.org/abs/2402.03300">2402.03300</a></td></tr>
+<tr><td>Mamba / 混合 Mamba</td><td>§3.2</td><td>–</td><td><a href="https://arxiv.org/abs/2312.00752">2312.00752</a> · <a href="https://arxiv.org/abs/2406.07887">2406.07887</a></td></tr>
+<tr><td>cosmos-rl</td><td>异步后训练框架</td><td><a href="https://github.com/nvidia-cosmos/cosmos-rl">github.com/nvidia-cosmos/cosmos-rl</a></td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2503.15558（v3）后的整理，不是作者的官方内容。原文：NVIDIA（Alisson Azzolini 等 52 人），《Cosmos-Reason1: From Physical Common Sense To Embodied Reasoning》，arXiv 2025，在 arXiv 以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 登记（PDF 页脚另有 “© 2025 NVIDIA. All rights reserved.”）。图 1 到 12 从原文 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图。表格数字照录原文；读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -20,6 +20,70 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/cosmos.html">Cosmos 平台：NVIDIA 物理 AI 世界基础模型的第一代</a></p>
+<p class="en">Cosmos World Foundation Model Platform for Physical AI</p>
+<div class="meta"><span>arXiv 2501.03575</span><span>2025-01</span><span>2026-11-16 读</span></div>
+<p class="d">视频整理管线、因果 Tokenizer（连续 / 离散）、扩散与自回归世界基础模型、相机 / 机器人 / 驾驶后训练和护栏。代码对照 cosmos-predict1：自回归模型其实用了 GQA、z-loss 写法和系数不同；4B 到 14B 物理指标不随规模变好。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">世界模型</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">30 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos.html">读精读 →</a><a href="interactives/cosmos/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2501.03575">原文</a><a href="https://github.com/nvidia-cosmos/cosmos-predict1">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos-transfer1.html">Cosmos-Transfer1：多种空间控制按时空权重融合的条件世界生成</a></p>
+<p class="en">Cosmos-Transfer1: Conditional World Generation with Adaptive Multimodal Control</p>
+<div class="meta"><span>arXiv 2503.14492</span><span>2025-03</span><span>2026-11-16 读</span></div>
+<p class="d">每种控制（模糊、边缘、深度、分割、高精地图、LiDAR）一个 3 块 ControlNet 分支，分开训练、推理时按 w / max(Σw, 1) 融合；用于 Sim2Real 和驾驶数据增强。64 卡实时方案不在开源代码里。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">条件生成</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">16 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos-transfer1.html">读精读 →</a><a href="interactives/cosmos-transfer1/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2503.14492">原文</a><a href="https://github.com/nvidia-cosmos/cosmos-transfer1">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos-reason1.html">Cosmos-Reason1：物理常识与具身推理的视频 VLM</a></p>
+<p class="en">Cosmos-Reason1: From Physical Common Sense To Embodied Reasoning</p>
+<div class="meta"><span>arXiv 2503.15558</span><span>2025-03</span><span>2026-11-16 读</span></div>
+<p class="d">物理常识与具身推理的本体，R1 蒸馏 SFT 加多选题 GRPO。v3 把 7B 骨干从自建混合结构换成 Qwen2.5-VL；正文几处没跟上表格；56B 未发布，现有权重不是论文检查点。Cosmos-Predict2.5 的文本编码器就是它。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">视频推理</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">24 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos-reason1.html">读精读 →</a><a href="interactives/cosmos-reason1/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2503.15558">原文</a><a href="https://github.com/nvidia-cosmos/cosmos-reason1">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos-predict25.html">Cosmos-Predict2.5：第二代物理 AI 世界模型（含 Transfer2.5）</a></p>
+<p class="en">World Simulation with Video Foundation Models for Physical AI</p>
+<div class="meta"><span>arXiv 2511.00062</span><span>2025-10</span><span>2026-11-16 读</span></div>
+<p class="d">Wan2.1 VAE + Cosmos-Reason1 文本编码 + DiT，流匹配，再 SFT、模型合并、RL、蒸馏。2B 实为 28 层（表 3 写 32）。和 OpenWAM：§4.1.1 得 91.64；OpenWAM 接它时可能漏设 timestep_scale（差 1000 倍，只读代码）。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">世界模型</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">22 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos-predict25.html">读精读 →</a><a href="interactives/cosmos-predict25/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2511.00062">原文</a><a href="https://github.com/nvidia-cosmos/cosmos-predict2.5">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos-policy.html">Cosmos Policy：不改结构把视频模型微调成策略、世界模型和价值</a></p>
+<p class="en">Cosmos Policy: Fine-Tuning Video Models for Visuomotor Control and Planning</p>
+<div class="meta"><span>arXiv 2601.16163</span><span>2026-01</span><span>2026-11-16 读</span></div>
+<p class="d">动作、本体、价值都写进 Cosmos-Predict2 的隐帧，三种掩码联合训练，再 best-of-N 规划；LIBERO 98.5、RoboCasa 67.1。附 LIBERO 设置：自生成 1,700 条数据、只上下翻转、OpenVLA 步数上限，和 OpenWAM 的 99.3 不同协议。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">WAM / 策略</span><span class="pill">CC BY · 放原图</span><span class="pill rn">18 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos-policy.html">读精读 →</a><a href="interactives/cosmos-policy/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2601.16163">原文</a><a href="https://github.com/NVlabs/cosmos-policy">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos3.html">Cosmos 3：语言、图像、视频、音频、动作统一的全模态世界模型</a></p>
+<p class="en">Cosmos 3: Omnimodal World Models for Physical AI</p>
+<div class="meta"><span>arXiv 2606.02800</span><span>2026-06</span><span>2026-11-16 读</span></div>
+<p class="d">理解塔和生成塔两套参数、只在注意力里相遇；同一网络当 VLM、视频生成器、正逆动力学模型和策略。附官方 LIBERO-10 配方；OpenWAM 支持 Cosmos3-Edge 作骨干但论文没有它的实验。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">世界模型</span><span class="pill">CC BY · 放原图</span><span class="pill rn">25 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos3.html">读精读 →</a><a href="interactives/cosmos3/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2606.02800">原文</a><a href="https://github.com/NVIDIA/cosmos-framework">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/cosmos-interactive.html">Cosmos 交互式世界模拟：把双向视频模型改成实时流式模拟器</a></p>
+<p class="en">Interactive World Simulation with Cosmos for Physical AI</p>
+<div class="meta"><span>arXiv 2611.06627</span><span>2026-11</span><span>2026-11-16 读</span></div>
+<p class="d">Cosmos 3 经四阶段后训练（双向适配 → TF → TF-dCM 4 步 → SF-DMD）变成块因果、流式模拟器。实时只对部分场景成立，控制到画面延迟没有实测；闭环策略评测只有 32 个起点、统计上分不开。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">世界模拟</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">23 条读者注</span></div>
+<div class="links"><a class="go" href="papers/cosmos-interactive.html">读精读 →</a><a href="interactives/cosmos-interactive/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2611.06627">原文</a><a href="https://github.com/NVIDIA/cosmos-framework">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/gr00t.html">GR00T N1：NVIDIA 人形机器人 VLA（含 N1.5–N1.7 的变化）</a></p>
+<p class="en">GR00T N1: An Open Foundation Model for Generalist Humanoid Robots</p>
+<div class="meta"><span>arXiv 2503.14734</span><span>2025-03</span><span>2026-11-16 读</span></div>
+<p class="d">Eagle-2 VLM 取第 12 层 + 流匹配 DiT 动作头；数据金字塔（真机、仿真、生成视频、人类视频的 LAPA/IDM 伪动作）。式 (1) 速度符号写反（代码对）；N1.7 README 结构和发布权重不符。OpenWAM 表里 N1.6 的 49.9 找不到出处。</p>
+<div class="tags"><span class="pill">NVIDIA Cosmos / GR00T</span><span class="pill">VLA</span><span class="pill">CC BY（PDF 页脚另有版权声明）· 放原图</span><span class="pill rn">26 条读者注</span></div>
+<div class="links"><a class="go" href="papers/gr00t.html">读精读 →</a><a href="interactives/gr00t/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2503.14734">原文</a><a href="https://github.com/NVIDIA/Isaac-GR00T">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/dinov3.html">DINOv3：7B 自监督视觉模型，用 Gram anchoring 修好稠密特征</a></p>
 <p class="en">DINOv3</p>
 <div class="meta"><span>arXiv 2508.10104</span><span>2025-08</span><span>2026-11-16 读</span></div>
