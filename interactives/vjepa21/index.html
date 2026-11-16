@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>V-JEPA 2.1 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2603.14482 V-JEPA 2.1 的训练框架做成 11 幕 3D 动画：切 tubelet、遮挡、编码器和预测器、稠密预测损失、深监督、多模态 tokenizer、数据和规模、冷却和蒸馏、下游结果、在 OpenWAM 里的接法。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .rd{background:color-mix(in srgb,var(--bg2) 88%,transparent);border-radius:7px;padding:3px 8px;color:var(--fg);line-height:1.5;font-family:var(--font-mono);font-size:12px}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="vjepa21.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/vjepa21.html">返回精读</a><a href="../../papers/vjepa21.html#s2-3">原文 §2.3</a><a href="../../papers/vjepa21.html#openwam">OpenWAM 接法</a><a href="https://arxiv.org/abs/2603.14482">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2603.14482 · V-JEPA 2.1</p>
+<h1>V-JEPA 2.1 怎样让可见 token 也学到局部特征</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2 到 4 幕是 V-JEPA 系列共用的底子：切 tubelet、遮挡、编码器和预测器；<b>第 5 幕是核心：稠密损失，当场算每个可见 token 的权重</b>；第 6、7 幕是深监督和多模态 tokenizer；第 8、9 幕是数据、规模、冷却和蒸馏；第 10 幕是下游结果；第 11 幕是在 OpenWAM 里的接法。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结构数字来自论文和官方代码（facebookresearch/vjepa2 提交 204698b）；第 3、5 幕的遮挡按代码规则当场采样；第 8、10 幕的柱子是原文表格数字。画面里的“图像”是合成的色块，没有任何 V-JEPA 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步的形状</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 facebookresearch/vjepa2 提交 204698b（2026-03-23），只读未运行。形状以 ViT-G 第一阶段为例（16 帧、256²），B 是每个进程的 batch。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（204698b）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和 tokenizer</td></tr>
+<tr><td>I1</td><td>视频片段</td><td>16 帧、4 fps、256²；冷却 64 帧、384²</td><td>(B, 3, 16, 256, 256)；公开冷却配置 64 帧、256²</td></tr>
+<tr><td>I2</td><td>视频 patch 嵌入</td><td>3D 卷积 2×16×16</td><td>Conv3d(3, 1664, (2,16,16)) → (B, 2048, 1664)，8 × 16 × 16 = 2,048 个 token</td></tr>
+<tr><td>I3</td><td>图像 patch 嵌入</td><td>2D 卷积 16×16；图像 256²，冷却 512²</td><td>Conv3d(3, 1664, (1,16,16)) 作用在 T = 1 → (B, 256, 1664)；冷却 512² 时 1,024 个</td></tr>
+<tr><td>I4</td><td>模态信息</td><td>可学的模态 token</td><td>video_mod_embed / img_mod_embed，(1,1,1664)，加到每个 token</td></tr>
+<tr><td>I5</td><td>位置</td><td>3D RoPE</td><td>每头 64 维：时间、行、列各 20 维，余 4 维不转；行列位置缩放到 16 网格</td></tr>
+<tr class="grp"><td colspan="4">遮挡</td></tr>
+<tr><td>M1</td><td>视频遮挡</td><td>空间比例 [0.15, 0.7]，时间 [1.0, 1.0]，宽高比 [0.75, 1.5]</td><td>两个生成器：8 块 × 0.15、2 块 × 0.7；每块贯穿全部时间；模拟平均遮掉约 62% 和 81%（我算的）</td></tr>
+<tr><td>M2</td><td>图像遮挡</td><td>同上</td><td>一个生成器：10 块 × 0.15，约 68%（我算的）</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>x 编码器 E<sub>θ</sub></td><td>ViT-G，2B</td><td>vit_gigantic_xformers：1664 宽、48 层、26 头、MLP 8,192；按定义算 1.845B 参数</td></tr>
+<tr><td>N2</td><td>多层输出</td><td>中间块 [12, 24, 36, 48]</td><td>hierarchical_layers [11, 23, 37, 47]（从 0 数），各过一个 LayerNorm，拼成 (B, N_ctx, 6656)</td></tr>
+<tr><td>N3</td><td>融合 MLP</td><td>轻量 MLP 融合降维</td><td>Linear(6656→1664)–GELU–Linear(1664→384)</td></tr>
+<tr><td>N4</td><td>预测器 P<sub>φ</sub></td><td>24 层、宽 384（V-JEPA 2 是 12 层）</td><td>24 层、12 头；mask token 是可学向量（代码留了多个，按帧数分组选用，单一帧数时只用第一个）；序列按原位置重排后 RoPE</td></tr>
+<tr><td>N5</td><td>预测器输出</td><td>4 层的预测</td><td>被遮 token：predictor_proj Linear(384→6656)；上下文 token：predictor_proj_context Linear(384→6656)</td></tr>
+<tr><td>N6</td><td>y 编码器 E<sub>θ̄</sub></td><td>EMA，0.99925</td><td>target_encoder，不遮挡，同样 4 层输出，每层再做一次无参 LayerNorm</td></tr>
+<tr class="grp"><td colspan="4">损失</td></tr>
+<tr><td>L1</td><td>式 (1) 预测损失</td><td>被遮 token 的 L1</td><td>|z − h| 在 6656 维上取平均，再对 token 和遮挡取平均</td></tr>
+<tr><td>L2</td><td>式 (2)(3) 上下文损失</td><td>λ/√d<sub>min</sub> 加权的 L1；λ 视频 0.5、图像 0.7</td><td>同式，d 是 (t, h, w) 网格上的欧氏距离；λ 都是 0.5；第 15k 到 30k 步线性预热；冷却阶段不加距离权重</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>batch</td><td>视频 128、图像 2,304</td><td>按配置：视频 12 × 256 = 3,072，图像 36 × 128 = 4,608，各占一半 GPU</td></tr>
+<tr><td>T2</td><td>学习率</td><td>1e-4 预热 12k 步到 5.25e-4，恒定，共 135k；冷却 6e-4 → 1e-6，12k 步</td><td>预热到 6e-4 后恒定；冷却线性衰减，T_max 15k 只跑 12k，末值约 1.2e-4</td></tr>
+<tr><td>T3</td><td>数据</td><td>VisionMix163M（表 3）</td><td>K710 0.335、SSv2 0.100、HowTo 0.565；图像 ImageNet-1K</td></tr>
+<tr><td>T4</td><td>蒸馏</td><td>冻结 ViT-G 老师，学生 EMA 发布，12 层预测器，只用最后一层</td><td>hub 加载 ema_encoder、12 层、1 层输出、输出 1664 维；训练脚本不在仓库</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>画面里的“视频”。</b>色块是合成的（渐变背景加一个移动的圆斑），只为看出时空位置。不是真实视频，不是网络输入。</li>
+<li><b>第 3、5 幕的遮挡。</b>按 <code>src/masks/multiseq_multiblock3d.py</code> 的规则当场采样：每个样本一个块大小，各块位置随机，取并集。随机数是我设的种子，所以具体位置和真实训练不同，比例的统计意义相同。</li>
+<li><b>第 5 幕的权重。</b>λ/√d 按代码的欧氏距离当场算；λ 的预热曲线按代码的 15k 到 30k 步。柱子高度就是权重，读数是真算的。</li>
+<li><b>第 4 幕的方块大小。</b>只表示先后和连接，不按参数量缩放。第 8 幕的模型方块体积按我算的参数量缩放。</li>
+<li><b>第 9 幕的学习率曲线。</b>论文的按表 12 画；代码的按配置和调度器公式画，冷却末值是我推的，未运行。</li>
+<li><b>第 11 幕。</b>按 OpenWAM 代码的接法画，9 帧、384 × 320 是 RoboTwin 的设置；成功率是 OpenWAM 图 7 的数。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2603.14482 后的理解，不是作者的官方图。原图见<a href="../../papers/vjepa21.html">精读页</a>（CC BY-NC-ND 4.0，只做裁切，经站点作者决定放原图）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
