@@ -745,7 +745,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="tablewrap"><table class="t-w repro"><thead><tr><th>项</th><th>LIBERO 原论文</th><th>OpenVLA</th><th>OpenWAM（你复现的）</th><th>MolmoAct2（LeRobot 分支）</th></tr></thead><tbody>
 <tr><td>设定</td><td>终身学习：逐个任务学，学完测所有已学任务</td><td>每套件单独微调一个模型</td><td>四套件合训一个模型</td><td>四套件合训一个模型</td></tr>
 <tr><td>每任务回合</td><td>20</td><td>50</td><td>50</td><td>50</td></tr>
-<tr><td>开局空等</td><td>–</td><td>10 步</td><td>30 步（夹爪张开）</td><td>50 步</td></tr>
+<tr><td>开局空等</td><td>5 步全零动作（<code>lifelong/metric.py</code> 第 119–122 行）</td><td>10 步</td><td>30 步（夹爪张开）</td><td>50 步</td></tr>
 <tr><td>最长步数 S / O / G / L</td><td>600（统一）</td><td>220 / 280 / 300 / 520</td><td>600 / 600 / 600 / 700</td><td>280 / 280 / 300 / 520</td></tr>
 <tr><td>种子</td><td>–</td><td>7</td><td>42（只设一次）</td><td>1000（每回合导出）</td></tr>
 <tr><td>渲染分辨率</td><td>128</td><td>256，旋转 180°</td><td>256，旋转 180°</td><td>360，旋转 180°，模型内缩放到 378</td></tr>

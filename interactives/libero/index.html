@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LIBERO 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2306.03310 LIBERO 的框架做成 11 幕 3D 动画：程序化任务生成（模板、BDDL、初始状态）、四个套件、遥操作演示、观测和动作接口、三种策略网络、终身学习流程与四种算法、当场计算 FWT/NBT/AUC、结果表、VLA 时代的用法。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctl .rd{background:color-mix(in srgb,var(--bg2) 88%,transparent);border-radius:7px;padding:3px 8px;color:var(--fg);line-height:1.5;font-family:var(--font-mono);font-size:12px}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+body.embed .ctl .rd{display:none}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="libero.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/libero.html">返回精读</a><a href="../../papers/libero.html#s4-1">原文 §4.1</a><a href="../../papers/libero.html#s5-1">§5.1 指标</a><a href="../../papers/libero.html#repro">复现要点</a><a href="https://arxiv.org/abs/2306.03310">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2306.03310 · NeurIPS 2023 数据集与基准 · LIBERO</p>
+<h1>一个终身学习基准是怎样搭起来、怎样打分的</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 4 幕是任务怎么造出来（模板 → 指令，场景 → BDDL → 初始状态，四个套件）；第 5、6 幕是数据和接口（遥操作演示，观测和 7 维动作）；第 7 幕是三种策略网络；<b>第 8、9 幕是核心：终身学习的流程，以及 FWT、NBT、AUC 当场算</b>；第 10 幕是结果表；第 11 幕是 VLA 论文怎样换了用法。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。尺寸、超参数和任务名来自论文和官方代码（提交 8f1084e）；第 10 幕的柱子是原文表格数字。机械臂、轨迹和第 8、9 幕的成功率是手工设定的示意或玩具，没有任何 LIBERO 策略在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 Lifelong-Robot-Learning/LIBERO 提交 8f1084e（2025-03-15，MIT），只读未运行。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（8f1084e）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">任务生成</td></tr>
+<tr><td>G1</td><td>行为模板</td><td>从 Ego4D 语言标注归纳</td><td>仓库里没有这一步的代码</td></tr>
+<tr><td>G2</td><td>场景</td><td>按指令选场景布局</td><td>mu_creation.py：20 个模板，厨房 10、客厅 6、书房 4</td></tr>
+<tr><td>G3</td><td>任务文件</td><td>PDDL：区域、固定件、物体、init、goal</td><td>130 个 .bddl，bddl==1.0.1</td></tr>
+<tr><td>G4</td><td>初始状态</td><td>μ₀：区域里随机</td><td>每任务 .pruned_init 固定 50 个 MuJoCo 状态（47 到 123 维）</td></tr>
+<tr><td>G5</td><td>成功</td><td>所有谓词为真</td><td>done = _check_success()；On 物体对物体：接触且水平 &lt; 3 cm</td></tr>
+<tr class="grp"><td colspan="4">环境和数据</td></tr>
+<tr><td>E1</td><td>仿真</td><td>robosuite</td><td>robosuite 1.4.0，Panda，OSC_POSE，20 Hz，horizon 1000</td></tr>
+<tr><td>E2</td><td>相机</td><td>图像观测</td><td>agentview + robot0_eye_in_hand，128 × 128</td></tr>
+<tr><td>E3</td><td>本体</td><td>关节和夹爪</td><td>joint_pos 7 + gripper_qpos 2；不用末端位姿</td></tr>
+<tr><td>E4</td><td>动作</td><td>末端动作，GMM 采样</td><td>7 维，[−1, 1] → 每步 ≤ 0.05 m、0.5 rad；夹爪 −1 开 +1 合</td></tr>
+<tr><td>E5</td><td>演示</td><td>每任务 50 条，SpaceMouse 遥操作</td><td>collect_demonstration.py，默认 spacemouse，control_freq 20</td></tr>
+<tr class="grp"><td colspan="4">策略网络</td></tr>
+<tr><td>P1</td><td>ResNet-RNN</td><td>表 5：图像 64，文本 32，LSTM 1024 × 2</td><td>LSTM 输入 64 + 64 + 9 + 32 = 169</td></tr>
+<tr><td>P2</td><td>ResNet-T</td><td>表 6：64 维，4 层，6 头</td><td>每步 5 个 token × 10 步；ResNet 里也有 FiLM</td></tr>
+<tr><td>P3</td><td>ViT-T</td><td>表 7：空间 7 层 8 头 128 维，时间 4 层 6 头 64 维</td><td>每路 64 个 patch；空间 130 token；时间每步 4 token × 10 步</td></tr>
+<tr><td>P4</td><td>输出头</td><td>GMM</td><td>5 个分量，均值 tanh</td></tr>
+<tr><td>P5</td><td>语言</td><td>BERT</td><td>bert-base-cased pooler_output，768 维</td></tr>
+<tr class="grp"><td colspan="4">训练和评估</td></tr>
+<tr><td>T1</td><td>每任务</td><td>50 epoch，batch 32，Adam，余弦 1e-4 → 1e-5</td><td>AdamW（weight_decay 1e-4），grad_clip 100</td></tr>
+<tr><td>T2</td><td>评估</td><td>每 5 epoch，20 回合，≤ 600 步</td><td>相同；开局 5 步零动作；第 i 回合用第 i 个初始状态</td></tr>
+<tr><td>T3</td><td>ER</td><td>≤ 1000 条轨迹，回放 32 条</td><td>每任务前 1000 个 10 步片段，回放 32 个片段</td></tr>
+<tr><td>T4</td><td>EWC</td><td>λ/2，γ = 0.9，(1−γ) 滑动平均，λ = 5·10⁴</td><td>λ（无 1/2），F ← γF + F_k</td></tr>
+<tr><td>T5</td><td>PackNet</td><td>留 25%，微调 50 epoch</td><td>每任务留剩余的 25%（prune_perc 0.75）</td></tr>
+<tr><td>T6</td><td>指标</td><td>式 (3)</td><td>FWT 在 base.py；NBT、AUC 在 quick_guide_algo.ipynb</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的模板。</b>Ego4D 提炼模板的代码没公开，卡片上的模板是我从 130 个任务名里反推的，指令是真实任务名。</li>
+<li><b>第 3 幕的采样点。</b>区域范围取自 KITCHEN_SCENE3 的 BDDL 文件；50 个点是页面用固定种子在区域里均匀采的，不是 .pruned_init 里的真实状态。</li>
+<li><b>第 4 幕的物体。</b>几何体拼的，位置是示意；任务文字取自代码。</li>
+<li><b>第 5 幕的机械臂和轨迹。</b>两段式平面逆运动学的玩具臂，轨迹手写；20 Hz 的采样点按轨迹时长算。</li>
+<li><b>第 8、9 幕的成功率。</b>玩具：按“学会—遗忘”的简单规则生成的 10 × 10 成功率矩阵和学习曲线，只为演示公式，不是论文数字。FWT、NBT、AUC 是对这组玩具数字当场算的。</li>
+<li><b>第 10、11 幕。</b>柱子是原文表 2、图 5 和 OpenVLA 数据集的真实数字。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2306.03310 后的理解，不是作者的官方图。原图见<a href="../../papers/libero.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
