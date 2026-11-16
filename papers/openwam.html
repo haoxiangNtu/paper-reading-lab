@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpenWAM 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2609.07398 OpenWAM（世界-动作模型的模块化开放研究栈与 OpenWAM-α 预训练模型）的中文精读：逐节整理正文和附录，含编号公式、结果表、裁切原图、官方代码与 Hugging Face 检查点对照、LIBERO 复现要点、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:820px}.t-links{min-width:660px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
+.repro td:first-child{white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/openwam/index.html">3D 框架动画</a><a href="#repro">LIBERO 复现要点</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2609.07398 · cs.RO · v1 2026 年 9 月 7 日 · 中文精读</p>
+<h1>OpenWAM：把世界-动作模型的预训练拆成可控实验</h1>
+<p class="orig">OpenWAM: An Open, Modular Exploration Towards Systematic World–Action Model Pretraining</p>
+<p>作者 Yuran Wang、Siqiao Huang、Mingleyang Li、Chenhao Zhang、Jiaqi Liang 等 24 人，项目负责 Lin Shao、Hang Zhao；来自新加坡国立大学、清华、北大、港大、浙大、港中文、上海交大。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2609.07398">arXiv 原文</a><a href="https://arxiv.org/pdf/2609.07398v1">PDF</a><a href="https://openwam-official.github.io/">项目主页</a><a href="https://github.com/OpenWAM-Official/OpenWAM">官方代码</a><a href="https://huggingface.co/OpenWAM">Hugging Face 模型与数据</a><span>正文 26 页，参考文献到第 32 页，附录到第 43 页</span></div>
+
+<div class="callout">
+<p><b>不要和同名项目搞混。</b>还有一篇不相干的 Stanford 工作也叫 OpenWAM：《OpenWAM: An Open Framework for Composable World-Action Models》（arXiv <a href="https://arxiv.org/abs/2610.07922">2610.07922</a>，2026-10-06，代码 <a href="https://github.com/OpenWAM/OpenWAM">OpenWAM/OpenWAM</a>，AGPL-3.0）。本页只讲 <b>2609.07398</b>。Hugging Face 上的 <a href="https://huggingface.co/OpenWAM">OpenWAM</a> 组织属于本篇：它的 46 个模型（OpenWAM-Alpha 的 14 个和 OpenWAM-Study 的 32 个消融检查点）的模型卡都引用 arXiv 2609.07398、链接 OpenWAM-Official 的代码；2610.07922 的摘要页只链接 GitHub，没有 Hugging Face 链接（<a href="#n1">读者注 1</a>）。</p>
+<p><b>关于这份精读。</b>论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布，PDF 页脚没有和它矛盾的版权声明。我按原文顺序覆盖正文 6 节和附录 A 到 D，小节编号同原文，用自己的话写，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1、2、3、5、8、9、12、13、14、15、17 从 arXiv PDF（v1）裁切，只做了裁切和格式转换，版权归 Yuran Wang 等作者，按 CC BY 4.0 使用；图下的文字是我写的。柱状图和点图（图 4、6、7、10、11、16）我把图上标注的数字抄成了表，没有放原图；附录里的实拍照片（图 18 到 21）只用文字说明并给出原页链接。本页的“读者注”是我核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码和检查点。</b>官方代码 <a href="https://github.com/OpenWAM-Official/OpenWAM">OpenWAM-Official/OpenWAM</a>，Apache-2.0。我读的是 commit <a href="https://github.com/OpenWAM-Official/OpenWAM/tree/1dcaeea76501f2431286b511284a671778645996">1dcaeea</a>（2026-11-12），只读，没有运行。我还读了 Hugging Face 上 <code>OpenWAM-Alpha-Pretrain-Foundation-Model</code> 和 <code>OpenWAM-Alpha-Sim-LIBERO</code> 的模型卡、文件列表和 <code>config.yaml</code>（没有下载权重），以及数据集 <code>OpenWAM/LIBERO</code> 的 <code>meta/info.json</code> 和 <code>meta/conversion.json</code>。项目主页仓库是 MIT 许可（另声明校徽和模型标志不在许可内），我只链接，没有抓取。</p>
+</div>
+<div class="note" id="n1"><span class="lab">读者注 1 · 同名项目和 Hugging Face 组织</span><p>2026-11-16 用 Hugging Face API 列出 <code>author=OpenWAM</code> 的模型：46 个，全部创建于 2026-09-04 到 09-05（在 2609.07398 提交前后），名字是 OpenWAM-Alpha-*（14 个）和 robotwin_* / pretrain_* / sft_*（32 个，对应 §4 的消融）。我读的两张模型卡都引用 2609.07398、链接 OpenWAM-Official/OpenWAM；本篇代码的下载脚本 <code>download_openwam_checkpoints.py</code> 也从 <code>OpenWAM/&lt;名字&gt;</code> 下载。2610.07922（Heng Yu 等，Stanford）的摘要页只有 GitHub 链接 OpenWAM/OpenWAM（AGPL-3.0，仓库描述写着 Stanford University），没有 Hugging Face 链接。所以 HF 的 OpenWAM 组织属于本篇。我只读了两张卡，其余 44 张没有逐张打开。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>世界-动作模型（World–Action Model，WAM）从视频生成模型继承“世界会怎样变化”的先验，再用机器人数据学会输出动作。现有系统把生成骨干、视觉表示、网络结构、信息流、推理过程、训练数据绑在一起，很难说清哪个选择真正起作用。</p>
+<p>OpenWAM 是一套开放的研究栈，分三块：</p>
+<ul>
+<li><b>OpenWAM-Infra：</b>把 WAM 拆成可替换的模块（视觉编码器、视频/动作/VLM 骨干、注意力掩码），一个训练器、一个策略服务器、一套评测协议，8 个仿真基准和真机走同一个 WebSocket 接口。</li>
+<li><b>OpenWAM-Study：</b>在 <a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a>（<a href="https://arxiv.org/abs/2506.18088">论文</a>）上做受控实验，回答三个问题：继承什么、世界和动作怎样协同、协同能否跨域扩大。</li>
+<li><b>OpenWAM-α：</b>按得出的配方训练的开放模型。Wan2.2-TI2V-5B 视频 DiT 加 1B 参数的 ActionDiT，30 层逐层联合自注意力，双向可见，同步去噪；在 5.185 亿帧（约 6,369 小时）第一视角人类视频和机器人数据上一次性联合预训练。</li>
+</ul>
+<p>主要数字：<a class="ds" href="https://libero-project.github.io/">LIBERO</a> 平均 99.3%，RoboTwin2.0-Full 93.60%，EBench SR 49.4（第一），RoboTwin2.0-Clean2Random 69.0，<a class="ds" href="https://github.com/sylvestf/LIBERO-plus">LIBERO-Plus</a> 只有 69.2（明显落后）。真机单臂 82.5%，RoboDojo 真机赛道总分第一。</p>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li>Study 里很多结论的差距在 1 个点以内，而同一设定在不同图表里出现过 92.15、92.36、92.39、93.0 四个数（<a href="#n4">读者注 4</a>）。“动作要能看见视频”（差约 5 点）和“预训练主要提升 OOD”（+12 点）站得住；“双向优于单向”“联合训练略好于两阶段”之类，差距在这个波动之内。</li>
+<li>作者自己承认像素级视频隐变量对相机和噪声扰动很脆弱：LIBERO-Plus 的 Camera 33.8、Noise 39.8，远低于其他维度。</li>
+<li>复现 LIBERO 时，步数、batch 和检查点名都能和代码对上，但有两处要留意：公布的基座是第 154,000 步，论文表 9 写 155,862 步（<a href="#n15">读者注 15</a>）；评测协议给每条轨迹 600/700 步，比 OpenVLA 的常用设定宽松得多（<a href="#n19">读者注 19</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="openwam/fig1.webp" width="1261" height="464" alt="图 1：左边 OpenWAM-Infra 的数据、模型、部署、评测模块，中间 OpenWAM-Study 的六个问题，右边 OpenWAM-α 的预训练数据、模型和雷达图" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=1">看原图 ↗</a></span>三栏总览。左栏 Infra：多源数据加载（人类第一视角、机器人数据），4 个视觉编码器、5 个视频骨干、4 种注意力掩码、6 种结构，部署时的去噪调度和推理加速，统一的评测接口。中栏 Study：Q1 结构、Q2 骨干、Q3 视觉表示、Q4 视频与动作怎样交互、Q5 预训练数据、Q6 去噪策略，每格标出被选中的方案。右栏 α：第一视角数据 30%、机器人数据 70%（真实 40%、仿真 30%），模型组成，以及在各基准上和现有最强方法对比的雷达图。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>数据不对称。</b>世界变化的视频很多，带可执行动作标签的机器人轨迹很少。ACT、Diffusion Policy 只从机器人演示里同时学视觉和控制；VLA（视觉-语言-动作模型）从视觉-语言模型继承语义；WAM 则从视频生成模型继承视觉动力学先验，再用具身经验去适配。视频生成本来就是建模时间演化，所以是学习“动作怎样引起物理变化”的直接起点。</p>
+<p><b>核心假设是协同。</b>WAM 的意义不只是拿视频模型初始化策略，而是世界预测和动作生成能互相帮助：世界建模提供状态、动力学和可能未来的知识，动作学习让模型关注对控制有用的变化。但这不容易：有用的知识藏在上游模型的不同部分；名义上的联合预测可能没有有效的信息通路；在一个域里好用的设计换了场景或机器人可能就不行。由此提出三个问题：</p>
+<ol>
+<li>WAM 应该继承什么世界知识？</li>
+<li>怎样让世界学习和动作学习协同？</li>
+<li>这种协同怎样跨域扩大？</li>
+</ol>
+<p>这在“整体式”系统里没法回答，所以作者做了 OpenWAM：Infra（§3）把设计空间拆成模块；Study（§4）得出三条结论；α（§5）把结论组合成一个预训练模型，在 8 个仿真基准（5 类机器人形态）和单臂、双臂、灵巧手真机上评测，并公开全部代码、评测协议、权重和数据配方。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>世界-动作模型。</b>世界模型一直用于规划、基于模型的强化学习和策略评测。WAM 更直接：它本身就是策略。和主要继承语义的 VLA 不同，WAM 从视频生成先验出发。现有系统的结构、训练、数据、采样调度往往一起变，看不出哪部分在传递世界知识。</p>
+<p><b>开放的通用策略生态。</b>OpenVLA 给出开放权重基线，StarVLA 提供模块化平台，StarVLA-α 是极简的预训练模型，XPolicyLab 提供统一的评测与部署标准。WAM 社区还缺这样的生态。</p>
+<p><b>把模型设计当实验科学。</b>Cambrian-1、Beyond Language Modeling、Towards Physics of Multimodal Pretraining 在多模态里做受控变量研究；机器人里有对动作分块（action chunking）、生成式控制策略、大行为模型（LBM）联合训练、OpenHLM 的分析。OpenWAM 把这套方法带到 WAM。</p>
+
+<h2 id="s3"><span class="no">3</span>OpenWAM-Infra：模块化基础设施</h2>
+<p>现有 WAM 各自围绕一种设计搭建，模型、训练、服务、评测互相耦合：难扩展，而且模块之间互相干扰，会混淆受控比较的结论。Infra 拆成四个组件，彼此独立或只有单向依赖：组合式模型（§3.1）、训练运行时（§3.2）、部署运行时（§3.3）、评测协议（§3.4）。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>组合式模型</h3>
+<figure class="pfig" id="fig2">
+<img src="openwam/fig2.webp" width="1319" height="464" alt="图 2：上排是视觉编码器、视频骨干、训练工具、可见性注意力掩码；下排是六种结构变体" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 5 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=5">看原图 ↗</a></span>上排三类可替换模块：左边视觉编码器（像素重建类 Wan2.2-VAE、FLUX.2-VAE；语义类 DINOv3、V-JEPA 2.1，可用 S-VAE 压到低维）；中间视频骨干（五个视频生成模型，参数从 1.3B 到 14B）、VLM 骨干、动作骨干和训练工具；右边四种注意力掩码的方块矩阵。下排六种结构：单系统 Vanilla 和 MoE，双系统联合自注意力、联合交叉注意力、IDM（两阶段），三系统联合自注意力。</figcaption>
+</figure>
+<p>一个 WAM 写成 \(C(\mathcal E,\mathcal S,\mathcal M)\)：视觉编码器 \(\mathcal E\) 把观测变成世界流要预测的隐变量序列；流骨干 \(\mathcal S\) 处理各个 token 流（世界流 \(\mathcal W\)、动作流 \(\mathcal A\)，可选理解流 \(\mathcal U\)）；可见性注意力掩码 \(\mathcal M\) 规定哪些 token 能看哪些；组合规则 \(C\) 把它们装成具体结构。</p>
+<p><b>视觉编码器</b>始终冻结。默认用视频骨干原配的编码器，这样 DiT 的预训练参数能直接复用；也可以换编码器，并把 DiT 重新随机初始化以排除预训练参数的影响。目前提供两个重建式编码器（Wan2.2-VAE、FLUX.2-VAE）和两个表示式编码器（DINOv3、V-JEPA 2.1），外加可选的 S-VAE 降维模块。</p>
+<p><b>流骨干</b>都遵守同一个执行约定：<code>prepare</code>（进栈前把输入嵌入成初始状态）、逐层 <code>block step</code>、<code>finalize</code>（映射成预测）。每层还可以拆成注意力前半（产出 Q、K、V）和后半（消费注意力输出），这样注意力本身能跨流联合计算。视频骨干支持 Wan2.1-VACE-1.3B、Cosmos-Predict2.5-2B、Cosmos3-Edge-4B、Wan2.2-TI2V-5B、Wan2.1-I2V-14B；VLM 只支持 Qwen3-VL 系列；动作骨干要么是独立参数的 ActionDiT，要么把动作 token 塞进视频序列共享视频骨干。</p>
+<p><b>可见性注意力掩码</b>按模态分块：</p>
+<div class="eq"><div class="m">\[ \mathcal M=\begin{pmatrix}\mathcal M_{V\leftarrow V}&\mathcal M_{V\leftarrow A}\\ \mathcal M_{A\leftarrow V}&\mathcal M_{A\leftarrow A}\end{pmatrix} \]</div><span class="no">(1)</span></div>
+<p>\(\mathcal M_{X\leftarrow Y}\) 表示 X 模态的 token 能否看 Y 模态的 token。两个模态内块固定：\(\mathcal M_{V\leftarrow V}\) 用“首帧因果”——带噪的帧互相看、也看干净的首帧，干净首帧只看自己，免得条件被噪声污染；\(\mathcal M_{A\leftarrow A}\) 双向，一个动作块里的动作互相可见。两个跨模态块组合出四种模式：<b>Mutual</b>（互相看）、<b>Action Sees Video</b>（只开 \(\mathcal M_{A\leftarrow V}\)）、<b>Video Sees Action</b>（只开 \(\mathcal M_{V\leftarrow A}\)）、<b>Isolated</b>（都关，各自独立去噪）。</p>
+<p><b>结构。</b>组合规则自己没有参数，只通过上面的执行约定安排各骨干的阶段，必要时替换注意力计算，不改骨干内部。目前三族：</p>
+<ul>
+<li><b>单系统</b>（只有视频骨干，动作 token 注入视频序列，代表作 Cosmos Policy、DreamZero）：<b>Vanilla</b> 完全共享；<b>MoE</b> 共享自注意力，但动作 token 硬路由到专用 FFN 专家。</li>
+<li><b>双系统</b>（独立视频骨干 + ActionDiT，代表作 Fast-WAM、LingBot-VA）：<b>联合自注意力</b>在桥接层把两流隐状态拼成一个序列做注意力再拆回；<b>联合交叉注意力</b>让动作流用交叉注意力读视频特征，端到端训练（可选在视频特征处截断梯度）；<b>IDM</b> 把动作模块当逆动力学模型，训练时用真值视频状态（teacher forcing），推理分两阶段：先生成视频，再从视频预测动作。</li>
+<li><b>三系统</b>（再加一个冻结 VLM 喂给可训练的理解流，代表作 Motus）：联合自注意力扩展到三流，理解流作为只读的尾部，别的流能看它，它只看自己。</li>
+</ul>
+<p>所有模块从注册表实例化，组合完全由配置决定，训练器和策略服务器都不知道跑的是哪种结构。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>训练运行时</h3>
+<p><b>训练目标。</b>一个样本是 \((\ell,o_{1:T},a_{1:H},q,m)\)：语言指令、视频窗口、动作块、可选本体状态、逐维有效掩码。编码器把 \(o_{1:T}\) 变成隐变量 \(z\)，\(\ell\)（可加 \(q\)）变成上下文 \(c\)。全文约定 \(t=0\) 是纯噪声、\(t=1\) 是干净数据。两流各有自己的时间步：\(z^{t_v}=t_vz+(1-t_v)\epsilon_v\)，\(a^{t_a}=t_aa+(1-t_a)\epsilon_a\)。一次联合前向 \((\hat v_z,\hat v_a)=v_\theta(z^{t_v},a^{t_a},t_v,t_a,c)\) 预测两个速度，损失是</p>
+<div class="eq"><div class="m">\[ \mathcal L=\lambda_v\,\mathbb E_{t_v,\epsilon_v}\Big[w(t_v)\,\big\|\hat v_z-(z-\epsilon_v)\big\|_2^2\Big]+\lambda_a\,\mathbb E_{t_a,\epsilon_a}\Big[w(t_a)\,\big\|m\odot\big(\hat v_a-(a-\epsilon_a)\big)\big\|_2^2\Big] \]</div><span class="no">(2)</span></div>
+<p>\(m\) 只让机器人实际有的坐标参与动作损失，干净的条件帧不算视频损失。因为 \(t_v,t_a\) 独立采样，训练覆盖整个 \((t_v,t_a)\) 噪声平面，所以推理时同步或异步的任何调度都是在平面上走一条路径，仍在训练分布内。</p>
+<p><b>训练工具。</b>DeepSpeed ZeRO 1/2 经 Accelerate 接入，默认 bf16，梯度累积、梯度裁剪，单卡到多机一个入口；梯度检查点（可把激活卸载到 CPU）、优化器状态卸载。三种流程：预训练（新跑）、微调（从检查点初始化，结构按检查点自己的记录重建，新配置叠加，权重所属模块的身份不允许被覆盖）、续训（完全恢复优化器、调度器和数据位置；数据集的归一化统计和记录不一致时拒绝继续）。</p>
+<p><b>自包含检查点</b>包括权重、完全解析的配置（含各模块的重建说明和分词器等）、动作归一化统计。微调、续训、部署都先按它重建结构再加载参数；部署时缺归一化记录直接报错。所以评测不会悄悄换掉编码器、动作布局或缩放。</p>
+
+<h3 id="s3-3"><span class="no">3.3</span>部署运行时</h3>
+<p>每个检查点由同一个策略服务器提供服务，“什么时候推理”（推理模式）和“两流怎样去噪”（去噪调度）互相独立。</p>
+<figure class="pfig narrow" id="fig3">
+<img src="openwam/fig3.webp" width="1208" height="300" alt="图 3：左边同步和异步推理的时间线，右边三种去噪调度" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 8 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=8">看原图 ↗</a></span>(a) 同步：每个动作块执行完才发起下一次推理，中间有停顿；异步：推理和执行重叠，新块的开头一段（delayed）被跳过，中间一段执行，尾部丢弃。(b) 方差平移、线性偏移、同步三种调度，同色圆圈表示两模态在同一去噪步到达的时间步；右侧小图是“模态 A–模态 B”平面上的几条曲线。</figcaption>
+</figure>
+<p><b>推理模式。</b>每次推理产生一个动作块放进缓冲区，服务器每次请求弹出一个动作。<b>同步</b>：缓冲区空了才推理，执行会停顿一个推理延迟。<b>异步</b>：设块长 \(H\)、推理视野 \(n\le H\)、提前量 \(d&lt;n\)（默认 \(n/2\)）；缓冲区只剩 \(d\) 个时后台预取下一块。新块依次分成三段：前 \(d\) 个（推理期间已被旧缓冲执行，跳过）、接着 \(n\) 个（新的缓冲）、剩下 \(\max\{H-d-n,0\}\) 个丢弃。对客户端两种模式没有区别：一个观测进，一个动作出。</p>
+<p><b>去噪调度</b>是噪声平面上的一条路径 \(\tau=\{(t_v^i,t_a^i)\}_{i=0}^N\)。<b>同步</b>调度沿对角线走：每步一次联合前向，然后耦合的 Euler 更新 \(z^{t_v^{i+1}}=z^{t_v^i}+(t_v^{i+1}-t_v^i)\hat v_z\)，动作同理。异步调度让一流领先，有两族（来自 Latent Forcing）：</p>
+<div class="eq"><div class="m">\[ f_\alpha(s)=\frac{\alpha s}{1+(\alpha-1)s},\qquad h_o(s)=\max\Big\{\frac{s-o}{1-o},\,0\Big\} \]</div><span class="no">(3)</span></div>
+<p>\(s=i/N\) 是全局进度。\(\alpha&gt;1\) 时方差平移曲线 \(f_\alpha\) 把领先流抬到对角线上方，让它更早变干净；线性偏移 \(h_o\) 让落后流在进度超过 \(o\) 之前一直保持纯噪声。领先的是世界流就叫 video-lead，反之 action-lead。\((\alpha,o)=(1,0)\) 精确回到对角线，所以同步只是特例，不是另一条代码路径。每流的时间步扭曲（warp）是骨干的属性，存在检查点里，训练和推理的噪声网格不会漂移。</p>
+<p><b>加速。</b>四项都可单独开关：提示词嵌入缓存（文本编码器移出请求路径）；跳过视频解码（控制只要动作，不解 VAE）；编译（每种结构注册固定形状的 <code>torch.compile</code> 路径，用 CUDA graph 重放，第一次请求负责预热）；DiT 速度缓存（两流最近的速度预测余弦相似度超过阈值时，跳过下一次联合前向，直接积分缓存的速度，连续跳过次数有上限）。</p>
+<p class="tcap" id="fig4">图 4 · RTX 5090 上的推理延迟（Wan2.2-TI2V-5B 视频骨干；提示词缓存和跳过解码默认开启；“基线”一列是我用延迟 × 加速比反推的，不是原图数字）· <a href="https://arxiv.org/pdf/2609.07398v1#page=9">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>结构</th><th class="n">缓存 + 编译</th><th class="n">加速比</th><th class="n">反推基线</th></tr></thead><tbody>
+<tr><td>单系统 Vanilla</td><td class="n">149 ms</td><td class="n">2.49×</td><td class="n">≈371 ms</td></tr>
+<tr><td>单系统 MoE</td><td class="n">156 ms</td><td class="n">2.50×</td><td class="n">≈390 ms</td></tr>
+<tr><td>双系统 联合自注意力</td><td class="n">175 ms</td><td class="n">2.45×</td><td class="n">≈429 ms</td></tr>
+<tr><td>双系统 联合交叉注意力</td><td class="n">180 ms</td><td class="n">2.63×</td><td class="n">≈473 ms</td></tr>
+<tr><td>双系统 IDM</td><td class="n">251 ms</td><td class="n">2.01×</td><td class="n">≈505 ms</td></tr>
+<tr><td>三系统 联合自注意力</td><td class="n">216 ms</td><td class="n">2.33×</td><td class="n">≈503 ms</td></tr>
+</tbody></table></div>
+
+<h3 id="s3-4"><span class="no">3.4</span>评测协议</h3>
+<figure class="pfig" id="fig5">
+<img src="openwam/fig5.webp" width="1319" height="389" alt="图 5：基准客户端经 WebSocket 连到策略服务器，服务器做观测规范化、动作空间映射和反归一化" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 10 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=10">看原图 ↗</a></span>左边是各仿真基准和真机，经 WebSocket 连到策略服务器；服务器检查动作缓冲区，空了就补。右边是服务器内部：头部相机必需、腕部相机可选，缺的用黑图补，裁剪缩放后拼成规范画布；本体状态映射到 80 维统一动作空间或基准原生空间；模型输出的动作块反归一化回物理单位再进缓冲区。</figcaption>
+</figure>
+<p><b>客户端-服务器。</b>基准只是一个瘦客户端，一条持久 WebSocket，不导入任何模型或训练代码。第 \(k\) 步发 \((o_k,\ell,q_k)\)：最多三路相机（头部必需，腕部可选）、指令、可选原始状态；收回一个物理单位的动作 \(a_k\)。所有面向模型的转换都在服务器端按检查点完成：裁剪、缩放、拼成训练时的画布，缺的相机填黑；状态归一化并映射；模型输出的 \(\hat a_{1:H}\) 映射回去、反归一化后补进缓冲区。归一化后的值永远不会到达机器人。每个回合之间发一次 reset。</p>
+<p><b>基准。</b>8 个：<a class="ds" href="https://libero-project.github.io/">LIBERO</a>（<a href="https://arxiv.org/abs/2306.03310">论文</a>）、<a class="ds" href="https://github.com/sylvestf/LIBERO-plus">LIBERO-Plus</a>（<a href="https://arxiv.org/abs/2510.13626">论文</a>）、<a class="ds" href="https://vlabench.github.io/">VLABench</a>（<a href="https://arxiv.org/abs/2412.18194">论文</a>）、<a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a>、<a class="ds" href="https://robodojo-benchmark.com/">RoboDojo</a>（<a href="https://arxiv.org/abs/2607.04434">论文</a>）、<a class="ds" href="https://robocasa.ai/">RoboCasa365</a>、RoboCasa-GR1（<a class="ds" href="https://github.com/robocasa/robocasa-gr1-tabletop-tasks">任务仓库</a>，<a href="https://arxiv.org/abs/2503.14734">GR00T N1 论文</a>）、<a class="ds" href="https://arxiv.org/abs/2606.18239">EBench</a>（论文页）。覆盖单臂、双臂桌面操作、灵巧手人形和移动操作。真机走同一接口。每个适配器复现该基准训练读取器的观测预处理。</p>
+<p><b>动作空间。</b>默认用基准原生空间：RoboTwin2.0 用 14 维关节或 20 维双臂末端；LIBERO 用 10 维末端。跨形态训练时用 80 维统一动作空间 \(u\in\mathbb R^{80}\)，槽位语义固定：两个镜像的 34 维手臂块（末端位置 3、6D 旋转 6、夹爪 1、灵巧手 24），再加 12 个保留槽（如 EBench 和 RoboCasa365 的移动底盘）。每个数据集声明一个从原生维度到槽位的索引映射 \(\pi\)：</p>
+<div class="eq"><div class="m">\[ u=\mathrm{Scatter}_\pi\big(\mathrm{Norm}(a)\big),\qquad a=\mathrm{Norm}^{-1}\big(\mathrm{Gather}_\pi(u)\big) \]</div><span class="no">(4)</span></div>
+<p>本体状态也走同一个映射。式 (2) 的 \(m\) 正好标出被映射的槽，没映射的坐标没有梯度，推理时停在解析的噪声路径上。</p>
+
+<h2 id="s4"><span class="no">4</span>OpenWAM-Study：设计原则</h2>
+<p><b>评测设定。</b>本节全部用 RoboTwin2.0（50 多个双臂任务），成功率为指标，两种设定：</p>
+<ul>
+<li><b>RoboTwin2.0-Full（域内）：</b>按 Motus 的做法，用 2,500 条干净场景演示加 25,000 条重度随机化演示训练，分别在干净和随机环境评测。</li>
+<li><b>RoboTwin2.0-Clean2Random（域外代理）：</b>按 Qwen-RobotManip 的做法，只用干净数据训练，在干净（ID）和随机（OOD）环境评测。</li>
+</ul>
+
+<h3 id="s4-1"><span class="no">4.1</span>继承上游世界知识</h3>
+<p>知识有两个来源：视频生成骨干里的生成式先验，和视觉编码器诱导的表示空间。</p>
+<h4 id="s4-1-1"><span class="no">4.1.1</span>生成式世界先验</h4>
+<p>双系统联合自注意力，视频模块从预训练视频模型拷贝参数，换四种骨干，RoboTwin2.0-Full 平均成功率（图 6）：</p>
+<p class="tcap" id="fig6">图 6 · 视频骨干大小（图上标注的数字）· <a href="https://arxiv.org/pdf/2609.07398v1#page=11">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>骨干</th><th class="n">参数</th><th class="n">平均成功率 %</th></tr></thead><tbody>
+<tr><td>Wan2.1-VACE</td><td class="n">1.3B</td><td class="n">90.14</td></tr>
+<tr><td>Cosmos-Predict2.5</td><td class="n">2B</td><td class="n">91.64</td></tr>
+<tr><td>Wan2.2-TI2V</td><td class="n">5B</td><td class="n">92.39</td></tr>
+<tr><td>Wan2.1-I2V</td><td class="n">14B</td><td class="n">93.79</td></tr>
+</tbody></table></div>
+<p>骨干越大越好，14B 最好；5B 只差 1.40 点，参数不到三分之一，所以后面都用 5B。作者也说明这些骨干在结构、数据、目标上都不同，所以不把差别全部归于参数量。</p>
+<h4 id="s4-1-2"><span class="no">4.1.2</span>视觉表示先验</h4>
+<p>编码器分两类：重建式（只做像素重建，目标是压缩）和表示式（自监督或多模态学习，语义结构好）。这组实验沿用 Wan2.2-TI2V-5B 的结构但<b>随机初始化</b>权重，只看表示本身的作用。重建式用 Wan2.2-VAE（4 倍时间压缩）和 FLUX.2-VAE；表示式用 DINOv3 和 V-JEPA 2.1。没有时间压缩的编码器一律把每 4 帧特征平均，强加 4 倍时间压缩。表示式特征维度高（DINOv3 768 维，V-JEPA 2.1 1024 维），直接用会和 DiT 不匹配，所以另加一个变体：训练 S-VAE 把它压到 48 维（和 Wan2.2-VAE 一样）。</p>
+<p class="tcap" id="fig7">图 7 · 视觉表示先验，RoboTwin2.0-Full 平均成功率（图上标注的数字）· <a href="https://arxiv.org/pdf/2609.07398v1#page=12">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>编码器</th><th>类别</th><th class="n">%</th></tr></thead><tbody>
+<tr><td>DINOv3 不加 S-VAE</td><td>表示式</td><td class="n">76.42</td></tr>
+<tr><td>V-JEPA 2.1 不加 S-VAE</td><td>表示式</td><td class="n">80.91</td></tr>
+<tr><td>FLUX.2-VAE</td><td>重建式</td><td class="n">84.26</td></tr>
+<tr><td>V-JEPA 2.1 加 S-VAE</td><td>表示式</td><td class="n">88.46</td></tr>
+<tr><td>DINOv3 加 S-VAE</td><td>表示式</td><td class="n">90.18</td></tr>
+<tr><td>Wan2.2-VAE</td><td>重建式</td><td class="n">90.30</td></tr>
+</tbody></table></div>
+<p>直接用表示式编码器不如 FLUX.2-VAE；压缩后两者都明显超过 FLUX.2-VAE，DINOv3 加 S-VAE 几乎追平 Wan2.2-VAE。作者把剩下的差距归于 Wan2.2-VAE 本来就配这个骨干、时间压缩是学出来的而不是平均出来的。结论：关键不是“重建式还是表示式”，而是隐变量本身是否紧凑（时间和 token 维度）且信息丰富。</p>
+<div class="find"><p><b>结论 1：</b>WAM 继承上游世界知识，靠足够强的生成骨干和紧凑、信息丰富的视觉表示空间。重建式编码器不是唯一选择，降维后的表示式编码器也很好。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 预训练权重值多少</span><p>图 7 的 Wan2.2-VAE 一行是同结构、随机初始化，90.30；图 6 的 5B 一行是同结构、拷贝预训练权重，92.39。两者相差 2.09 点，可以看成“视频生成预训练权重”在这个设定下的贡献。这是我把两张图放在一起算的，论文没有这样比较；两组实验是否在其他方面完全相同（比如训练步数），论文没写。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>世界学习和动作学习的协同</h3>
+<p>需要三个层面的决定：动作专用容量放在哪；训练时开放哪些跨模态信息通路；推理时是否保持训练时学到通路所依赖的噪声状态关系。</p>
+<h4 id="s4-2-1"><span class="no">4.2.1</span>结构容量</h4>
+<p class="tcap" id="t1">表 1 · 结构消融，RoboTwin2.0-Full 成功率 %（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>系统</th><th>变体</th><th class="n">Clean</th><th class="n">Randomized</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td rowspan="2">单系统</td><td>Vanilla</td><td class="n">85.20</td><td class="n">85.80</td><td class="n">85.50</td></tr>
+<tr><td>MoE</td><td class="n">86.22</td><td class="n">83.04</td><td class="n">84.63</td></tr>
+<tr><td rowspan="4">双系统</td><td>联合自注意力</td><td class="n">92.34</td><td class="n">92.38</td><td class="n">92.36</td></tr>
+<tr><td>联合交叉注意力</td><td class="n">87.86</td><td class="n">88.64</td><td class="n">88.25</td></tr>
+<tr><td>截断梯度的交叉注意力</td><td class="n">92.06</td><td class="n">91.64</td><td class="n">91.85</td></tr>
+<tr><td>IDM</td><td class="n">87.76</td><td class="n">88.14</td><td class="n">87.95</td></tr>
+<tr><td>三系统</td><td>联合自注意力</td><td class="n"><b>92.84</b></td><td class="n">92.36</td><td class="n"><b>92.60</b></td></tr>
+</tbody></table></div>
+<p>论文说从单系统到双系统再到三系统容量增加、成绩持续提高；双系统里联合自注意力最强，三系统总体最好。为了在复杂度和性能间平衡，也为了排除 VLM 理解特征的影响，后面都用双系统联合自注意力。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 1 的算术和“持续提高”</span><p>七行的平均都等于 (Clean + Randomized)/2，四舍五入后一致。但“持续提高”只在族的最好成绩上成立（85.50 → 92.36 → 92.60）。族内不单调：MoE 加了动作专家反而低于 Vanilla（84.63 &lt; 85.50）；双系统里交叉注意力（88.25）和 IDM（87.95）只比单系统高 2.5 到 2.8 点，而截断梯度的交叉注意力（91.85）比不截断的高 3.6 点，说明让动作梯度回传到视频流在这个设定下有害。三系统比双系统只高 0.24 点，在读者注 4 说的波动以内。</p></div>
+
+<h4 id="s4-2-2"><span class="no">4.2.2</span>训练时的信息流</h4>
+<figure class="pfig narrow" id="fig8">
+<img src="openwam/fig8.webp" width="861" height="278" alt="图 8：四个注意力矩阵，Isolated、Video Sees Action、Action Sees Video、Mutual" loading="lazy" style="max-width:620px">
+<figcaption><span class="lab">图 8 · 原文第 14 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=14">看原图 ↗</a></span>四个 Q×K 矩阵，行列都按 V_obs、V_future、A_future 排列。蓝格是视频 token，红格是动作 token，灰格被掩掉。四个矩阵的区别只在右上和左下两块：Isolated 都灰，Video Sees Action 只开右上（视频看动作），Action Sees Video 只开左下，Mutual 都开。V_obs 那一行只看自己。</figcaption>
+</figure>
+<p class="tcap" id="t2">表 2 · 动作学习需要看到世界信息，RoboTwin2.0-Full 成功率 %（照录原文）</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>掩码</th><th class="n">Clean</th><th class="n">Random.</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>Isolated</td><td class="n">88.08</td><td class="n">86.74</td><td class="n">87.41</td></tr>
+<tr><td>Video Sees Action</td><td class="n">87.92</td><td class="n">87.34</td><td class="n">87.63</td></tr>
+<tr><td>Action Sees Video</td><td class="n"><b>92.98</b></td><td class="n"><b>91.80</b></td><td class="n"><b>92.39</b></td></tr>
+<tr><td>Mutual</td><td class="n">92.50</td><td class="n"><b>91.80</b></td><td class="n">92.15</td></tr>
+</tbody></table></div>
+<p>按“动作流能否看到世界特征”干净地分成两组：看不到的低约 5 点（92.39 − 87.41 = 4.98）。反方向（视频看动作）从头训练时几乎没影响，所以 Action Sees Video 和 Mutual 都保留，等预训练后再比。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 同一个设定出现了四个数</span><p>§4 的“默认设定”是双系统联合自注意力 + Wan2.2-TI2V-5B + 从头训练（不做具身预训练）+ RoboTwin2.0-Full。这个设定在不同地方的平均成功率：</p>
+<ul>
+<li>表 1 联合自注意力 92.36（掩码没写）；</li>
+<li>图 6 的 5B 92.39；</li>
+<li>表 2 Action Sees Video 92.39，Mutual 92.15；图 11 的“从头训练”一行也是 92.39 和 92.15（−0.24），对得上；</li>
+<li>图 9 说“固定 Mutual”，同步调度是 93.0。</li>
+</ul>
+<p>如果这些是同一配置的不同次运行，那么最大差 93.0 − 92.15 = 0.85 点，可以粗看作一次运行之间的波动。论文没有给重复次数或方差。按这个尺度看：Action Sees Video 和 Mutual 差 0.24、三系统和双系统差 0.24、所有异步调度和同步差 0.7 到 4.5（只有方差平移 action-lead 的几个差得多）、预训练后 Mutual 比 Action Sees Video 多 0.16 到 0.72，这些里面不少在 0.85 以内。我认为它们是“没变差”的证据，不足以说明“更好”。这是我的判断，没有逐次结果无法检验。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 表 2 的算术</span><p>四行平均都等于两列之和除以 2：(88.08+86.74)/2 = 87.41，(87.92+87.34)/2 = 87.63，(92.98+91.80)/2 = 92.39，(92.50+91.80)/2 = 92.15。文中“约五点”是 4.98 和 4.76。</p></div>
+
+<h4 id="s4-2-3"><span class="no">4.2.3</span>推理时的信息流</h4>
+<p>训练时的注意力掩码是“全遮”，推理时的去噪调度则是“半遮”的软门控。这组实验固定 Mutual，两流噪声独立采样，然后在推理时试式 (3) 的两族调度：\(\alpha\in\{4,8,16,32\}\)、\(o\in\{0.2,0.4,0.6,0.8\}\)，各自两个领先方向。</p>
+<figure class="pfig narrow" id="fig9">
+<img src="openwam/fig9.webp" width="847" height="464" alt="图 9：左边方差平移、右边线性偏移的调度曲线，每条曲线标出参数和成功率" loading="lazy" style="max-width:620px">
+<figcaption><span class="lab">图 9 · 原文第 14 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=14">看原图 ↗</a></span>横轴视频时间步、纵轴动作时间步（0 = 噪声）。紫色对角线是同步，93.0。左图方差平移：动作领先（对角线上方）α = 32/16/8/4 依次 88.5、89.7、90.7、91.0；视频领先（下方）α = 4/8/16/32 依次 91.8、91.1、91.9、91.5。右图线性偏移：动作领先 o = 0.8/0.6/0.4/0.2 依次 92.3、92.3、92.0、92.2；视频领先 o = 0.2/0.4/0.6/0.8 依次 91.7、91.1、91.5、91.2。</figcaption>
+</figure>
+<p>同步最好，没有一种异步调度能提高成绩。方差平移下视频领先好于动作领先，线性偏移下反过来。作者的解读：训练时需要显式的“世界到动作”信息流，但在推理时用调度强加这种先验没有好处，这支持 Fast-WAM 的“表示学习”观点，而不是“先想象、再做 IDM”的测试时规划观点（DreamZero）。</p>
+<div class="find"><p><b>结论 2：</b>世界-动作协同需要训练时显式的世界到动作信息流，以及推理时同步的联合去噪。沿用双系统联合自注意力 + 同步去噪；单向还是双向可见，留到预训练后决定。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>跨域巩固知识</h3>
+<h4 id="s4-3-1"><span class="no">4.3.1</span>问题设定和评测协议</h4>
+<p>结构、优化预算、推理过程全部固定（双系统联合自注意力 + 同步去噪），只变“是否以及怎样做具身预训练”。在相同的 600 小时预算下比较四种：从头训练；只用机器人数据（600 小时 <a class="ds" href="https://github.com/FlagOpen/RoboCOIN">RoboCOIN</a>，<a href="https://arxiv.org/abs/2511.17441">论文</a>）；先 350 小时第一视角（<a class="ds" href="https://arxiv.org/abs/2505.11709">EgoDex</a>）再 250 小时机器人的两阶段；同样配比一次联合训练。之后下游微调完全相同。</p>
+<h4 id="s4-3-2"><span class="no">4.3.2</span>具身预训练主要扩展域外泛化</h4>
+<p class="tcap" id="fig10">图 10 · RoboTwin2.0-Clean2Random 成功率 %（图上标注的数字；括号是相对从头训练的增量）· <a href="https://arxiv.org/pdf/2609.07398v1#page=15">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>预训练</th><th class="n">Clean（ID）</th><th class="n">Randomized（OOD）</th><th class="n">两者平均（我算的）</th></tr></thead><tbody>
+<tr><td>从头训练</td><td class="n">87.00</td><td class="n">14.50</td><td class="n">50.75</td></tr>
+<tr><td>只用机器人</td><td class="n">88.50（+1.50）</td><td class="n">23.80（+9.30）</td><td class="n">56.15</td></tr>
+<tr><td>先人类后机器人</td><td class="n">87.10（+0.10）</td><td class="n">26.50（+12.00）</td><td class="n">56.80</td></tr>
+<tr><td>人类 + 机器人联合</td><td class="n">87.68（+0.68）</td><td class="n">26.62（+12.12）</td><td class="n">57.15</td></tr>
+</tbody></table></div>
+<p>预训练对域内只有小幅提升（0.1 到 1.5 点），对域外大幅提升（9.3 到 12.1 点）。只用机器人的域内最好；两种混合的域外更好：机器人轨迹强化可执行的动作对应，第一视角视频拓宽视觉和交互分布。两阶段和联合几乎打平，联合略好且少一次课程切换，作为默认。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 图 10 的图注和排序</span><p>图注说“每个设定内从低到高排序”，但图里两栏都是固定顺序（从头、只用机器人、先人类后机器人、联合），ID 栏是 87.00、88.50、87.10、87.68，并不递增。增量都对得上（14.50 + 9.30 = 23.80，14.50 + 12.12 = 26.62）。“联合总体略好”按两栏平均是 57.15 对 56.80，差 0.35 点；域内三种预训练之间差 0.1 到 1.4 点，都在读者注 4 的波动量级。</p></div>
+<h4 id="s4-3-3"><span class="no">4.3.3</span>预训练改变了偏好的信息流</h4>
+<p class="tcap" id="fig11">图 11 · Action Sees Video 的成功率和 Mutual 相对它的增量（图上标注的数字）· <a href="https://arxiv.org/pdf/2609.07398v1#page=16">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>设定</th><th class="n">Action Sees Video</th><th class="n">Mutual − ASV</th><th class="n">Mutual（我算的）</th></tr></thead><tbody>
+<tr><td>从头训练 · Full 平均</td><td class="n">92.39</td><td class="n">−0.24</td><td class="n">92.15</td></tr>
+<tr><td>预训练 · Full 平均</td><td class="n">92.34</td><td class="n">+0.16</td><td class="n">92.50</td></tr>
+<tr><td>预训练 · C2R（ID）</td><td class="n">86.98</td><td class="n">+0.70</td><td class="n">87.68</td></tr>
+<tr><td>预训练 · C2R（OOD）</td><td class="n">25.70</td><td class="n">+0.72</td><td class="n">26.42</td></tr>
+</tbody></table></div>
+<p>从头训练时 Full 略偏向单向；预训练后反过来偏向 Mutual，C2R 的 ID 和 OOD 两边增幅相近。作者解释为：预训练让交互真正双向——预测的未来帧指导动作，预测的动作反过来指导画面里机械臂怎么动；从头训练时数据太少，两流建立不起这种对应。最终配方用 Mutual。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 图 10 和图 11 差 0.2 点</span><p>图 11 的 C2R(ID) Mutual = 86.98 + 0.70 = 87.68，正好等于图 10 的“联合”ID，说明图 10 的联合预训练用的是 Mutual。但 OOD：图 11 是 25.70 + 0.72 = 26.42，图 10 的联合 OOD 是 26.62，差 0.20。两张图里应该是同一个运行，有一处数字不一致，论文没有说明。另外增量本身（+0.16、+0.70、+0.72）都在读者注 4 的波动以内，“一致地偏好 Mutual”这个结论我认为证据偏弱。</p></div>
+<div class="find"><p><b>结论 3：</b>具身预训练主要扩展域外泛化。机器人轨迹保住动作对应，第一视角视频扩大迁移，一次性联合训练能把两者整合好。在预训练规模下，双向可见一致更好。</p></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>小结</h3>
+<p>三个问题按顺序把世界知识变成具体设计：每个决定都在上一个决定造成的条件下检验，而不是各自最好的超参列表。</p>
+<p class="tcap" id="t3">表 3 · OpenWAM-Study 累积的配方</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>阶段</th><th>发现</th><th>带入 α 的默认</th></tr></thead><tbody>
+<tr><td>继承</td><td>强视频骨干和紧凑表示传递最强的上游先验</td><td>Wan2.2-TI2V-5B；紧凑隐变量</td></tr>
+<tr><td>交互</td><td>需要专用动作容量和世界到动作的可见性；同步去噪最好</td><td>双系统联合自注意力；同步去噪</td></tr>
+<tr><td>巩固</td><td>具身预训练主要提升 OOD，且一致偏好双向可见</td><td>一次性人类 + 机器人联合训练；Mutual</td></tr>
+</tbody></table></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>按“数据 → 网络 → 训练 → 推理 → 部署 → LIBERO 复现”拆成 11 幕：总览、80 维统一动作空间、33 帧窗口怎样变成 360 个视频 token 和 32 个动作 token、30 层双流和共享注意力、四种掩码、噪声平面上的训练采样、推理调度、策略服务器和缓冲区、预训练数据混合、LIBERO 微调和评测、结果。数字来自论文、代码和检查点配置，现算的都标出。下面嵌的是第 3 幕。</p>
+<iframe src="../interactives/openwam/index.html?embed=1&amp;scene=3" title="OpenWAM 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/openwam/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>OpenWAM-α：从原则到预训练模型</h2>
+<h3 id="s5-1"><span class="no">5.1</span>结构、训练和部署</h3>
+<figure class="pfig" id="fig12">
+<img src="openwam/fig12.webp" width="1319" height="964" alt="图 12：上半是双系统结构，下半是预训练数据饼图、噪声平面上的训练采样和推理轨迹、80 维统一动作空间" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 17 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=17">看原图 ↗</a></span>(a) 左边视频生成流（Wan VAE 编码、AdaLN、QKV、交叉注意力、FFN、视频解码器），右边动作生成流（动作编码器、AdaLN、QKV、交叉注意力、FFN、动作解码器），中间“视频和动作共享注意力”加 Mutual 掩码，上方条件是语言 token 和本体 token，两流各有自己的噪声时间步 τ_v、τ_a。(b) 预训练数据环形图：RoboCOIN 74.1M 帧、AgiBotWorld-Beta 96.9M、DROID 36.3M、InternData-A1 155.5M、第一视角 155.7M，共 518.5M 帧、6,369 小时。(c) 噪声平面上的训练样本散点和沿对角线的推理轨迹。(d) 80 维统一动作空间和几种机器人形态。</figcaption>
+</figure>
+<h4 id="s5-1-1"><span class="no">5.1.1</span>结构</h4>
+<p>\(C(\mathcal E,\mathcal S,\mathcal M)\) 的具体选择：\(\mathcal E\) 是冻结的 Wan2.2-VAE；\(\mathcal S=\{\mathcal W,\mathcal A\}\)：预训练的 Wan2.2-TI2V-5B DiT 跑世界流，专用的 1B 参数 ActionDiT 跑动作流，两者联合自注意力；\(\mathcal M\) 是 Mutual 加视频内首帧因果。条件是当前观测 \(o_1\)（所有相机拼成一张画布）、指令 \(\ell\)、统一空间中的本体状态 \(q\in\mathbb R^{80}\)；联合去噪 \(T\) 帧窗口的未来帧 \(o_{2:T}\)（在隐空间）和连续动作块 \(a=a_{1:H}\in\mathbb R^{H\times80}\)。</p>
+<p><b>分词和上下文。</b>冻结的 Wan2.2-VAE 因果地编码：首帧单独一组，之后每 4 帧一组，得到 \(T'=1+(T-1)/4\) 个隐帧，第一个隐帧是“现在”的干净锚点。\((1,2,2)\) 的 patch 嵌入把隐视频摊成宽 3072 的世界流 token，带 (帧, 高, 宽) 三维 RoPE；\(H\) 个带噪动作步各线性嵌入成一个宽 1024 的动作流 token，带一维 RoPE。冻结的 umT5 把 \(\ell\) 编成 4096 维上下文，线性投影把 \(q\) 加成一个额外的上下文 token，两流各自用逐块交叉注意力读这个上下文。</p>
+<p><b>桥接和预测。</b>两个骨干的 30 对层全是桥接层：各流自己的投影把两种残差宽度映到共享注意力空间（24 头 × 128 维）。在 \(\mathcal M\) 下两流互相读，干净首帧那几行既不看带噪未来帧也不看动作。AdaLN 注入各流自己的时间步——\(t_v\) 按 token 注入，首帧 token 固定为 \(t_v=1\)；\(t_a\) 注入动作流。线性头把最终状态解码成速度。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · “1B 参数的 ActionDiT”可以算出来</span><p>按代码 <code>separate_action_dit.py</code> 和 LIBERO 检查点配置（dim 1024，ffn 4096，30 层，注意力空间 24 × 128 = 3072）：每块自注意力 q、k、v 各 1024→3072、o 3072→1024，加 q/k 的 RMSNorm，共 12,599,296；上下文交叉注意力同样大小；FFN 1024→4096→1024 共 8,393,728；LayerNorm 和 6×1024 调制再加 8,192。每块 33,600,512，30 块 1,008,015,360。再加动作编码/解码、文本投影、时间嵌入和调制共 13,020,240，总计 <b>1,021,035,600 ≈ 1.02B</b>，和论文的“1B”一致。不含本体编码器。</p></div>
+<h4 id="s5-1-2"><span class="no">5.1.2</span>训练</h4>
+<p>按 §4.3 一次性端到端联合训练。视频 DiT（从 Wan2.2-TI2V-5B 初始化）、ActionDiT、本体编码器都更新；只冻结 umT5 和 Wan2.2-VAE。不同形态在 80 维统一空间相遇，式 (2) 的 \(m\) 把动作监督限制在有值的坐标，窗口开头的机器人状态提供本体 token。式 (2) 取 \(\lambda_v=\lambda_a=1\)，\(w(\cdot)\) 是在中间噪声处达到峰值的钟形权重。两流时间步独立抽：</p>
+<div class="eq"><div class="m">\[ t_v=1-f_\rho(u_v),\quad t_a=1-f_\rho(u_a),\quad u_v,u_a\sim\mathcal U[0,1],\quad \rho=5 \]</div><span class="no"></span></div>
+<p>\(f_\rho\) 就是式 (3) 的扭曲函数，两流相同，\(\rho=5\) 让采样偏向高噪声。</p>
+<h4 id="s5-1-3"><span class="no">5.1.3</span>部署</h4>
+<p><b>同步去噪。</b>两流沿对角线同步前进，在训练的扭曲上实现为 \(t_i=1-f_\rho(1-i/N)\)，\(\rho=5\)，\(N=10\) 步。从高斯噪声开始，第一个隐帧钳成当前观测的编码，每步之后重新钉住；每步一次联合前向加式 (3) 下方的耦合 Euler 更新，30 个桥接层上动作块和越来越干净的世界特征互相修正。完成的块经式 (4) 的逆映射回到各机器人的原生动作空间。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 10 步的时间网格</span><p>把 \(f_5(s)=5s/(1+4s)\) 代入 \(t_i=1-f_5(1-i/10)\)，\(i=0\ldots10\)：0、0.022、0.048、0.079、0.118、0.167、0.231、0.318、0.444、0.643、1。前一半步数都花在 \(t&lt;0.17\) 的高噪声段，最后一步从 0.643 直接跳到 1。代码 <code>action_backbone/scheduler.py</code> 第 63 行是同一个式子（<code>shift*s/(1+(shift-1)*s)</code>，shift = 5）。</p></div>
+<p><b>推理模式。</b>所有基准评测（仿真和真机）都用同步推理：缓冲区空了才暂停，用当前观测预测新块，然后原样执行整块。<b>加速。</b>编译 + CUDA graph、相邻步复用稳定的速度、提示词缓存、控制路径上不做 VAE 解码。RTX 5090 上每块约 170 ms。</p>
+
+<h3 id="s5-2"><span class="no">5.2</span>多域预训练数据和清洗</h3>
+<p>5 个来源、3 类数据：第一视角人类、真实机器人、合成机器人。原始 13.3 亿帧（约 14,300 小时），清洗和按来源抽样后 5.18 亿帧（约 6,400 小时）。</p>
+<p class="tcap" id="t4">表 4 · OpenWAM-α 预训练数据（照录原文；“覆盖”一栏的勾选略去，见原文）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>来源</th><th>类型</th><th class="n">形态数</th><th class="n">FPS</th><th class="n">原始帧 (M)</th><th class="n">原始小时</th><th class="n">使用帧 (M)</th><th class="n">使用小时</th><th class="n">占比 %</th></tr></thead><tbody>
+<tr><td>第一视角（自建）</td><td>人类视频</td><td class="n">1</td><td class="n">30</td><td class="n">744.9</td><td class="n">6,897</td><td class="n">155.7</td><td class="n">1,442</td><td class="n">30.1</td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBotWorld-Beta</a></td><td>真机</td><td class="n">1</td><td class="n">15</td><td class="n">124.5</td><td class="n">2,306</td><td class="n">96.9</td><td class="n">1,794</td><td class="n">18.6</td></tr>
+<tr><td><a class="ds" href="https://github.com/FlagOpen/RoboCOIN">RoboCOIN</a></td><td>真机</td><td class="n">15</td><td class="n">30</td><td class="n">104.5</td><td class="n">956</td><td class="n">74.1</td><td class="n">686</td><td class="n">14.3</td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>真机</td><td class="n">1</td><td class="n">10</td><td class="n">46.3</td><td class="n">1,285</td><td class="n">36.3</td><td class="n">1,007</td><td class="n">7.0</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/InternRobotics/InternData-A1">InternData-A1</a></td><td>仿真</td><td class="n">4</td><td class="n">30</td><td class="n">313.7</td><td class="n">2,904</td><td class="n">155.5</td><td class="n">1,440</td><td class="n">30.0</td></tr>
+<tr><td><b>合计</b></td><td></td><td class="n">21 机器人 + 人类</td><td></td><td class="n">1,333.9</td><td class="n">14,348</td><td class="n">518.5</td><td class="n">6,369</td><td class="n">100.0</td></tr>
+</tbody></table></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 4 全部对得上</span><p>各列求和：原始帧 744.9 + 124.5 + 104.5 + 46.3 + 313.7 = 1,333.9；原始小时 14,348；使用帧 518.5；使用小时 6,369；占比 100.0。帧数 ÷ FPS 换算小时：第一视角 155.7M / 30 / 3600 = 1,441.7，AgiBot 96.9M / 15 = 1,794.4，RoboCOIN 686.1，DROID 36.3M / 10 = 1,008.3，InternData 1,439.8，和表里的小时数一致到 1 小时。形态数 1 + 15 + 1 + 4 = 21 个机器人；文中“17 个物理平台”是三个真机来源 1 + 15 + 1。“第一视角和合成各占 30%、剩下 40% 按真机有效帧数分”也成立：18.6 + 14.3 + 7.0 = 39.9。</p></div>
+<h4 id="s5-2-1"><span class="no">5.2.1</span>数据混合</h4>
+<p><b>组成。</b>第一视角数据是作者为“以操作为中心的世界建模”自建的：71.6K 段 0.25 到 6 分钟的第一人称录像，覆盖 3,006 种日常操作任务；没有机器人动作，动作和本体通道全部掩掉，只监督世界流。真机数据（AgiBotWorld-Beta、RoboCOIN、DROID）用 17 个平台的可执行轨迹给动作流打底；合成数据（InternData-A1）扩大单臂和双臂技能及环境变化的覆盖。</p>
+<p><b>预算和采样。</b>按来源设小时预算，预算从帧数目标推出（见读者注 10）。来源内部把小时预算“注水”分配到各子数据集，固定种子整回合抽样直到够数。训练时按实际样本数比例采样，每个保留的样本每轮恰好访问一次。</p>
+<h4 id="s5-2-2"><span class="no">5.2.2</span>数据清洗</h4>
+<p>参考 Qwen-RobotManip 的清洗流程，补上针对所见故障的规则，分两层：</p>
+<ul>
+<li><b>视觉层（所有来源）：</b>去掉解码失败、冻结或重复帧、纯黑白和纯色帧、过曝欠曝和曝光闪烁、模糊、画面突跳。第一视角另外去掉手离开画面的片段和指令为空或无效的录像。</li>
+<li><b>信号层（机器人数据），四步：</b>(1) 信号完整性：末端状态跟不上指令（幅度比 ≥ 3 倍且逐轴相关 &lt; 0.5），或视频-信号错位超过 2% 的帧，整段丢弃；(2) 以状态为准的空闲检测：开头和结尾状态静止的片段（每个机器人的阈值取单帧变化的 p99.5，且平均平移 &lt; 2 cm/s、测地旋转 &lt; 5°/s）裁掉，中途停顿不裁，免得拼接不相邻的帧；跳变和尖峰用中位数-MAD 阈值筛；(3) 视觉交叉检查：状态在动但所有相机静止，判为传感器抖动并裁掉；手臂真在动而相机冻结，判为采集缺陷并删除整段；(4) 上面各步丢掉超过 70% 帧、或视频冻结 ≥ 90% 的回合整段删除。</li>
+</ul>
+
+<h3 id="s5-3"><span class="no">5.3</span>仿真基准评测</h3>
+<p>从同一个 α 基座出发，在 8 个仿真基准上分别监督微调并评测，5 类形态：单臂（LIBERO、LIBERO-Plus、VLABench）、双臂（RoboTwin2.0、RoboDojo）、移动单臂（RoboCasa365）、移动双臂（EBench）、灵巧手（RoboCasa-GR1）。RoboTwin2.0 有两个版本：Full（干净 + 随机数据，测域内）和 Clean2Random（只用干净数据，测域外）。</p>
+<figure class="pfig" id="fig13">
+<img src="openwam/fig13.webp" width="1319" height="761" alt="图 13：九个基准各一个柱状面板，OpenWAM-α 是蓝色柱，其他基线是灰色" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 21 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=21">看原图 ↗</a></span>九个面板，每个基准一个，蓝柱是 OpenWAM-α，灰柱是基线（按分数排序，柱顶标数值）。OpenWAM-α：LIBERO 99.3、RoboTwin2.0-Clean2Random 69.0、RoboCasa365 38.2、RoboTwin2.0-Full 93.60、EBench 49.4、RoboDojo 11.92、LIBERO-Plus 69.2、RoboCasa-GR1 60.5、VLABench 58.9。逐基准完整表在附录 D。</figcaption>
+</figure>
+<h4 id="s5-3-1"><span class="no">5.3.1</span>OpenWAM-α 表现如何</h4>
+<figure class="pfig narrow" id="fig14">
+<img src="openwam/fig14.webp" width="680" height="689" alt="图 14：环形柱状图，按形态分组，每个基准一组蓝色、绿色、橙色柱" loading="lazy" style="max-width:460px">
+<figcaption><span class="lab">图 14 · 原文第 21 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=21">看原图 ↗</a></span>环形柱状图，按形态分成单臂、双臂、灵巧手等扇区。每个基准一组：蓝柱 OpenWAM-α，绿柱是该基准最好的三个 VLA，橙柱是最好的三个 WAM。</figcaption>
+</figure>
+<ul>
+<li>LIBERO、VLABench、RoboTwin2.0-Full、RoboCasa365、RoboCasa-GR1：稳在第一梯队，和最好的模型差距很小。</li>
+<li>EBench：第一，SR 和 Score 都比第二名 Qwen-RobotManip 高约 4 点（49.4 − 45.6 = 3.8，64.7 − 60.0 = 4.7）。</li>
+<li>RoboTwin2.0-Clean2Random 和 RoboDojo：落后于最好的 VLA，但是 WAM 里最强，领先其他 WAM 明显。</li>
+</ul>
+<p class="tcap" id="t5">表 5 · LIBERO-Plus（照录原文）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th class="n">Camera</th><th class="n">Robot</th><th class="n">Language</th><th class="n">Light</th><th class="n">Background</th><th class="n">Noise</th><th class="n">Layout</th><th class="n">Avg</th></tr></thead><tbody>
+<tr class="grp"><th colspan="9">VLA</th></tr>
+<tr><td>π0</td><td class="n">13.8</td><td class="n">6.0</td><td class="n">58.8</td><td class="n">85.0</td><td class="n">81.4</td><td class="n">79.0</td><td class="n">68.9</td><td class="n">53.6</td></tr>
+<tr><td>OpenVLA-OFT</td><td class="n">56.4</td><td class="n">31.9</td><td class="n">79.5</td><td class="n">88.7</td><td class="n">93.3</td><td class="n">75.8</td><td class="n">74.2</td><td class="n">69.6</td></tr>
+<tr><td>StarVLA</td><td class="n">52.5</td><td class="n">49.8</td><td class="n">88.5</td><td class="n">95.7</td><td class="n">95.7</td><td class="n">73.0</td><td class="n">76.9</td><td class="n">74.1</td></tr>
+<tr><td>ABot-M0</td><td class="n">60.4</td><td class="n">67.9</td><td class="n">86.4</td><td class="n">96.2</td><td class="n">91.6</td><td class="n">86.4</td><td class="n">82.6</td><td class="n">80.5</td></tr>
+<tr><td>π0.5</td><td class="n">78.4</td><td class="n">73.6</td><td class="n">80.8</td><td class="n">96.2</td><td class="n">94.1</td><td class="n">89.0</td><td class="n">84.5</td><td class="n">84.4</td></tr>
+<tr><td>ACoT-VLA</td><td class="n">72.6</td><td class="n">82.6</td><td class="n">87.5</td><td class="n">97.7</td><td class="n">96.5</td><td class="n">87.8</td><td class="n">88.1</td><td class="n">86.6</td></tr>
+<tr><td>Qwen-RobotManip</td><td class="n"><b>87.2</b></td><td class="n">75.5</td><td class="n">85.6</td><td class="n">96.6</td><td class="n"><b>97.7</b></td><td class="n"><b>97.7</b></td><td class="n">87.3</td><td class="n"><b>89.0</b></td></tr>
+<tr class="grp"><th colspan="9">WAM</th></tr>
+<tr><td>Fast-WAM</td><td class="n">16.4</td><td class="n">44.5</td><td class="n">68.9</td><td class="n">78.2</td><td class="n">53.7</td><td class="n">37.7</td><td class="n">60.7</td><td class="n">51.5</td></tr>
+<tr><td>Being-H0.7</td><td class="n">82.0</td><td class="n">59.0</td><td class="n">82.8</td><td class="n">97.8</td><td class="n">90.0</td><td class="n">93.5</td><td class="n"><b>88.5</b></td><td class="n">82.1</td></tr>
+<tr><td>Cosmos-Policy</td><td class="n">75.8</td><td class="n">63.3</td><td class="n">81.7</td><td class="n">96.5</td><td class="n">88.9</td><td class="n">92.7</td><td class="n">82.2</td><td class="n">82.2</td></tr>
+<tr><td>ImageWAM</td><td class="n">80.8</td><td class="n">50.3</td><td class="n"><b>91.4</b></td><td class="n"><b>98.1</b></td><td class="n">85.5</td><td class="n">93.8</td><td class="n">80.5</td><td class="n">83.1</td></tr>
+<tr><td>ABot-M0.5</td><td class="n">70.5</td><td class="n"><b>87.4</b></td><td class="n">88.6</td><td class="n">94.0</td><td class="n">89.7</td><td class="n">75.5</td><td class="n">85.2</td><td class="n">83.4</td></tr>
+<tr><td>OpenWAM-α</td><td class="n">33.8</td><td class="n">76.1</td><td class="n">88.0</td><td class="n">97.0</td><td class="n">87.1</td><td class="n">39.8</td><td class="n">77.5</td><td class="n">69.2</td></tr>
+</tbody></table></div>
+<p><b>意外的例外是 LIBERO-Plus。</b>损失集中在 Camera 和 Noise 两种扰动，Background 和 Layout 也有缺口。而同一榜单上 ABot-M0.5、ImageWAM、Being-H0.7 这些 WAM 都接近最好。作者从两个角度找原因：</p>
+<figure class="pfig narrow" id="fig15">
+<img src="openwam/fig15.webp" width="611" height="491" alt="图 15：三个环形图，OpenWAM 单臂数据约 1100 小时，ABot-M0.5 约 8000 小时，Being-H0.7 约 5700 小时" loading="lazy" style="max-width:420px">
+<figcaption><span class="lab">图 15 · 原文第 22 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=22">看原图 ↗</a></span>上方红色环是 OpenWAM 的单臂预训练数据（1100+ 小时，DROID 和 InternData-A1 各约一半）；左下绿色环 ABot-M0.5（8000+ 小时，以 OXE-AugE 和 OXE 为主，还有 DROID、RoboMind、Bridge Data-V2、InternData-A1）；右下蓝色环 Being-H0.7（5700+ 小时，以 OXE-AugE 为主，还有 OXE、InternData-M1、RoboMind）。虚线表示 OpenWAM 的单臂数据只相当于后两者的一小部分。</figcaption>
+</figure>
+<ul>
+<li><b>数据。</b>ABot-M0.5 和 Being-H0.7 的单臂预训练数据大得多、形态和视角也多，预训练时已经见过接近 LIBERO-Plus 测试场景的视觉信息。α 的单臂数据只来自 DROID（固定平台、固定视角）和 InternData-A1 的单臂部分。反过来，α 的第一视角、双臂、灵巧手数据丰富，所以在那些基准上强。</li>
+<li><b>结构。</b>Fast-WAM、ABot-M0.5、α 都预测一段时间的像素级未来视频，中间隐变量来自重建式的 Wan2.2-VAE；三者在 LIBERO-Plus 上都是 Camera 和 Noise 明显低，只有 ABot-M0.5 靠数据补回不少。ImageWAM 也用像素隐变量，但只预测一帧（更像编辑而不是滚动预测），误差不累积；Being-H0.7 用 V-JEPA 2.1 编码，隐变量是语义级的，所以对相机和噪声更稳。其他基准的 OOD 设计没有刻意加相机和噪声扰动，所以 α 仍有竞争力。</li>
+</ul>
+<div class="find"><p><b>要点 1：</b>具身模型在一个基准上泛化得多好，最终取决于预训练数据里有没有接近该基准测试条件（形态和环境）的数据。大规模、多样、场景丰富的机器人操作数据仍是决定性因素。</p><p><b>要点 2：</b>靠大规模数据，在像素隐空间预测未来的 WAM 可以表现很好，但对视觉扰动的鲁棒性有天生的上限。仍然需要对环境变化鲁棒、信息丰富、足够紧凑的表示。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 几张表的 Avg 不是简单平均</span><p>表 5 的 Avg 不等于 7 列的算术平均：OpenWAM-α 七列平均 71.33，表里 69.2；π0 是 56.13 对 53.6；Fast-WAM 51.44 对 51.5。表 17（RoboDojo）OpenWAM-α 六类 SR 的平均 12.41，表里 11.92；表 19（RoboCasa365）三列平均 36.9，表里 38.2。所以这些 Avg 应该是按每类试验数加权的（LIBERO-Plus 各扰动类的试验数本来就不同）。论文没说明权重，我也没核对各基准官方的计算方式，标“未核实”。看这几张表时不要用列平均去复算 Avg。</p></div>
+
+<h4 id="s5-3-2"><span class="no">5.3.2</span>VLA 还是 WAM</h4>
+<p>总体上两组没有实质差距，各有模型登顶（WAM 里 ABot-M0.5 和 α，VLA 里 Xiaomi-Robotics-1 和 Qwen-RobotManip）。但细看有一致的规律：</p>
+<p class="tcap" id="fig16">图 16 · 两种范式的域内和域外对比（图上标注的数字，“#1–#3”是各分项最强的三个 VLA）· <a href="https://arxiv.org/pdf/2609.07398v1#page=24">看原图 ↗</a></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>对比</th><th>分项</th><th class="n">WAM 一方</th><th class="n">VLA 一方</th></tr></thead><tbody>
+<tr><td rowspan="5">(a) Fast-WAM vs. StarVLA（都不做具身预训练）</td><td>LIBERO 平均（ID）</td><td class="n">97.6</td><td class="n">96.6</td></tr>
+<tr><td>RoboTwin2.0 C2R Clean（ID）</td><td class="n">77.8</td><td class="n">46.5</td></tr>
+<tr><td>RoboTwin2.0 Full 平均（ID）</td><td class="n">91.85</td><td class="n">88.25</td></tr>
+<tr><td>LIBERO-Plus 平均（OOD）</td><td class="n">51.5</td><td class="n">74.1</td></tr>
+<tr><td>RoboTwin2.0 C2R Randomized（OOD）</td><td class="n">1.9</td><td class="n">3.2</td></tr>
+<tr><td rowspan="4">(b) α vs. VLA 前三（ID）</td><td>LIBERO 平均</td><td class="n">99.3</td><td class="n">99.2 / 98.9 / 98.6</td></tr>
+<tr><td>VLABench In-dist. SR</td><td class="n">83.4</td><td class="n">75.6 / 69.7 / 65.4</td></tr>
+<tr><td>RoboTwin2.0 C2R Clean</td><td class="n">89.4</td><td class="n">84.7 / 77.2 / 70.7</td></tr>
+<tr><td>RoboDojo Gen-Std SR</td><td class="n">25.56</td><td class="n">28.00 / 20.00 / 18.00</td></tr>
+<tr><td rowspan="3">(c) α vs. VLA 前三（OOD）</td><td>LIBERO-Plus 平均</td><td class="n">69.2</td><td class="n">89.0 / 86.6 / 84.4</td></tr>
+<tr><td>RoboTwin2.0 C2R Randomized</td><td class="n">48.7</td><td class="n">69.4 / 67.9 / 46.0</td></tr>
+<tr><td>RoboDojo Open SR</td><td class="n">1.08</td><td class="n">3.58 / 2.08 / 1.67</td></tr>
+</tbody></table></div>
+<p><b>域内 WAM 拟合得更好。</b>VLA 只有动作监督，WAM 多了视频隐变量这一项监督，给参数优化注入额外信息。<b>域外 VLA 泛化得更好。</b>这是同一机制的另一面：长视野未来预测帮助拟合，但分布变了以后同样意味着更重的误差累积，而只预测动作的 VLA 没有这个负担。两种缺口都能靠数据弥补：覆盖复杂环境变化、动作标注精确的预训练数据。怎样结合两种范式的长处值得研究。</p>
+<div class="find"><p><b>要点 3：</b>没有哪种范式全面胜出：视频隐变量监督让 WAM 域内拟合占优，VLA 域外泛化更好，两种缺口都可以靠足够大且多样的预训练数据补上。结合两种端到端范式的长处是推进能力边界的方向。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 图 16 和附录表对得上</span><p>图 16 的每个数我都在附录 D 的表里找到了：(a) 对应表 13、15、16、5；(b) LIBERO 前三 VLA 是 Qwen-RobotManip 99.2、Being-H0.5 98.9、ABot-M0 98.6（表 13），VLABench 是 Xiaomi-Robotics-1 75.6、ERVLA 69.7、π0.5 65.4（表 14），RoboDojo Gen-Std 是 Xiaomi-Robotics-1 28.00、Galaxea G0.5 20.00、DM0.5 18.00（表 17）；(c) C2R Randomized 是 Qwen-RobotManip 69.4、GigaBrain-0.7 67.9、π0.5 46.0（表 15）。(a) 的 WAM 域内优势只有一对模型、三个分项，LIBERO 上只差 1.0 点（约 20 个回合）。</p></div>
+
+<h3 id="s5-4"><span class="no">5.4</span>真机评测</h3>
+<figure class="pfig" id="fig17">
+<img src="openwam/fig17.webp" width="1319" height="694" alt="图 17：上排六个单臂任务照片，左下三个双臂平台，右下四个灵巧手任务" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 25 页 · Yuran Wang 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07398v1#page=25">看原图 ↗</a></span>上排：Franka-Research-3 上的六个单臂任务（积木放进抽屉、挂杯子、挂 M 形件、叠积木、叠圆环、辣椒放进抽屉）。左下：RoboDojo 真机赛道的三个双臂平台 Piper X、Piper、ARX X5，共 18 个任务。右下：Wuji 灵巧手 + Tianji 机械臂的四个任务（叠玩具塔、收羽毛球、收衣服、拧瓶盖），每个画了两个关键中间状态。</figcaption>
+</figure>
+<p>三种形态：单臂（Franka-Research-3，叠放、抓放、悬挂，指标 SR）；双臂（RoboDojo 官方真机平台，ARX X5、Piper、Piper X，按 RoboDojo 的分类覆盖泛化、精度、长时程、记忆、开放任务，指标 SR 和进度分）；灵巧手（Wuji 手 + Tianji 臂，预训练里没有的形态和动作空间，指标 SR 和进度分）。</p>
+<p class="tcap" id="t6">表 6 · 单臂真机（照录原文）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th class="n">叠积木</th><th class="n">叠圆环</th><th class="n">辣椒进抽屉</th><th class="n">积木进抽屉</th><th class="n">挂 M</th><th class="n">挂杯子</th><th class="n">平均</th></tr></thead><tbody>
+<tr><td>π0.5</td><td class="n">13/20 (65%)</td><td class="n">7/20 (35%)</td><td class="n">14/20 (70%)</td><td class="n">15/20 (75%)</td><td class="n">7/20 (35%)</td><td class="n">10/20 (50%)</td><td class="n">66/120 (55.0%)</td></tr>
+<tr><td>LingBot-VA</td><td class="n">16/20 (80%)</td><td class="n"><b>15/20 (75%)</b></td><td class="n">17/20 (85%)</td><td class="n">17/20 (85%)</td><td class="n"><b>13/20 (65%)</b></td><td class="n">15/20 (75%)</td><td class="n">93/120 (77.5%)</td></tr>
+<tr><td>OpenWAM-α</td><td class="n"><b>17/20 (85%)</b></td><td class="n">12/20 (60%)</td><td class="n"><b>20/20 (100%)</b></td><td class="n"><b>20/20 (100%)</b></td><td class="n"><b>13/20 (65%)</b></td><td class="n"><b>17/20 (85%)</b></td><td class="n"><b>99/120 (82.5%)</b></td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 7 · RoboDojo 真机双臂赛道，Score / SR %（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>策略</th><th>平台</th><th class="n">任务 1</th><th class="n">任务 2</th><th class="n">任务 3</th><th class="n">任务 4</th><th class="n">任务 5</th><th class="n">任务 6</th><th class="n">平台平均</th><th class="n">总平均</th></tr></thead><tbody>
+<tr><td rowspan="3">X-VLA</td><td>ARX X5</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">2.0/0.0</td><td class="n">20.7/10.0</td><td class="n">18.0/0.0</td><td class="n">6.8/1.7</td><td class="n" rowspan="3">7.6/3.3</td></tr>
+<tr><td>Piper</td><td class="n">0.0/0.0</td><td class="n">5.3/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">53.0/50.0</td><td class="n">37.0/0.0</td><td class="n">15.9/8.3</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.7/0.0</td><td class="n">0.1/0.0</td></tr>
+<tr><td rowspan="3">Xiaomi-Robotics-0</td><td>ARX X5</td><td class="n">24.0/20.0</td><td class="n">0.0/0.0</td><td class="n">3.0/0.0</td><td class="n">4.0/0.0</td><td class="n">40.0/20.0</td><td class="n">19.0/10.0</td><td class="n">15.0/8.3</td><td class="n" rowspan="3">7.9/3.9</td></tr>
+<tr><td>Piper</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">23.0/20.0</td><td class="n">22.7/0.0</td><td class="n">7.6/3.3</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">0.7/0.0</td><td class="n">4.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">2.7/0.0</td><td class="n">1.2/0.0</td></tr>
+<tr><td rowspan="3">GalaxeaVLA (G0)</td><td>ARX X5</td><td class="n">1.0/0.0</td><td class="n">0.0/0.0</td><td class="n">3.0/0.0</td><td class="n">6.0/0.0</td><td class="n">0.0/0.0</td><td class="n">10.3/0.0</td><td class="n">3.4/0.0</td><td class="n" rowspan="3">9.0/4.4</td></tr>
+<tr><td>Piper</td><td class="n">0.0/0.0</td><td class="n">32.7/10.0</td><td class="n">13.3/10.0</td><td class="n">0.0/0.0</td><td class="n">56.0/50.0</td><td class="n">30.0/10.0</td><td class="n">22.0/13.3</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">4.0/0.0</td><td class="n">0.0/0.0</td><td class="n">6.0/0.0</td><td class="n">1.7/0.0</td></tr>
+<tr><td rowspan="3">InternVLA-A1</td><td>ARX X5</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">48.0/20.0</td><td class="n">12.0/0.0</td><td class="n">10.0/3.3</td><td class="n" rowspan="3">12.0/7.2</td></tr>
+<tr><td>Piper</td><td class="n">0.0/0.0</td><td class="n">7.3/0.0</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">73.0/70.0</td><td class="n">59.0/40.0</td><td class="n">23.2/18.3</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">0.0/0.0</td><td class="n">4.0/0.0</td><td class="n">2.0/0.0</td><td class="n">0.0/0.0</td><td class="n">10.0/0.0</td><td class="n">2.7/0.0</td></tr>
+<tr><td rowspan="3">π0.5</td><td>ARX X5</td><td class="n">24.6/20.0</td><td class="n">1.8/0.0</td><td class="n">25.8/10.0</td><td class="n">47.0/20.0</td><td class="n">40.0/20.0</td><td class="n">26.8/10.0</td><td class="n">27.7/13.3</td><td class="n" rowspan="3">22.9/12.8</td></tr>
+<tr><td>Piper</td><td class="n">10.0/10.0</td><td class="n">28.0/0.0</td><td class="n">10.0/10.0</td><td class="n">0.0/0.0</td><td class="n">72.0/60.0</td><td class="n">72.0/50.0</td><td class="n">32.0/21.7</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">14.8/10.0</td><td class="n">0.0/0.0</td><td class="n">29.5/10.0</td><td class="n">7.5/0.0</td><td class="n">3.0/0.0</td><td class="n">9.1/3.3</td></tr>
+<tr><td rowspan="3">OpenWAM-α</td><td>ARX X5</td><td class="n">31.0/0.0</td><td class="n">0.0/0.0</td><td class="n">13.0/0.0</td><td class="n">52.0/20.0</td><td class="n">100.0/100.0</td><td class="n">38.0/20.0</td><td class="n">39.0/23.3</td><td class="n" rowspan="3"><b>37.6/24.4</b></td></tr>
+<tr><td>Piper</td><td class="n">8.3/0.0</td><td class="n">60.0/40.0</td><td class="n">36.7/30.0</td><td class="n">0.0/0.0</td><td class="n">100.0/100.0</td><td class="n">75.0/50.0</td><td class="n">46.7/36.7</td></tr>
+<tr><td>Piper X</td><td class="n">0.0/0.0</td><td class="n">28.0/10.0</td><td class="n">18.0/0.0</td><td class="n">52.3/20.0</td><td class="n">40.0/40.0</td><td class="n">24.7/10.0</td><td class="n">27.2/13.3</td></tr>
+</tbody></table></div>
+<p>任务顺序。ARX X5：cover_blocks、make_bread、make_food、pack_and_pour_fruit、store_in_safe、insert_tubes。Piper：stack_and_cover_blocks、fill_pen_holder、put_objects_into_basket、insert_charger、stack_bowls、stand_up_bottles。Piper X：classify_objects、disassemble_LEGO、hang_mugs、pack_objects_into_backpack、sweep_blocks、cap_pen。</p>
+</details>
+<p class="tcap" id="t8">表 8 · 灵巧手真机，Score（完成元素/总元素）/ SR（照录原文）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>任务</th><th>条件</th><th class="n">π0.5</th><th class="n">OpenWAM-α</th></tr></thead><tbody>
+<tr><td rowspan="2">叠玩具塔</td><td>ID</td><td class="n">16/30 (53.3) / 1/10 (10%)</td><td class="n">21/30 (70.0) / 4/10 (40%)</td></tr>
+<tr><td>OOD</td><td class="n">12/30 (40.0) / 1/10 (10%)</td><td class="n">17/30 (56.7) / 3/10 (30%)</td></tr>
+<tr><td rowspan="2">收羽毛球</td><td>ID</td><td class="n">11/35 (31.4) / 2/10 (20%)</td><td class="n">29/35 (82.9) / 6/10 (60%)</td></tr>
+<tr><td>OOD</td><td class="n">17/54 (31.5) / 3/15 (20%)</td><td class="n">30/57 (52.6) / 4/15 (26.7%)</td></tr>
+<tr><td rowspan="2">收衣服</td><td>ID</td><td class="n">26/30 (86.7) / 6/10 (60%)</td><td class="n">30/30 (100.0) / 10/10 (100%)</td></tr>
+<tr><td>OOD</td><td class="n">45/60 (75.0) / 9/20 (45%)</td><td class="n">55/60 (91.7) / 17/20 (85%)</td></tr>
+<tr><td rowspan="2">拧瓶盖</td><td>ID</td><td class="n">8/10 (80.0) / 3/10 (30%)</td><td class="n">10/10 (100.0) / 7/10 (70%)</td></tr>
+<tr><td>OOD</td><td class="n">13/20 (65.0) / 6/20 (30%)</td><td class="n">18/20 (90.0) / 16/20 (80%)</td></tr>
+</tbody></table></div>
+<p>单臂上 α 在多数任务领先 LingBot-VA（代表 WAM）和 π0.5（代表 VLA），平均最好。RoboDojo 真机赛道上 α 总分第一，三个平台都稳定。灵巧手平台和它的动作空间（9 维末端位姿 + 21 个手指自由度）都不在预训练里，α 在所有任务和条件下都明显超过 π0.5。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 真机表的核算</span><ul>
+<li><b>表 6：</b>17 + 12 + 20 + 20 + 13 + 17 = 99，99/120 = 82.5%；π0.5 合计 66，LingBot-VA 合计 93，都对。“多数任务领先”：对 LingBot-VA 是 4 胜 1 平 1 负（叠圆环 12 对 15）。每个任务只有 20 次，差 1 次就是 5 个百分点。</li>
+<li><b>表 7：</b>我复算了 X-VLA、π0.5、InternVLA-A1 和 α 的平台平均和总平均，都是 6 个任务、3 个平台的简单平均，四舍五入一致（例如 α：(39.0 + 46.7 + 27.2)/3 = 37.6）。</li>
+<li><b>表 8：</b>收羽毛球 OOD 的总元素数两边不同（π0.5 54 个，α 57 个），而每次试验有 2 到 4 个羽毛球。所以两者不是在同一组摆放上测的，或者试验数不同。论文没解释。其余格的分数和百分比都对得上（如 30/57 = 52.6%，4/15 = 26.7%）。</li>
+</ul></div>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>OpenWAM 把世界-动作建模从一组紧耦合的实现选择变成可控的实验程序：Infra 把设计空间拆成模块和三族结构，一个训练器、一个策略服务器、一套覆盖 8 个仿真基准和真机的评测协议；Study 回答继承、协同、跨域三个问题并提炼成配方；α 在第一视角和机器人数据上按配方大规模训练，在仿真和单臂、双臂、灵巧手真机上都表现强。全部开放，α 作为后续研究的强基线。作者认为最有前景的方向是：更大、更多样、动作标注精确的具身数据；既紧凑又对环境变化鲁棒的视觉表示；结合 WAM 和 VLA 长处的端到端设计。</p>
+
+<h2 id="apA"><span class="no">A</span>附录 A：局限和未来工作</h2>
+<ol>
+<li><b>训练阶段。</b>主要研究具身预训练，后训练和适配方法的配方和机理仍是开放问题。</li>
+<li><b>结构。</b>目前主要通过跨模态注意力或硬路由 MoE 做模态融合；建议借鉴统一多模态模型，试分词阶段的早融合、软路由 MoE。</li>
+<li><b>预训练数据。</b>没有用 UMI 类（UMI、DexUMI）数据。这类数据场景和任务多样性接近第一视角视频，又带机器人可执行动作，可能是更省数据的路线。也期待仿真能突破，大规模生成场景多样、轨迹逼真的机器人数据。</li>
+<li><b>视觉编码器。</b>最终选 Wan2.2-VAE 是目前最好的折中，不是最优解：像素重建类编码器对视角、噪声、场景变化不够鲁棒，需要紧凑且信息充分的表示。</li>
+</ol>
+
+<h2 id="apB"><span class="no">B</span>附录 B：训练细节</h2>
+<h3 id="apB1"><span class="no">B.1</span>预训练配置</h3>
+<p>16 台机器，每台 8 张 H200（共 128 张），约 7 天。每卡 24 个片段，不做梯度累积，全局 batch 3,072。</p>
+<p class="tcap" id="t9">表 9 · OpenWAM-α 预训练配置（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>配置</th><th>值</th></tr></thead><tbody>
+<tr><td>算力</td><td>16 节点（128 张 NVIDIA H200）</td></tr>
+<tr><td>训练时间</td><td>≈ 7 天</td></tr>
+<tr><td>优化器</td><td>AdamW</td></tr>
+<tr><td>Batch</td><td>3,072（每卡 24）</td></tr>
+<tr><td>学习率</td><td>1 × 10⁻⁴</td></tr>
+<tr><td>学习率调度</td><td>Cosine；5% warmup；最低比例 0.01</td></tr>
+<tr><td>Weight decay</td><td>0.01</td></tr>
+<tr><td>动量</td><td>β1, β2 = 0.9, 0.95</td></tr>
+<tr><td>训练步数</td><td>155,862（1 个 epoch）</td></tr>
+<tr><td>梯度裁剪</td><td>全局范数 1.0</td></tr>
+<tr><td>精度</td><td>bfloat16</td></tr>
+<tr><td>分布式</td><td>DeepSpeed ZeRO Stage 2</td></tr>
+<tr><td>输入片段</td><td>33 帧；video stride 4；window stride 1</td></tr>
+<tr><td>分辨率</td><td>384 × 320</td></tr>
+<tr><td>多视角输入</td><td>开启</td></tr>
+<tr><td>图像增强</td><td>ColorJitter(0.2, 0.2, 0.2, 0.0)</td></tr>
+<tr><td>Flow shift</td><td>视频/动作 5.0/5.0</td></tr>
+<tr><td>损失权重</td><td>λv = 1.0，λa = 1.0</td></tr>
+<tr><td>统一控制空间</td><td>80 维动作；80 维本体状态</td></tr>
+</tbody></table></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 步数 × batch 和帧数差 7.7%</span><p>155,862 步 × 3,072 = 478,808,064 个样本，而表 4 说训练用 5.185 亿帧，且“每个保留的样本每轮恰好访问一次”。代码里大多数读取器让每一帧都起一个窗口（<code>lerobot_v3_reader.py</code> 第 483-490 行，最短窗口 1 或 2 帧），所以样本数应接近帧数。差 3,969 万（7.7%）。可能是 AgiBot 按分段标注取样、空闲裁剪后的帧不计入等原因，我没有找到确切解释，标“未核实”。顺带：7 天 ÷ 155,862 步 ≈ 3.9 秒/步。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 公布的基座是第 154,000 步，不是 155,862 步</span><p>Hugging Face 上 <code>OpenWAM/OpenWAM-Alpha-Pretrain-Foundation-Model</code>（2026-09-04 创建，最后修改 2026-09-09，revision 52df4e6）只有一个权重文件 <code>checkpoint_step_154000.safetensors</code>，其 <code>config.yaml</code> 写的是 <code>num_epochs: 1</code>、<code>batch_size: 24</code>、<code>save_steps: 2000</code>、<code>keep_last_k_ckpts: 1</code>，和表 9 一致。155,862 = 77 × 2,000 + 1,862，所以 154,000 正是最后一次周期保存。但当前代码在训练结束时还会再存一次最终权重（<code>openwam_trainer.py</code> 第 686-697 行），如果跑满一个 epoch 应该有 step_155862。可能的解释：训练没有跑满，或者当时的代码还没有“结束时保存”。论文、README、模型卡都没有提 154,000 这个数。差 1,862 步约占全程 1.2%。按代码的调度器（<code>training_utils.py</code> 第 59-85 行：warmup 7,793 步，之后余弦退火 148,069 步到 1e-6），第 154,000 步的学习率是 1.04 × 10⁻⁶，已经是最低值的 1.04 倍，所以我推测剩下的步数影响很小，但没法验证。用户手上的“step 154000”和公布文件一致，和论文表 9 不一致。</p></div>
+<h3 id="apB2"><span class="no">B.2</span>各基准的 SFT 配置</h3>
+<p>所有下游模型都从同一个 α 预训练检查点初始化。SFT 沿用表 9 的配置，只改三项：全局 batch、训练轮数或步数、是否做图像增强。LIBERO-Plus 直接用 LIBERO 的检查点评测，不再微调。</p>
+<p class="tcap" id="t10">表 10 · 各基准的 SFT 配置（照录原文；“–”表示不做增强）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>基准</th><th class="n">Batch</th><th>训练轮数 / 步数</th><th>增强</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">仿真</th></tr>
+<tr><td>LIBERO</td><td class="n">256</td><td>10 epochs（10,690 步）</td><td>–</td></tr>
+<tr><td>VLABench</td><td class="n">196</td><td>6k 步</td><td>ColorJitter</td></tr>
+<tr><td>RoboTwin2.0-Full</td><td class="n">256</td><td>5 epochs（118,655 步）</td><td>–</td></tr>
+<tr><td>RoboTwin2.0-Clean2Random</td><td class="n">256</td><td>5 epochs（10,740 步）</td><td>ColorJitter</td></tr>
+<tr><td>RoboDojo</td><td class="n">256</td><td>60k 步</td><td>ColorJitter</td></tr>
+<tr><td>RoboCasa365</td><td class="n">1,024</td><td>60k 步</td><td>ColorJitter</td></tr>
+<tr><td>EBench</td><td class="n">256</td><td>100k 步</td><td>ColorJitter</td></tr>
+<tr><td>RoboCasa-GR1</td><td class="n">256</td><td>100k 步</td><td>ColorJitter</td></tr>
+<tr class="grp"><th colspan="4">真机</th></tr>
+<tr><td>单臂（Franka-Research-3）</td><td class="n">256</td><td>10 epochs（9,860 步）</td><td>–</td></tr>
+<tr><td>双臂（RoboDojo 真机赛道）</td><td class="n">256</td><td>30k 步</td><td>ColorJitter</td></tr>
+<tr><td>灵巧手（Wuji + Tianji）</td><td class="n">256</td><td>5 epochs（10,925 步）</td><td>–</td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · LIBERO 的 10,690 步可以精确复算</span><p>OpenWAM 发布的 LIBERO 数据 <code>OpenWAM/LIBERO</code>（由 <code>lerobot/libero</code> 转换）的 <code>meta/info.json</code>：1,693 条轨迹、273,465 帧、40 个任务、10 fps。LIBERO 读取器的最短训练窗口是 1 帧，所以每帧起一个窗口，一轮 273,465 个样本。训练器的步数是 \(\lceil\lceil 273465/b\rceil/n\rceil\)（<code>openwam_trainer.py</code> 第 224-230 行，\(b\) 每卡 batch，\(n\) 进程数）。HF 检查点配置 <code>batch_size: 4</code>，要全局 256 就是 64 个进程：\(\lceil\lceil273465/4\rceil/64\rceil=\lceil 68367/64\rceil=1069\)，10 轮 10,690 步。和表 10、和 HF 文件名 <code>checkpoint_step_10690.safetensors</code> 完全一致。其他组合只要全局 256 也都是 1069 步/轮。</p></div>
+
+<h2 id="apC"><span class="no">C</span>附录 C：真机评测协议</h2>
+<h3 id="apC1"><span class="no">C.1</span>单臂</h3>
+<p>Franka-Research-3 + Robotiq 平行夹爪 + Intel RealSense 相机，六个桌面任务，每个用自然语言指令描述（表 11）：左边的黄圆环叠到另一个圆环上；左边的积木叠到另一块积木上；杯子挂到架子上；M 形件挂到架子上；辣椒放进抽屉再推上抽屉；积木放进抽屉再推上抽屉。图 18 是工作台照片，图 19 是每个任务从一次执行视频里均匀取的 6 帧（<a href="https://arxiv.org/pdf/2609.07398v1#page=35">看原图 ↗</a>，<a href="https://arxiv.org/pdf/2609.07398v1#page=36">↗</a>）。</p>
+<p><b>协议。</b>每个任务用 100 条真机演示微调，然后独立试 20 次，报告成功次数。叠放：左边物体被拿起并稳定叠在目标上；悬挂：物体被拿起并挂住；抽屉：物体在抽屉里且上层抽屉被推上。</p>
+<h3 id="apC2"><span class="no">C.2</span>灵巧手</h3>
+<p>四个任务（表 12）：按从大到小把圆盘套上塔杆；把所有羽毛球放进球筒；拧开瓶盖；把桌上一堆衣服放进篮子。图 20 是平台、工作区、观测相机和物体的照片，图 21 是每个任务的执行阶段和 ID/OOD 场景（物体、布局、光照、背景各改一项）（<a href="https://arxiv.org/pdf/2609.07398v1#page=37">看原图 ↗</a>，<a href="https://arxiv.org/pdf/2609.07398v1#page=38">↗</a>）。</p>
+<p>两个指标：最终成功率和进度分。</p>
+<div class="eq"><div class="m">\[ S_{\rm final}=\frac{N_{\rm success}}{N_{\rm trial}}\times100\%,\qquad S_{\rm process}=\frac{\sum_i n_i}{\sum_i m_i}\times100\% \]</div><span class="no"></span></div>
+<p>\(n_i\) 是第 \(i\) 次完成的元素数，\(m_i\) 是该次的元素总数。原文把进度分记作 \(S_{\rm process}\)，正文叫 progress score。各任务：收羽毛球每次 2 到 4 个，全部进筒才算成功；叠塔每次 3 个圆盘，按大小顺序全部套上才算；收衣服每次 3 到 4 件；拧瓶盖要完全拧下且稳定抓住瓶子或瓶盖，进度分只看是否拧下。</p>
+<h3 id="apC3"><span class="no">C.3</span>双臂</h3>
+<p>RoboDojo-Real 全部 18 个任务，用 RoboDojo 团队提供的官方真机评测平台，三个平台 ARX X5、Piper、Piper X，严格按官方统一协议（<a href="https://robodojo-benchmark.com/doc/real-tasks/">官方任务文档</a>）。</p>
+
+<h2 id="apD"><span class="no">D</span>附录 D：逐基准仿真结果</h2>
+<p>图 13 背后的完整表（LIBERO-Plus 已在表 5）。下面先列 LIBERO 全表，其余折叠。</p>
+<p class="tcap" id="t13">表 13 · LIBERO 成功率 %（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法</th><th class="n">Spatial</th><th class="n">Object</th><th class="n">Goal</th><th class="n">Long</th><th class="n">Avg</th></tr></thead><tbody>
+<tr class="grp"><th colspan="6">VLA</th></tr>
+<tr><td>OpenVLA</td><td class="n">84.7</td><td class="n">88.4</td><td class="n">79.2</td><td class="n">53.7</td><td class="n">76.5</td></tr>
+<tr><td>π0</td><td class="n">98.0</td><td class="n">96.8</td><td class="n">94.4</td><td class="n">88.4</td><td class="n">94.4</td></tr>
+<tr><td>StarVLA</td><td class="n">97.8</td><td class="n">98.6</td><td class="n">96.2</td><td class="n">93.8</td><td class="n">96.6</td></tr>
+<tr><td>π0.5</td><td class="n">98.8</td><td class="n">98.2</td><td class="n">98.0</td><td class="n">92.4</td><td class="n">96.9</td></tr>
+<tr><td>GR00T-N1.6</td><td class="n">97.7</td><td class="n">98.5</td><td class="n">97.5</td><td class="n">94.4</td><td class="n">97.0</td></tr>
+<tr><td>OpenVLA-OFT</td><td class="n">97.6</td><td class="n">98.4</td><td class="n">97.9</td><td class="n">94.5</td><td class="n">97.1</td></tr>
+<tr><td>X-VLA</td><td class="n">98.2</td><td class="n">98.6</td><td class="n">97.8</td><td class="n">97.6</td><td class="n">98.1</td></tr>
+<tr><td>ABot-M0</td><td class="n">98.8</td><td class="n">99.8</td><td class="n">99.0</td><td class="n">96.6</td><td class="n">98.6</td></tr>
+<tr><td>Being-H0.5</td><td class="n">99.2</td><td class="n">99.6</td><td class="n">99.4</td><td class="n">97.4</td><td class="n">98.9</td></tr>
+<tr><td>Qwen-RobotManip</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">99.2</td></tr>
+<tr class="grp"><th colspan="6">WAM</th></tr>
+<tr><td>Fast-WAM</td><td class="n">98.2</td><td class="n"><b>100.0</b></td><td class="n">97.0</td><td class="n">95.2</td><td class="n">97.6</td></tr>
+<tr><td>Motus</td><td class="n">96.8</td><td class="n">99.8</td><td class="n">96.6</td><td class="n">97.6</td><td class="n">97.7</td></tr>
+<tr><td>ImageWAM</td><td class="n">97.2</td><td class="n">99.2</td><td class="n">98.8</td><td class="n">98.4</td><td class="n">98.4</td></tr>
+<tr><td>LingBot-VA</td><td class="n">98.5</td><td class="n">99.6</td><td class="n">97.2</td><td class="n"><b>98.5</b></td><td class="n">98.5</td></tr>
+<tr><td>DiT4DiT</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">98.6</td></tr>
+<tr><td>Being-H0.7</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">99.2</td></tr>
+<tr><td>ABot-M0.5</td><td class="n"><b>100.0</b></td><td class="n">99.8</td><td class="n">99.4</td><td class="n">98.4</td><td class="n"><b>99.4</b></td></tr>
+<tr><td><b>OpenWAM-α</b></td><td class="n">99.6</td><td class="n">99.6</td><td class="n"><b>99.8</b></td><td class="n">98.2</td><td class="n">99.3</td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 14 · VLABench（SR / PS / IS，照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="3">In-dist.</th><th colspan="3">Category</th><th colspan="3">Commonsense</th><th colspan="3">Instruction</th><th colspan="3">Texture</th><th colspan="3">Avg</th></tr>
+<tr><th>SR</th><th>PS</th><th>IS</th><th>SR</th><th>PS</th><th>IS</th><th>SR</th><th>PS</th><th>IS</th><th>SR</th><th>PS</th><th>IS</th><th>SR</th><th>PS</th><th>IS</th><th>SR</th><th>PS</th><th>IS</th></tr></thead><tbody>
+<tr><td>π0</td><td>47.0</td><td>62.7</td><td>67.8</td><td>21.2</td><td>33.6</td><td>44.0</td><td>29.1</td><td>43.0</td><td>54.9</td><td>17.3</td><td>38.7</td><td>58.0</td><td>32.2</td><td>42.5</td><td>50.6</td><td>29.4</td><td>44.1</td><td>55.0</td></tr>
+<tr><td>LoHo-Manip</td><td>54.0</td><td>–</td><td>–</td><td>23.0</td><td>–</td><td>–</td><td>36.0</td><td>–</td><td>–</td><td>42.0</td><td>–</td><td>–</td><td>39.0</td><td>–</td><td>–</td><td>39.0</td><td>–</td><td>–</td></tr>
+<tr><td>ACoT-VLA</td><td>–</td><td>66.1</td><td>79.8</td><td>–</td><td>38.9</td><td>54.1</td><td>–</td><td>37.8</td><td>52.3</td><td>–</td><td>39.6</td><td>56.8</td><td>–</td><td>54.6</td><td>74.6</td><td>–</td><td>47.4</td><td>63.5</td></tr>
+<tr><td>π0.5</td><td>65.4</td><td>77.8</td><td>80.4</td><td>38.2</td><td>49.7</td><td>52.0</td><td>43.9</td><td>57.3</td><td>60.0</td><td>48.2</td><td>64.2</td><td>67.0</td><td>44.9</td><td>62.3</td><td>65.0</td><td>48.1</td><td>62.3</td><td>64.9</td></tr>
+<tr><td>ERVLA</td><td>69.7</td><td>81.1</td><td>84.2</td><td>47.0</td><td>61.0</td><td>66.4</td><td>44.0</td><td>55.0</td><td>57.2</td><td>58.0</td><td>70.2</td><td>73.8</td><td>47.4</td><td>62.3</td><td>70.6</td><td>53.2</td><td>65.9</td><td>70.4</td></tr>
+<tr><td>Xiaomi-Robotics-1</td><td>75.6</td><td>85.0</td><td>79.8</td><td>53.0</td><td>66.6</td><td>66.4</td><td>48.4</td><td>58.3</td><td>58.2</td><td>55.8</td><td>66.8</td><td>70.2</td><td>62.6</td><td>74.9</td><td>74.8</td><td>59.1</td><td>70.3</td><td>69.9</td></tr>
+<tr><td>Bridge-WA（WAM）</td><td>78.0</td><td>85.8</td><td>85.0</td><td>23.0</td><td>28.8</td><td>39.0</td><td>51.1</td><td>64.4</td><td>74.2</td><td>67.0</td><td>80.3</td><td>82.0</td><td>45.0</td><td>60.3</td><td>76.0</td><td>52.8</td><td>64.0</td><td>71.2</td></tr>
+<tr><td>OpenWAM-α</td><td>83.4</td><td>87.9</td><td>75.2</td><td>38.1</td><td>45.9</td><td>45.9</td><td>58.0</td><td>64.8</td><td>57.9</td><td>53.8</td><td>64.5</td><td>66.5</td><td>61.4</td><td>72.9</td><td>71.6</td><td>58.9</td><td>67.2</td><td>63.5</td></tr>
+</tbody></table></div>
+<p>π0、ACoT-VLA、π0.5、ERVLA 几行在 PDF 文本层里列位错开，我按列数重新对齐，可能有一两格错位，对照原文第 40 页使用。</p>
+</details>
+<details class="tbl"><summary>表 15、16 · RoboTwin2.0 两个版本（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 15 · Clean2Random</th><th class="n">Clean</th><th class="n">Randomized</th><th class="n">Avg</th></tr></thead><tbody>
+<tr><td>StarVLA</td><td class="n">46.5</td><td class="n">3.2</td><td class="n">24.9</td></tr>
+<tr><td>GR00T-N1.7</td><td class="n">43.6</td><td class="n">20.7</td><td class="n">32.2</td></tr>
+<tr><td>X-VLA</td><td class="n">68.0</td><td class="n">20.9</td><td class="n">44.5</td></tr>
+<tr><td>Spatial Forcing</td><td class="n">77.2</td><td class="n">26.7</td><td class="n">52.0</td></tr>
+<tr><td>ABot-M0</td><td class="n">70.7</td><td class="n">36.0</td><td class="n">53.4</td></tr>
+<tr><td>π0.5</td><td class="n">70.7</td><td class="n">46.0</td><td class="n">58.4</td></tr>
+<tr><td>GigaBrain-0.7</td><td class="n">66.8</td><td class="n">67.9</td><td class="n">67.4</td></tr>
+<tr><td>Qwen-RobotManip</td><td class="n">84.7</td><td class="n"><b>69.4</b></td><td class="n"><b>77.1</b></td></tr>
+<tr><td>AHA-WAM（WAM）</td><td class="n">64.3</td><td class="n">3.2</td><td class="n">33.8</td></tr>
+<tr><td>Fast-WAM（WAM）</td><td class="n">77.8</td><td class="n">1.9</td><td class="n">39.9</td></tr>
+<tr><td>X-WAM（WAM）</td><td class="n">70.0</td><td class="n">25.8</td><td class="n">47.9</td></tr>
+<tr><td>4D-WAM（WAM）</td><td class="n">81.5</td><td class="n">41.8</td><td class="n">61.7</td></tr>
+<tr><td>OpenWAM-α</td><td class="n"><b>89.4</b></td><td class="n">48.7</td><td class="n">69.0</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 16 · Full</th><th class="n">Clean</th><th class="n">Randomized</th><th class="n">Avg</th></tr></thead><tbody>
+<tr><td>X-VLA</td><td class="n">72.80</td><td class="n">72.84</td><td class="n">72.82</td></tr>
+<tr><td>π0.5</td><td class="n">82.70</td><td class="n">76.80</td><td class="n">79.75</td></tr>
+<tr><td>ABot-M0</td><td class="n">86.06</td><td class="n">85.08</td><td class="n">85.57</td></tr>
+<tr><td>Qwen-VLA</td><td class="n">86.10</td><td class="n">87.20</td><td class="n">86.65</td></tr>
+<tr><td>StarVLA</td><td class="n">88.18</td><td class="n">88.32</td><td class="n">88.25</td></tr>
+<tr><td>Galaxea G0.5</td><td class="n">93.70</td><td class="n">92.80</td><td class="n">93.25</td></tr>
+<tr><td>Qwen-RobotManip</td><td class="n">93.70</td><td class="n">94.00</td><td class="n">93.85</td></tr>
+<tr><td>Motus（WAM）</td><td class="n">88.66</td><td class="n">87.02</td><td class="n">87.84</td></tr>
+<tr><td>Fast-WAM（WAM）</td><td class="n">91.90</td><td class="n">91.80</td><td class="n">91.85</td></tr>
+<tr><td>LingBot-VA（WAM）</td><td class="n">92.93</td><td class="n">91.55</td><td class="n">92.24</td></tr>
+<tr><td>ImageWAM（WAM）</td><td class="n">93.20</td><td class="n">93.56</td><td class="n">93.38</td></tr>
+<tr><td>LingBot-VA 2.0（WAM）</td><td class="n">93.80</td><td class="n">93.40</td><td class="n">93.60</td></tr>
+<tr><td>ABot-M0.5（WAM）</td><td class="n"><b>94.00</b></td><td class="n"><b>94.20</b></td><td class="n"><b>94.10</b></td></tr>
+<tr><td>OpenWAM-α</td><td class="n">93.74</td><td class="n">93.46</td><td class="n">93.60</td></tr>
+</tbody></table></div>
+</details>
+<details class="tbl"><summary>表 17 · RoboDojo（SR / Score，照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th>方法</th><th>Gen-Std</th><th>Gen-Rand</th><th>Precision</th><th>Long-Horizon</th><th>Memory</th><th>Open</th><th>Avg</th></tr></thead><tbody>
+<tr><td>StarVLA-α</td><td>5.00 / 7.54</td><td>0.00 / 0.33</td><td>4.33 / 9.90</td><td>6.50 / 14.15</td><td>2.44 / 3.34</td><td>0.58 / 0.68</td><td>3.24 / 6.40</td></tr>
+<tr><td>X-VLA</td><td>12.00 / 17.90</td><td>1.00 / 3.04</td><td>12.00 / 18.32</td><td>9.75 / 16.53</td><td>3.56 / 4.76</td><td>0.50 / 0.55</td><td>6.52 / 10.13</td></tr>
+<tr><td>π0.5</td><td>15.00 / 20.93</td><td>1.00 / 5.82</td><td>5.50 / 12.40</td><td>14.67 / 23.54</td><td>4.56 / 5.78</td><td>1.67 / 1.98</td><td>6.91 / 11.41</td></tr>
+<tr><td>Spatial Forcing</td><td>15.00 / 21.25</td><td>4.00 / 6.98</td><td>10.58 / 17.33</td><td>14.58 / 23.26</td><td>4.11 / 5.43</td><td>1.58 / 1.78</td><td>8.04 / 12.38</td></tr>
+<tr><td>Hy-Embodied-0.5-VLA</td><td>17.00 / 21.98</td><td>0.00 / 1.57</td><td>8.00 / 13.81</td><td>14.92 / 25.74</td><td>12.11 / 13.37</td><td>0.58 / 0.65</td><td>8.80 / 13.07</td></tr>
+<tr><td>Xiaomi-Robotics-1</td><td>28.00 / 35.65</td><td>6.00 / 11.44</td><td>18.83 / 26.69</td><td>23.67 / 38.39</td><td>6.56 / 7.81</td><td>3.58 / 3.94</td><td>13.93 / 20.07</td></tr>
+<tr><td>Galaxea G0.5</td><td>20.00 / 26.74</td><td>6.00 / 11.16</td><td>20.42 / 28.25</td><td>32.25 / 44.12</td><td>7.33 / 8.61</td><td>1.58 / 1.73</td><td>14.88 / 20.23</td></tr>
+<tr><td>DM0.5</td><td>18.00 / 23.49</td><td>4.00 / 8.06</td><td>16.75 / 24.82</td><td>19.50 / 33.70</td><td>47.44 / 47.74</td><td>2.08 / 2.43</td><td>19.34 / 24.90</td></tr>
+<tr><td>Fast-WAM（WAM）</td><td>2.00 / 4.33</td><td>0.00 / 0.34</td><td>0.00 / 1.96</td><td>5.17 / 9.14</td><td>3.44 / 3.55</td><td>0.42 / 0.42</td><td>2.03 / 3.48</td></tr>
+<tr><td>AHA-WAM（WAM）</td><td>6.00 / 10.32</td><td>0.00 / 1.26</td><td>2.42 / 5.86</td><td>2.67 / 8.61</td><td>2.78 / 2.97</td><td>0.83 / 0.88</td><td>2.39 / 4.82</td></tr>
+<tr><td>GigaWorld-Policy（WAM）</td><td>6.00 / 10.28</td><td>0.00 / 0.41</td><td>1.83 / 6.15</td><td>8.92 / 15.51</td><td>2.22 / 3.46</td><td>0.50 / 0.54</td><td>3.27 / 6.20</td></tr>
+<tr><td>X-WAM（WAM）</td><td>5.00 / 11.24</td><td>1.00 / 3.54</td><td>1.83 / 6.72</td><td>9.08 / 17.47</td><td>4.67 / 6.32</td><td>0.25 / 0.57</td><td>3.83 / 7.69</td></tr>
+<tr><td>OpenWAM-α</td><td>25.56 / 33.16</td><td>4.11 / 8.26</td><td>9.25 / 18.45</td><td>25.33 / 34.93</td><td>9.11 / 10.41</td><td>1.08 / 1.41</td><td>11.92 / 17.18</td></tr>
+</tbody></table></div>
+</details>
+<details class="tbl"><summary>表 18、19、20 · EBench、RoboCasa365、RoboCasa-GR1（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>表 18 · EBench</th><th>Table Top SR / Score</th><th>Simple PnP</th><th>Long Horizon</th><th>Overall</th></tr></thead><tbody>
+<tr><td>StarVLA-OFT</td><td>–</td><td>–</td><td>–</td><td>0.0 / 0.2</td></tr>
+<tr><td>π0</td><td>15.7 / 30.0</td><td>35.0 / 39.0</td><td>17.0 / 41.0</td><td>23.6 / 37.0</td></tr>
+<tr><td>X-VLA</td><td>8.6 / 24.0</td><td>50.0 / 54.0</td><td>6.2 / 25.0</td><td>23.7 / 36.0</td></tr>
+<tr><td>InternVLA-A1</td><td>4.3 / 11.0</td><td>43.0 / 47.0</td><td>17.9 / 46.0</td><td>23.9 / 36.0</td></tr>
+<tr><td>π0.5</td><td>12.9 / 32.0</td><td>45.0 / 50.0</td><td>18.1 / 39.0</td><td>27.1 / 41.0</td></tr>
+<tr><td>GigaBrain-0.7</td><td>–</td><td>–</td><td>–</td><td>33.3 / 46.0</td></tr>
+<tr><td>Qwen-RobotManip</td><td>50.0 / 70.0</td><td>56.5 / 60.0</td><td>29.9 / 55.0</td><td>45.6 / 60.0</td></tr>
+<tr><td>Fast-WAM（WAM）</td><td>–</td><td>–</td><td>–</td><td>4.7 / 7.6</td></tr>
+<tr><td>OpenWAM-α</td><td>30.0 / 44.2</td><td>67.5 / 72.0</td><td>44.3 / 72.6</td><td><b>49.4 / 64.7</b></td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 19 · RoboCasa365</th><th class="n">Atomic</th><th class="n">Comp.-Seen</th><th class="n">Comp.-Unseen</th><th class="n">Avg</th></tr></thead><tbody>
+<tr><td>Diffusion Policy</td><td class="n">15.7</td><td class="n">0.2</td><td class="n">1.3</td><td class="n">6.1</td></tr>
+<tr><td>π0</td><td class="n">36.3</td><td class="n">5.2</td><td class="n">0.7</td><td class="n">15.0</td></tr>
+<tr><td>π0.5</td><td class="n">39.6</td><td class="n">7.1</td><td class="n">1.2</td><td class="n">16.9</td></tr>
+<tr><td>GR00T-N1.5</td><td class="n">50.7</td><td class="n">14.8</td><td class="n">2.7</td><td class="n">23.9</td></tr>
+<tr><td>Qwen-RobotManip</td><td class="n">68.6</td><td class="n">20.1</td><td class="n">14.9</td><td class="n">35.9</td></tr>
+<tr><td>RLDX-1</td><td class="n">67.6</td><td class="n">27.9</td><td class="n">8.5</td><td class="n">36.0</td></tr>
+<tr><td>Xiaomi-Robotics-1</td><td class="n"><b>80.2</b></td><td class="n"><b>57.1</b></td><td class="n"><b>32.1</b></td><td class="n"><b>57.4</b></td></tr>
+<tr><td>GigaWorld-Policy（WAM）</td><td class="n">44.4</td><td class="n">11.8</td><td class="n">2.9</td><td class="n">20.7</td></tr>
+<tr><td>ABot-M0.5（WAM）</td><td class="n">75.9</td><td class="n">38.3</td><td class="n">2.7</td><td class="n">40.4</td></tr>
+<tr><td>OpenWAM-α</td><td class="n">69.7</td><td class="n">32.1</td><td class="n">8.9</td><td class="n">38.2</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>表 20 · RoboCasa-GR1</th><th class="n">SR %</th></tr></thead><tbody>
+<tr><td>π0 / π0.5</td><td class="n">13.6 / 37.0</td></tr>
+<tr><td>GR00T-N1.5 / N1.6</td><td class="n">48.0 / 49.9</td></tr>
+<tr><td>StarVLA</td><td class="n">48.8</td></tr>
+<tr><td>VP-VLA / Being-H0.5</td><td class="n">53.8 / 53.9</td></tr>
+<tr><td>Qwen-VLA-Instruct / RLDX-1</td><td class="n">56.7 / 58.7</td></tr>
+<tr><td>PhysBrain 1.0</td><td class="n"><b>64.5</b></td></tr>
+<tr><td>UWM / Being-H0.7（WAM）</td><td class="n">20.0 / 49.2</td></tr>
+<tr><td>DiT4DiT / LDA-1B（WAM）</td><td class="n">50.8 / 55.4</td></tr>
+<tr><td>OpenWAM-α</td><td class="n">60.5</td></tr>
+</tbody></table></div>
+</details>
+
+<h2 id="code">代码对照</h2>
+<p>仓库 <a href="https://github.com/OpenWAM-Official/OpenWAM/tree/1dcaeea76501f2431286b511284a671778645996">1dcaeea</a>（2026-11-12，Apache-2.0），比论文 v1 晚两个多月，期间合并了训练加速（PR #58，README 说 4 张 H200 上七个 SFT 基准提速 2.54 到 2.77 倍，那组测量关掉了梯度检查点）等改动。只读，没有运行。和论文对应的位置：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>论文</th><th>代码</th><th>对照结果</th></tr></thead><tbody>
+<tr><td>§3.1 六种结构</td><td><code>openwam/model/architectures/{single,dual,tri}_system/</code>；<code>configs/model/*.yaml</code> 的 <code>architecture.variant</code></td><td class="ok">一致；联合交叉注意力的截断由 <code>detach_bridge</code> 控制</td></tr>
+<tr><td>式 (1) 四种掩码</td><td><code>attention_mask_mode</code>（mutual 等），<code>video_attention_mask_mode: first_frame_causal</code></td><td class="ok">一致</td></tr>
+<tr><td>§5.1.1 ActionDiT</td><td><code>action_backbone/separate_action_dit.py</code>：dim 1024，ffn 4096，层数和头数随视频骨干自动取（30 层，24 × 128）</td><td class="ok">参数 1.021B，见<a href="#n8">读者注 8</a></td></tr>
+<tr><td>Wan2.2-VAE 的压缩</td><td><code>wan/models/vae.py</code> <code>WanVideoVAE38</code>：z_dim 48，<code>upsampling_factor = 16</code></td><td class="ok">384 × 320 → 24 × 20 隐格；再 (1,2,2) patch → 每隐帧 12 × 10 = 120 个 token（我的推算）</td></tr>
+<tr><td>式 (3) 和 \(\rho=5\)</td><td><code>action_backbone/scheduler.py</code> 第 63 行；检查点 <code>shift_video: 5.0</code>、<code>shift_action: 5.0</code></td><td class="ok">一致</td></tr>
+<tr><td>§5.1.3 N = 10、同步、加速</td><td><code>configs/deploy.yaml</code>：<code>denoise_steps: 10</code>，<code>denoise_mode: sync</code>，<code>inference_mode: sync</code>，<code>inference_horizon: null</code>（整块执行），<code>dit_cache</code> 开（余弦 0.99，最多连跳 3 次），<code>compile</code> 开，<code>decode_video: false</code></td><td class="ok">一致</td></tr>
+<tr><td>§3.2 自包含检查点</td><td>HF 检查点目录：<code>config.yaml</code>、权重、umT5 分词器、<code>normalization_stats.npy</code>（基座没有这个文件）</td><td class="ok">一致；LIBERO 客户端要求目录里有 <code>config.yaml</code> 和 <code>normalization_stats.npy</code></td></tr>
+<tr><td>表 9 预训练</td><td>HF 基座 <code>config.yaml</code>：五个来源，<code>weight_strategy: proportional</code>，lr 1e-4、cosine、warmup 0.05、min 0.01、batch 24、1 epoch</td><td class="un">一致，但权重是第 154,000 步（<a href="#n15">读者注 15</a>）；配置里第一视角 <code>total_hours</code> 是 1,439.03，和 InternData-A1 完全相同，表 4 是 1,442（<a href="#n17">读者注 17</a>）</td></tr>
+<tr><td>表 10 LIBERO</td><td>HF <code>OpenWAM-Alpha-Sim-LIBERO/config.yaml</code></td><td class="ok">见下一节</td></tr>
+<tr><td>§3.4 评测客户端</td><td><code>benchmarks/libero/</code></td><td class="un">论文没写 LIBERO 的评测协议，代码里写死了（<a href="#n19">读者注 19</a>）</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 预训练配置里的小出入</span><p>HF 基座配置里各来源的 <code>total_hours</code>：AgiBot 1,793.80、RoboCOIN 686.12、DROID 1,007.05、InternData-A1 1,439.03，和表 4 一致到 1 小时；但第一视角（配置里叫 <code>worldengine</code>）也写 1,439.03，和 InternData-A1 一字不差，表 4 是 1,442。像是复制时没改。另外预训练时机器人来源用 <code>normalize_mode: quantile</code>，而 LIBERO 等下游微调用 <code>min-max</code>（<code>openwam-alpha-finetuning.md</code> 说 α 的微调固定 min-max）。两者是不同数据集各自的统计，不矛盾，但复现时别把预训练的归一化方式套到下游。</p></div>
+
+<h2 id="repro">LIBERO 复现要点</h2>
+<p>你复现的是“OpenWAM-α 从官方预训练基座在 LIBERO 上微调”。这一节把论文、README、代码和 Hugging Face 上和 LIBERO 有关的设置逐项列出。先说结论：</p>
+<ul>
+<li><b>论文编号：</b>就是 arXiv <a href="https://arxiv.org/abs/2609.07398">2609.07398</a>（v1，2026-09-07）。代码 README 顶部的徽章、引用条目、News（2026/09/09 “Paper is released on arXiv”）和每个 HF 模型卡都写着这个编号。“没有查到对应论文”的说法不对。</li>
+<li><b>99.3%：</b>出处一致。论文附录 D 表 13（第 39 页）OpenWAM-α 一行，四个套件 Spatial 99.6、Object 99.6、Goal 99.8、Long 98.2，平均 99.3；正文图 13、图 14、图 16(b) 也是 99.3。代码仓库里在 <code>benchmarks/libero/README.md</code> 的“4. Results”表（标明“Scores from the OpenWAM paper”），四个数相同。仓库首页 README 没有这张表（<a href="#n18">读者注 18</a>）。</li>
+<li><b>step 154000：</b>和 HF 上公布的基座文件名一致，和 README、配置文件一致（都只说“foundation checkpoint”，不写步数），但和论文表 9 的 155,862 步不一致（<a href="#n15">读者注 15</a>）。</li>
+<li><b>video_stride = 4 和“32 步动作块”：</b>动作块长度来自 <code>num_frames: 33</code>（块长 = num_frames − 1 = 32），不是来自 video_stride。<code>video_stride: 4</code> 只对视频抽帧：33 帧里取第 0、4、…、32 帧共 9 帧，正好对上 Wan2.2-VAE 的 4 倍时间压缩，编码后 1 + 8/4 = 3 个隐帧。README 的原话是“num_frames=33 and video_stride=4 … produce the 32-step action horizon”，两者合起来才构成约定（<code>configs/dataloader/libero.yaml</code> 注释写得更清楚：action horizon = num_frames − 1，video_stride 只影响视频）。</li>
+</ul>
+
+<p class="tcap" id="t-repro">LIBERO 微调和评测设置（“HF”指 <code>OpenWAM-Alpha-Sim-LIBERO/config.yaml</code>，revision 110b07e）</p>
+<div class="tablewrap"><table class="t-xw repro"><thead><tr><th>项</th><th>值</th><th>出处</th><th>备注</th></tr></thead><tbody>
+<tr class="grp"><td colspan="4">起点和数据</td></tr>
+<tr><td>基座检查点</td><td><code>OpenWAM/OpenWAM-Alpha-Pretrain-Foundation-Model</code>，<code>checkpoint_step_154000.safetensors</code></td><td>HF 文件列表；README “OpenWAM-α Fine-Tuning”；<code>openwam-alpha-finetuning.md</code></td><td>论文表 9 写 155,862 步</td></tr>
+<tr><td>微调方式</td><td><code>training.finetune_ckpt_path=&lt;基座目录&gt;</code>，从第 0 步开始新跑，结构按基座记录重建</td><td><code>configs/train.yaml</code>；论文 §3.2</td><td>和 <code>resume_ckpt_path</code> 互斥</td></tr>
+<tr><td>数据</td><td><code>OpenWAM/LIBERO</code>（LeRobot v3，由 <code>lerobot/libero</code> 转换）：1,693 条、273,465 帧、40 个任务、10 fps</td><td>HF 数据集 <code>meta/info.json</code>、<code>meta/conversion.json</code>；下载器 <code>download_benchmark_data.py</code> 第 115 行</td><td>四个套件一起训一个模型</td></tr>
+<tr><td>动作</td><td>原生 10 维：Δxyz 3 + Δ旋转的 rot6d 6（由 Exp(轴角) 转换）+ 夹爪 1（+1 开 / −1 关），放进 80 维的 0-9 槽</td><td><code>libero.yaml</code>：<code>action_mode: eef</code>，<code>unify_action: true</code>，<code>unify_action_map: ["0-9"]</code>；HF <code>action_dim: 80</code></td><td>论文 §3.4 说 LIBERO 用 10 维末端空间</td></tr>
+<tr><td>本体状态</td><td>实际达到的 10 维：xyz + rot6d + 夹爪开度，同样进 0-9 槽</td><td><code>unify_state_map: null</code>（复用动作映射）</td><td></td></tr>
+<tr><td>归一化</td><td>min-max 到 [−1, 1]，rot6d 槽恒等（统计固定为 ±1）</td><td><code>normalize_mode: min-max</code>；<code>openwam-alpha-finetuning.md</code></td><td>统计存在 <code>normalization_stats.npy</code></td></tr>
+<tr><td>窗口</td><td>33 帧（动作块 32 步 = 3.2 s），视频每 4 帧取 1，共 9 帧 → 3 个隐帧；window stride 1</td><td><code>libero.yaml</code>；论文表 9</td><td>见上面的说明</td></tr>
+<tr><td>画面</td><td>384 × 320 的 L 形画布：上方 256 × 320 是主相机 <code>image</code>，下方左半 128 × 160 是腕部 <code>image2</code>，右半黑</td><td><code>libero.yaml</code> 的 <code>camera_layout</code>；论文表 9</td><td>多视角开</td></tr>
+<tr><td>图像增强</td><td>关</td><td>表 10 “–”；<code>color_jitter.enabled: false</code></td><td></td></tr>
+<tr class="grp"><td colspan="4">优化</td></tr>
+<tr><td>全局 batch</td><td>256</td><td>表 10</td><td>HF 配置每卡 4，即 64 个进程；<code>train.yaml</code> 默认每卡 16</td></tr>
+<tr><td>训练长度</td><td>10 epochs = 10,690 步</td><td>表 10；HF <code>num_epochs: 10</code>、文件名 <code>checkpoint_step_10690</code></td><td>可精确复算，见<a href="#n16">读者注 16</a>；<code>train.yaml</code> 默认 5 epochs</td></tr>
+<tr><td>学习率</td><td>1e-4，cosine，warmup 5%（约 535 步），最低 1e-6</td><td>表 9、表 10；HF</td><td><code>action_lr</code>、<code>video_lr</code> 都是 null</td></tr>
+<tr><td>优化器</td><td>AdamW，β = (0.9, 0.95)，weight decay 0.01，梯度裁剪 1.0</td><td>表 9；HF</td><td></td></tr>
+<tr><td>精度 / 并行</td><td>bf16，DeepSpeed ZeRO-2</td><td>表 9；HF</td><td></td></tr>
+<tr><td>损失</td><td>式 (2)，λv = λa = 1，时间步扭曲 shift 5/5</td><td>§5.1.2；HF</td><td>视频流也一起训，不只训动作</td></tr>
+<tr><td>冻结</td><td>umT5、Wan2.2-VAE（及配置里其他编码器）</td><td>§5.1.2；HF <code>freeze</code> 列表</td><td></td></tr>
+<tr><td>梯度检查点</td><td>HF 配置 false；当前 <code>train.yaml</code> 默认 true</td><td>HF；<code>train.yaml</code></td><td>只影响显存和速度</td></tr>
+<tr><td>随机种子</td><td>42</td><td>HF <code>project.seed</code>、<code>dataloader.seed</code></td><td></td></tr>
+<tr><td>保存</td><td>每 2,000 步，只留最后 1 个，结束时再存最终权重</td><td>HF；<code>openwam_trainer.py</code></td><td></td></tr>
+<tr class="grp"><td colspan="4">推理（策略服务器）</td></tr>
+<tr><td>去噪</td><td>同步，10 步，\(t_i=1-f_5(1-i/10)\)</td><td>§5.1.3；<code>configs/deploy.yaml</code></td><td></td></tr>
+<tr><td>执行</td><td>同步推理，整块 32 步开环执行完再推下一块</td><td>§5.1.3；<code>inference_horizon: null</code></td><td>600 步最多约 19 次推理</td></tr>
+<tr><td>加速</td><td>DiT 速度缓存（余弦 &gt; 0.99 时跳过，最多连跳 3 次）、编译、提示词缓存、不解码视频</td><td><code>deploy.yaml</code>；§3.3</td><td>LIBERO README 建议遇到崩溃时加 <code>--compile-enabled false</code>；速度缓存会让结果和逐步计算略有不同</td></tr>
+<tr class="grp"><td colspan="4">评测（<code>benchmarks/libero/</code>）</td></tr>
+<tr><td>环境</td><td>LIBERO commit <code>8f1084e</code>，Python 3.10，<code>mujoco==3.3.2</code>，打 <code>torch.load(weights_only=False)</code> 补丁</td><td><code>benchmarks/libero/README.md</code>、<code>setup_env.sh</code></td><td>版本不符会中止</td></tr>
+<tr><td>套件</td><td>libero_spatial、libero_object、libero_goal、libero_10，各 10 个任务</td><td><code>single_eval.py</code></td><td></td></tr>
+<tr><td>试验次数</td><td>每个任务 50 次（每个套件 500，共 2,000）；初始状态依次取第 trial % 50 个</td><td><code>policy_config.yml</code> <code>num_trials: 50</code>；<code>scheduler.py</code> 校验必须是 0:50</td><td>论文没写</td></tr>
+<tr><td>种子</td><td>42，只在环境创建后 <code>env.seed(42)</code> 一次，不按试验重设</td><td><code>policy_config.yml</code>；<code>scheduler.py</code> 校验</td><td><code>reseed_each_trial: false</code></td></tr>
+<tr><td>开局等待</td><td>30 步，动作 [0,0,0,0,0,0,−1]（夹爪张开）</td><td><code>settle_steps: 30</code></td><td>OpenVLA 是 10 步</td></tr>
+<tr><td>最长步数</td><td>600（spatial/object/goal），700（libero_10），不含开局等待</td><td><code>max_steps_by_suite</code>；<code>scheduler.py</code> 校验</td><td>OpenVLA 是 220/280/300/520，见<a href="#n19">读者注 19</a></td></tr>
+<tr><td>成功判定</td><td>环境返回 <code>done</code> 即成功并结束</td><td><code>single_eval.py</code></td><td></td></tr>
+<tr><td>相机</td><td><code>agentview_image</code> 和 <code>robot0_eye_in_hand_image</code>，256 × 256，旋转 180°</td><td><code>policy_config.yml</code></td><td>和 <code>lerobot/libero</code> 的方向一致</td></tr>
+<tr><td>发送的状态</td><td>由 eef_pos、eef_quat、gripper_qpos 现算的 10 维</td><td><code>openwam2libero_interface.py</code></td><td>服务器先 ping，表示必须是 <code>eef</code></td></tr>
+<tr><td>动作转换</td><td>10 维 → LIBERO 7 维 OSC：位置原样，rot6d → 轴角，夹爪翻号；三者都裁到 [−1, 1]；不叠加当前位姿，不乘控制器缩放</td><td><code>native_eef10_to_libero7d</code></td><td></td></tr>
+<tr><td>结果</td><td>每任务 <code>results.json</code>，汇总 <code>summary.csv/json</code>，带协议签名 <code>openwam-libero-native-action-seed42-settle30-v1</code></td><td><code>scheduler.py</code></td><td>协议不同的结果不允许合并续跑</td></tr>
+<tr><td>评测用检查点</td><td><code>OpenWAM-Alpha-Sim-LIBERO/checkpoint_step_10690.safetensors</code></td><td>LIBERO README 第 3 节</td><td><code>scheduler.py</code> 的默认名是 <code>checkpoint_step_10850</code>，README 说代码里的默认值只是占位，要显式传</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 99.3% 的出处和统计误差</span><p>99.3 出现在论文表 13（第 39 页）、图 13、图 14、图 16(b)，以及代码 <code>benchmarks/libero/README.md</code> 第 4 节。四个套件 (99.6 + 99.6 + 99.8 + 98.2)/4 = 99.3。按代码的协议每套件 500 回合，相当于 498、498、499、491 次成功，合计 1,986/2,000。</p><p>复现时要预期的波动：1,986/2,000 的 Wilson 95% 区间是 98.83% 到 99.58%；Long 的 491/500 是 96.61% 到 99.05%。所以复现得到 99.0 或 99.5 都在统计误差内；和 Qwen-RobotManip、Being-H0.7 的 99.2 相差 0.1 点只是 2 个回合。论文没有说明 99.3 是一次评测还是多次平均、用的是哪个检查点（推测是公布的 step 10,690），标“未核实”。</p></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · LIBERO 评测协议比常用设定宽松</span><p>论文 §5.3 说各基准的“评测细节”在 B.2，但 B.2 只有表 10，没有 LIBERO 的试验次数、步数上限或种子。协议只在代码里：每任务 50 次、种子 42、开局 30 步、最长 600 步（libero_10 是 700 步），<code>scheduler.py</code> 第 1025-1050 行会拒绝其他设定。</p><p>OpenVLA 的 <code>run_libero_eval.py</code>（我在 2026-11-16 读的 main 分支）同样是每任务 50 次，但开局等 10 步，步数上限按“最长演示加余量”定为 spatial 220、object 280、goal 300、libero_10 520。OpenWAM 的上限是它们的 2.7、2.1、2.0、1.3 倍。上限越宽，慢但最终做成的回合越多算成功，对 Long 以外的套件影响可能更大。表 13 里的基线分数大多抄自各自论文，未必用同一协议，所以 0.1 到 1 点级别的排名比较要小心。我没有跑过，影响多大不知道。</p></div>
+<details class="tbl"><summary>按 8 卡复现时 batch 和步数怎么对（点开）</summary>
+<p>官方配置是 64 个进程 × 每卡 4 = 256。用 8 卡要么每卡 32，要么每卡 4 加 <code>gradient_accumulation_steps: 8</code>；两种都是每轮 1,069 个优化步、10 轮 10,690 步，学习率调度一样。注意代码里 <code>max_steps</code> 按微步计，梯度累积时 <code>total_opt_steps</code> 按优化步算（<code>openwam_trainer.py</code> 第 224-235 行），只设 <code>num_epochs: 10</code> 就行。</p>
+<p>如果直接用当前 <code>train.yaml</code> 的默认值（每卡 16、5 轮）在 8 卡上跑：全局 128，每轮 \(\lceil 273465/128\rceil=2137\) 步，5 轮 10,685 步，步数和官方几乎一样，但看过的样本只有一半、batch 也只有一半。这不是论文的配置。</p>
+<p>README 说训练加速预设 <code>presets/fast.env</code> 默认加载，不改变数学，只影响速度；要完全按原样跑可加 <code>training.speed_preset=null</code>。</p>
+</details>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">同名项目</a>：HF 的 OpenWAM 组织属于 2609.07398，不属于 Stanford 的 2610.07922。</li>
+<li><a href="#n2">预训练权重值多少</a>：同结构随机初始化 90.30，拷贝权重 92.39，差 2.09 点。</li>
+<li><a href="#n3">表 1 的算术和“持续提高”</a>：平均都对；族内不单调，MoE 低于 Vanilla。</li>
+<li><a href="#n4">同一个设定出现了四个数</a>：92.15 到 93.0，跨度 0.85；不少结论的差距在此之内。</li>
+<li><a href="#n5">表 2 的算术</a>：全对，“约五点”是 4.98。</li>
+<li><a href="#n6">图 10 的图注和排序</a>：图注说排序了，实际没有；联合只比两阶段好 0.35。</li>
+<li><a href="#n7">图 10 和图 11 差 0.2 点</a>：联合预训练 OOD 是 26.62 还是 26.42。</li>
+<li><a href="#n8">ActionDiT 参数</a>：按代码算 1.021B。</li>
+<li><a href="#n9">10 步的时间网格</a>：一半步数在 t &lt; 0.17。</li>
+<li><a href="#n10">表 4 全部对得上</a>：求和、帧/FPS 换算小时、形态数、占比都对。</li>
+<li><a href="#n11">几张表的 Avg 不是简单平均</a>：表 5、17、19 是加权平均，权重未说明。</li>
+<li><a href="#n12">图 16 和附录表对得上</a>：(a) 的 WAM 域内优势只有一对模型。</li>
+<li><a href="#n13">真机表的核算</a>：表 6、7 对；表 8 两方的羽毛球总数不同。</li>
+<li><a href="#n14">步数 × batch 和帧数差 7.7%</a>：4.788 亿样本对 5.185 亿帧，未核实。</li>
+<li><a href="#n15">公布的基座是第 154,000 步</a>：最后一次周期保存，论文写 155,862。<b>和用户数字的出入在这里。</b></li>
+<li><a href="#n16">LIBERO 的 10,690 步可以精确复算</a>：⌈273,465/256⌉ × 10。</li>
+<li><a href="#n17">预训练配置里的小出入</a>：第一视角小时数抄成了 InternData 的；预训练 quantile、微调 min-max。</li>
+<li><a href="#n18">99.3% 的出处和统计误差</a>：表 13 和 <code>benchmarks/libero/README.md</code>，不在首页 README；1,986/2,000，95% 区间 98.83 到 99.58。<b>用户说“README 的结果”，实际在子目录 README。</b></li>
+<li><a href="#n19">LIBERO 评测协议比常用设定宽松</a>：600/700 步对 OpenVLA 的 220 到 520 步；论文没写协议。</li>
+</ol>
+<p>论文没写、我也没找到的：LIBERO 评测是单次还是多次、用的哪个检查点；第一视角数据集是否公开（README 2026/10/25 说公开了四个机器人数据集，没提第一视角）；§4 各消融的训练步数和重复次数。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准和工具。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://openwam-official.github.io/">OpenWAM</a></td><td>本文</td><td><a href="https://github.com/OpenWAM-Official/OpenWAM">代码</a> · <a href="https://huggingface.co/OpenWAM">HF</a></td><td><a href="https://arxiv.org/abs/2609.07398">2609.07398</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/OpenWAM/OpenWAM">OpenWAM（Stanford）</a></td><td>同名但不相干的工作</td><td>github.com/OpenWAM/OpenWAM</td><td><a href="https://arxiv.org/abs/2610.07922">2610.07922</a></td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>单臂仿真基准，4 个套件</td><td>libero-project.github.io</td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/sylvestf/LIBERO-plus">LIBERO-Plus</a></td><td>LIBERO 的扰动鲁棒性版本</td><td>github.com/sylvestf/LIBERO-plus</td><td><a href="https://arxiv.org/abs/2510.13626">2510.13626</a></td></tr>
+<tr><td><a class="ds" href="https://vlabench.github.io/">VLABench</a></td><td>语言条件长时程操作基准</td><td>vlabench.github.io</td><td><a href="https://arxiv.org/abs/2412.18194">2412.18194</a></td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a></td><td>双臂仿真基准，§4 的全部实验</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+<tr><td><a class="ds" href="https://robodojo-benchmark.com/">RoboDojo</a></td><td>仿真 + 真机双臂基准</td><td>robodojo-benchmark.com</td><td><a href="https://arxiv.org/abs/2607.04434">2607.04434</a></td></tr>
+<tr><td><a class="ds" href="https://robocasa.ai/">RoboCasa365</a></td><td>移动单臂厨房任务</td><td>robocasa.ai</td><td>ICLR 2026（Nasiriany 等）</td></tr>
+<tr><td><a class="ds" href="https://github.com/robocasa/robocasa-gr1-tabletop-tasks">RoboCasa-GR1</a></td><td>GR1 灵巧手桌面任务</td><td>github.com/robocasa/robocasa-gr1-tabletop-tasks</td><td><a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.18239">EBench</a></td><td>移动双臂基准</td><td>–</td><td><a href="https://arxiv.org/abs/2606.18239">2606.18239</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2505.11709">EgoDex</a></td><td>第一视角灵巧操作视频，§4.3 用</td><td>–</td><td><a href="https://arxiv.org/abs/2505.11709">2505.11709</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/FlagOpen/RoboCOIN">RoboCOIN</a></td><td>双臂真机数据，15 种平台</td><td>github.com/FlagOpen/RoboCOIN</td><td><a href="https://arxiv.org/abs/2511.17441">2511.17441</a></td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBotWorld-Beta</a></td><td>真机数据</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>单臂真机数据</td><td>droid-dataset.github.io</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/InternRobotics/InternData-A1">InternData-A1</a></td><td>合成机器人数据</td><td>HF InternRobotics/InternData-A1</td><td><a href="https://arxiv.org/abs/2511.16651">2511.16651</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/OpenWAM/LIBERO">OpenWAM/LIBERO</a></td><td>官方转换后的 LIBERO 训练数据</td><td>HF OpenWAM/LIBERO</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/Wan-Video/Wan2.2">Wan2.2</a></td><td>视频骨干和 VAE</td><td>github.com/Wan-Video/Wan2.2</td><td><a href="https://arxiv.org/abs/2503.20314">2503.20314</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openvla/openvla">OpenVLA</a></td><td>LIBERO 评测脚本的常用参照（读者注 19）</td><td>github.com/openvla/openvla</td><td><a href="https://arxiv.org/abs/2406.09246">2406.09246</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2609.07398 后的整理，不是作者的官方内容。原文：Yuran Wang、Siqiao Huang、Mingleyang Li 等 24 位作者，《OpenWAM: An Open, Modular Exploration Towards Systematic World–Action Model Pretraining》，arXiv 2609.07398v1，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1、2、3、5、8、9、12、13、14、15、17 从原文 PDF 裁切，只做了裁切和格式转换，按 CC BY 4.0 使用。表格数字照录原文；读者注、复现要点和动画是本页所加。代码对照基于 OpenWAM-Official/OpenWAM（Apache-2.0）commit 1dcaeea。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

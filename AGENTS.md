@@ -1,6 +1,6 @@
 # Paper Reading Lab：接手说明（给 Codex / 其他代理）
 
-最后更新：2026-11-11（含 real2sim-eval、phystwin、rgbench、mundo）。写给接手维护这个仓库的代理。先读完这一页再动手。
+最后更新：2026-11-16（含 real2sim-eval、phystwin、rgbench、mundo、openwam、molmoact2）。写给接手维护这个仓库的代理。先读完这一页再动手。
 
 ## 1. 这是什么
 
@@ -35,6 +35,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 最早几篇 | `gauge` `simpler` `3dws` |
 | 仿真评测与世界模型 | `real2sim-eval`（Real-to-Sim + 3DGS + PhysTwin，和 `simpler` 对照）`phystwin` `rgbench`（布料模拟器基准）`mundo`（无论文，只读项目页和博客） |
 | SuperMimic 及其引用论文 | `supermimic`，以及它相关工作和表 1 引到的全部论文：`shac` `dreamer` `supertrack` `rwm` `deepmimic` `rwm-u` `dreamerv3` `td-mpc` `daydreamer` `controlvae` `sonic` `phc` `moconvq` `superdyno` `beyondmimic` `pulse` `latent` `npmp` `physicsvae` `maskedmimic` |
+| WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`。两页都有 `#repro` 复现要点节 |
 | 抓取 / 位姿架构专题 | `graspgen`（已升级为逐节精读）`foundationpose` `wapr` `tro-grasp` `tro-grasp-plus-plus`。这批大多由用户的另一个账号推送 |
 
 ## 3. Git 规则（重要）
