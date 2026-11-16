@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Diffusion Transformers with Representation Autoencoders（RAE，[arXiv 2510.11690](https://arxiv.org/abs/2510.11690)，2025-10，CC BY 4.0） | [rae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rae/index.html) | 冻结表示编码器 + ViT 解码器当自编码器；DiT 宽度 ≥ token 维度、按维度调 shift、解码器噪声增强、DiT^DH；代码对照 a4d18c4。 | 22 条 |
 | V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning（[arXiv 2603.14482](https://arxiv.org/abs/2603.14482)，2026-03，CC BY-NC-ND 4.0，经决定放原图） | [vjepa21 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/vjepa21.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/vjepa21/index.html) | 稠密预测损失 + 深监督的视频自监督编码器；代码对照 vjepa2 204698b；OpenWAM 表示式编码器的上游。 | 27 条 |
 | Wan: Open and Advanced Large-Scale Video Generative Models（[arXiv 2503.20314](https://arxiv.org/abs/2503.20314)，2025-03，非独占许可，经决定放原图） | [wan 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wan.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wan/index.html) | Wan2.1 技术报告 + Wan2.2 MoE / Wan2.2-VAE / TI2V-5B 补充、FLUX.2-VAE 附节；OpenWAM 视频骨干的上游。 | 21 条 |
 | Both Semantics and Reconstruction Matter（S-VAE / PS-VAE，[arXiv 2512.17909](https://arxiv.org/abs/2512.17909)，2025-12，非独占许可，经决定放原图） | [svae 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/svae.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/svae/index.html) | 表示编码器特征压成 KL 正则隐空间；OpenWAM S-VAE 的出处，附与 OpenWAM 实现的逐项对照。 | 16 条 |
@@ -341,6 +342,7 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
+papers/rae.html            RAE 精读（原图在 papers/rae/，11 幕动画在 interactives/rae/）
 papers/vjepa21.html        V-JEPA 2.1 精读（原图在 papers/vjepa21/，11 幕动画在 interactives/vjepa21/）
 papers/wan.html            Wan 精读（原图在 papers/wan/，11 幕动画在 interactives/wan/）
 papers/svae.html           S-VAE 精读（原图在 papers/svae/，11 幕动画在 interactives/svae/）

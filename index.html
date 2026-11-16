@@ -20,6 +20,14 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/rae.html">RAE：用冻结的表示编码器加训练的解码器替换 VAE 做扩散</a></p>
+<p class="en">Diffusion Transformers with Representation Autoencoders</p>
+<div class="meta"><span>arXiv 2510.11690</span><span>2025-10</span><span>2026-11-16 读</span></div>
+<p class="d">冻结 DINOv2 + ViT 解码器重建胜过 SD-VAE；DiT 宽度必须不小于 token 维度（下界 (n−d)/n），shift 按维度取 √(m/4096)，解码器加噪声训练，再接宽而浅的 DiT^DH 头：ImageNet 256 无引导 gFID 1.51。代码对照 a4d18c4：噪声增强的 σ 分布和论文不同。OpenWAM“维度不匹配”论据的出处。</p>
+<div class="tags"><span class="pill">扩散隐空间</span><span class="pill">OpenWAM 上游</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">22 条读者注</span></div>
+<div class="links"><a class="go" href="papers/rae.html">读精读 →</a><a href="interactives/rae/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2510.11690">原文</a><a href="https://github.com/bytetriper/RAE">官方代码</a><a href="papers/rae.html#openwam">在 OpenWAM 里怎么用</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/vjepa21.html">V-JEPA 2.1：让视频自监督模型学出好用的稠密特征</a></p>
 <p class="en">V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning</p>
 <div class="meta"><span>arXiv 2603.14482</span><span>2026-03</span><span>2026-11-16 读</span></div>

@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAE 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2510.11690 RAE（Diffusion Transformers with Representation Autoencoders）的中文精读：逐节整理正文和附录，含编号公式、结果表、裁切原图、官方代码对照、在 OpenWAM 里怎么用、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:380px}.t-xw{min-width:860px}.t-links{min-width:640px}.t-code{min-width:720px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
+.subt{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:12px 0}
+.subt .tablewrap{margin:0}
+.subt table{min-width:0;width:100%}
+.subt .tcap{margin:4px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/rae/index.html">3D 框架动画</a><a href="openwam.html#qa-enc">OpenWAM 问 2</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2510.11690 · cs.CV · v1 2025 年 10 月 13 日 · ICLR 2026 · 中文精读</p>
+<h1>RAE：用冻结的表示编码器当自编码器，让 DiT 在高维隐空间里训练</h1>
+<p class="orig">Diffusion Transformers with Representation Autoencoders</p>
+<p>作者 Boyang Zheng、Nanye Ma、Shengbang Tong、Saining Xie，来自 New York University。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2510.11690">arXiv 原文</a><a href="https://arxiv.org/pdf/2510.11690v1">PDF</a><a href="https://arxiv.org/html/2510.11690v1">HTML 版</a><a href="https://rae-dit.github.io/">项目主页</a><a href="https://github.com/bytetriper/RAE">官方代码</a><a href="https://huggingface.co/collections/nyu-visionx/rae-68ecb57b8bfbf816c83cce15">检查点</a><span>正文 12 页，附录到第 31 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布（只要求署名），PDF 页脚只写 “Preprint”，没有与之矛盾的版权声明。这里按原文顺序覆盖正文 7 节和附录 A 到 M，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1 到图 9 从 arXiv PDF（v1）裁切，只做了裁切、缩放和格式转换，没有改内容，版权归作者，按 CC BY 4.0 署名使用；本批论文是否放原图由站点作者决定。图下的文字是我写的。本页的“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码是 <a href="https://github.com/bytetriper/RAE">bytetriper/RAE</a>，MIT 许可。我读的是当时最新的提交 <a href="https://github.com/bytetriper/RAE/tree/a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041">a4d18c4</a>（2026-01-20），只读，没有运行。它是作者用 PyTorch/GPU 重写的版本（论文的实验用 TPU 和 PyTorch/XLA），和论文不一致的地方两边都写，见<a href="#code">代码对照</a>。</p>
+<p><b>为什么读这篇。</b><a href="openwam.html#s4-1-2">OpenWAM §4.1.2</a> 引用它来说明“表示编码器的高维特征和 DiT 不匹配”。本页末尾的<a href="#openwam">“在 OpenWAM 里怎么用”</a>核对了 OpenWAM 页上按 RAE 条件做的推算。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 冻结编码器的重建</a><a href="#s4">4 让 DiT 适应 RAE</a><a href="#s4-1">4.1 宽度</a><a href="#s4-2">4.2 噪声调度</a><a href="#s4-3">4.3 噪声增强解码</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 宽扩散头 DiT^DH</a><a href="#s5-1">5.1 主要结果</a><a href="#s6">6 讨论</a><a href="#s7">7 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 证明</a><a href="#apC">附录 C RAE 实现</a><a href="#apD">附录 D 扩散实现</a><a href="#apE">附录 E–F</a><a href="#apG">附录 G–H 消融</a><a href="#apI">附录 I–M</a><a href="#code">代码对照</a><a href="#openwam">在 OpenWAM 里怎么用</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>潜空间扩散（LDM、DiT）几年来换了很多次骨干，但定义潜空间的自编码器基本没变：大家还在用 SD-VAE。它的问题有三个：卷积结构老、计算贵；隐变量维度低（256² 的图压成 32 × 32 × 4），装不下多少信息；只靠重建训练，语义结构弱。</p>
+<p>这篇的做法很直接：<b>把 VAE 换成一个冻结的预训练表示编码器（DINOv2、SigLIP2、MAE），只训练一个 ViT 解码器把特征还原成像素</b>，称为表示自编码器（Representation Autoencoder，RAE）。难点不在重建，而在于扩散模型要在 256 个 768 维 token 的高维空间里学分布。作者找到三个原因并各给一个解法，再加一个结构改动：</p>
+<ul>
+<li><b>DiT 宽度要不小于 token 维度</b>（§4.1）：宽度 \(d\) 小于 token 维度 \(n\) 时，连一张图都拟合不了；有一个下界定理，下界是 \((n-d)/n\)，和实验对得上。</li>
+<li><b>噪声调度的 shift 要按“有效维度”= token 数 × 维度来算</b>（§4.2）：gFID 从 23.08 到 4.81。</li>
+<li><b>解码器训练时给隐变量加噪声</b>（§4.3）：让它能处理扩散模型生成的、略偏离训练分布的隐变量，gFID 4.81 → 4.28。</li>
+<li><b>DiT<sup>DH</sup></b>（§5）：标准 DiT 后面接一个 2 层、宽 2048 的“扩散头”，便宜地加宽。</li>
+</ul>
+<p>结果：ImageNet 256 × 256 上 DiT<sup>DH</sup>-XL 不加引导 gFID 1.51，加 AutoGuidance 1.13；512 × 512 加引导也是 1.13。80 个 epoch 就到 2.16。</p>
+<p>读完我认为最值得记住的三点：宽度条件是<b>逐 token</b>的，看的是进入 DiT 输入投影的那个向量的维度（打包 patch 之后），这一点对 OpenWAM 的推算很关键（<a href="#n6">读者注 6</a>、<a href="#n20">读者注 20</a>）；shift 的基准 4096 正好是 SD-VAE 一张 256² 图的隐变量维度，所以这条规则的意思是“相对 SD-VAE 按维度放大”（<a href="#n7">读者注 7</a>）；代码里噪声增强的 σ 是均匀分布，不是论文写的半正态分布（<a href="#n9">读者注 9</a>）。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 版本和会议</span><p>arXiv 上只有 v1（2025-10-13 提交，页眉是 “Preprint”），本页读的就是它。“ICLR 2026”来自 OpenWAM 的参考文献 [104]（“ICLR, volume 2026, pp. 35791–35820”），我没有看到会议定稿，定稿与 v1 是否有差别<b>未核实</b>。</p></div>
+
+<figure class="pfig" id="fig1">
+<img src="rae/fig1.webp" width="1600" height="365" alt="图 1：横轴是年份，纵轴是 ImageNet 256 的 FID（对数坐标）。灰点是 VAE 方法从 VQ-VAE2 到 REG，右侧蓝点是 RAE：DINOv2-S 上的 DiT 和 DiT-DH，DINOv2-B 上的 DiT-DH 以及加 AutoGuidance 后的空心点" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S0.F1">看原图 ↗</a></span>历年 ImageNet 256 生成 FID。灰点是基于 VAE 的方法（2020 年的 VQ-VAE2 约 30，2025 年的 REPA-E、REG 约 2）。虚线右边是 RAE：DINOv2-S 上的 DiT 和 DiT<sup>DH</sup>，DINOv2-B 上的 DiT<sup>DH</sup>（实心 1.51）和加 AutoGuidance 的结果（空心 1.13）。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>结论先说：</b>作者认为“语义编码器不适合重建”和“扩散在高维隐空间里训不好”这两个常见看法都不对；只要结构上做几处调整，高维语义隐空间反而收敛更快、生成更好。</p>
+<p><b>背景。</b>潜空间扩散把生成放到一个学到的紧凑空间里做，比直接在像素上做更省、更好。但 SD-VAE 用重度通道压缩、只做重建训练，隐变量只抓到局部外观，缺少全局语义结构；它的卷积结构计算也贵（图 2）。另一边，DINO、MAE、JEPA、CLIP/SigLIP 等表示学习进展很快，但潜空间扩散基本没用上它们。REPA 一类方法用对齐损失“间接”借语义，代价是额外的训练阶段、损失和调参。</p>
+<p><b>两个被质疑的假设。</b>(1) 语义编码器只关注高层信息，重建只能“语义相似”；(2) 扩散模型在高维隐空间表现差。作者的回答：冻结的表示编码器配一个训练的解码器就能重建得比 SD-VAE 好；而高维隐变量<b>几乎不增加计算</b>，因为 token 数由 patch 大小决定，通道只在第一层被投影到 DiT 宽度。</p>
+<p><b>三处难点</b>（对应 §4 的三小节）：DiT 宽度必须超过 token 维度；基于分辨率的 shift 忽略了 token 维度；RAE 解码器只见过离散的训练隐变量，却要解码扩散模型生成的连续分布。最后提出 DiT<sup>DH</sup>：借鉴 DDT，但出发点不同，是为了在宽度上扩展而不付出二次方的计算。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>结论：</b>前人要么让 VAE 去对齐表示编码器（隐变量仍然低维），要么让 DiT 去对齐表示编码器（仍在 VAE 空间里扩散）；这篇直接在表示编码器的特征上扩散。</p>
+<ul>
+<li><b>用表示改进重建：</b>VA-VAE 把 VAE 隐变量对齐到预训练编码器；MAETok、DC-AE 1.5、l-DeTok 把 MAE 或去噪自编码的目标加进 VAE。重建和生成都变好，但仍受低维压缩限制。</li>
+<li><b>用表示改进生成：</b>REPA 把 DiT 中间层对齐到表示编码器特征；DDT 把 DiT 拆成编码器–解码器并在编码器输出上加 REPA；REG 加一个与表示对齐的可学 token；ReDi 同时生成 VAE 隐变量和 DINOv2 特征的 PCA 分量。</li>
+</ul>
+<figure class="pfig" id="fig2">
+<img src="rae/fig2.webp" width="1600" height="377" alt="图 2：左边 DiT w/ VAE，U-Net 编码器逐级下采样到 4 维隐变量，编码器 135 GFLOPs、解码器 310 GFLOPs；右边 DiT w/ RAE，ViT 编码器不降采样，768 维隐变量，编码器 22 GFLOPs、解码器 106 GFLOPs" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S1.F2">看原图 ↗</a></span>SD-VAE（左）和 RAE（DINOv2-B，右）的对比。SD-VAE 是卷积 U-Net 式结构，逐级下采样到 4 维隐变量；编码一张 256² 图 135 GFLOPs，解码 310 GFLOPs。RAE 全是 ViT 块、不降采样，隐变量 768 维；编码 22 GFLOPs，解码 106 GFLOPs。按图上的数，编码器差约 6 倍，解码器约 3 倍。</figcaption>
+</figure>
+
+<h2 id="s3"><span class="no">3</span>冻结编码器也能高保真重建</h2>
+<p><b>结论：</b>冻结的表示编码器配一个 ViT 解码器，重建 rFID 全部好于 SD-VAE，解码器还更省；同时保留了编码器原有的表示能力（线性探测 84.5% 对 SD-VAE 的约 8%）。</p>
+<p><b>结构。</b>输入 \(x\in\mathbb R^{3\times H\times W}\)；冻结编码器 \(E\) 的 patch 大小 \(p_e\)、隐层宽度 \(d\)，得到 \(N=HW/p_e^2\) 个 \(d\) 维 token。ViT 解码器 \(D\) 的 patch 大小 \(p_d\)，输出 \(3\times H\frac{p_d}{p_e}\times W\frac{p_d}{p_e}\)；默认 \(p_d=p_e\)，输出和输入同分辨率。256 × 256 的实验里编码器都输出 256 个 token，和多数基于 SD-VAE 的 DiT 的 token 数相同。解码器的损失沿用 VAE 的常见组合：</p>
+<div class="eq"><div class="m">\[ z=E(x),\quad \hat x=D(z),\qquad \mathcal L_{\rm rec}(x)=\omega_L\,{\rm LPIPS}(\hat x,x)+{\rm L1}(\hat x,x)+\omega_G\,\lambda\,{\rm GAN}(\hat x,x) \]</div><span class="no"></span></div>
+<p>三个编码器代表三种预训练范式：DINOv2-B（\(p_e=14\)，\(d=768\)，自蒸馏）、SigLIP2-B（\(p_e=16\)，\(d=768\)，语言监督）、MAE-B（\(p_e=16\)，\(d=768\)，掩码自编码）。DINOv2 另试 S、B、L（\(d=384,768,1024\)）。默认解码器 ViT-XL，指标是 <a class="ds" href="https://www.image-net.org/">ImageNet</a>（<a href="https://arxiv.org/abs/1409.0575">Russakovsky 等</a>）验证集重建的 FID，记作 rFID。</p>
+<div class="subt">
+<div><div class="tablewrap"><table class="t-s" style="min-width:0"><thead><tr><th>(a) 编码器</th><th class="n">rFID</th></tr></thead><tbody>
+<tr><td>DINOv2-B</td><td class="n">0.49</td></tr><tr><td>SigLIP2-B</td><td class="n">0.53</td></tr><tr><td>MAE-B</td><td class="n">0.16</td></tr><tr><td>SD-VAE</td><td class="n">0.62</td></tr></tbody></table></div></div>
+<div><div class="tablewrap"><table class="t-s" style="min-width:0"><thead><tr><th>(b) 解码器</th><th class="n">rFID</th><th class="n">GFLOPs</th></tr></thead><tbody>
+<tr><td>ViT-B</td><td class="n">0.58</td><td class="n">22.2</td></tr><tr><td>ViT-L</td><td class="n">0.50</td><td class="n">78.1</td></tr><tr><td>ViT-XL</td><td class="n">0.49</td><td class="n">106.7</td></tr><tr><td>SD-VAE</td><td class="n">0.62</td><td class="n">310.4</td></tr></tbody></table></div></div>
+<div><div class="tablewrap"><table class="t-s" style="min-width:0"><thead><tr><th>(c) 编码器大小</th><th class="n">rFID</th></tr></thead><tbody>
+<tr><td>DINOv2-S</td><td class="n">0.52</td></tr><tr><td>DINOv2-B</td><td class="n">0.49</td></tr><tr><td>DINOv2-L</td><td class="n">0.52</td></tr></tbody></table></div></div>
+<div><div class="tablewrap"><table class="t-s" style="min-width:0"><thead><tr><th>(d) 表示质量</th><th class="n">线性探测 %</th></tr></thead><tbody>
+<tr><td>DINOv2-B</td><td class="n">84.5</td></tr><tr><td>SigLIP2-B</td><td class="n">79.1</td></tr><tr><td>MAE-B</td><td class="n">68.0</td></tr><tr><td>SD-VAE</td><td class="n">8.0</td></tr></tbody></table></div></div>
+</div>
+<p class="tcap" id="tab1">表 1 · ImageNet-1K 上的重建和表示质量。未注明时编码器 DINOv2-B、解码器 ViT-XL · <a href="https://arxiv.org/html/2510.11690v1#S3.T1">看原表 ↗</a></p>
+<p>MAE-B 的 rFID 0.16 最好；DINOv2 从 S 到 L rFID 基本不变，说明小编码器也保留了足够的低层细节；解码器从 ViT-B 到 ViT-XL，rFID 0.58 → 0.49。ViT-B 已经比 SD-VAE 好，而计算只有它的 1/14；ViT-XL 约为 1/3。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 表里的 “GFLOPs” 其实是乘加次数</span><p>按代码的解码器配置（<code>configs/decoder/ViT*/config.json</code>）估算每张图的乘加数（257 个 token，含 [CLS]）：ViT-B 12 层 × 宽 768 × FFN 3072 → 约 23.0 G；ViT-L 24 × 1024 × 4096 → 80.9 G；ViT-XL 28 × 1152 × 4096 → 110.4 G；DINOv2-B 编码器（261 个 token）→ 23.4 G。和表 1b 的 22.2 / 78.1 / 106.7、图 2 的 22 相差在 5% 以内（我把注意力的二次项也算进去了，略偏大）。所以这些 “GFLOPs” 按乘加计数，不是 2 倍的浮点运算。比例不受影响：310.4 / 22.2 = 14.0（“14 倍”），106.7 / 310.4 = 0.34（“三分之一”），图 2 的 135 / 22 = 6.1、310 / 106 = 2.9。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 默认编码器其实不满足 “\(p_d=p_e\)”</span><p>§3 说默认 \(p_d=p_e\)。但附录 C.1 写明：DINOv2 只有 \(p_e=14\) 的版本，所以把输入插值到 224 × 224（\(224/14=16\)，16 × 16 = 256 个 token），解码器用 \(p_d=16\)，输出 256 × 256。代码里也是 <code>encoder_input_size: 224</code>、<code>decoder_patch_size</code> 默认 16。也就是说默认的 DINOv2-B RAE 本身就带了 16/14 ≈ 1.14 倍的上采样，编码器看到的是缩小过的图。§6.1 的“\(p_d=2p_e\) 得到 2 倍上采样”对 DINOv2 来说实际是 \(p_d=32\)。</p></div>
+
+<h2 id="s4"><span class="no">4</span>让扩散 Transformer 适应 RAE</h2>
+<p><b>结论：</b>标准 DiT 直接用在 RAE 隐空间上会失败（DiT-S gFID 215.76）。作者提出三个假设，§4.1 到 §4.3 逐一验证并修正，合起来 DiT-XL 80 个 epoch 到 gFID 4.28。</p>
+<p>编码器先固定为 DINOv2：重建最好的是 MAE，但生成最好的是 DINOv2（附录 G.1）。训练目标是流匹配，线性插值 \(x_t=(1-t)x+t\varepsilon\)，网络预测速度 \(v(x_t,t)\)（附录 J）。骨干是 LightningDiT，patch 大小 1，所以 256 × 256 图的序列长度都是 256，和 VAE 上的 DiT 相同，计算几乎不变。评测用 50 步 Euler 采样 5 万张算 FID（gFID）；没说明时都训 80 个 epoch。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th></th><th class="n">RAE</th><th class="n">SD-VAE</th></tr></thead><tbody>
+<tr><td>DiT-S</td><td class="n">215.76</td><td class="n">51.74</td></tr><tr><td>DiT-XL</td><td class="n">23.08</td><td class="n">7.13</td></tr></tbody></table></div>
+<p class="tcap">表 2 · 标准 DiT 在 RAE 隐空间上明显差于 SD-VAE（gFID） · <a href="https://arxiv.org/html/2510.11690v1#S4">看原表 ↗</a></p>
+<p>三个假设：(1) DiT 的设计是为低维 VAE token 定的，对高维 token 不是最优；(2) 噪声调度和损失加权的技巧来自像素或 VAE 输入，不一定适用于高维语义 token；(3) VAE 解码器本来就见过带噪的隐变量，而 RAE 解码器只见过干净的，可能不适应扩散模型输出里的小误差。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>DiT 宽度要追上 token 维度</h3>
+<p><b>结论：</b>宽度 \(d\) 小于 token 维度 \(n\) 时，扩散模型连<b>一张图</b>都过拟合不了；加深没有用，加宽到 \(d\ge n\) 才收敛。作者给出一个下界定理来解释。</p>
+<p><b>实验。</b>随机挑一张图，用 RAE 编码后只训练这一张。固定深度、把 DiT-S 的宽度从 384 加到 896（正文写到 784，见<a href="#n4">读者注 4</a>）：\(d&lt;n=768\) 时损失降不下去、样本很差；\(d\ge n\) 时几乎完美复现。再固定 \(d=384\)、把深度从 12 加到 24，样本仍然满是伪影，损失也到不了 \(d=768\) 的水平。</p>
+<figure class="pfig" id="fig3">
+<img src="rae/fig3.webp" width="1579" height="505" alt="图 3：左图横轴 DiT 宽度 384 到 896，纵轴损失，红色虚线理论下界 max(1-x/768,0)，绿点观测值和对应的鹦鹉生成图，768 以右生成图清晰；右图固定宽度 384，横轴深度 4 到 24，观测损失都在 0.5 附近，图都模糊" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S4.F3">看原图 ↗</a></span>单张图过拟合。左：token 维度 \(n=768\)，横轴是 DiT 宽度；红色虚线是理论下界 \(\max(1-d/768,0)\)，绿点是观测损失，旁边是生成的鹦鹉。宽度到 768 以后损失落到 0、图变清晰。右：宽度固定 384，深度 4、12、16、24 的观测损失都在 0.5 上方，图都糊。</figcaption>
+</figure>
+<p><b>为什么和“数据流形低维”矛盾。</b>通常认为数据流形的内在维度低，GAN 之类不需要按全维度扩容。作者的解释：扩散训练把高斯噪声直接加在数据上，构造 \(x_t\) 时把数据分布的支撑扩到了整个空间，流形被“扩散”成满秩的，所以模型容量要按全维度算。</p>
+<p><b>定理 1。</b>设 \(x\sim p(x)\in\mathbb R^n\)，\(\varepsilon\sim\mathcal N(0,I_n)\)，\(t\in[0,1]\)，\(x_t=(1-t)x+t\varepsilon\)。考虑函数族</p>
+<div class="eq"><div class="m">\[ \mathcal G_d=\{\,g(x_t,t)=B\,f(Ax_t,t)\;:\;A\in\mathbb R^{d\times n},\ B\in\mathbb R^{n\times d},\ f:[0,1]\times\mathbb R^d\to\mathbb R^d\,\} \]</div><span class="no">(1)</span></div>
+<p>其中 \(d&lt;n\)，\(f\) 是宽度小于 token 维度的一叠 DiT 块，\(A\)、\(B\) 是输入和输出的线性投影。那么对任何 \(g\in\mathcal G_d\)，</p>
+<div class="eq"><div class="m">\[ \mathcal L(g,\theta)=\int_0^1\mathbb E_{x\sim p(x),\,\varepsilon\sim\mathcal N(0,I_n)}\big\|g(x_t,t)-(\varepsilon-x)\big\|^2\,dt\ \ge\ \sum_{i=d+1}^{n}\lambda_i \]</div><span class="no">(2)</span></div>
+<p>\(\lambda_i\) 是 \(W=\varepsilon-x\) 协方差矩阵的特征值（从大到小）。\(d\ge n\) 时 \(\mathcal G_d\) 包含唯一的最优解。直观地说：输出总落在 \(B\) 的像空间里，最多 \(d\) 维；目标 \(\varepsilon-x\) 在 \(n\) 维里每个方向都有方差，剩下 \(n-d\) 个方向的方差怎么都学不到。</p>
+<p>单张图时 \(p(x)=\delta(x-x_0)\)，\(W\sim\mathcal N(-x_0,I_n)\)，所有 \(\lambda_i=1\)，按维度平均的下界是 \(\tilde{\mathcal L}\ge\frac1n\sum_{i=d+1}^n1=\frac{n-d}{n}\)，就是图 3 的红线。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>编码器（token 维度）</th><th class="n">DiT-S（384）</th><th class="n">DiT-B（768）</th><th class="n">DiT-L（1024）</th></tr></thead><tbody>
+<tr><td>DINOv2-S（384）</td><td class="n">3.6e−2 ✓</td><td class="n">1.0e−3 ✓</td><td class="n">9.7e−4 ✓</td></tr>
+<tr><td>DINOv2-B（768）</td><td class="n">5.2e−1 ✗</td><td class="n">2.4e−2 ✓</td><td class="n">1.3e−3 ✓</td></tr>
+<tr><td>DINOv2-L（1024）</td><td class="n">6.5e−1 ✗</td><td class="n">2.7e−1 ✗</td><td class="n">2.2e−2 ✓</td></tr>
+</tbody></table></div>
+<p class="tcap">表 3 · 单图过拟合的损失，宽度和 token 维度的各种组合（括号里的数是我按表 13 和 §3 补的） · <a href="https://arxiv.org/html/2510.11690v1#S4.SS1">看原表 ↗</a></p>
+<div class="find"><p><b>修正 1：</b>DiT 宽度至少等于 RAE 的 token 维度。DINOv2-B（768）之后都配 DiT-XL（1152）。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 两处笔误</span><p>(1) §4.1 正文说“把宽度从 384 加到 784”，但图 3 的横轴刻度是 384、512、640、768、896，附录 F 列的也是 {384, 512, 640, 768, 896}，784 应是 896 的笔误。(2) 附录 F 写“depth varies in {384, 512, 640, 768, 896} and width varies in {4, 12, 16, 24}”，深度和宽度写反了；按图 3，宽度取 384 到 896，深度取 4 到 24。另外附录 F 的默认设置是“深度 12、宽度 768、4 个注意力头”，和 §4.1 说的“用 DiT-S（宽 384）”也不是同一个起点，以图 3 为准。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 观测值都略高于下界，对得上</span><p>按 \((n-d)/n\) 算表 3 的三个失败格：DiT-S + DINOv2-B 是 \((768-384)/768=0.50\)，观测 0.52；DiT-S + DINOv2-L 是 \((1024-384)/1024=0.625\)，观测 0.65；DiT-B + DINOv2-L 是 \((1024-768)/1024=0.25\)，观测 0.27。都比下界高 0.02 到 0.025，符合“下界”的意思。图 3 左的读数（目测）：宽 512 约 0.35（下界 0.333），640 约 0.18（0.167），768 约 0.02，896 约 0；右图四个深度都约 0.52。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 这个下界是逐 token 的，带条件也成立（我的推导）</span><p>定理里 \(x\in\mathbb R^n\) 是“一个 token”。实际 DiT 处理 256 个 token，但输入投影 \(A\) 和输出投影 \(B\) 对每个 token 单独作用（patch 嵌入、最后的线性层），所以每个输出 token 都落在 \(B\) 的像空间里（加偏置也只是平移），中间的注意力怎么混合都跳不出去。投影论证于是逐 token 成立：设 \(P_\perp\) 是到 \(B\) 像空间正交补的投影，\({\rm rank}\,B\le d\)，</p>
+<div class="eq"><div class="m">\[ \mathbb E\|g-(\varepsilon-x)\|^2\ \ge\ \mathbb E\|P_\perp(\varepsilon-x)\|^2=\mathbb E\|P_\perp\varepsilon\|^2+\mathbb E\|P_\perp x\|^2\ \ge\ n-d \]</div><span class="no"></span></div>
+<p>中间的等号用到 \(\varepsilon\) 与 \(x\) 独立、均值为 0。这一步不需要知道 \(p(x)\)，所以对类别条件、文本条件、或“给定历史帧预测未来帧”同样成立：每个 token 至少有 \(n-d\) 个噪声方向学不到。这里的 \(n\) 是<b>进入输入投影的向量的维度</b>：patch 大小为 \(p\) 时是 \(p^2C\)，不是通道数 \(C\)。论文 §6.3 把 16 × 16 的像素 patch 算成 \(16\times16\times3=768\) 维，代码里 DDT 的 <code>x_channel_per_token = in_channels * patch_size**2</code>，都按这个算。RAE 自己用 patch 1，所以 \(n=C\)。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>噪声调度的 shift 要随维度变</h3>
+<p><b>结论：</b>前人发现分辨率越高、同一噪声水平下信息破坏越少，于是按分辨率调 shift。作者把“分辨率”推广成<b>有效数据维度 = token 数 × token 维度</b>，同样的 shift 公式代入后 gFID 从 23.08 降到 4.81。</p>
+<p>理由：噪声同时加在空间和通道维度上，通道越多，每个 token 的“有效分辨率”越高，信息破坏越少。前人的结论主要来自通道很少的输入（\(C\le16\)）。采用 SD3（Esser 等）的做法：对调度 \(t_n\in[0,1]\) 和输入维度 \(n\)、\(m\)，</p>
+<div class="eq"><div class="m">\[ t_m=\frac{\alpha\,t_n}{1+(\alpha-1)\,t_n},\qquad \alpha=\sqrt{m/n} \]</div><span class="no"></span></div>
+<p>基准维度 \(n=4096\)，\(m\) 取 RAE 的有效数据维度。这里 \(t=1\) 是纯噪声，\(\alpha>1\) 把时间步推向高噪声一侧。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th></th><th class="n">gFID</th></tr></thead><tbody><tr><td>不加 shift</td><td class="n">23.08</td></tr><tr><td>加 shift</td><td class="n">4.81</td></tr></tbody></table></div>
+<p class="tcap">表 4 · shift 的作用（DiT-XL，DINOv2-B） · <a href="https://arxiv.org/html/2510.11690v1#S4.T4">看原表 ↗</a></p>
+<div class="find"><p><b>修正 2：</b>之后的实验都按有效数据维度设 shift。</p></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · shift 的具体数值，和基准 4096 的来历</span><p>DINOv2-B 在 256 × 256 上：\(m=256\times768=196{,}608\)，\(\alpha=\sqrt{196608/4096}=\sqrt{48}=6.93\)。代码里写的正是 <code>time_dist_shift_dim: 196608</code>、<code>time_dist_shift_base: 4096</code>，<code>train.py</code> 第 139 行 <code>math.sqrt(shift_dim / shift_base)</code>。512 × 512（1024 个 token）是 \(\sqrt{786432/4096}=\sqrt{192}=13.86\)。</p>
+<p>基准 4096 恰好等于 SD-VAE 把 256² 图压成的 \(32\times32\times4=4096\)，所以在 SD-VAE 上训练的 DiT 对应 \(\alpha=1\)，即不 shift。这条规则可以读成“以 SD-VAE 的 256² 设置为基准，按有效维度的平方根放大 \(\alpha\)”。这是我的解读，论文只说“沿用 Esser 等的 4096”。</p>
+<p>代码的方向我也核对了：<code>transport/path.py</code> 的 <code>ICPlan</code> 里噪声系数是 \(t\)、数据系数是 \(1-t\)，所以 \(t=1\) 是噪声，\(\alpha t/(1+(\alpha-1)t)\ge t\) 确实把训练和采样的时间步推向高噪声，和论文一致。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 代码的时间步先按 logit-normal 抽再 shift，论文没提</span><p>所有 stage-2 训练配置都写 <code>time_dist_type: 'logit-normal_0_1'</code>，<code>transport.py</code> 的 <code>sample()</code> 先从截断的 logit-normal(0, 1) 抽 \(t\)，再做上面的 shift。论文正文和附录 D 只说用流匹配和维度相关的 shift，没写 logit-normal。两种分布叠加后，训练的时间步会更集中在中高噪声段；这对复现有影响。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>噪声增强解码</h3>
+<p><b>结论：</b>训练解码器时给隐变量加随机强度的高斯噪声。gFID 4.81 → 4.28，rFID 0.49 → 0.57，是一个预期中的取舍。</p>
+<p>VAE 的隐变量本来是连续分布 \(\mathcal N(\mu,\sigma^2I)\)；RAE 解码器却只在离散的训练集隐变量 \(p(z)=\sum_i\delta(z-z_i)\) 上训练（原文这里把 \(z\) 写成了 \(x\)）。扩散模型生成的隐变量会有噪声或轻微偏离，对解码器是分布外输入。借鉴归一化流里的去量化做法，给隐变量加噪声 \(n\sim\mathcal N(0,\sigma^2I)\)，让解码器在平滑后的分布上训练：</p>
+<div class="eq"><div class="m">\[ p_n(z)=\int p(z-n)\,\mathcal N(0,\sigma^2I)(n)\,dn,\qquad \sigma\sim|\mathcal N(0,\tau^2)| \]</div><span class="no"></span></div>
+<div class="tablewrap"><table class="t-s"><thead><tr><th></th><th class="n">gFID</th><th class="n">rFID</th></tr></thead><tbody><tr><td>\(z\sim p(z)\)</td><td class="n">4.81</td><td class="n">0.49</td></tr><tr><td>\(z\sim p_n(z)\)</td><td class="n">4.28</td><td class="n">0.57</td></tr></tbody></table></div>
+<p class="tcap">表 5 · 噪声增强的作用（τ = 0.8） · <a href="https://arxiv.org/html/2510.11690v1#S4.T5">看原表 ↗</a></p>
+<div class="find"><p><b>修正 3：</b>之后都用噪声增强训练的解码器。三项合起来，DiT-XL 在 80 个 epoch 到 gFID 4.28，720 个 epoch 到 2.39。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 代码里 σ 是均匀分布，不是半正态</span><p><code>stage1/rae.py</code> 第 74 行：<code>noise_sigma = self.noise_tau * torch.rand(...)</code>，即 \(\sigma\sim\tau\cdot U(0,1)\)，每个样本一个 σ。论文写 \(\sigma\sim|\mathcal N(0,\tau^2)|\)。取 \(\tau=0.8\)：论文的 σ 均值 \(\tau\sqrt{2/\pi}=0.64\)、可以超过 0.8（约 32% 的概率）；代码的均值 0.40、最大 0.8。两者明显不同，表 5 和表 15 用的是哪一种<b>未核实</b>。另外附录 G.2 写“with σ = 0.8”，按上下文指的是 τ。注意 RAE 的隐变量在 LayerNorm 后每个通道方差约为 1，所以 σ = 0.4 已经是相当大的噪声。</p></div>
+<figure class="pfig narrow" id="fig4">
+<img src="rae/fig4.webp" width="751" height="507" alt="图 4：横轴训练 epoch 20 到 1400（对数），纵轴 FID。SiT-XL 从 40 降到 1400 epoch 的 8.26；REPA-XL 从 17 降到 800 epoch 的 5.90；RAE 上的 DiT-XL 从 30 快速降到 80 epoch 的 4.28、720 epoch 的 2.39。两条虚线箭头标注 47 倍和 16 倍" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 7 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S4.F4">看原图 ↗</a></span>同为 XL 大小：RAE（DINOv2-B）上的 DiT-XL 在 80 个 epoch 到 4.28，720 个 epoch 到 2.39。SiT-XL 训 1400 个 epoch 才到 8.26，REPA-XL 训 800 个 epoch 到 5.90。虚线箭头标出 RAE 达到同样 FID 所需的训练量：比 SiT 快 47 倍，比 REPA 快 16 倍。</figcaption>
+</figure>
+<div class="note" id="n10"><span class="lab">读者注 10 · 47 倍、16 倍怎么来的；SiT 的数在不同地方不一样</span><p>按图 4 的点：RAE 曲线大约在 30 个 epoch 到 8.26，\(1400/30\approx47\)；大约在 50 个 epoch 到 5.90，\(800/50=16\)。是按 epoch 比，不是按 FLOPs 比（同为 XL，每个 epoch 计算量相近）。另外 SiT-XL 的终点在图 4 是 8.26，在表 8 是 8.61，在表 14 的“均衡采样”列是 8.54，三个数来自不同的评测方式，图 4 的 8.26 出处论文没说，<b>未核实</b>。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>核心框架拆成 11 幕：两种隐空间、RAE 结构、重建结果、<b>宽度小于维度为什么失败（第 4 幕，可以改宽度 d 和维度 n）</b>、维度相关的 shift、噪声增强解码、DiT<sup>DH</sup>、训练和采样、结果、§6 的讨论、在 OpenWAM 里怎么接。下面嵌的是第 4 幕。</p>
+<iframe src="../interactives/rae/index.html?embed=1&amp;scene=4" title="RAE 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/rae/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s5"><span class="no">5</span>用宽扩散头提升可扩展性</h2>
+<p><b>结论：</b>按 §4 的规则，要处理更高维的 RAE 隐变量就得把整个 DiT 加宽，计算按宽度的平方涨。DiT<sup>DH</sup> 只在最后接一个浅而宽的“DDT 头”，用很少的计算满足宽度条件，收敛更快、FID 更好。</p>
+<figure class="pfig narrow" id="fig5">
+<img src="rae/fig5.webp" width="498" height="259" alt="图 5：DiT 方框输入 x_t、t、y，输出接到右边竖着的 DDT Head；DDT Head 另外再读一次 x_t 和 t，输出速度 v_t" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 8 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S5.F5">看原图 ↗</a></span>宽 DDT 头：DiT 读入 \(x_t\)、\(t\)、类别 \(y\)，输出交给 DDT 头；DDT 头自己再读一次 \(x_t\) 和 \(t\)，输出速度 \(v_t\)。</figcaption>
+</figure>
+<p>DiT<sup>DH</sup> 由基础 DiT \(M\) 和一个宽而浅的 Transformer 头 \(H\) 组成：</p>
+<div class="eq"><div class="m">\[ z_t=M(x_t\mid t,y),\qquad v_t=H(x_t\mid z_t,t) \]</div><span class="no"></span></div>
+<p>所有 DiT<sup>DH</sup> 都用 2 层、宽 2048 的头。代码（<code>stage2/models/DDT.py</code>）里的连法：头用自己的嵌入层把 \(x_t\) 直接投到 2048 维；骨干输出 \(s\) 加上时间嵌入过 SiLU，再线性投到 2048 维，<b>逐 token</b> 作为头里 adaLN 的条件；头的最后一层从 2048 维还原到 768 维。所以从 \(x_t\) 到 \(v_t\) 的主路径最窄处是 2048，不是骨干的 1152。</p>
+<figure class="pfig" id="fig6">
+<img src="rae/fig6.webp" width="1600" height="668" alt="图 6：(a) 横轴训练 GFLOPs，DiT-DH 的 S、B、L、XL 四点 FID 从 6.07 降到 2.16，红方块 DiT-XL 4.28；(b) 训练 GFLOPs 对 FID，DiT-DH-XL 曲线在 DiT-XL、SiT-XL、REPA-XL、MDTv2-XL、VA-VAE 之下；(c) 气泡图比较 MDTv2、REPA、DDT、REG 和 DiT-DH 各尺寸的 FID，气泡面积表示模型 FLOPs" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 8 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S5.F6">看原图 ↗</a></span>(a) 都在 RAE（DINOv2-B）上训 80 个 epoch：DiT<sup>DH</sup>-S、B、L、XL 依次 6.07、3.38、约 2.4、2.16，DiT-XL（红方块）4.28。(b) 按训练 GFLOPs 看收敛：DiT<sup>DH</sup>-XL 的曲线一直在 VAE 方法（SiT、REPA、MDTv2、VA-VAE）下方。(c) 各方法不同尺寸的 FID，气泡面积是模型 FLOPs，DiT<sup>DH</sup> 每个尺寸都更低。</figcaption>
+</figure>
+<p><b>收敛更快。</b>DiT<sup>DH</sup>-B 只用 DiT-XL 约 40% 的训练 FLOPs 就明显更好；同等预算下 DiT<sup>DH</sup>-XL 到 2.16，差不多是 DiT-XL 的一半。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>模型</th><th class="n">DINOv2-S</th><th class="n">DINOv2-B</th><th class="n">DINOv2-L</th></tr></thead><tbody>
+<tr><td>DiT-XL</td><td class="n">3.50</td><td class="n">4.28</td><td class="n">6.09</td></tr><tr><td>DiT<sup>DH</sup>-XL</td><td class="n">2.42</td><td class="n">2.16</td><td class="n">2.73</td></tr></tbody></table></div>
+<p class="tcap">表 6 · 不同 RAE 编码器上 DiT<sup>DH</sup> 都更好（gFID，80 epoch） · <a href="https://arxiv.org/html/2510.11690v1#S5.T6">看原表 ↗</a></p>
+<p><b>编码器越大，优势越大。</b>DINOv2-L 上 6.09 → 2.73。作者的解释：编码器越大隐变量维度越高，DiT 的宽度瓶颈越明显；DDT 头满足了宽度条件，同时让骨干特征保持紧凑，还能滤掉高维隐变量里更多的噪声信息。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 839M 参数可以从代码算出来</span><p>按 <code>DDT.py</code> 的层定义（SwiGLU 隐层 \(\lfloor\frac23\cdot4h\rfloor\)、adaLN 输出 \(6h\)、RMSNorm、Gaussian Fourier 时间嵌入 512 → h → h、1001 类标签嵌入）逐项相加：DiT<sup>DH</sup>-XL（骨干 28 × 1152 + 头 2 × 2048）= 838.4M，表 8 写 839M；同样算法的 DiT-XL = 677.0M，表 8 写 676M（DINOv2-S 版输入只有 384 维，少约 0.9M，正好 676M）。头本身约 161M，接近骨干参数的四分之一。脚本是我写的，没有运行官方代码。</p></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · “约 40% 的 FLOPs”和图 6a 的横坐标</span><p>用同一套参数计数估每张图前向的乘加数（256 个 token，含注意力）：DiT-XL 177 G，DiT<sup>DH</sup>-B 77 G，DiT<sup>DH</sup>-XL 219 G。DiT<sup>DH</sup>-B / DiT-XL = 0.43，和“约 40%”一致。再乘 2（乘加 → 浮点）× 3（前向 + 反向）× 80 epoch × 1,281,167 张：DiT<sup>DH</sup>-XL 约 \(1.35\times10^{11}\) GFLOPs，DiT-XL 约 \(1.09\times10^{11}\)，和图 6a 上两点的横坐标量级相符（目测读数，<b>未精确核实</b>）。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 宽度条件是必要的，但不是够了就好</span><p>DiT-XL 宽 1152，大于 DINOv2-L 的 1024，按定理已经满足条件，可表 6 里它仍从 4.28 退到 6.09。表 17 也一样：DDT 头宽 768 配 DINOv2-B（768，正好相等）是 2.49，宽 2048 是 2.16；配 DINOv2-L 时宽 768 直接标 N/A（不满足条件），1536 到 2688 一路改善到 2.64。所以“\(d\ge n\)”只保证损失没有那块硬下界；实际还需要明显的余量。这对判断 OpenWAM 里“DINOv3 正好等于宽度”的情况有用（<a href="#n22">读者注 22</a>）。</p></div>
+
+<h3 id="s5-1"><span class="no">5.1</span>达到当前最好的扩散 Transformer</h3>
+<p><b>结论：</b>DiT<sup>DH</sup>-XL（DINOv2-B）在 ImageNet 256 上不加引导 gFID 1.51、加 AutoGuidance 1.13；512 上训 400 个 epoch，加引导 1.13，好于 EDM2 的 1.25。</p>
+<p><b>收敛。</b>按训练 GFLOPs 看（图 6b），约 \(5\times10^{10}\) GFLOPs 时已超过 REPA-XL、MDTv2-XL、SiT-XL 的最终成绩；到 \(5\times10^{11}\) 时 FID 全场最好，计算少 40 倍以上。<b>规模。</b>DiT<sup>DH</sup>-S 6.07，已经好于大得多的 REPA-XL；到 B 是 3.38；XL 在 80 个 epoch 到 2.16。</p>
+<div class="tablewrap"><table class="t-xw"><thead>
+<tr><th rowspan="2">方法</th><th rowspan="2" class="n">Epochs</th><th rowspan="2" class="n">参数</th><th colspan="4" class="c">256，不加引导</th><th colspan="4" class="c">256，加引导</th></tr>
+<tr><th class="n">gFID↓</th><th class="n">IS↑</th><th class="n">Prec.↑</th><th class="n">Rec.↑</th><th class="n">gFID↓</th><th class="n">IS↑</th><th class="n">Prec.↑</th><th class="n">Rec.↑</th></tr></thead><tbody>
+<tr class="grp"><th colspan="11">自回归</th></tr>
+<tr><td>VAR</td><td class="n">350</td><td class="n">2.0B</td><td class="n">1.92</td><td class="n">323.1</td><td class="n">0.82</td><td class="n">0.59</td><td class="n">1.73</td><td class="n">350.2</td><td class="n">0.82</td><td class="n">0.60</td></tr>
+<tr><td>MAR</td><td class="n">800</td><td class="n">943M</td><td class="n">2.35</td><td class="n">227.8</td><td class="n">0.79</td><td class="n">0.62</td><td class="n">1.55</td><td class="n">303.7</td><td class="n">0.81</td><td class="n">0.62</td></tr>
+<tr><td>xAR</td><td class="n">800</td><td class="n">1.1B</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">1.24</td><td class="n">301.6</td><td class="n">0.83</td><td class="n">0.64</td></tr>
+<tr class="grp"><th colspan="11">像素扩散</th></tr>
+<tr><td>ADM</td><td class="n">400</td><td class="n">554M</td><td class="n">10.94</td><td class="n">101.0</td><td class="n">0.69</td><td class="n">0.63</td><td class="n">3.94</td><td class="n">215.8</td><td class="n">0.83</td><td class="n">0.53</td></tr>
+<tr><td>RIN</td><td class="n">480</td><td class="n">410M</td><td class="n">3.42</td><td class="n">182.0</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>PixelFlow</td><td class="n">320</td><td class="n">677M</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">1.98</td><td class="n">282.1</td><td class="n">0.81</td><td class="n">0.60</td></tr>
+<tr><td>PixNerd</td><td class="n">160</td><td class="n">700M</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">2.15</td><td class="n">297.0</td><td class="n">0.79</td><td class="n">0.59</td></tr>
+<tr><td>SiD2</td><td class="n">1280</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">1.38</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr class="grp"><th colspan="11">VAE 隐空间扩散</th></tr>
+<tr><td>DiT</td><td class="n">1400</td><td class="n">675M</td><td class="n">9.62</td><td class="n">121.5</td><td class="n">0.67</td><td class="n">0.67</td><td class="n">2.27</td><td class="n">278.2</td><td class="n">0.83</td><td class="n">0.57</td></tr>
+<tr><td>MaskDiT</td><td class="n">1600</td><td class="n">675M</td><td class="n">5.69</td><td class="n">177.9</td><td class="n">0.74</td><td class="n">0.60</td><td class="n">2.28</td><td class="n">276.6</td><td class="n">0.80</td><td class="n">0.61</td></tr>
+<tr><td>SiT</td><td class="n">1400</td><td class="n">675M</td><td class="n">8.61</td><td class="n">131.7</td><td class="n">0.68</td><td class="n">0.67</td><td class="n">2.06</td><td class="n">270.3</td><td class="n">0.82</td><td class="n">0.59</td></tr>
+<tr><td>MDTv2</td><td class="n">1080</td><td class="n">675M</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">1.58</td><td class="n">314.7</td><td class="n">0.79</td><td class="n">0.65</td></tr>
+<tr><td rowspan="2">VA-VAE</td><td class="n">80</td><td class="n" rowspan="2">675M</td><td class="n">4.29</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td class="n">800</td><td class="n">2.17</td><td class="n">205.6</td><td class="n">0.77</td><td class="n">0.65</td><td class="n">1.35</td><td class="n">295.3</td><td class="n">0.79</td><td class="n">0.65</td></tr>
+<tr><td rowspan="2">REPA</td><td class="n">80</td><td class="n" rowspan="2">675M</td><td class="n">7.90</td><td class="n">122.6</td><td class="n">0.70</td><td class="n">0.65</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td class="n">800</td><td class="n">5.78</td><td class="n">158.3</td><td class="n">0.70</td><td class="n">0.68</td><td class="n">1.29</td><td class="n">306.3</td><td class="n">0.79</td><td class="n">0.64</td></tr>
+<tr><td rowspan="2">DDT</td><td class="n">80</td><td class="n" rowspan="2">675M</td><td class="n">6.62</td><td class="n">135.2</td><td class="n">0.69</td><td class="n">0.67</td><td class="n">1.52</td><td class="n">263.7</td><td class="n">0.78</td><td class="n">0.63</td></tr>
+<tr><td class="n">400</td><td class="n">6.27</td><td class="n">154.7</td><td class="n">0.68</td><td class="n">0.69</td><td class="n">1.26</td><td class="n">310.6</td><td class="n">0.79</td><td class="n">0.65</td></tr>
+<tr><td rowspan="2">REPA-E</td><td class="n">80</td><td class="n" rowspan="2">675M</td><td class="n">3.46</td><td class="n">159.8</td><td class="n">0.77</td><td class="n">0.63</td><td class="n">1.67</td><td class="n">266.3</td><td class="n">0.80</td><td class="n">0.63</td></tr>
+<tr><td class="n">800</td><td class="n">1.70</td><td class="n">217.3</td><td class="n">0.77</td><td class="n">0.66</td><td class="n">1.15</td><td class="n">304.0</td><td class="n">0.79</td><td class="n">0.66</td></tr>
+<tr class="grp"><th colspan="11">RAE 隐空间扩散（本文）</th></tr>
+<tr><td>DiT-XL（DINOv2-S）</td><td class="n">800</td><td class="n">676M</td><td class="n">1.87</td><td class="n">209.7</td><td class="n">0.80</td><td class="n">0.63</td><td class="n">1.41</td><td class="n">309.4</td><td class="n">0.80</td><td class="n">0.63</td></tr>
+<tr><td rowspan="3">DiT<sup>DH</sup>-XL（DINOv2-B）</td><td class="n">20</td><td class="n" rowspan="3">839M</td><td class="n">3.71</td><td class="n">198.7</td><td class="n">0.86</td><td class="n">0.50</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td class="n">80</td><td class="n">2.16</td><td class="n">214.8</td><td class="n">0.82</td><td class="n">0.59</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td class="n">800</td><td class="n best">1.51</td><td class="n">242.9</td><td class="n">0.79</td><td class="n">0.63</td><td class="n best">1.13</td><td class="n">262.6</td><td class="n">0.78</td><td class="n">0.67</td></tr>
+</tbody></table></div>
+<p class="tcap" id="tab8">表 8 · ImageNet 256 × 256 类条件生成。作者发现前人 FID 评测协议不一致，对几个基线重新采样，所以有些数比原报告高（见 §5.1 末和附录 E） · <a href="https://arxiv.org/html/2510.11690v1#S5.T8">看原表 ↗</a></p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>方法（512，加引导）</th><th class="n">gFID↓</th><th class="n">IS↑</th><th class="n">Prec.↑</th><th class="n">Rec.↑</th></tr></thead><tbody>
+<tr><td>BigGAN-deep</td><td class="n">8.43</td><td class="n">177.9</td><td class="n">0.88</td><td class="n">0.29</td></tr>
+<tr><td>StyleGAN-XL</td><td class="n">2.41</td><td class="n">267.8</td><td class="n">0.77</td><td class="n">0.52</td></tr>
+<tr><td>VAR</td><td class="n">2.63</td><td class="n">303.2</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>MAGVIT-v2</td><td class="n">1.91</td><td class="n">324.3</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>XAR</td><td class="n">1.70</td><td class="n">281.5</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>ADM</td><td class="n">3.85</td><td class="n">221.7</td><td class="n">0.84</td><td class="n">0.53</td></tr>
+<tr><td>SiD2</td><td class="n">1.50</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>DiT</td><td class="n">3.04</td><td class="n">240.8</td><td class="n">0.84</td><td class="n">0.54</td></tr>
+<tr><td>SiT</td><td class="n">2.62</td><td class="n">252.2</td><td class="n">0.84</td><td class="n">0.57</td></tr>
+<tr><td>DiffiT</td><td class="n">2.67</td><td class="n">252.1</td><td class="n">0.83</td><td class="n">0.55</td></tr>
+<tr><td>REPA</td><td class="n">2.08</td><td class="n">274.6</td><td class="n">0.83</td><td class="n">0.58</td></tr>
+<tr><td>DDT</td><td class="n">1.28</td><td class="n">305.1</td><td class="n">0.80</td><td class="n">0.63</td></tr>
+<tr><td>EDM2</td><td class="n">1.25</td><td class="n">–</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>DiT<sup>DH</sup>-XL（DINOv2-B）</td><td class="n best">1.13</td><td class="n">259.6</td><td class="n">0.80</td><td class="n">0.63</td></tr>
+</tbody></table></div>
+<p class="tcap">表 7 · ImageNet 512 × 512 类条件生成，加引导；DiT<sup>DH</sup> 训 400 个 epoch · <a href="https://arxiv.org/html/2510.11690v1#S5.T7">看原表 ↗</a></p>
+<p><b>关于 FID 评测。</b>凑 5 万张样本有两种做法：每类正好 50 张（DDT、VAR、MAR、xAR），或在 1000 类里均匀随机抽标签。作者发现类别均衡的做法稳定地低约 0.1。为公平起见，他们用均衡采样重测了有公开检查点的 SiT、REPA、REPA-E 并更新了表中的数（详见附录 E）。</p>
+<figure class="pfig" id="fig7">
+<img src="rae/fig7.webp" width="1600" height="1035" alt="图 7：512 × 512 生成样本，四组：葵花鹦鹉、海龟、灯塔、汉堡，每组一张大图加几张小图" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 10 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#S5.F7">看原图 ↗</a></span>512 × 512 模型加 AutoGuidance 的样本：葵花鹦鹉、海龟、灯塔、汉堡四类，每类一张大图和几张小图。作者用它说明多样性和细节。</figcaption>
+</figure>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 8 的 SiT 行没有换成均衡采样的数</span><p>表 8 的图注说重测了几个基线。对照附录表 14：REPA（5.78 / 1.29）、DDT（6.27 / 1.26）、REPA-E（1.70 / 1.15）在表 8 里用的都是“均衡”列；但 SiT 在表 8 是 8.61 / 2.06，这是表 14 的“随机”列（灰色，即官方报告值），均衡列是 8.54 / 1.95。所以表 8 的 SiT 行比其他基线吃亏约 0.07 到 0.11。不影响结论，但和图注说法不一致。另外表 14 里 REPA-E 不加引导的 IS 两列都是 217.3，加引导时均衡列 IS（304.0）反而低于随机列（314.9），原因论文没说。</p></div>
+
+<h2 id="s6"><span class="no">6</span>讨论</h2>
+<h3 id="s6-1"><span class="no">6.1</span>RAE 怎样高效地生成高分辨率</h3>
+<p><b>结论：</b>让解码器负责放大：256 个 token 配一个 \(p_d=2p_e\) 的解码器直接出 512 × 512，不用重训扩散模型，gFID 1.61，比直接在 1024 个 token 上训练（1.13）差一些，但便宜 4 倍。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>方法</th><th class="n">token 数</th><th class="n">gFID↓</th><th class="n">rFID↓</th></tr></thead><tbody>
+<tr><td>直接 512 训练</td><td class="n">1024</td><td class="n">1.13</td><td class="n">0.53</td></tr><tr><td>解码器上采样</td><td class="n">256</td><td class="n">1.61</td><td class="n">0.97</td></tr></tbody></table></div>
+<p class="tcap">表 9 · ImageNet 512 × 512，两者都训 400 个 epoch · <a href="https://arxiv.org/html/2510.11690v1#S6.T9">看原表 ↗</a></p>
+<h3 id="s6-2"><span class="no">6.2</span>没有 RAE，DiT<sup>DH</sup> 还有用吗</h3>
+<p><b>结论：</b>没用。在 SD-VAE 隐空间（patch 2）上，DiT<sup>DH</sup>-XL 反而比 DiT-XL 差（11.70 对 7.13）。宽头的好处只在高维隐空间里出现。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th></th><th class="n">VAE</th><th class="n">DINOv2-B</th></tr></thead><tbody><tr><td>DiT-XL</td><td class="n">7.13</td><td class="n">4.28</td></tr><tr><td>DiT<sup>DH</sup>-XL</td><td class="n">11.70</td><td class="n">2.16</td></tr></tbody></table></div>
+<p class="tcap">表 10 · VAE 上 DiT<sup>DH</sup> 更差（80 epoch，不加引导） · <a href="https://arxiv.org/html/2510.11690v1#S6.T10">看原表 ↗</a></p>
+<h3 id="s6-3"><span class="no">6.3</span>高维扩散里结构化表示的作用</h3>
+<p><b>结论：</b>光是高维不够。直接在像素上（patch 16，每个 token \(16\times16\times3=768\) 维，和 DINOv2-B 一样）训练，DiT<sup>DH</sup> 比 DiT 好，但两者都远差于在 RAE 上训练。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th></th><th class="n">像素</th><th class="n">DINOv2-B</th></tr></thead><tbody><tr><td>DiT-XL</td><td class="n">51.09</td><td class="n">4.28</td></tr><tr><td>DiT<sup>DH</sup>-XL</td><td class="n">30.56</td><td class="n">2.16</td></tr></tbody></table></div>
+<p class="tcap">表 11 · 像素扩散远差于 RAE（80 epoch，不加引导） · <a href="https://arxiv.org/html/2510.11690v1#S6.T11">看原表 ↗</a></p>
+
+<h2 id="s7"><span class="no">7</span>结论</h2>
+<p>冻结的表示编码器加一个轻量解码器就是有效的自编码器（RAE）。在它的隐空间上训练 DiT 需要三处改动：宽度匹配 token 维度、按维度 shift 噪声调度、解码器噪声增强；再加宽而浅的 DDT 头。作者认为 RAE 隐空间应成为训练扩散 Transformer 的新默认选择。</p>
+
+<h2 id="apA">附录 A 扩展相关工作</h2>
+<p><b>结论：</b>和 RAE 最接近的是 UniLIP（在 InternViT 上接卷积解码器，但要大规模微调编码器）；作者强调冻结编码器就够了。</p>
+<ul>
+<li><b>表示编码器当自编码器：</b>多模态大模型里常用扩散解码器以语义 token 为条件重建，但不忠实于输入。VFMTok、DiGIT 对 DINO/SigLIP 做向量量化当 AR 分词器，仍受量化的容量瓶颈。</li>
+<li><b>压缩式图像分词器：</b>从自编码器、VAE、VQ-VAE、VQGAN、ViT-VQGAN 到多级量化、无查表量化、TiTok、DC-AE、EQ-VAE；LARP、CRT、REPA-E 用生成先验反传改进 VAE。RAE 放弃激进压缩，避免编码器塌缩成只为重建服务的浅层特征。</li>
+<li><b>生成模型：</b>AR 和扩散两大类；本文基于扩散。</li>
+<li><b>鲁棒解码器：</b>l-DeTok 结合掩码和去噪损失；RobusTok 用扰动 token 训练解码器。l-DeTok 报告去噪损失只在编码器解码器联合训练时有用，而本文在冻结编码器下就看到明显收益。</li>
+<li><b>视觉表示学习：</b>自监督（MoCo、SimCLR、BYOL、iBOT、MAE）和语言监督（CLIP、SigLIP、InternViT、SigLIP2）两类。</li>
+</ul>
+
+<h2 id="apB">附录 B 证明</h2>
+<p><b>B.1 定理 1 的证明思路。</b>(1) 由 Albergo 等，最优速度 \(v(x_t,t)=\mathbb E[\varepsilon-x\mid x_t]\) 在连续可微函数族中唯一存在。(2) 目标 \(y=\varepsilon-x\) 和 \(x_t\) 的密度在 \(\mathbb R^n\) 上处处为正（满支撑）。(3) 对任何 \(g\in\mathcal G_d\)，\({\rm Im}(g)\subseteq{\rm Im}(B)\)，维度不超过 \(d&lt;n\)。(4) 由投影定理，\(\|g(x_t,t)-y\|^2\ge\|u_g-y\|^2\)，\(u_g\) 是 \(y\) 在 \({\rm Im}(g)\) 上的投影（式 (3)）；取期望再对所有维度不超过 \(d\) 的子空间取下确界（式 (4)），在 \(\mathbb E[x]=0\) 的假设下展开为 \({\rm Tr}\,{\rm Cov}(y)-\sup_S{\rm Tr}\,{\rm Cov}(P_Sy)\)，由 Ky Fan 极大原理得 \(\sum_{i=d+1}^n\lambda_i\)（式 (5)）。非零均值会多出 \(\|\mu\|^2-\|P_S\mu\|^2\)，作者以“数据通常已居中”略去。</p>
+<p><b>B.2 定理 2（推理误差下界）。</b>设最优速度场 \(f^*\) 关于 \(x\) 是 \(L\)-Lipschitz 的，\(x_0\)、\(x_0^*\) 分别是从同一噪声出发、用 \(g\) 和 \(f^*\) 积分 ODE 得到的样本，则</p>
+<div class="eq"><div class="m">\[ \|x_0^*-x_0\|\ \ge\ \frac{1-e^{-L}}{L}\sum_{i=d+1}^{n}\lambda_i \]</div><span class="no">(6)</span></div>
+<p>证明把反向 ODE 改写成正向，对两条轨迹之差求导并用三角不等式（式 (7)），再用 Gronwall 引理积分（式 (8)）。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 定理 2 的推导有一步不严</span><p>式 (8) 用了 \(\|\Delta\|\ge\sum_{i=d+1}^n\lambda_i\)，理由是“由定理 1”。但定理 1 给的是<b>期望平方误差</b>的下界，\(\|\Delta\|\) 是逐点的范数，量纲差一个平方，也不是期望。逐点地说，只能得到 \(\|\Delta\|\ge\|P_\perp(\cdot)\|\)，没有一个确定的常数下界。所以式 (6) 更适合当作定性的说法：训练误差下界会传到采样误差上。这是我的看法，不影响正文的实验结论。另外式 (7) 的三角不等式方向也需要 \(\|\Delta\|\) 处处大于 \(L\|x^*-x\|\) 才有意义，原文没讨论。</p></div>
+
+<h2 id="apC">附录 C RAE 实现</h2>
+<p><b>C.1 编码器归一化。</b>丢掉编码器输出的 [CLS] 和 [REG] token，只留 patch token；对每个 token 做不带仿射参数的 LayerNorm，使每个 token 在通道上零均值、单位方差。这些编码器都是标准 ViT，最后已有 LayerNorm，所以只需把它的仿射参数去掉（线性变换，不影响表示质量）。DINOv2 用带 register 的版本，输入插值到 224、\(p_d=16\)（见<a href="#n3">读者注 3</a>）。</p>
+<p><b>C.2 解码器训练。</b>ImageNet-1K，多数在 256 × 256；512 的直接训练在 512 图上。解码器把编码器 token 还原成像素，沿用 MAE 的做法在序列前加一个可学的 [CLS] token、解码后丢弃。判别器沿用 StyleGAN-T 的大部分设计，但用冻结的 DINO-S/8（不是 S/16），作者说这样训练更稳、避免解码器生成对抗性的 patch；把 virtual batch norm 换成普通 BN；判别器输入一律插值到 224。损失权重 \(\omega_L=1\)、\(\omega_G=0.75\)，GAN 用自适应权重：</p>
+<div class="eq"><div class="m">\[ \lambda=\frac{\|\nabla_{\hat x}\mathcal L_{\rm rec}\|}{\|\nabla_{\hat x}{\rm GAN}(\hat x,x)\|+\epsilon} \]</div><span class="no"></span></div>
+<p>数据增强：先缩放到 384 再随机裁 256；判别器前加可微增强（DiffAug 默认参数）。</p>
+<details class="tbl"><summary>表 12 · 解码器和判别器的训练配置（点开）</summary>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>项</th><th>解码器</th><th>判别器</th></tr></thead><tbody>
+<tr><td>优化器</td><td>Adam</td><td>Adam</td></tr><tr><td>最大学习率</td><td>2 × 10⁻⁴</td><td>2 × 10⁻⁴</td></tr><tr><td>最小学习率</td><td>2 × 10⁻⁵</td><td>2 × 10⁻⁵</td></tr><tr><td>学习率调度</td><td>余弦衰减</td><td>余弦衰减</td></tr><tr><td>betas</td><td>(0.5, 0.9)</td><td>(0.5, 0.9)</td></tr><tr><td>权重衰减</td><td>0</td><td>0</td></tr><tr><td>batch</td><td>512</td><td>512</td></tr><tr><td>warmup</td><td>1 epoch</td><td>1 epoch</td></tr><tr><td>损失</td><td>ℓ1 + LPIPS + GAN</td><td>对抗</td></tr><tr><td>模型</td><td>ViT-(B, L, XL)</td><td>Dino-S/8（冻结）</td></tr><tr><td>LPIPS 起始 epoch</td><td>0</td><td>–</td></tr><tr><td>判别器起始 epoch</td><td>–</td><td>6</td></tr><tr><td>对抗损失起始 epoch</td><td>8</td><td>–</td></tr><tr><td>训练 epoch</td><td>16</td><td>10</td></tr>
+</tbody></table></div></details>
+<figure class="pfig" id="fig8">
+<img src="rae/fig8.webp" width="1586" height="667" alt="图 8：两行重建示例，一行鹦鹉一行公交车，从左到右是输入、DINOv2-B、SigLIP2-B、MAE-B 三个 RAE 和 SD-VAE 的重建，肉眼几乎看不出区别" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 23 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#A3">看原图 ↗</a></span>C.3 的重建示例。从左到右：输入、RAE（DINOv2-B）、RAE（SigLIP2-B）、RAE（MAE-B）、SD-VAE。鹦鹉的羽毛和公交车的文字在这个尺寸下几乎看不出差别。</figcaption>
+</figure>
+<div class="note" id="n16"><span class="lab">读者注 16 · 解码器配置和代码有几处不同</span><p><code>configs/stage1/training/DINOv2-B_decXL.yaml</code>：解码器和判别器的 betas 都是 <code>[0.9, 0.95]</code>，表 12 写 (0.5, 0.9)；代码另有解码器 EMA 0.9978，论文没提；判别器余弦调度也是 16 个 epoch 结束（<code>decay_end_epoch: 16</code>），表 12 说判别器训 10 个 epoch，和“第 6 个 epoch 开始、到第 16 个结束”恰好是 10 个 epoch，对得上。<code>disc_upd_start: 6</code>、<code>disc_start: 8</code>、<code>disc_weight: 0.75</code>、<code>perceptual_weight: 1.0</code>、<code>noise_tau: 0.8</code> 都和论文一致。ViT-XL 解码器的 FFN 是 4096（<code>decoder_intermediate_size</code>），不是常见的 4 × 1152 = 4608。</p></div>
+
+<h2 id="apD">附录 D 扩散模型实现</h2>
+<p><b>结论：</b>骨干是 LightningDiT，连续时间流匹配，时间嵌入换成 Gaussian Fourier，输入在 RoPE 之外还加绝对位置编码（作者说加不加差别不大）。DiT<sup>DH</sup> 的头不再加位置编码，骨干和头宽度不同时用一个线性层对接。</p>
+<p><b>计算。</b>RAE 用 patch 1，VAE 基线 patch 2，像素基线 patch 16，256 × 256 时序列长度都是 256；patchify 不到总 GFLOPs 的 1%。<b>优化。</b>DiT 完全沿用 LightningDiT：AdamW、常数学习率 2 × 10⁻⁴、batch 1024、EMA 0.9999。DiT<sup>DH</sup> 用那套设置后期会有损失尖峰、早期 EMA 收敛慢，所以改为：学习率 2 × 10⁻⁴ 线性衰减到 2 × 10⁻⁵，40 个 epoch 常数 warmup，EMA 0.9995，梯度裁剪 1.0。默认 80 个 epoch，只报 EMA 模型。<b>采样。</b>Euler 50 步 ODE，50 步以上基本收敛。<b>算力。</b>RAE 的训练和推理都在 TPU 上用 PyTorch/XLA；评测用一台 v6e-8 生成 5 万张；800 epoch 那个结果在 4 张 A100 上生成，FID 在 CPU 上算。VAE 基线用内部 JAX 代码。</p>
+<details class="tbl"><summary>表 13 · 各尺寸的模型配置（点开）</summary>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>配置</th><th class="n">宽度</th><th class="n">头数</th><th class="n">深度</th></tr></thead><tbody>
+<tr><td>S</td><td class="n">384</td><td class="n">6</td><td class="n">12</td></tr><tr><td>B</td><td class="n">768</td><td class="n">12</td><td class="n">12</td></tr><tr><td>L</td><td class="n">1024</td><td class="n">16</td><td class="n">24</td></tr><tr><td>XL</td><td class="n">1152</td><td class="n">16</td><td class="n">28</td></tr><tr><td>XXL</td><td class="n">1280</td><td class="n">16</td><td class="n">32</td></tr><tr><td>H</td><td class="n">1536</td><td class="n">16</td><td class="n">32</td></tr><tr><td>G</td><td class="n">2048</td><td class="n">16</td><td class="n">40</td></tr><tr><td>T</td><td class="n">2688</td><td class="n">21</td><td class="n">40</td></tr>
+</tbody></table></div></details>
+<div class="note" id="n17"><span class="lab">读者注 17 · 800 个 epoch 约 100 万步，代码配置写 1400</span><p>800 epoch × 1,281,167 张 / batch 1024 ≈ 1,000,912 步，和图 9 里 DiT<sup>DH</sup>-XL 曲线画到约 1M 步一致。代码 <code>DiTDH-XL_DINOv2-B.yaml</code> 写 <code>epochs: 1400</code>，但学习率在第 800 个 epoch 降到最低（<code>decay_end_epoch: 800</code>），warmup 40、EMA 0.9995、梯度裁剪 1.0、betas (0.9, 0.95) 都和附录 D 一致（附录 D 只说 AdamW，没给 betas）。代码里的 DiT 宽度、深度、头数（[1152, 2048]、[28, 2]、[16, 16]）和表 13 一致；代码还开了 SwiGLU、RMSNorm、RoPE，这是 LightningDiT 的默认，论文没逐项写。</p></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 代码里 512 的训练配置和采样配置对不上</span><p><code>configs/stage2/training/ImageNet512/DiTDH-XL_DINOv2-B.yaml</code> 用 448 输入（\((448/14)^2=1024\) 个 token），但写的是 <code>input_size: 16</code>、<code>latent_size: [768, 16, 16]</code>、<code>time_dist_shift_dim: 196608</code>，都是 256 的设置；对应的采样配置是 <code>input_size: 32</code>、<code>time_dist_shift_dim: 786432</code>（\(\alpha=13.86\)）。照训练配置原样跑，形状会对不上，shift 也只有 6.93。应是复制时漏改，<b>未运行验证</b>。</p></div>
+
+<h2 id="apE">附录 E FID 评测的采样方式 · 附录 F 理论实验设置</h2>
+<p><b>E 结论：</b>每个方法用类别均衡采样，FID 都比随机标签采样低一点。作者推测原因：ImageNet 训练集 1000 类里有 895 类正好 1300 张，接近均衡，均衡采样更接近真实标签分布；FID 越低，这些细节越重要。</p>
+<details class="tbl"><summary>表 14 · 随机采样和均衡采样的对比（点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">方法</th><th rowspan="2" class="n">Epochs</th><th colspan="4" class="c">不加引导</th><th colspan="4" class="c">加引导</th></tr>
+<tr><th class="n">随机 gFID</th><th class="n">IS</th><th class="n">均衡 gFID</th><th class="n">IS</th><th class="n">随机 gFID</th><th class="n">IS</th><th class="n">均衡 gFID</th><th class="n">IS</th></tr></thead><tbody>
+<tr><td>VAR</td><td class="n">350</td><td class="n">–</td><td class="n">–</td><td class="n">1.92</td><td class="n">323.1</td><td class="n">–</td><td class="n">–</td><td class="n">1.73</td><td class="n">350.2</td></tr>
+<tr><td>MAR</td><td class="n">800</td><td class="n">–</td><td class="n">–</td><td class="n">2.35</td><td class="n">227.8</td><td class="n">–</td><td class="n">–</td><td class="n">1.55</td><td class="n">303.7</td></tr>
+<tr><td>xAR-H</td><td class="n">800</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">1.24</td><td class="n">301.6</td></tr>
+<tr><td>SiT</td><td class="n">1400</td><td class="n">8.61</td><td class="n">131.7</td><td class="n">8.54</td><td class="n">132.0</td><td class="n">2.06</td><td class="n">270.3</td><td class="n">1.95</td><td class="n">259.5</td></tr>
+<tr><td>REPA</td><td class="n">800</td><td class="n">5.90</td><td class="n">157.8</td><td class="n">5.78</td><td class="n">158.3</td><td class="n">1.42</td><td class="n">305.7</td><td class="n">1.29</td><td class="n">306.3</td></tr>
+<tr><td>DDT</td><td class="n">400</td><td class="n">–</td><td class="n">–</td><td class="n">6.27</td><td class="n">154.7</td><td class="n">1.40</td><td class="n">303.6</td><td class="n">1.26</td><td class="n">310.6</td></tr>
+<tr><td>REPA-E</td><td class="n">800</td><td class="n">1.83</td><td class="n">217.3</td><td class="n">1.70</td><td class="n">217.3</td><td class="n">1.26</td><td class="n">314.9</td><td class="n">1.15</td><td class="n">304.0</td></tr>
+<tr><td>DiT<sup>DH</sup>-XL（DINOv2-B）</td><td class="n">800</td><td class="n">1.60</td><td class="n">242.7</td><td class="n">1.51</td><td class="n">242.9</td><td class="n">1.28</td><td class="n">262.9</td><td class="n">1.13</td><td class="n">262.6</td></tr>
+</tbody></table></div>
+<p class="tcap">原表里官方报告的数用灰色标出，这里没有区分 · <a href="https://arxiv.org/html/2510.11690v1#A5.T14">看原表 ↗</a></p></details>
+<p><b>F 理论实验设置。</b>三张图各训三次取平均，缩放到 256、不做增强；batch 32（单张图时 batch 只影响时间步）、AdamW（β = (0.9, 0.95)）、常数学习率 2 × 10⁻⁴、1200 步、不用 EMA；Euler 25 步采样。宽度和深度的取值有笔误，见<a href="#n4">读者注 4</a>。</p>
+
+<h2 id="apG">附录 G 补充消融 · 附录 H 规模</h2>
+<p><b>G.1 不同编码器的生成。</b>DINOv2-B 生成最好；MAE 的 rFID 最低但生成最差，说明低 rFID 不代表好分词器。<b>G.2 噪声增强。</b>τ 越大 gFID 越好、rFID 越差；对弱编码器效果最大（MAE-B 16.14 → 8.38）；不同大小的 DINOv2 都有效。<b>G.3 DDT 头。</b>参数量相近时，2 层宽 2048 的头好于 6 层宽 1152 的；4 层宽 2048 计算翻倍却不更好，所以头要宽而浅。编码器越大，最优头越宽：S、B 在 2048 饱和，L 到 2688 还在变好。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>(a)(b) 编码器</th><th class="n">gFID 不加</th><th class="n">gFID 加</th><th class="n">rFID 不加</th><th class="n">rFID 加</th></tr></thead><tbody>
+<tr><td>DINOv2-B</td><td class="n">4.81</td><td class="n">4.28</td><td class="n">0.49</td><td class="n">0.57</td></tr>
+<tr><td>SigLIP2-B</td><td class="n">6.69</td><td class="n">4.93</td><td class="n">0.53</td><td class="n">0.82</td></tr>
+<tr><td>MAE-B</td><td class="n">16.14</td><td class="n">8.38</td><td class="n">0.16</td><td class="n">0.28</td></tr>
+<tr><td>DINOv2-S</td><td class="n">3.83</td><td class="n">3.50</td><td class="n">0.52</td><td class="n">0.64</td></tr>
+<tr><td>DINOv2-L</td><td class="n">6.77</td><td class="n">6.09</td><td class="n">0.52</td><td class="n">0.59</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>(c) τ（DINOv2-B）</th><th class="n">0.0</th><th class="n">0.5</th><th class="n">0.8</th><th class="n">1.0</th></tr></thead><tbody>
+<tr><td>gFID</td><td class="n">4.81</td><td class="n">4.39</td><td class="n">4.28</td><td class="n">4.20</td></tr>
+<tr><td>rFID</td><td class="n">0.49</td><td class="n">0.54</td><td class="n">0.57</td><td class="n">0.60</td></tr>
+</tbody></table></div>
+<p class="tcap">表 15 · 噪声增强解码的消融：不加 / 加噪声增强（τ = 0.8；DiT-XL，80 epoch）。原文 (b) 表里 DINOv2-B 一行与 (a) 相同，这里合并 · <a href="https://arxiv.org/html/2510.11690v1#A7.T15">看原表 ↗</a></p>
+<div class="subt">
+<div><div class="tablewrap"><table style="min-width:0"><thead><tr><th>头</th><th class="n">GFLOPs</th><th class="n">FID↓</th></tr></thead><tbody>
+<tr><td>6 层 × 1152（XL）</td><td class="n">25.65</td><td class="n">2.36</td></tr><tr><td>4 层 × 2048（G）</td><td class="n">53.14</td><td class="n">2.31</td></tr><tr><td>2 层 × 2048（G）</td><td class="n">26.78</td><td class="n">2.16</td></tr></tbody></table></div><p class="tcap">表 16 · 头要宽而浅</p></div>
+<div><div class="tablewrap"><table style="min-width:0"><thead><tr><th>编码器</th><th class="n">2-768</th><th class="n">2-1536</th><th class="n">2-2048</th><th class="n">2-2688</th></tr></thead><tbody>
+<tr><td>Dino-S</td><td class="n">2.66</td><td class="n">2.47</td><td class="n">2.42</td><td class="n">2.43</td></tr><tr><td>Dino-B</td><td class="n">2.49</td><td class="n">2.24</td><td class="n">2.16</td><td class="n">2.22</td></tr><tr><td>Dino-L</td><td class="n">N/A</td><td class="n">2.95</td><td class="n">2.73</td><td class="n">2.64</td></tr></tbody></table></div><p class="tcap">表 17 · 不同 RAE 和头宽的 gFID（骨干 DiT-XL；d-w 表示 d 层、宽 w）</p></div>
+</div>
+<p><b>H 规模和训练损失。</b>算力越大，DiT<sup>DH</sup> 收敛越快、最终损失越低。</p>
+<figure class="pfig" id="fig9">
+<img src="rae/fig9.webp" width="1598" height="441" alt="图 9：DINOv2-B 上 DiT-DH 的 S、B、L、XL 四条训练损失曲线，横轴训练步数到 1M，纵轴损失 0.30 到 0.50，越大的模型损失越低，XL 训练到约 1M 步" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 27 页 · Zheng 等，arXiv 2510.11690，CC BY 4.0 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2510.11690v1#A8.F9">看原图 ↗</a></span>DINOv2-B 上 DiT<sup>DH</sup> 四个尺寸的训练损失（EMA 0.9 平滑）。S 约 0.38、B 约 0.355、XL 约 0.30；S 和 B 训练到约 40 万到 47 万步，XL 到约 100 万步。</figcaption>
+</figure>
+
+<h2 id="apI">附录 I 引导 · J 流模型 · K 评测 · L 无条件生成 · M 样本</h2>
+<p><b>I 引导。</b>主要用 AutoGuidance：用一个更弱的扩散模型去引导强模型，类似 CFG 的原理。越弱、越早期的检查点引导效果越强，所以用最小的 DiT<sup>DH</sup>-S 的早期检查点。默认引导强度 1.5、20 epoch 的 DiT<sup>DH</sup>-S；最好的 1.13 用的是强度 1.42、14 epoch 的 DiT<sup>DH</sup>-S，作者说训练这个引导模型只花了 DiT<sup>DH</sup>-XL（800 epoch）约 0.05% 的计算。CFG 不加区间时反而让 FID 变差；加引导区间并仔细搜参后有竞争力，但在最终模型上仍不如 AutoGuidance。只有表 8 的 DiT-XL（DINOv2-S）加引导结果用了带区间的 CFG。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · “0.05% 的计算”我算出来约 0.4%</span><p>用<a href="#n12">读者注 12</a> 的前向乘加估计：DiT<sup>DH</sup>-S 每张图 51 G，DiT<sup>DH</sup>-XL 219 G。引导模型 14 个 epoch 对主模型 800 个 epoch：\(\frac{51\times14}{219\times800}\approx0.41\%\)，比论文的 0.05% 大约 8 倍。代码的采样配置确认引导模型是 <code>hidden_size: [384, 2048]</code>、<code>depth: [12, 2]</code>（带 2 层宽 2048 的头，所以不算很小）、检查点 <code>DiTDH-S_ep14</code>、强度 1.42。差距从哪来<b>未核实</b>，不影响结论“引导模型很便宜”。</p></div>
+<p><b>J 流模型。</b>线性插值 \(x_t=(1-t)x+t\varepsilon\)，\(t=1\) 是纯噪声。ODE \(dx_t=v(x_t,t)dt\)，SDE 另加分数项和噪声项。速度 \(v=\mathbb E[\varepsilon-x\mid x_t]\)，用 \(\mathcal L_{\rm velocity}(\theta)=\int_0^1\mathbb E\|v_\theta(x_t,t)-(\varepsilon-x)\|^2dt\) 训练；分数 \(s=-\frac1t\mathbb E[\varepsilon\mid x_t]\)，和 \(v\) 只差常数因子，估一个就够。</p>
+<p><b>K 评测。</b>严格沿用 ADM 的评测代码和参考批次（<a href="https://github.com/openai/guided-diffusion/tree/main/evaluations">guided-diffusion/evaluations</a>），TPU 生成、一张 A100 80GB 评测。FID 比较真实和生成图在 Inception-v3 特征上的高斯分布距离；IS 看 Inception logits 的边缘分布与条件分布的 KL；precision 看生成图像有多少“像真的”，recall 看覆盖了多少真实数据流形。</p>
+<p><b>L 无条件生成。</b>训练时标签全设为空（沿用 RCG），没有 CFG 可用但 AutoGuidance 可以；DiT<sup>DH</sup>-XL 训 200 epoch 加 AG。</p>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>方法</th><th class="n">gFID↓</th><th class="n">IS↑</th></tr></thead><tbody>
+<tr><td>DiT-XL + VAE</td><td class="n">30.68</td><td class="n">32.73</td></tr><tr><td>DiT<sup>DH</sup>-XL + DINOv2-B（加 AG）</td><td class="n">4.96</td><td class="n">123.12</td></tr><tr><td>RCG + DiT-XL</td><td class="n">4.89</td><td class="n">143.2</td></tr></tbody></table></div>
+<p class="tcap">表 18 · ImageNet 256 无条件生成 · <a href="https://arxiv.org/html/2510.11690v1#A12.T18">看原表 ↗</a></p>
+<p><b>M 样本。</b>图 10 到 15 是 512 × 512 DiT<sup>DH</sup>-XL（DINOv2-B，AutoGuidance 1.5）的未挑选样本，类别依次是金毛（207）、哈士奇（250）、悬崖（972）、金刚鹦鹉（88）、北极狐（279）、气球（417）。这里不放，<a href="https://arxiv.org/html/2510.11690v1#A13">看原图 ↗</a>。</p>
+
+<h2 id="code">代码对照</h2>
+<p>代码 <a href="https://github.com/bytetriper/RAE/tree/a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041">bytetriper/RAE @ a4d18c4</a>（2026-01-20，MIT），只读未运行。README 说这是 PyTorch/GPU 版本，论文实验在 TPU 上做。分两阶段：<code>train_stage1.py</code> 训解码器，<code>train.py</code> 训扩散模型。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项</th><th>论文</th><th>代码</th><th></th></tr></thead><tbody>
+<tr><td>编码器</td><td>DINOv2-B with registers，丢 CLS/REG，去掉最后 LN 的仿射</td><td><code>encoders/dinov2.py</code>：丢前 5 个 token（1 CLS + 4 register），<code>layernorm.elementwise_affine=False</code></td><td class="ok">一致</td></tr>
+<tr><td>隐变量归一化</td><td>只有逐 token LN</td><td>扩散阶段另外按 ImageNet 统计的逐通道均值方差标准化（<code>normalization_stat_path</code>，<code>rae.py</code> 第 91–94 行）</td><td class="no">多一步</td></tr>
+<tr><td>噪声增强</td><td>\(\sigma\sim|\mathcal N(0,\tau^2)|\)，τ = 0.8</td><td>\(\sigma=\tau\cdot U(0,1)\)，τ = 0.8，推理时 τ = 0</td><td class="no">分布不同（读者注 9）</td></tr>
+<tr><td>解码器</td><td>ViT-XL，[CLS] 前置</td><td>ViT-MAE 解码器配置：28 层 × 1152，FFN 4096，16 头</td><td class="ok">一致</td></tr>
+<tr><td>解码器优化</td><td>Adam (0.5, 0.9)，16 epoch</td><td>betas (0.9, 0.95)，16 epoch，EMA 0.9978</td><td class="no">betas 不同</td></tr>
+<tr><td>判别器</td><td>冻结 DINO-S/8，BN，第 6 个 epoch 开始</td><td><code>recipe: S_8</code>、<code>norm_type: bn</code>、<code>disc_upd_start: 6</code>；hinge 判别损失</td><td class="ok">一致</td></tr>
+<tr><td>DiT<sup>DH</sup>-XL</td><td>XL 骨干 + 2 层 × 2048 头，839M</td><td><code>hidden_size [1152, 2048]</code>、<code>depth [28, 2]</code>；按代码算 838.4M</td><td class="ok">一致</td></tr>
+<tr><td>时间步分布</td><td>只说维度相关 shift</td><td>logit-normal(0, 1) 后 shift</td><td class="no">论文没写</td></tr>
+<tr><td>shift</td><td>\(\sqrt{m/4096}\)，\(m\) = 有效维度</td><td><code>sqrt(196608/4096)</code> = 6.93；512 采样 13.86</td><td class="ok">一致</td></tr>
+<tr><td>优化</td><td>lr 2e-4 → 2e-5 线性，warmup 40，EMA 0.9995，裁剪 1.0</td><td>相同；<code>epochs: 1400</code>，衰减到第 800 epoch 结束</td><td class="ok">一致</td></tr>
+<tr><td>AutoGuidance</td><td>强度 1.42，DiT<sup>DH</sup>-S 第 14 epoch</td><td><code>scale: 1.42</code>，<code>DiTDH-S_ep14</code>，公式 \(v_S+w(v_{XL}-v_S)\)</td><td class="ok">一致</td></tr>
+<tr><td>512 训练配置</td><td>1024 个 token</td><td>训练 yaml 写 16 × 16、shift 196608；采样 yaml 写 32 × 32、786432</td><td class="no">训练 yaml 疑似漏改（读者注 18）</td></tr>
+</tbody></table></div>
+
+<h2 id="openwam">在 OpenWAM 里怎么用</h2>
+<p><b>先说清楚：OpenWAM 没有用 RAE 的任何检查点。</b>它不用 RAE 的 DINOv2 解码器，也不解码像素；它借的是这篇的<b>论据</b>（<a href="openwam.html#s4-1-2">§4.1.2</a>：“直接用表示编码器的高维特征会因结构不兼容而表现差（Zheng et al., 2026a）”），以及 C.1 那种“冻结编码器 + 去掉仿射的逐 token LayerNorm”的接法。OpenWAM 的表示编码器是 DINOv3 ViT-B/16 和 V-JEPA 2.1，接到随机初始化的 Wan2.2-TI2V-5B DiT 上（宽 3072，patch 嵌入 <code>Conv3d(C, 3072, (1,2,2))</code>，输出头 <code>Linear(3072, 4C)</code>）。形状和通道数见 <a href="openwam.html#qa-enc">OpenWAM 读者问答 问 2</a>，这里只核对那里按 RAE 条件做的推算。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>变体</th><th class="n">C</th><th class="n">token 维度 4C</th><th class="n">4C − 3072</th><th class="n">RAE 的 α（2 个带噪隐帧）</th><th class="n">图 7 %</th></tr></thead><tbody>
+<tr><td>Wan2.2-VAE / 两个 S-VAE 变体</td><td class="n">48</td><td class="n">192</td><td class="n">≤ 0</td><td class="n">3.35</td><td class="n">90.30 / 90.18 / 88.46</td></tr>
+<tr><td>FLUX.2-VAE</td><td class="n">128</td><td class="n">512</td><td class="n">≤ 0</td><td class="n">5.48</td><td class="n">84.26</td></tr>
+<tr><td>DINOv3 ViT-B</td><td class="n">768</td><td class="n">3,072</td><td class="n">0</td><td class="n">13.42</td><td class="n">76.42</td></tr>
+<tr><td>V-JEPA 2.1 ViT-g（ViT-L）</td><td class="n">1,408（1,024）</td><td class="n">5,632（4,096）</td><td class="n">2,560（1,024）</td><td class="n">18.17（15.49）</td><td class="n">80.91</td></tr>
+</tbody></table></div>
+<p class="tcap">α 按 RAE 的 \(\sqrt{m/4096}\) 算，\(m=2\times24\times20\times C\)（只算要去噪的 2 个隐帧；把首帧也算进去时 α 再乘 \(\sqrt{1.5}=1.22\)）。这是我的推算，两篇论文都没有这样算。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · OpenWAM 页按 4C 算 token 维度，符合 RAE 的定义</span><p>RAE 的条件比较的是“进入输入投影的向量的维度”和宽度（<a href="#n6">读者注 6</a>）。RAE 自己用 patch 1，所以这个维度就是通道数；但它在 §6.3 把像素 patch 16 算成 768 维，代码也按 \(C\cdot p^2\) 建嵌入层。Wan 的 DiT 用 (1, 2, 2) 的 patch，每个 token 是 \(2\times2\times C=4C\) 维（OpenWAM 代码 <code>encoder/base.py</code> 默认 <code>dit_patch_size=(1,2,2)</code>，<code>dinov3.py</code> 注释写明 <code>Linear(dit_dim, D * 4)</code>）。所以 OpenWAM 页用 4C 和 3072 比是对的；如果只拿 C（768、1408）和 3072 比，会错误地得出“都满足条件”。另外逐 token 的下界不依赖数据分布，所以对“以首帧和文本为条件预测未来帧”同样成立：V-JEPA 2.1（ViT-g）每个 token 至少有 2,560 个噪声方向学不到。</p></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · “OpenWAM 对所有编码器都用 shift 5”和代码不符</span><p>OpenWAM 页（问 2 的名词表和“维度不匹配”一段）原先写视频流 shift = 5、对所有编码器相同（2026-11-16 已按本条改正），出处是 <code>wan22_ti2v_5b.yaml</code>。但同一 commit（1dcaeea）的 <code>configs/model/video_backbone/encoder/dinov3.yaml</code> 和 <code>vjepa21.yaml</code> 第 2 行都写着启用方式 <code>model.video_backbone.shift_video=12.0</code>；<code>flux2_vae.yaml</code> 的启用方式没有改 shift。论文附录的超参表写 “Flow shifts Video/action: 5.0/5.0”，那是 OpenWAM-α 的设置。所以图 7 的原始 DINOv3、V-JEPA 变体很可能用 12，至少代码建议这样做；实际用的是多少<b>未核实</b>。</p>
+<p>拿 RAE 的规则对照：α 和 \(\sqrt{C}\) 成正比，和基准取多少无关的是比值。以 Wan2.2-VAE（C = 48）为 1，FLUX.2 是 \(\sqrt{128/48}=1.63\) 倍，DINOv3 是 \(\sqrt{768/48}=4\) 倍，V-JEPA 2.1 是 5.42 倍（ViT-L 4.62 倍）。若照搬 RAE 的绝对公式（基准 4096、只算 2 个带噪隐帧），DINOv3 是 13.4，V-JEPA 是 18.2（15.5），代码的 12 和它们接近；而 Wan2.2-VAE 本身只有 3.35，OpenWAM 用 5。若把 Wan 的 5 当基准按比值放大，DINOv3 应是 20、V-JEPA 27。结论：代码对原始表示编码器提高了 shift，方向和 RAE 一致，幅度偏小；FLUX.2-VAE 没提高。OpenWAM 页“shift 也可能拖累高维变体”的说法应改成“若用的是 12，仍低于 RAE 规则给的值；若用的是 5，差得更多”。</p></div>
+<div class="note" id="n22"><span class="lab">读者注 22 · DINOv3 正好等于宽度：理论上满足，实践上不宽裕</span><p>DINOv3 的 4C = 3072 = 宽度。按定理 1，\(d\ge n\) 时没有硬下界，所以严格说它“满足”RAE 条件，OpenWAM 页“处在边界上”的说法准确。但 RAE 自己的数据显示刚好等于并不够好：表 17 头宽 768 配 768 维的 DINOv2-B 是 2.49，加宽到 2048 是 2.16；表 6 宽 1152 配 1024 维仍明显变差（<a href="#n13">读者注 13</a>）。RAE 的解法是让头比 token 维度宽很多（2048 / 768 ≈ 2.7 倍）。OpenWAM 的 DiT 没有这样的宽头，DINOv3 原始变体（76.42）在六个里最差，和“没有余量”这一解释相容，但图 7 只有一个数，不能据此下结论。</p></div>
+<p>小结：OpenWAM 页的形状推算（4C 对 3072）和对 RAE 原文的引用都对；原先“对所有编码器都用 shift = 5”这一句不对，已在 OpenWAM 页改正（读者注 21）。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">版本和会议</a>：arXiv 只有 v1；ICLR 2026 来自 OpenWAM 的引用，定稿未核实。</li>
+<li><a href="#n2">GFLOPs 是乘加次数</a>：按配置算 23.0 / 80.9 / 110.4 G，对上表 1b；14 倍、三分之一、6 倍、3 倍都对。</li>
+<li><a href="#n3">默认编码器不满足 \(p_d=p_e\)</a>：DINOv2 输入 224、\(p_e=14\)、\(p_d=16\)。</li>
+<li><a href="#n4">两处笔误</a>：“784” 应为 896；附录 F 深度和宽度写反。</li>
+<li><a href="#n5">观测值都略高于下界</a>：0.50/0.625/0.25 对 0.52/0.65/0.27。</li>
+<li><a href="#n6">下界是逐 token 的，带条件也成立</a>：每 token 至少 \(n-d\)；\(n\) 是打包 patch 后的维度。</li>
+<li><a href="#n7">shift 数值和基准 4096</a>：α = √48 = 6.93；4096 = SD-VAE 的 32 × 32 × 4。</li>
+<li><a href="#n8">时间步先 logit-normal 再 shift</a>：代码这样做，论文没写。</li>
+<li><a href="#n9">σ 的分布</a>：论文半正态（均值 0.64），代码均匀（均值 0.40）。</li>
+<li><a href="#n10">47 倍和 16 倍</a>：1400/30 与 800/50；SiT 终点 8.26、8.61、8.54 三个数。</li>
+<li><a href="#n11">839M 参数</a>：按代码算 838.4M；DiT-XL 677.0M；头约 161M。</li>
+<li><a href="#n12">约 40% 的 FLOPs</a>：DiT<sup>DH</sup>-B / DiT-XL = 0.43；XL 约 1.35 × 10¹¹ GFLOPs。</li>
+<li><a href="#n13">宽度条件必要但不充分</a>：表 6、表 17 里刚满足时仍变差。</li>
+<li><a href="#n14">表 8 的 SiT 行</a>：用的是随机采样的官方数，不是均衡采样的。</li>
+<li><a href="#n15">定理 2 有一步不严</a>：把期望平方误差下界当逐点范数下界用。</li>
+<li><a href="#n16">解码器配置和代码不同</a>：betas (0.5, 0.9) 对 (0.9, 0.95)；代码多 EMA。</li>
+<li><a href="#n17">800 epoch ≈ 100 万步</a>：对上图 9；代码写 1400 epoch、800 衰减完。</li>
+<li><a href="#n18">512 训练配置疑似漏改</a>：16 × 16 和 196608 对 32 × 32 和 786432。</li>
+<li><a href="#n19">AutoGuidance 的 0.05%</a>：按 FLOPs 算约 0.41%。</li>
+<li><a href="#n20">OpenWAM 的 4C 算法</a>：符合 RAE 的定义，用 C 比会得出错误结论。</li>
+<li><a href="#n21">OpenWAM 的 shift</a>：代码对原始 DINOv3 / V-JEPA 建议 12，不是 5；按 RAE 规则 DINOv3 应约 13 到 20。</li>
+<li><a href="#n22">DINOv3 正好等于宽度</a>：理论满足，RAE 的数据说明没有余量也会变差。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、评测和主要方法。链接在 2026 年 11 月 16 日用脚本核对，除 image-net.org（脚本访问超时，未核实）外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://rae-dit.github.io/">RAE</a></td><td>本文</td><td><a href="https://github.com/bytetriper/RAE">代码</a> · <a href="https://huggingface.co/collections/nyu-visionx/rae-68ecb57b8bfbf816c83cce15">检查点</a></td><td><a href="https://arxiv.org/abs/2510.11690">2510.11690</a></td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>训练和评测数据（ImageNet-1K）</td><td>image-net.org</td><td><a href="https://arxiv.org/abs/1409.0575">1409.0575</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openai/guided-diffusion/tree/main/evaluations">ADM 评测套件</a></td><td>FID / IS / precision / recall 的参考批次和代码</td><td>github.com/openai/guided-diffusion</td><td><a href="https://arxiv.org/abs/2105.05233">2105.05233</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/dinov2">DINOv2</a></td><td>默认编码器（带 register 版）</td><td>github.com/facebookresearch/dinov2</td><td><a href="https://arxiv.org/abs/2304.07193">2304.07193</a> · <a href="https://arxiv.org/abs/2309.16588">2309.16588</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2502.14786">SigLIP2</a></td><td>语言监督编码器</td><td>–</td><td><a href="https://arxiv.org/abs/2502.14786">2502.14786</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/mae">MAE</a></td><td>掩码自编码编码器</td><td>github.com/facebookresearch/mae</td><td><a href="https://arxiv.org/abs/2111.06377">2111.06377</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/hustvl/LightningDiT">LightningDiT / VA-VAE</a></td><td>DiT 骨干和训练配方</td><td>github.com/hustvl/LightningDiT</td><td><a href="https://arxiv.org/abs/2501.01423">2501.01423</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2504.05741">DDT</a></td><td>DDT 头的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2504.05741">2504.05741</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2403.03206">SD3（Esser 等）</a></td><td>shift 公式的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2403.03206">2403.03206</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2406.02507">AutoGuidance</a></td><td>用弱模型引导强模型</td><td>–</td><td><a href="https://arxiv.org/abs/2406.02507">2406.02507</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/sihyun-yu/REPA">REPA</a></td><td>表示对齐基线</td><td>github.com/sihyun-yu/REPA</td><td><a href="https://arxiv.org/abs/2410.06940">2410.06940</a></td></tr>
+<tr><td><a href="openwam.html">OpenWAM</a></td><td>引用本文的世界-动作模型</td><td><a href="openwam.html#qa-enc">本站 问 2</a></td><td>2609.07398</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2510.11690 后的整理，不是作者的官方内容。原文：Boyang Zheng、Nanye Ma、Shengbang Tong、Saining Xie，《Diffusion Transformers with Representation Autoencoders》，arXiv 2510.11690（v1，2025），以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 9 从原文 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图。表格数字照录原文；读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
