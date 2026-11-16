@@ -49,6 +49,15 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 .act-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
 .act-note{font-size:14px;margin:6px 0 0;max-width:none}
 @media (max-width:640px){.act-cells .cell{height:16px}.act-cells{gap:1px}.act-h small{display:block;margin:0}}
+.kg-tool{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;background:var(--bg2);min-width:0;max-width:100%;box-sizing:border-box}
+.kg-tool .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.kg-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;font-size:13px;color:var(--muted)}
+.kg-ctl button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer}
+.kg-ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600;border-color:var(--accent)}
+.kg-grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start}
+.kg-grid canvas{width:300px;max-width:100%;height:auto;background:var(--bg);border-radius:8px}
+.kg-out p{font-size:14px;margin:0 0 6px;max-width:none}
+@media (max-width:640px){.kg-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -71,7 +80,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <div class="note" id="n1"><span class="lab">读者注 1 · 同名项目和 Hugging Face 组织</span><p>2026-11-16 用 Hugging Face API 列出 <code>author=OpenWAM</code> 的模型：46 个，全部创建于 2026-09-04 到 09-05（在 2609.07398 提交前后），名字是 OpenWAM-Alpha-*（14 个）和 robotwin_* / pretrain_* / sft_*（32 个，对应 §4 的消融）。我读的两张模型卡都引用 2609.07398、链接 OpenWAM-Official/OpenWAM；本篇代码的下载脚本 <code>download_openwam_checkpoints.py</code> 也从 <code>OpenWAM/&lt;名字&gt;</code> 下载。2610.07922（Heng Yu 等，Stanford）的摘要页只有 GitHub 链接 OpenWAM/OpenWAM（AGPL-3.0，仓库描述写着 Stanford University），没有 Hugging Face 链接。所以 HF 的 OpenWAM 组织属于本篇。我只读了两张卡，其余 44 张没有逐张打开。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 OpenWAM-Infra</a><a href="#s3-1">3.1 组合式模型</a><a href="#s3-2">3.2 训练</a><a href="#s3-3">3.3 部署</a><a href="#s3-4">3.4 评测协议</a><a href="#s4">4 OpenWAM-Study</a><a href="#s4-1">4.1 继承什么</a><a href="#s4-2">4.2 协同</a><a href="#s4-3">4.3 跨域</a><a href="#s4-4">4.4 配方</a><a href="#i3d">3D 框架动画</a><a href="#s5">5 OpenWAM-α</a><a href="#s5-1">5.1 结构/训练/部署</a><a href="#s5-2">5.2 预训练数据</a><a href="#s5-3">5.3 仿真评测</a><a href="#s5-4">5.4 真机</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B 训练细节</a><a href="#apC">附录 C 真机协议</a><a href="#apD">附录 D 逐基准结果</a><a href="#code">代码对照</a><a href="#repro">LIBERO 复现要点</a><a href="#qa" class="rn">读者问答</a><a href="#qa-enc">问 2 编码器</a><a href="#qa-rr">问 3 重建式与表示式</a><a href="#qa-kg">问 4 KoLeo 与 Gram</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -873,14 +882,14 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 <li><b>接到 DiT 前：</b>48 维 \(\mu\) 再过一个不带参数的 LayerNorm（每个 token 内部归一化），让扩散目标接近零均值、单位方差。</li>
 </ol>
 <p>按这个结构估算参数量（我算的，代码没打印）：\(D=768\) 时每层注意力 \(4D^2\approx2.36\)M、FFN \(2\times768\times2048\approx3.15\)M，6 层约 33M；\(D=1408\) 时约 82M。和 5B 的 DiT 比很小。</p>
-<p>和 S-VAE 原论文的区别：原论文（2512.17909）用“语义加像素”的重建目标，压到 96 通道、16 倍空间下采样，并且要能解码回图像；OpenWAM 版只重建特征、不解码像素（摘要和 <code>model.py</code> 对照，原论文正文我没细读）。详见<a href="#n23">读者注 23</a>。</p>
+<p>和原论文（2512.17909）的关系：原论文分两步。第一步 <b>S-VAE</b> 冻结 DINOv2-B，只重建 768 维特征（ℓ2 + 余弦 + KL），压到 96 通道；第二步 <b>PS-VAE</b> 再解冻编码器，加像素重建，才是“语义加像素”。OpenWAM 的版本对应的是第一步：只重建特征、不解码像素，但通道数是 48，输入换成视频特征，训练数据换成机器人数据。详见 <a href="svae.html#openwam">S-VAE 精读页</a>和<a href="#n23">读者注 23</a>。</p>
 
 <h3 id="qa-rr">问 3：Wan2.2-VAE（重建式）和 DINOv3（表示式）到底有什么区别？</h3>
 <p><b>一句话：</b>两者都把画面变成一格一格的向量，但<b>训练时被要求记住的东西不同</b>。Wan2.2-VAE 要能把向量还原回原视频，所以它保留“画面长什么样”的全部细节；DINOv3 只要求同一张图的不同裁切得到一致的特征，所以它保留“画面里是什么、在哪里”，丢掉对识别没用的细节，也没法还原像素。</p>
 <p>打个比方：VAE 像一张压缩照片，DINOv3 像一份标注清单（“这里是碗的边缘，那里是夹爪”）。照片能看清颜色和纹理，但谁是碗要自己认；清单直接告诉你是什么，但画不回原图。</p>
 
 <div class="tablewrap"><table class="t-w"><thead><tr><th>对比项</th><th>Wan2.2-VAE（重建式）</th><th>DINOv3 ViT-B/16（表示式）</th></tr></thead><tbody>
-<tr><td>训练目标</td><td>编码后再解码，让解码出的视频接近原视频。Wan 报告给的 Wan-VAE（2.1 版）损失：L1 重建 ×3、KL ×3e-6、LPIPS 感知 ×3，后期加 3D 判别器的 GAN 损失（arXiv 2503.20314 §4.1.2）。2.2 版的训练细节没公开</td><td>没有解码器。学生网络对齐教师网络（DINO 的图像级损失 + iBOT 的遮挡 patch 损失），再加 KoLeo 让特征散开、Gram anchoring 保持局部特征质量；每张图取 2 个大裁切和 8 个小裁切（arXiv 2508.10104）</td></tr>
+<tr><td>训练目标</td><td>编码后再解码，让解码出的视频接近原视频。Wan 报告给的 Wan-VAE（2.1 版）损失：L1 重建 ×3、KL ×3e-6、LPIPS 感知 ×3，后期加 3D 判别器的 GAN 损失（arXiv 2503.20314 §4.1.2）。2.2 版的训练细节没公开</td><td>没有解码器。学生网络对齐教师网络（DINO 的图像级损失 + iBOT 的遮挡 patch 损失），再加 KoLeo 让特征散开、Gram anchoring 保持局部特征质量（这两个是什么见<a href="#qa-kg">问 4</a>）；每张图取 2 个大裁切和 8 个小裁切（arXiv 2508.10104）</td></tr>
 <tr><td>能否还原像素</td><td>能，有配套解码器（Wan 用它生成视频）</td><td>不能。要看图得另训解码器（RAE 就是这么做的）</td></tr>
 <tr><td>保留什么</td><td>颜色、纹理、精确位置、光照，凡是还原需要的都要留</td><td>物体类别、部件、边界、对应关系；对识别无关的细节会被压低</td></tr>
 <tr><td>网络</td><td>因果 3D 卷积，直接处理视频</td><td>ViT（12 层，宽 768），一次处理一张图</td></tr>
@@ -898,6 +907,35 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 </ul>
 <p>图 7 正好说明了这一点：直接用 DINOv3 只有 76.42，比 Wan2.2-VAE 的 90.30 低 13.88 点；用 S-VAE 把它压到 48 维之后到 90.18，只差 0.12 点。也就是说，<b>DINOv3 的问题主要在“形状”（维度和分布），不在内容</b>，形状改到和 VAE 一样后，它的语义内容不比 VAE 的像素内容差。论文的结论也是这个意思：好的隐空间看的是“紧凑”和“信息丰富”，不在于属于哪一类编码器。</p>
 <p class="tcap">DINOv3 正文写了多裁切，没写颜色抖动等颜色增强，所以表里没说它“丢颜色”；DINO 系列早期版本用过颜色增强，v3 是否沿用未核实。</p>
+
+<h3 id="qa-kg">问 4：DINOv3 训练里的 KoLeo 和 Gram anchoring 是什么意思？</h3>
+<p><b>先说它们在整个训练里的位置。</b>DINOv3 的主损失是“学生对齐教师”：同一张图切出不同裁切，学生网络看一个裁切，要输出和教师网络看另一个裁切时相同的结果（DINO 损失管整张图的 CLS 特征，iBOT 损失管被遮住的 patch）。这种目标有两个毛病，KoLeo 和 Gram anchoring 各治一个：</p>
+<ul>
+<li><b>KoLeo 治“挤成一团”：</b>只要求“两个裁切一致”，最省事的解法是所有图都输出差不多的特征（坍缩）。KoLeo 惩罚特征彼此靠太近，逼它们在空间里散开。</li>
+<li><b>Gram anchoring 治“局部特征越训越糊”：</b>大模型训久了，图像级分类越来越好，但每个 patch 的特征越来越像 CLS，分割、深度这类逐像素任务反而变差。Gram anchoring 拿一个早期的、局部特征还干净的模型当“锚”，要求现在的模型保持和它一样的 patch 间相似关系。</li>
+</ul>
+
+<h4>KoLeo：让一批特征均匀铺开</h4>
+<p>名字来自 Kozachenko–Leonenko 熵估计（Sablayrolles 等 2018 提出把它当正则项，DINOv2 起使用）。一批 \(n\) 个特征先 L2 归一化到单位球面上，对每个特征找它最近的邻居，距离记作 \(d_i=\min_{j\ne i}\lVert x_i-x_j\rVert\)，损失是</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\text{KoLeo}}=-\frac1n\sum_{i=1}^{n}\log d_i \]</div></div>
+<p>哪个特征和邻居挨得越近，\(-\log d_i\) 越大，梯度就把它推开；所有点间距都差不多大时损失最小，也就是“在球面上均匀铺开”。DINOv3 把它放在第一阶段损失里，权重 0.1，并且每 16 个样本一组算（原文式 (1)：\(\mathcal L_{\text{Pre}}=\mathcal L_{\text{DINO}}+\mathcal L_{\text{iBOT}}+0.1\,\mathcal L_{\text{DKoleo}}\)，D 指分布式实现）。</p>
+<div class="kg-tool" id="kg-koleo">
+<p class="lab">小演示 · 8 个单位圆上的特征（二维示意，真实特征是几百到几千维）</p>
+<div class="kg-ctl"><button data-m="clump" aria-pressed="false">挤成一团</button><button data-m="two" aria-pressed="false">分成两簇</button><button data-m="even" aria-pressed="true">均匀铺开</button><label>散开程度 <input type="range" min="0" max="100" value="100" id="kg-s"></label></div>
+<div class="kg-grid"><canvas width="300" height="300" id="kg-cv1" aria-label="单位圆上的 8 个点和各自最近邻连线"></canvas><div class="kg-out" id="kg-o1"></div></div>
+</div>
+
+<h4>Gram anchoring：锁住“哪些 patch 彼此相像”</h4>
+<p>一张图切成 \(P\) 个 patch，每个 patch 有一个 \(d\) 维特征。把它们 L2 归一化后排成 \(P\times d\) 的矩阵 \(X\)，那么 \(XX^\top\) 是 \(P\times P\) 的 <b>Gram 矩阵</b>：第 \(i\) 行第 \(j\) 列就是 patch \(i\) 和 patch \(j\) 的余弦相似度。它描述的是“这张图里哪些地方彼此相像”，比如碗身上的 patch 彼此相似，和桌面不相似。损失（原文式 (2)）：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\text{Gram}}=\big\lVert X_S X_S^\top - X_G X_G^\top \big\rVert_F^2 \]</div></div>
+<p>\(X_S\) 是学生的 patch 特征，\(X_G\) 是 <b>Gram 教师</b>的：取训练早期的教师网络，那时局部特征还很干净。关键在于比的是相似度矩阵，不是特征本身：特征整体怎么旋转、怎么移动都行，只要 patch 之间“谁和谁像”的结构不变，损失就是 0。所以它不妨碍模型继续学更强的语义，只是不让局部结构被冲掉。</p>
+<p>原文的用法：前 100 万步不加；之后进入“精炼阶段”，损失变成 \(w_D\mathcal L_{\text{DINO}}+\mathcal L_{\text{iBOT}}+w_{DK}\mathcal L_{\text{DKoleo}}+w_{\text{Gram}}\mathcal L_{\text{Gram}}\)（式 (3)），只在大裁切上算，Gram 教师每 1 万步更新成当前的 EMA 教师。论文图 8 显示加上后 1 万步内分割等逐像素任务就明显回升。§4.3 还有一个变体：让 Gram 教师看更高分辨率的图，再把特征缩回来算 Gram 矩阵，使锚更干净。</p>
+<div class="kg-tool" id="kg-gram">
+<p class="lab">小演示 · 一张图里的 6 个 patch（3 个“碗”、3 个“桌面”），二维示意</p>
+<div class="kg-ctl"><button data-m="anchor" aria-pressed="true">Gram 教师（锚）</button><button data-m="rot" aria-pressed="false">整体旋转 70°</button><button data-m="blur" aria-pressed="false">局部变糊（都往 CLS 靠）</button></div>
+<div class="kg-grid"><canvas width="300" height="300" id="kg-cv2" aria-label="6 个 patch 特征方向和它们的 Gram 矩阵"></canvas><div class="kg-out" id="kg-o2"></div></div>
+</div>
+<p><b>和 OpenWAM 有什么关系。</b>OpenWAM 用的是 DINOv3 的 patch 网格特征（丢掉 CLS），所以 Gram anchoring 保住的正是它要用的那部分：每个 16 × 16 位置的特征能区分“碗”和“桌面”。这也是 DINOv3 加 S-VAE 能接近 Wan2.2-VAE 的前提之一（见<a href="#qa-rr">问 3</a>）。</p>
 
 <div class="note" id="n20"><span class="lab">读者注 20 · V-JEPA 2.1 到底是 1024 维还是 1408 维</span><p>§4.1.2 写“1024-D for V-JEPA 2.1”，这是 ViT-L 的宽度（<code>vjepa21_src/vision_transformer.py</code> 的 <code>vit_large</code>：<code>embed_dim=1024</code>）。但代码的下载脚本只提供 <code>vjepa2_1_vitg_384.pt</code>，manifest 写 <code>embed_dim: 1408</code>（ViT-g，40 层，22 个头），S-VAE 的文件头注释也写“1408-d V-JEPA 2.1 latents”。图 7 用的是哪个尺寸，论文和代码对不上，标“未核实”。两种情况下不加 S-VAE 时 4C（4,096 或 5,632）都超过 DiT 宽度 3,072，上面的结论不变。</p></div>
 <div class="note" id="n21"><span class="lab">读者注 21 · “每 4 帧平均”的准确含义</span><p>论文说没有时间压缩的编码器“把每 4 个连续帧的特征平均”。代码里更具体：第 1 帧单独保留，后面每 4 帧求平均（<code>dinov3.py</code> 和 <code>flux2_vae.py</code> 的 <code>_causal_temporal_pool</code>），9 帧 → 1 + 2 = 3 帧，这样才和 Wan2.2-VAE 的因果分组对齐。另外 V-JEPA 2.1 并不是“没有时间压缩”：它的 tubelet 是 2，自带 2 倍时间压缩，代码只再做一次步长 2 的平均（<code>vjepa21.py</code> 文件头）；第 1 帧则复制成 2 帧送进视频分支，得到 1 个隐帧。</p></div>
@@ -1010,6 +1048,53 @@ ctl.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed'
 note.innerHTML=d?('<b>'+d.n+'</b>：用到 '+d.m.length+' / 80 个槽。'+d.t):'每只手臂 34 维 = 位置 3 + rot6d 6 + 夹爪 1 + 灵巧手 24，左右两块结构完全相同（右臂 = 左臂下标 + 34）；最后 12 维保留给底盘、腰、躯干等。点上面的数据集看它占哪些槽，灰掉的槽在式 (2) 里被掩码 m 屏蔽，不计动作损失。';}
 ctl.addEventListener('click',function(e){var b=e.target.closest('button');if(b)show(b.dataset.k);});
 show('all');
+})();
+</script>
+<script>
+(function(){
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';}
+/* KoLeo */
+var cv=document.getElementById('kg-cv1'); if(!cv) return;
+var cx=cv.getContext('2d'), o1=document.getElementById('kg-o1'), sl=document.getElementById('kg-s'), mode='even';
+var N=8;
+function angles(m,s){var a=[],i;for(i=0;i<N;i++){var even=2*Math.PI*i/N, tgt;
+ if(m==='clump') tgt=0.25+0.06*i; else if(m==='two') tgt=(i<4?0.3:Math.PI+0.3)+0.08*(i%4); else tgt=even;
+ a.push(tgt);} return a;}
+function draw1(){var s=+sl.value/100, base=angles(mode), clump=angles('clump');
+ var A=base.map(function(t,i){return mode==='even'?clump[i]+(t-clump[i])*s:t;});
+ var P=A.map(function(t){return [Math.cos(t),Math.sin(t)];});
+ var W=cv.width,H=cv.height,R=115,c=[W/2,H/2]; cx.clearRect(0,0,W,H);
+ cx.strokeStyle=css('--line');cx.lineWidth=1.5;cx.beginPath();cx.arc(c[0],c[1],R,0,7);cx.stroke();
+ var sum=0,rows=[];
+ P.forEach(function(p,i){var best=1e9,bj=0;P.forEach(function(q,j){if(i!==j){var d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<best){best=d;bj=j;}}});
+  best=Math.max(best,1e-3);sum+=-Math.log(best);rows.push(best);
+  var q=P[bj];cx.strokeStyle='#e8b04f';cx.beginPath();cx.moveTo(c[0]+R*p[0],c[1]-R*p[1]);cx.lineTo(c[0]+R*q[0],c[1]-R*q[1]);cx.stroke();});
+ P.forEach(function(p){cx.fillStyle='#4f8fea';cx.beginPath();cx.arc(c[0]+R*p[0],c[1]-R*p[1],6,0,7);cx.fill();});
+ var L=sum/N, Lmin=-Math.log(2*Math.sin(Math.PI/N));
+ o1.innerHTML='<p>黄线连到各点的最近邻。</p><p>最近邻距离 d<sub>i</sub>：<br><code>'+rows.map(function(d){return d.toFixed(2);}).join(' ')+'</code></p><p>KoLeo 损失 = −平均 log d<sub>i</sub> = <b>'+L.toFixed(3)+'</b></p><p>8 点均匀分布时最小，等于 −log(2 sin(π/8)) = '+Lmin.toFixed(3)+'。挤得越紧损失越大，梯度把挨得最近的点推开。</p>';}
+var k=document.getElementById('kg-koleo');
+k.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){mode=b.dataset.m;sl.disabled=(mode!=='even');k.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});draw1();});});
+sl.addEventListener('input',draw1); draw1();
+/* Gram */
+var cv2=document.getElementById('kg-cv2'),cy=cv2.getContext('2d'),o2=document.getElementById('kg-o2'),g=document.getElementById('kg-gram'),m2='anchor';
+var base=[100,110,120,-20,-10,0].map(function(d){return d*Math.PI/180;}); /* 0-2 碗, 3-5 桌面 */
+var cls=45*Math.PI/180;
+function feats(m){return base.map(function(t){if(m==='rot')return t+70*Math.PI/180; if(m==='blur')return t+(cls-t)*0.75; return t;});}
+function gram(A){return A.map(function(a){return A.map(function(b){return Math.cos(a-b);});});}
+function draw2(){var A=feats(m2),G=gram(A),G0=gram(base),W=cv2.width,H=cv2.height,c=[95,150],R=80;
+ cy.clearRect(0,0,W,H);cy.strokeStyle=css('--line');cy.beginPath();cy.arc(c[0],c[1],R,0,7);cy.stroke();
+ A.forEach(function(t,i){cy.strokeStyle=i<3?'#4fc98a':'#a77ce8';cy.lineWidth=2.5;cy.beginPath();cy.moveTo(c[0],c[1]);cy.lineTo(c[0]+R*Math.cos(t),c[1]-R*Math.sin(t));cy.stroke();});
+ if(m2==='blur'){cy.setLineDash([4,3]);cy.strokeStyle='#e8b04f';cy.beginPath();cy.moveTo(c[0],c[1]);cy.lineTo(c[0]+R*Math.cos(cls),c[1]-R*Math.sin(cls));cy.stroke();cy.setLineDash([]);}
+ cy.font='12px sans-serif';cy.fillStyle='#4fc98a';cy.fillText('碗 ×3',8,20);cy.fillStyle='#a77ce8';cy.fillText('桌面 ×3',8,38);
+ var x0=190,y0=95,s=17;
+ for(var i=0;i<6;i++)for(var j=0;j<6;j++){var u=(G[i][j]+1)/2;cy.fillStyle='rgb('+Math.round(32+210*u)+','+Math.round(48+145*u)+','+Math.round(74+4*u)+')';cy.fillRect(x0+j*s,y0+i*s,s-1,s-1);}
+ cy.fillStyle=css('--muted')||'#888';cy.fillText('亮=相似 暗=不相似',x0-8,y0+6*s+16);
+ cy.fillStyle=css('--muted')||'#888';cy.fillText('Gram 矩阵 XXᵀ',x0,y0-8);
+ var L=0;for(i=0;i<6;i++)for(j=0;j<6;j++){L+=Math.pow(G[i][j]-G0[i][j],2);}
+ var lab={anchor:'锚本身，损失 0。',rot:'所有特征一起转了 70°，特征值全变了，但 patch 之间的夹角不变，Gram 矩阵一模一样，损失仍是 0：Gram anchoring 不管特征怎么整体移动。',blur:'每个 patch 都往 CLS 方向（虚线）靠 75%，碗和桌面之间的夹角从约 110° 缩到约 28°，相似度矩阵变成一片亮，局部结构没了，损失变大，梯度把它拉回去。'};
+ o2.innerHTML='<p>'+lab[m2]+'</p><p>碗–桌面的相似度：<b>'+G[0][3].toFixed(2)+'</b>（锚 '+G0[0][3].toFixed(2)+'）</p><p>L<sub>Gram</sub> = ‖G − G<sub>锚</sub>‖²<sub>F</sub> = <b>'+L.toFixed(3)+'</b></p>';}
+g.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){m2=b.dataset.m;g.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});draw2();});});
+draw2();
 })();
 </script>
 </body>

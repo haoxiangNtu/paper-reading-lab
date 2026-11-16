@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wan 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.20314 Wan（Wan2.1）和 Wan2.2 做成 11 幕 3D 动画：数据管线、Wan-VAE 的因果分块和特征缓存、patch 化和 token 数、共享调制的 DiT 块、流匹配训练、推理采样和 CFG、Wan2.2 的 MoE 切换、TI2V-5B 的首帧条件、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="wan.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/wan.html">返回精读</a><a href="../../papers/wan.html#s4-1">原文 §4.1</a><a href="../../papers/wan.html#wan22">Wan2.2 与 TI2V-5B</a><a href="https://arxiv.org/abs/2503.20314">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2503.20314 · Wan2.1 技术报告 + Wan2.2</p>
+<h1>一个开源视频生成模型，从数据到采样</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2 幕是数据管线；第 3、4 幕是 Wan-VAE 的因果分块和特征缓存（<b>第 4 幕可以单步看缓存</b>）；第 5 幕是 patch 化和 token 数；<b>第 6 幕是 DiT 块和共享调制，当场算参数量</b>；第 7、8 幕是流匹配训练和推理采样；第 9 幕是 Wan2.2 的 MoE 切换；<b>第 10 幕是 TI2V-5B 怎样一个模型做文生和图生视频</b>；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结构数字来自论文、官方代码（Wan2.1 提交 9737cba、Wan2.2 提交 1ea34ff）和 HF 配置；标“现算”的数是页面按公式当场算的。没有任何 Wan 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码 / 配置”分开写。代码是 Wan-Video/Wan2.1 提交 9737cba（2026-03-05）和 Wan-Video/Wan2.2 提交 1ea34ff（2026-09-21），Apache-2.0，只读未运行；仓库只有推理代码。参数量是我按代码的层定义算的，和 HF safetensors 文件头的总数逐个核对过。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文（Wan2.1）</th><th>代码 / 配置</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入和编码</td></tr>
+<tr><td>E1</td><td>视频</td><td>(1 + T) × H × W × 3；训练 5 秒，16 fps</td><td>Wan2.1：81 帧，16 fps；TI2V-5B：121 帧，24 fps，1280 × 704</td></tr>
+<tr><td>E2</td><td>Wan-VAE</td><td>因果 3D，4 × 8 × 8，C = 16，127M；首帧只做空间压缩</td><td>dim 96，dim_mult [1,2,4,4]，时间下采样 [F,T,T]；126,892,531 个参数</td></tr>
+<tr><td>E3</td><td>分块和缓存</td><td>1 + T/4 块，每块 ≤ 4 帧；核 3 缓存 2 帧，时间下采样缓存 1 帧</td><td>CACHE_T = 2；encode 按 1, 4, 4, …；decode 每次 1 个隐帧</td></tr>
+<tr><td>E4</td><td>Wan2.2-VAE</td><td>（不在报告里）</td><td>先 2 × 2 像素 patchify，再 8 倍：4 × 16 × 16，z_dim 48；704,688,668 个参数</td></tr>
+<tr><td>E5</td><td>文本</td><td>umT5，512 token</td><td>umt5_xxl，text_len 512，4096 维 → 两层 MLP 到 dim</td></tr>
+<tr class="grp"><td colspan="4">DiT</td></tr>
+<tr><td>D1</td><td>patch 化</td><td>3D 卷积 (1, 2, 2)；L = (1 + T/4) × H/16 × W/16</td><td>nn.Conv3d(in_dim, dim, (1,2,2))；720p 81 帧 → 75,600 token</td></tr>
+<tr><td>D2</td><td>块</td><td>自注意力 + 交叉注意力 + FFN；全时空注意力</td><td>LN → 调制 → 自注意力（q/k RMSNorm，3D RoPE 44/42/42）→ 门控；仿射 LN → 交叉注意力（不调制）；LN → 调制 → FFN（GELU tanh）→ 门控</td></tr>
+<tr><td>D3</td><td>时间调制</td><td>Linear + SiLU 的 MLP，所有块共享，预测 6 个调制参数，每块一组偏置</td><td>time_embedding + time_projection（dim → 6 dim）共享；每块 modulation (1, 6, dim)</td></tr>
+<tr><td>D4</td><td>1.3B</td><td>30 层</td><td>dim 1536，FFN 8960，12 头；1,418,996,800 个参数</td></tr>
+<tr><td>D5</td><td>14B</td><td>未给</td><td>dim 5120，FFN 13824，40 头，40 层；14,288,491,584</td></tr>
+<tr><td>D6</td><td>TI2V-5B</td><td>（不在报告里）</td><td>dim 3072，FFN 14336，24 头，30 层，in/out 48；4,999,787,712；每 token 一个时间步</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>目标</td><td>x_t = t x₁ + (1 − t) x₀，预测 v = x₁ − x₀，MSE；t ~ logit-normal</td><td>无训练代码</td></tr>
+<tr><td>T2</td><td>阶段</td><td>256 px 文生图 → 256 px 图 + 192 px 视频 → 480 px → 720 px → 后训练 480 / 720 px</td><td>—</td></tr>
+<tr><td>T3</td><td>优化</td><td>bf16，AdamW，wd 1e-3，lr 1e-4，按 FID / CLIP 停滞下调</td><td>—</td></tr>
+<tr><td>T4</td><td>并行</td><td>FSDP + 二维 CP（外 Ring 内 Ulysses）；VAE 和文本 DP</td><td>推理同样支持 --dit_fsdp、--ulysses_size</td></tr>
+<tr class="grp"><td colspan="4">推理</td></tr>
+<tr><td>I1</td><td>采样</td><td>通常约 50 步；CFG</td><td>UniPC；T2V 50 步、I2V 40 步；shift 5（480p I2V 为 3）；CFG 5</td></tr>
+<tr><td>I2</td><td>加速</td><td>扩散缓存 1.62 倍；FP8 GEMM 1.13 倍；8 位 FlashAttention 1.27 倍以上</td><td>开源代码里没有这些</td></tr>
+<tr><td>I3</td><td>Wan2.2 MoE</td><td>（不在报告里）</td><td>t ≥ boundary × 1000 用高噪声专家：T2V 0.875（shift 12），I2V 0.900（shift 5）</td></tr>
+<tr><td>I4</td><td>TI2V 的 I2V</td><td>（不在报告里）</td><td>首个隐帧 = VAE(图)，该帧 token 的 t = 0，每步覆盖回去</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的漏斗宽度</b>是示意，只有“基础过滤去掉约 50%”是原文的数；各阶段的数据量原文没给。</li>
+<li><b>第 3 幕的 17 帧</b>是玩具长度，便于数块；81 帧、121 帧的形状按公式现算。</li>
+<li><b>第 4 幕</b>画的是单层因果卷积的取帧方式，真实网络有很多层，每层都按同样规则缓存。</li>
+<li><b>第 5 幕</b>的网格按 6 × 10 缩小画，token 数按真实形状现算；右边的条长按 token 数比例画。</li>
+<li><b>第 6 幕</b>的块数画成 10 层示意，参数量按代码的层定义现算。</li>
+<li><b>第 7 幕</b>的“数据”是一个环形点集，不是视频隐变量；logit-normal 的参数论文没给，这里用均值 0、标准差 1 示意。</li>
+<li><b>第 8 幕</b>的两个速度箭头是手设的二维向量，只演示 CFG 的组合公式；σ 网格按代码的 UniPC 设定现算。</li>
+<li><b>第 10 幕</b>只画 6 个隐帧（真实是 31 个），“噪声 → 干净”的颜色过渡是示意。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2503.20314 和 Wan2.2 README、代码后的理解，不是作者的官方图。原图见<a href="../../papers/wan.html">精读页</a>（arXiv 非独占分发许可，经站点作者决定放原图，只做裁切）。逐节内容和读者注也在精读页。</p></footer>
+</div>
+</body>
+</html>
