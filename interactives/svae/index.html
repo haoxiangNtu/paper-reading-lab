@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>S-VAE / PS-VAE 拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2512.17909（S-VAE、PS-VAE）的框架做成 11 幕 3D 动画：离流形、式 (1) 当场核对、像素细节、S-VAE 结构、语义重建和截断梯度、PS-VAE 解冻、通道数、文生图和编辑的训练、隐空间对比、OpenWAM 的简化版。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.shapes.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="svae.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/svae.html">返回精读</a><a href="../../papers/svae.html#s3-3">原文 §3.3</a><a href="../../papers/svae.html#openwam">在 OpenWAM 里</a><a href="https://arxiv.org/abs/2512.17909">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2512.17909 · S-VAE / PS-VAE</p>
+<h1>把表示编码器的特征压成能生成的隐空间，一步步看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 4 幕是两个问题：离流形（<b>第 3 幕当场核对式 (1)</b>）和像素细节弱；第 5 到 7 幕是 S-VAE 结构、语义重建目标、PS-VAE 解冻；第 8 幕是压缩后的隐空间；第 9 幕在它上面训练文生图和编辑；第 10 幕和其他隐空间比；第 11 幕是 OpenWAM 里的简化版。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。形状和超参数来自论文；第 11 幕来自 OpenWAM 代码（提交 1dcaeea）。柱子都是原文数字。第 2、3、6 幕的点云和向量是玩具，标明了；没有任何 PS-VAE 网络在这里运行，论文也没有公开代码。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和形状表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">形状表：原论文和 OpenWAM 并列</h2>
+<p class="sub">原论文没有公开代码，左列来自论文正文（arXiv v1，补充材料缺失）；右列来自 OpenWAM 仓库提交 1dcaeea（Apache-2.0），只读未运行。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>原论文（S-VAE / PS-VAE）</th><th>OpenWAM 的 S-VAE</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入</td></tr>
+<tr><td>I1</td><td>图像 / 视频</td><td>224 × 224 中心裁切（ImageNet-1K）</td><td>9 帧 384 × 320（RoboTwin），按 1 + 4 + 4 时间平均成 3 个隐帧</td></tr>
+<tr><td>I2</td><td>表示编码器</td><td>DINOv2-B，patch 14 → 16 × 16 × 768；PS-VAE 阶段解冻</td><td>DINOv3 ViT-B/16（768）或 V-JEPA 2.1 ViT-g/16（1408），冻结 → (B, D, 3, 24, 20)</td></tr>
+<tr><td>I3</td><td>标准化</td><td>未提</td><td>按数据集统计的逐通道均值和标准差（stats.pt）</td></tr>
+<tr class="grp"><td colspan="4">语义编解码器</td></tr>
+<tr><td>E1</td><td>编码器 Eₛ</td><td>3 个继承自表示编码器的 Transformer 块 + MLP 投影</td><td>3 个 pre-LN 块（宽 D，16 头，FFN 2048）→ LayerNorm → Linear(D, 2×48)</td></tr>
+<tr><td>E2</td><td>注意力范围</td><td>一张图的 256 个 token（推断）</td><td>每个隐帧的 480 个 token</td></tr>
+<tr><td>E3</td><td>隐变量</td><td>96 通道（另有 32），KL 正则</td><td>48 通道，KL 正则；用的时候只取 μ</td></tr>
+<tr><td>E4</td><td>解码器 Dₛ</td><td>对称：MLP 投影 + 3 块</td><td>Linear(48, D) → 3 块 → LayerNorm → 反标准化</td></tr>
+<tr><td>E5</td><td>参数量</td><td>未给；若用 DINOv2-B 形状的块，约 42.8M（我的估算）</td><td>D = 768：33.2M；D = 1408：82.5M（我按代码算）</td></tr>
+<tr class="grp"><td colspan="4">损失和训练</td></tr>
+<tr><td>L1</td><td>语义重建</td><td>ℓ₂ + 余弦，相对权重未给</td><td>MSE + 1 ×（1 − cos），逐 token</td></tr>
+<tr><td>L2</td><td>KL</td><td>LDM 式，权重未给</td><td>β = 1e-4，前 20% 步线性升起</td></tr>
+<tr><td>L3</td><td>像素</td><td>S-VAE：像素解码器只为评估，输入 detach；PS-VAE：联合，权重 0.1</td><td>没有像素解码器</td></tr>
+<tr><td>L4</td><td>优化</td><td>batch 96，lr 1e-4，两阶段</td><td>AdamW，lr 1e-4，batch 8 片段，50 轮，余弦到 0.9 倍，bf16</td></tr>
+<tr class="grp"><td colspan="4">下游</td></tr>
+<tr><td>G1</td><td>生成模型</td><td>Transfusion 式共享块，Qwen2.5-0.5B 初始化，宽 DDT 头（653M）；扩展到 1.5B、3B</td><td>Wan2.2-TI2V-5B 结构的 DiT，随机初始化，宽 3072</td></tr>
+<tr><td>G2</td><td>进入生成模型前</td><td>2D 位置编码，时间步注入初始隐状态</td><td>按 token 的 LayerNorm，再 Conv3d(48, 3072, 1×2×2)，每 token 192 维</td></tr>
+<tr><td>G3</td><td>噪声 shift</td><td>训练 s = √(C·P²/16)：96c 为 2.449；推理统一 3</td><td>shift = 5，对所有编码器相同</td></tr>
+<tr><td>G4</td><td>输出</td><td>像素解码器出 256 × 256 图</td><td>只预测 48 维隐帧，不解码</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 2 幕的点云。</b>“PS”字形是我手写的折线采样，三维里的离面漂移是我设的噪声，只说明“多出来的维度让样本离开平面”。论文的玩具实验是 2 维对 8 维、256 通道 MLP，这里没有重跑。</li>
+<li><b>第 3 幕的式 (1)。</b>数据集是第 2 幕的 400 个点，嵌入三维（l = 2，h = 3）；两边的速度都按有限数据集的精确后验当场算，差值读数是真的。这是玩具，不是 DINOv2。</li>
+<li><b>第 3 幕的“噪声占比”。</b>(h − l)/(h + l) 假设数据在每个内在维度上方差为 1，只是量级示意。</li>
+<li><b>第 6 幕的向量。</b>两个 8 维向量和它们的 ℓ₂、余弦是当场算的玩具，KL 也是对一个玩具高斯算的。</li>
+<li><b>方块的大小。</b>按维度的对数缩放，不是参数量。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2512.17909 后的理解，不是作者的官方图。原图见<a href="../../papers/svae.html">精读页</a>（arXiv 非独占分发许可，只做裁切，经站点作者决定放原图）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

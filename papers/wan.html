@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wan 技术报告精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2503.20314 Wan（Wan2.1 技术报告）的中文精读：数据管线、Wan-VAE、DiT、流匹配训练、并行与推理加速、评测和扩展应用逐节整理；对照 Wan2.1 / Wan2.2 官方代码；补充 Wan2.2 的 MoE、Wan2.2-VAE 和 TI2V-5B，以及 FLUX.2-VAE；11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-w{min-width:640px}.t-m{min-width:520px}.t-s{min-width:420px}.t-xw{min-width:820px}.t-links{min-width:660px}.t-wb{min-width:760px}
+.t-xw td,.t-xw th,.t-wb td,.t-wb th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+details.tbl{margin:12px 0}
+details.tbl summary{cursor:pointer;font-size:14.5px;color:var(--accent)}
+.notes li{max-width:74ch}
+.find{border-left:3px solid var(--accent);padding:4px 12px;margin:14px 0;background:var(--bg2);border-radius:0 8px 8px 0}
+.find p{margin:4px 0}
+figure.pfig.half img{max-width:420px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/wan/index.html">3D 框架动画</a><a href="openwam.html">OpenWAM</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2503.20314 · cs.CV · v2 2025 年 4 月 19 日 · 技术报告 · 中文精读</p>
+<h1>Wan：开放的大规模视频生成模型（Wan2.1 技术报告）</h1>
+<p class="orig">Wan: Open and Advanced Large-Scale Video Generative Models</p>
+<p>作者署名为 Wan Team（阿里巴巴集团），第 7 节按名字字母顺序列出 61 位贡献者。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2503.20314">arXiv 原文</a><a href="https://arxiv.org/pdf/2503.20314v2">PDF</a><a href="https://arxiv.org/html/2503.20314v2">HTML 版</a><a href="https://github.com/Wan-Video/Wan2.1">Wan2.1 代码</a><a href="https://github.com/Wan-Video/Wan2.2">Wan2.2 代码</a><a href="https://huggingface.co/Wan-AI">HF 权重</a><span>正文 49 页，参考文献到第 60 页，没有附录</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇报告在 arXiv 上登记的许可是 <a href="http://arxiv.org/licenses/nonexclusive-distrib/1.0/">arXiv 非独占分发许可</a>（nonexclusive-distrib 1.0），PDF 上没有另外的版权声明。按站点规则，这类论文本来不放原图；<b>这一批论文由站点作者决定放原图</b>，所以下面的图从 arXiv PDF（v2）裁切，只做了裁切、缩放和格式转换，没有改内容，版权归原作者。每张图注写明出处和原文链接。展示样例视频截图的图（图 2、15、19、20、22 到 25、27、29 到 31、33）没有放，只写文字说明并链接原图。</p>
+<p>按原文顺序覆盖第 1 到 7 节，小节编号和原文一致，用自己的话整理，不逐字翻译。公式按原文编号，表格数字照录原文。“读者注”是我核算或对照时发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b><a href="https://github.com/Wan-Video/Wan2.1">Wan-Video/Wan2.1</a> 读的是提交 <a href="https://github.com/Wan-Video/Wan2.1/tree/9737cba9c1c3c4d04b33fcad41c111989865d315">9737cba</a>（2026-03-05），<a href="https://github.com/Wan-Video/Wan2.2">Wan-Video/Wan2.2</a> 读的是提交 <a href="https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff">1ea34ff</a>（2026-09-21），两个仓库都是 Apache-2.0 许可，HF 权重仓库也标 Apache-2.0。只读，没有运行。两个仓库都只有推理代码，没有训练代码，所以论文里训练相关的数字（损失权重、时间步分布、学习率）没法和代码对照。参数量我用代码的层定义逐项算，再和 HF 上 safetensors 文件头里的参数总数对照（只下载文件头，没下载权重）。</p>
+<p><b>本页的位置。</b>这是 <a href="openwam.html">OpenWAM</a> §4.1 用到的上游模型之一。OpenWAM 的视频骨干是 Wan2.2-TI2V-5B，而 Wan2.2 没有单独的论文，所以报告逐节精读之后加了一节 <a href="#wan22">Wan2.2 与 TI2V-5B</a>（依据 README 和代码），再加一小节 <a href="#flux2">FLUX.2-VAE</a>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 数据管线</a><a href="#s4-1">4.1 Wan-VAE</a><a href="#s4-2">4.2 DiT 与训练</a><a href="#i3d">3D 框架动画</a><a href="#s4-3">4.3 训练效率</a><a href="#s4-4">4.4 推理</a><a href="#s4-5">4.5 提示词对齐</a><a href="#s4-6">4.6 Wan-Bench</a><a href="#s4-7">4.7 评测与消融</a><a href="#s5">5 扩展应用</a><a href="#s6">6 局限与结论</a><a href="#s7">7 贡献者</a><a href="#code">代码对照</a><a href="#wan22">Wan2.2 与 TI2V-5B</a><a href="#flux2">附：FLUX.2-VAE</a><a href="#openwam">在 OpenWAM 里怎么用</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>Wan 是阿里通义万相团队开源的一组视频生成基础模型，第一版叫 Wan2.1。结构是现在主流的“视频 VAE + 文本编码器 + 扩散 Transformer（DiT）”，用流匹配训练。报告的贡献主要在工程和数据：自己设计的因果 3D VAE（Wan-VAE），数十亿图像和视频的数据管线，大规模训练和推理的并行方案，以及一个和人工偏好对齐的评测集 Wan-Bench。</p>
+<ul>
+<li><b>两个尺寸：</b>14B 和 1.3B。1.3B 只需 8.19 GB 显存，能在消费级显卡上跑。</li>
+<li><b>Wan-VAE：</b>时间 4 倍、空间 8 × 8 倍压缩，16 通道，127M 参数；按“首帧 + 每 4 帧”分块编码，块之间用特征缓存保持因果连续，所以能编码任意长的视频。</li>
+<li><b>DiT：</b>全时空自注意力；文本（umT5，512 个 token）用交叉注意力注入；时间步经一个<b>所有块共享</b>的 MLP 生成 6 个调制参数，每块只学一组偏置。</li>
+<li><b>结果：</b><a class="ds" href="https://vchitect.github.io/VBench-project/">VBench</a> 总分 14B 86.22%、1.3B 83.96%；Wan-Bench 加权分 14B 0.724，高于表里的商业模型。</li>
+<li><b>扩展：</b>图生视频（I2V）、统一编辑（VACE）、文生图、个性化、相机控制、实时流式生成、视频配音。</li>
+</ul>
+<p>读完我认为最值得记住的三点：</p>
+<ol>
+<li>“1.3B”和“14B”按代码精确算是 1,418,996,800 和 14,288,491,584 个参数，和 HF 文件头的总数一个不差（<a href="#n6">读者注 6</a>）；共享调制 MLP 省掉的参数在 1.3B 上是 23%，在 14B 上是 31%，不是笼统的“约 25%”（<a href="#n13">读者注 13</a>）。</li>
+<li>表 3 的“胜率”其实是“胜率减负率”，和图 1 右边的三段条一一对上（<a href="#n11">读者注 11</a>）；Wan-Bench 上 Wan 14B 领先靠的是人工偏好权重，不加权时 Sora 略高（<a href="#n10">读者注 10</a>）。</li>
+<li>对 OpenWAM 最要紧的是 Wan2.2-TI2V-5B：一个模型同时做文生和图生视频，靠的是“首帧隐变量直接替换、该帧时间步置 0”，代码里确实这么做（<a href="#n21">读者注 21</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="wan/fig1.webp" width="1595" height="479" alt="图 1：左边是六个模型的 Wan-Bench 总分柱状图，右边是 Wan 对四个模型的人工偏好负、平、胜比例条" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S0.F1">看原图 ↗</a></span>左边：Wan-Bench 总分，Wan2.1-14B 0.72，Mochi 0.64，Hunyuan 0.67，CN-TopA 0.69，CN-TopB 0.69，Sora 0.70（和表 2 的加权分一致）。右边：和四个模型两两比较时 Wan 的负、平、胜比例，例如对 Runway 是 0.15 / 0.03 / 0.82。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>Sora 之后视频生成发展很快，开源的 HunyuanVideo、Mochi、CogVideoX 缩小了和商业模型的差距，但作者认为还差三点：性能不够；大多只做文生视频（T2V），而创作需求很杂；模型太大，资源有限的团队用不起。</p>
+<p>Wan 的做法：DiT 加流匹配，交叉注意力注入文本，全时空注意力建模运动，规模做到 14B；训练数据是数十亿图像和视频，总量在万亿 token 的量级。在此基础上扩展到图生视频、指令编辑、零样本个性化、实时生成和音频生成。同时发布 1.3B 模型，T2V 和 I2V 都支持 480p。报告承诺公开数据管线、VAE、训练策略、加速和自动评测的细节。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>闭源模型。</b>按时间列了 Sora（2024 年 2 月）、可灵和 Luma 1.0（6 月）、Runway Gen-3、Vidu（7 月，U-ViT 结构）、可灵和 Luma 1.5、海螺、Pika 1.5、Movie Gen、可灵 1.6 和 Veo 2（12 月）。</p>
+<p><b>开源社区。</b>扩散视频模型通常沿用 Stable Diffusion 的三件套：自编码器、文本编码器、去噪网络。网络从 U-Net（VDM 的 3D U-Net，或 2D 空间加 1D 时间注意力）走到 DiT；DiT 又分两种，原版 DiT 用交叉注意力读文本，MM-DiT 把文本 token 和视觉 token 拼在一起做全注意力。自编码器从标准 VAE 到 VQ-VAE、VQGAN；LTX-Video 让解码器顺带完成最后一步去噪。文本编码器以 T5 为主，常配 CLIP；HunyuanVideo 换成多模态大模型。下游任务有重绘、编辑、可控生成、参考帧生成，多用 adapter 或 ControlNet 式结构注入条件。</p>
+
+<h2 id="s3"><span class="no">3</span>数据管线</h2>
+<p>三条原则：质量高、多样、规模大。最终是数十亿视频和图像。</p>
+<h3 id="s3-1"><span class="no">3.1</span>预训练数据</h3>
+<p>候选数据来自内部有版权的来源和公开数据，先去重，再按四步清洗：</p>
+<ol>
+<li><b>基础维度。</b>OCR 测文字覆盖率，文字太多的去掉；<a class="ds" href="https://laion.ai/blog/laion-5b/">LAION-5B</a> 美学分类器初筛；内部 NSFW 评分；水印和台标检测（训练时裁掉）；启发式裁掉黑边；过曝检测；合成图检测（作者说哪怕不到 10% 的生成图混进来也会明显拖累模型）；模糊检测；时长必须超过 4 秒，各阶段有分辨率门槛。这一步去掉了约 50% 的数据。</li>
+<li><b>视觉质量。</b>先聚成 100 类，每类单独挑，避免长尾里的小类被整体丢掉；每类抽样人工打 1 到 5 分，用这些标注训练一个打分模型，给全部数据打分。</li>
+<li><b>运动质量。</b>分六档：最优运动（幅度大、干净）；中等（有多主体或遮挡，保留以增加多样性）；静态（访谈类，质量高但运动少，降采样）；以镜头运动为主（如航拍，接近静图，大幅降采样）；低质量运动（主体太多、遮挡严重，剔除）；手持抖动（剔除）。</li>
+<li><b>视觉文字。</b>两路：在白底上渲染汉字，合成数亿张含字图像；从真实数据里收集含字图像，多个 OCR 模型识别中英文，再交给 Qwen2-VL 写出尽量包含原文字的描述。合成加真实，让模型能写出少见的字。</li>
+</ol>
+<figure class="pfig" id="fig3">
+<img src="wan/fig3.webp" width="1511" height="935" alt="图 3：桑基图，从数据池分成图像、视频、文本，经过去重、基础过滤、视觉过滤、运动过滤，流向 192P、480P、720P 训练和最后的 SFT" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 7 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S3.F3">看原图 ↗</a></span>各训练阶段的数据流。左边的数据池分成图像、视频和文本三支，依次经过去重、基础过滤、视觉过滤、运动过滤和分辨率过滤，流向 192P、480P、720P 的训练阶段，最右边是图像和视频的 SFT。图注说每个阶段按吞吐量动态调整运动、质量、类别的比例。图里没有具体数量。</figcaption>
+</figure>
+<h3 id="s3-2"><span class="no">3.2</span>后训练数据</h3>
+<p>后训练要提高画面质量和运动质量，所以图像和视频分开处理。图像：专家模型打分最高的 20% 再按风格和类别保持多样，加上人工从各类别收集的高质量图，补齐缺失概念，共数百万张。视频：先用视觉质量分类器挑出靠前的，再按运动质量分类器挑出数百万条简单运动和数百万条复杂运动的视频，覆盖科技、动物、艺术、人物、交通工具等 12 个大类。</p>
+<h3 id="s3-3"><span class="no">3.3</span>稠密视频描述</h3>
+<p>网页自带的描述太简单。DALL-E 3 证明用详细的生成描述训练能提升遵循提示的能力，所以作者训练了一个内部描述模型，给每张图和每段视频写稠密描述。</p>
+<p><b>3.3.1 开源数据。</b>图像和视频的描述数据、视觉问答数据（动作、计数、OCR），以及纯文本指令数据（让模型能按要求的风格写描述）。</p>
+<p><b>3.3.2 内部数据。</b>名人、地标、影视角色（先用大模型列名字，再用 CLIP 类模型 TEAM 检索，并要求描述里有关键词）；计数（从带数字的描述里抽出“类别、数量”，再用 Grounding DINO 数，对得上才留）；OCR 增强描述；镜头角度和运动（作者说 GPT-4o、Gemini Pro 都判断不好，于是人工标一批，既直接训练描述模型，也训练专家模型去标更多数据）；细粒度类别（数百万张动植物、车辆）；空间关系；扩写短描述；编辑指令描述（两张图的差别）；组图描述；人工标注的高质量稠密描述（只在最后阶段用）。</p>
+<p><b>3.3.3 模型。</b>LLaVA 式结构：ViT 提取视觉特征，两层 MLP 投影，接 Qwen 大模型。图像用动态高分辨率，最多切 7 块，每块池化成 12 × 12。视频每秒取 3 帧，最多 129 帧；“快慢”编码：每 4 帧保留 1 帧的原分辨率特征，其余帧全局平均池化。这个机制在 <a class="ds" href="https://video-mme.github.io/">VideoMME</a>（不带字幕）上把成绩从 67.6% 提到 69.1%。训练三阶段：先冻结 ViT 和 LLM 只训 MLP（学习率 1e-3）；再全部放开；最后在少量高质量数据上端到端训练。后两阶段 LLM 和 MLP 学习率 1e-5，ViT 1e-6。</p>
+<p><b>3.3.4 评测。</b>参照 CAPability 搭了自动评测：10 个维度，每个维度 1,000 段视频，和 Gemini 1.5 Pro 写的描述比 F1（图 4）。</p>
+<figure class="pfig" id="fig4">
+<img src="wan/fig4.webp" width="1595" height="664" alt="图 4：十个维度上 Gemini 1.5 Pro 和 Wan 描述模型的 F1 分数柱状图" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 9 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S3.F4">看原图 ↗</a></span>每组左边浅色是 Gemini 1.5 Pro，右边是 Wan 的描述模型。Wan 在事件、镜头角度、镜头运动、风格、颜色上更好；Gemini 在动作、OCR、场景、类别、计数上更好。数字见读者注 1。</figcaption>
+</figure>
+<div class="note" id="n1"><span class="lab">读者注 1 · 图 4 的数</span><p>图上标的数（Gemini / Wan）：事件 52.6 / 55.4，动作 88.2 / 87.8，镜头角度 52.6 / 87.5，镜头运动 41.4 / 48.5，OCR 88.0 / 84.5，风格 59.5 / 72.1，场景 89.1 / 79.1，颜色 52.6 / 63.1，类别 97.6 / 97.0，计数 84.3 / 79.6。十项平均 Gemini 70.59，Wan 75.46，Wan 高 4.9 点，比图注说的“大致相当”更好一些，差距主要来自镜头角度（+34.9）。另外 Gemini 在事件、镜头角度、颜色三项上都是 52.6，三个不同维度恰好同一个数，可能是巧合，也可能是作图时的笔误，无法核实。</p></div>
+
+<h2 id="s4"><span class="no">4</span>模型设计和加速</h2>
+<h3 id="s4-1"><span class="no">4.1</span>时空变分自编码器（Wan-VAE）</h3>
+<p>视频 VAE 有三个难处：要同时建模时间和空间；视频太大，长视频的显存吃不消；要保证因果（后面的帧不影响前面的帧）。Wan-VAE 是一个 3D 因果 VAE，组合了几种已有做法。</p>
+<figure class="pfig" id="fig5">
+<img src="wan/fig5.webp" width="1595" height="435" alt="图 5：输入视频经过三个下采样块进入隐空间，再经三个上采样块输出视频，橙色块是时空 2 倍，绿色块是空间 2 倍" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 10 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F5">看原图 ↗</a></span>输入 [1+T, H, W, 3]，编码器三个下采样块（一个绿色的空间 2 倍、两个橙色的时空 2 倍），隐空间 [1+T/4, H/8, W/8, C]，解码器对称地上采样回 [1+T, H, W, 3]。</figcaption>
+</figure>
+<p><b>4.1.1 结构。</b>输入 \(V\in\mathbb R^{(1+T)\times H\times W\times3}\)，压缩到 \([1+T/4,\ H/8,\ W/8]\)，通道数 \(C=16\)。首帧只做空间压缩（沿用 MagViT-v2），这样单张图像也能编码。把所有 GroupNorm 换成 RMSNorm，因为 GroupNorm 会跨时间统计，破坏因果，换掉后才能用特征缓存。空间上采样层的输入通道减半，推理显存少 33%。调整基础通道数后，模型只有 127M 参数。</p>
+<p><b>4.1.2 训练。</b>三阶段：先训一个同结构的 2D 图像 VAE；再“膨胀”成 3D 因果 VAE，在 128 × 128、5 帧的短视频上训练，损失是 L1 重建、KL、LPIPS，权重 3、3e-6、3；最后在不同分辨率和帧数的高质量视频上微调，加上 3D 判别器的 GAN 损失。</p>
+<p><b>4.1.3 高效推理。</b>帧数是 1 + T，所以把视频分成 1 + T/4 块，和隐帧一一对应：第一块 1 帧，之后每块 4 帧，每次编解码只处理一块，显存不随视频长度增长。块之间靠特征缓存衔接（图 6）：</p>
+<ul>
+<li>(a) 普通因果卷积，时间核大小 3，不改变帧数：每层缓存前一块的最后 2 帧，第一块用 2 帧零填充。</li>
+<li>(b) 时间 2 倍下采样（步长 2）：非首块只缓存 1 帧，保证输出帧数正好是输入的一半，并且跨块仍然因果。</li>
+</ul>
+<figure class="pfig" id="fig6">
+<img src="wan/fig6.webp" width="1595" height="455" alt="图 6：左边 (a) 默认设置下第一块用两帧零填充、后续块用两帧缓存；右边 (b) 时间 2 倍下采样时用一帧缓存" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 11 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F6">看原图 ↗</a></span>上排是输入帧，下排是因果 3D 卷积的输出。(a) Chunk 0 只有第 0 帧，前面补两帧零（橙色），Chunk 1 的第 1 到 4 帧前面接上缓存的两帧（斜线）。(b) 下采样时 Chunk 1 只接一帧缓存，4 帧输出 2 帧。3D 动画第 4 幕可以逐块走一遍。</figcaption>
+</figure>
+<div class="note" id="n2"><span class="lab">读者注 2 · 代码里的分块和缓存</span><p>和论文一致。<code>wan/modules/vae.py</code>：<code>CACHE_T = 2</code>；<code>CausalConv3d</code> 把时间方向的填充全部放在前面（<code>2 * padding[0], 0</code>），有缓存时先拼缓存、再少补相应的零；<code>encode</code> 里 <code>iter_ = 1 + (t - 1) // 4</code>，第 0 块取 <code>x[:, :, :1]</code>，第 i 块取 <code>x[:, :, 1+4(i-1) : 1+4i]</code>；<code>decode</code> 每次只解码 1 个隐帧。<code>downsample3d</code> 的时间卷积核 3、步长 2，首块只存下特征、不做时间卷积，之后每块拼上一块的最后 1 帧，就是图 6(b)。RMSNorm 实现为 <code>F.normalize(x, dim=1) * sqrt(C) * γ</code>，只在通道维归一，每个时空位置独立，所以不跨帧。上采样层 <code>nn.Conv2d(dim, dim // 2, 3)</code> 输出减半，对应“空间上采样层通道减半”。结构参数：<code>dim=96</code>，<code>dim_mult=[1, 2, 4, 4]</code>，<code>z_dim=16</code>，时间下采样 <code>[False, True, True]</code>。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 127M 对得上</span><p>HF 上 Wan2.1 Diffusers 版 VAE 的 safetensors 文件头列出 195 个张量，参数合计 126,892,531，四舍五入 127M。原版 <code>Wan2.1_VAE.pth</code> 文件 507,609,880 字节，按 float32 每个 4 字节是 126.9M，也一致。</p></div>
+<p><b>4.1.4 评测。</b>和 HunyuanVideo、CogVideoX 等比 PSNR 和速度（每秒处理的帧数）。多数对手和 Wan 一样是 4 × 8 × 8、16 通道；Open Sora Plan 压缩率相同但 4 通道；SVD 是 1 × 8 × 8、4 通道；Step Video 8 × 16 × 16、64 通道；Mochi 6 × 8 × 8、12 通道。测试集 200 段视频，25 帧，720 × 720。作者说同样硬件下 Wan-VAE 的重建速度是 HunyuanVideo 的 2.5 倍，分辨率越高优势越大。图 8 是纹理、人脸、文字、大运动四类场景的定性比较。</p>
+<figure class="pfig" id="fig7">
+<img src="wan/fig7.webp" width="1595" height="878" alt="图 7：气泡图，横轴效率（帧每秒），纵轴 PSNR，气泡大小表示参数量，Wan-VAE 在右上方" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 12 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F7">看原图 ↗</a></span>横轴是效率（帧 / 秒），纵轴是 PSNR，气泡面积表示参数量。Wan-VAE（127M）在右上方单独一点；HunyuanVideo（246M）PSNR 也高但在左边；Step Video（499M）、Mochi（460M）、Open Sora Plan（239M）PSNR 较低。读数见读者注 4。</figcaption>
+</figure>
+<div class="note" id="n4"><span class="lab">读者注 4 · 图 7 读数：Wan-VAE 快，但 PSNR 并不最高</span><p>我从矢量图里取出各气泡的中心（<code>pdftocairo -svg</code> 导出第 12 页，气泡坐标按 Open Sora Plan 和 Step Video 两个不重叠的气泡与刻度标定，CogVideoX、CVVAE 两点验证误差小于 0.01），读数如下（效率 帧/秒，PSNR dB）：Wan-VAE (7.55, 36.7)，HunyuanVideo (2.96, 37.1)，CogVideoX (3.65, 35.8)，CVVAE (3.88, 34.6)，SVD (4.04, 33.6)，Step Video (2.67, 33.5)，Mochi (4.46, 32.1)，Open Sora Plan (5.42, 31.9)。速度比 7.55 / 2.96 = 2.55，和正文的“2.5 倍”一致；但 HunyuanVideo 的 PSNR 比 Wan-VAE 高约 0.4 dB。Wan2.2 README 的 VAE 表（<a href="#fig-w22vae">见下</a>）也是 Hunyuan 33.298 高于 Wan2.1-VAE 32.222。所以 Wan-VAE 的优势是“小而快、质量接近”，不是“重建最好”。这些是重画读数，不是原文给的数。</p></div>
+<figure class="pfig" id="fig8">
+<img src="wan/fig8.webp" width="1595" height="1076" alt="图 8：四行重建对比，分别是毛发纹理、人脸、汉字、大运动，列为原视频、真值、Mochi、HunyuanVideo、CogVideoX 和 Wan" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 13 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F8">看原图 ↗</a></span>四行依次是毛发纹理、人脸、汉字、大运动，红圈标出对手的失真：毛发方向乱、嘴唇模糊、字形变形、运动模糊。作者说这些视频没有用于训练。</figcaption>
+</figure>
+
+<h3 id="s4-2"><span class="no">4.2</span>模型训练</h3>
+<p>整体是 DiT 的三件套：Wan-VAE、扩散 Transformer、文本编码器（图 9）。视频 \(V\in\mathbb R^{(1+T)\times H\times W\times3}\) 编码成 \(x\in\mathbb R^{(1+T/4)\times H/8\times W/8}\)（16 通道），再送进 DiT。</p>
+<figure class="pfig" id="fig9">
+<img src="wan/fig9.webp" width="1595" height="519" alt="图 9：视频经 Wan 编码器、加噪后进入 N 个 DiT 块，时间步和 umT5 文本经交叉注意力注入，再由 Wan 解码器输出" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 13 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F9">看原图 ↗</a></span>熊猫举着写有“Wan2.1”的纸板：视频经 Wan-Encoder 进入隐空间，加噪后过 N 个 DiT 块，时间步 t 和 umT5 编码的文本（经交叉注意力）作为条件，最后 Wan-Decoder 还原像素。</figcaption>
+</figure>
+<h4 id="s4-2-1"><span class="no">4.2.1</span>视频扩散 Transformer</h4>
+<p>三部分：patch 化、Transformer 块、反 patch 化。patch 化用核大小 (1, 2, 2) 的 3D 卷积，把 \(x\) 摊平成 \((B, L, D)\)，序列长度 \(L=(1+T/4)\times H/16\times W/16\)。每个块（图 10）里：</p>
+<ul>
+<li>全时空自注意力，建模所有隐帧、所有位置之间的关系；</li>
+<li>交叉注意力读文本条件，作者说这样在长上下文下仍能跟住指令；</li>
+<li>时间步嵌入经“Linear + SiLU”的 MLP 预测 6 个调制参数（两组 shift、scale、gate），这个 MLP <b>所有块共享</b>，每块只学一组自己的偏置。作者说这样参数少了约 25%，而且同参数量下效果明显更好（见 4.7.2 的消融）。</li>
+</ul>
+<figure class="pfig narrow half" id="fig10">
+<img src="wan/fig10.webp" width="628" height="737" alt="图 10：Transformer 块，从上到下是 Layer Norm、自注意力、Layer Norm、交叉注意力、Layer Norm、FFN，右侧时间步经 MLP 接入" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 14 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F10">看原图 ↗</a></span>视频 token（V-Tokens）依次经过 LayerNorm、自注意力、LayerNorm、交叉注意力（读文本 T-Tokens）、LayerNorm、FFN，重复 N 次。时间步经 MLP 后接入块内。</figcaption>
+</figure>
+<p><b>文本编码器。</b>用 umT5。理由：多语言好，中英文和画面里的文字都能理解；同条件下组合能力比单向注意力的大模型强；收敛更快。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 一个块在代码里长什么样</span><p><code>wan/modules/model.py</code> 的 <code>WanAttentionBlock</code>：<code>e = modulation + e0</code>，其中 <code>e0</code> 由所有块共享的 <code>time_embedding</code>（Linear–SiLU–Linear）和 <code>time_projection</code>（SiLU–Linear，输出 6 × dim）算出，<code>modulation</code> 是每块自己的 (1, 6, dim) 参数，就是论文说的“每块一组偏置”。然后：</p>
+<p>\(x \leftarrow x + g_1\odot\mathrm{SelfAttn}(\mathrm{LN}(x)(1+s_1)+b_1)\)，\(x\leftarrow x+\mathrm{CrossAttn}(\mathrm{LN}_{\rm aff}(x),\ c_{\rm text})\)，\(x\leftarrow x+g_2\odot\mathrm{FFN}(\mathrm{LN}(x)(1+s_2)+b_2)\)。</p>
+<p>几个论文没写的细节：交叉注意力<b>不受时间步调制</b>，它前面的 LayerNorm 带可学习的仿射参数（<code>norm3</code>，<code>elementwise_affine=True</code>），另外两个 LayerNorm 不带；Q、K 都过 RMSNorm；位置编码是 3D RoPE，每个头 128 维按复数对拆成时间 22、高 21、宽 21 对（即 44 / 42 / 42 个实数维）；FFN 用 tanh 近似的 GELU；文本先过一个 4096 → dim → dim 的两层 MLP，长度补零到 512。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 参数量逐项算，和 HF 一个不差</span><p>按代码的层定义（每块：自注意力 4 个线性层加 2 个 RMSNorm，交叉注意力同样，FFN 两层，带仿射的 norm3，6 × dim 的 modulation；外加 patch 卷积、文本 MLP、时间 MLP、共享的 time_projection、输出头）算：</p>
+<ul>
+<li>1.3B（dim 1536，FFN 8960，30 层）：每块 46,440,704，总计 <b>1,418,996,800</b>；</li>
+<li>14B（dim 5120，FFN 13824，40 层）：每块 351,394,304，总计 <b>14,288,491,584</b>；</li>
+<li>I2V-14B（多出图像交叉注意力的 k_img、v_img 和 CLIP 投影 MLP，输入 36 通道）：<b>16,394,878,784</b>；</li>
+<li>Wan2.2-TI2V-5B（dim 3072，FFN 14336，30 层，输入输出 48 通道）：每块 163,656,704，总计 <b>4,999,787,712</b>。</li>
+</ul>
+<p>前三个和 HF API 报告的 safetensors 参数总数完全相同；5B 的 index.json 写 total_size 19,999,150,848 字节，除以 4（float32）正好是 4,999,787,712。所以“1.3B”实际是 1.42B，“I2V-14B”实际是 16.4B。这也和 OpenWAM 页说的“每层约 1.64 亿、30 层约 49 亿”一致（30 × 163,656,704 = 4,909,701,120，再加嵌入和输出头约 0.09B）。</p></div>
+
+<h4 id="s4-2-2"><span class="no">4.2.2</span>预训练</h4>
+<p>用流匹配在图像和视频上统一建模。先在低分辨率图像上预训练，再分阶段做图像-视频联合训练，分辨率和时长逐步增加。</p>
+<p><b>训练目标。</b>给定图像或视频隐变量 \(x_1\)、噪声 \(x_0\sim\mathcal N(0,I)\)、从 logit-normal 分布采样的 \(t\in[0,1]\)，按 Rectified Flow 做线性插值：</p>
+<div class="eq"><div class="m">\[ x_t=t\,x_1+(1-t)\,x_0 \]</div><span class="no">(1)</span></div>
+<p>真值速度：</p>
+<div class="eq"><div class="m">\[ v_t=\frac{dx_t}{dt}=x_1-x_0 \]</div><span class="no">(2)</span></div>
+<p>模型预测速度，损失是均方误差：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\mathbb E_{x_0,x_1,c_{\rm txt},t}\big\|u(x_t,c_{\rm txt},t;\theta)-v_t\big\|^2 \]</div><span class="no">(3)</span></div>
+<p>\(c_{\rm txt}\) 是 512 个 token 的 umT5 文本嵌入。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 论文和代码的 t 方向相反</span><p>式 (1) 里 \(t=1\) 是数据、\(t=0\) 是噪声。代码里正好反过来：采样器的 sigma 是噪声比例，<code>timesteps = sigma × 1000</code>，从约 999 走到 0，\(t=1000\) 是纯噪声；Wan2.2 README 讲 MoE 时也说“t 大、噪声大”。两者只差 \(t\to1-t\)，读代码和 README 时要换算。训练用的 logit-normal 参数没有公开，训练代码也不在仓库里，未核实。</p></div>
+<p><b>图像预训练。</b>直接用高分辨率图像和长视频联合训练有两个问题：序列太长（1280 × 720 的视频通常 81 帧），同样 GPU 小时下数据吞吐不够；显存逼得 batch 很小，梯度方差尖峰导致不稳定。所以 14B 先做 256 px 文生图预训练，先学好文本对齐和几何结构。</p>
+<p><b>图像-视频联合训练。</b>三个阶段按分辨率递进：(1) 256 px 图像加 5 秒、192 px、16 fps 的视频；(2) 图像和视频都升到 480 px，视频仍 5 秒；(3) 都升到 720 px。</p>
+<p><b>配置。</b>bf16 混合精度，AdamW，权重衰减 1e-3，初始学习率 1e-4，FID 和 CLIP Score 停滞时下调。</p>
+<h4 id="s4-2-3"><span class="no">4.2.3</span>后训练</h4>
+<p>结构和优化器不变，从预训练检查点开始，在 3.2 节的后训练数据上做 480 px 和 720 px 联合训练。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>从数据到推理拆成 11 幕：总览、数据管线、Wan-VAE 的因果分块、特征缓存（可单步）、patch 化和 token 数（可切换 1.3B / 14B / 5B）、DiT 块和共享调制（当场算参数量）、流匹配训练、推理采样和 CFG、Wan2.2 的 MoE 切换、TI2V-5B 的首帧条件、结果。下面嵌的是第 6 幕。</p>
+<iframe src="../interactives/wan/index.html?embed=1&amp;scene=6" title="Wan 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/wan/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s4-3"><span class="no">4.3</span>模型扩展和训练效率</h3>
+<p><b>4.3.1 负载分析。</b>训练时 DiT 占总计算的 85% 以上。DiT 的计算量约为 \(L(\alpha bsh^2+\beta bs^2h)\)（层数 \(L\)、micro batch \(b\)、序列长 \(s\)、隐藏维 \(h\)），线性层随 \(s\) 线性增长，注意力随 \(s^2\) 增长；Wan 用非因果注意力，\(\beta\) 前向 4、反向 8。Wan 的序列常有几十万 token，序列到 100 万时注意力能占端到端训练时间的 95%。显存方面，只训 DiT（文本编码器和 VAE 冻结），激活约 \(\gamma Lbsh\)；普通 LLM 的 \(\gamma\) 约 34，DiT 因为输入里还有提示词和时间步，\(\gamma\) 可超过 60。100 万 token、micro batch 1 时，14B 的激活能超过 8 TB。结论：计算随 \(s^2\)、显存随 \(s\) 增长。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 8 TB 和 token 数</span><p>按 \(\gamma Lbsh\)（字节，沿用 Korthikanti 等的约定）：\(\gamma=60\)、\(L=40\)、\(s=10^6\)、\(h=5120\) 得 \(60\times40\times10^6\times5120=1.23\times10^{13}\)，约 12.3 TB；\(\gamma=34\) 是 7.0 TB。\(\gamma\ge39\) 就超过 8 TB，和“可超过 8 TB”相符。实际一个样本有多少 token：720p、81 帧编码成 21 × 90 × 160，patch 后 21 × 45 × 80 = 75,600 个 token；480p（480 × 832）是 21 × 30 × 52 = 32,760。所以“100 万 token”是 batch 拼接或更长视频的假设场景，单个 5 秒 720p 样本远到不了。</p></div>
+<p><b>4.3.2 并行策略。</b>VAE 用了缓存后显存很小，直接数据并行（DP）；文本编码器超过 20 GB，用 DP 加 FSDP 分片。DiT 的参数分片选 FSDP。激活形状 \([b,s,h]\)：\(s\) 维用上下文并行（CP，Ulysses 或 Ring Attention），\(h\) 维用 Megatron 的张量并行加序列并行；CP 通信更少，所以选 CP，并设计二维 CP：外层 Ring Attention，内层 Ulysses（类似 USP）。256K 序列、2 台机器 16 卡时，通信开销从纯 Ulysses 的 10% 以上降到 1% 以下。FSDP 组和 CP 组相交，DP 大小 = FSDP 大小 / CP 大小。</p>
+<figure class="pfig" id="fig11">
+<img src="wan/fig11.webp" width="1491" height="315" alt="图 11：四组 GPU 方阵，每组内部是 Ulysses 8 乘 Ring 2，四组构成 FSDP 32，外层 DP 4" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 16 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F11">看原图 ↗</a></span>128 张卡：最内层 Ulysses = 8 和 Ring = 2 组成 CP 16；两组 CP 构成 FSDP 32；外层 DP = 4。全局 batch 是 micro batch 的 8 倍。</figcaption>
+</figure>
+<div class="note" id="n9"><span class="lab">读者注 9 · 128 卡的算术</span><p>CP = 8 × 2 = 16；FSDP 组 32 卡里有 32 / 16 = 2 个 CP 组，即组内 DP = 2，对应“FSDP 组的 batch 为 2b”；外层 DP = 4，4 × 32 = 128 卡；数据副本数 128 / 16 = 8，所以全局 batch = 8b。各处都对得上。</p></div>
+<p><b>模块间切换。</b>VAE 和文本编码器用 DP，DiT 用 DP + CP。CP 组内的卡必须读同一批数据，但如果 VAE 和文本编码器也读同一批就是重复计算。做法：CP 组内各卡先读不同数据、各自编码，然后按 CP 大小循环广播，让 CP 组内的输入一致。这样 VAE 和文本编码器在一次迭代里的耗时降到 1/CP。</p>
+<p><b>4.3.3 显存优化。</b>计算随 \(s^2\) 增长、显存随 \(s\) 增长，所以长序列下计算时间最终会超过把激活卸载到 CPU 的 PCIe 传输时间：卸载一层的激活可以和 1 到 3 层的计算重叠。所以优先用激活卸载；CPU 内存也会不够，再配合梯度检查点，优先给“显存 / 计算”比高的层做检查点。</p>
+<p><b>4.3.4 集群可靠性。</b>依靠阿里云的调度、慢机检测和自愈：启动时排除有问题的节点，训练中隔离故障节点并自动重启续训。</p>
+
+<h3 id="s4-4"><span class="no">4.4</span>推理</h3>
+<p>推理通常要约 50 步采样。手段：量化和分布式减少每步时间；利用相邻步注意力的相似性和 CFG 的相似性减少总计算量。</p>
+<p><b>4.4.1 并行。</b>多卡时用和训练相同的二维 CP（外 Ring 内 Ulysses）降低单个视频的延迟；14B 用 FSDP 分片模型（长序列下 FSDP 的通信比张量并行少，且能和计算重叠）。图 12 是 14B 的多卡加速比，接近线性。</p>
+<figure class="pfig narrow" id="fig12">
+<img src="wan/fig12.webp" width="830" height="656" alt="图 12：理论加速比和实际加速比随 GPU 数变化的折线，1 到 16 卡" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 17 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F12">看原图 ↗</a></span>红色虚线是理论加速比，蓝线是实测。8 卡前两条几乎重合；16 卡时实测约 14.7（目测），并行效率约 92%。</figcaption>
+</figure>
+<p><b>4.4.2 扩散缓存。</b>两个观察：同一个 DiT 块里，不同采样步的注意力输出很相似；采样后期条件和无条件输出很相似。据此：注意力每隔几步算一次、其余步复用；无条件分支每隔几步算一次，其余步复用条件结果，并像 FasterCache 那样做残差补偿。具体在哪些步缓存，用验证集挑选，以保证无损。14B T2V 推理快了 1.62 倍。</p>
+<p><b>4.4.3 量化。</b>DiT 块里所有 GEMM 用 FP8（权重按张量、激活按 token 量化），GEMM 本身快一倍，DiT 模块整体快 1.13 倍。注意力方面，FlashAttention3 原生 FP8 在视频生成上质量明显下降，所以改造 FA3：\(S=QK^\top\) 用 Int8，\(O=PV\) 用 FP8；FP8 WGMMA 只有 14 位累加器，长序列会溢出，所以块内用 FP8 WGMMA，跨块用 CUDA core 的 FP32 寄存器累加（借鉴 DeepSeek-V3）；把 FP32 累加和 rescale 融合，调整块大小减少寄存器溢出。在 H20 上达到 95% MFU，推理整体快 1.27 倍以上。</p>
+
+<h3 id="s4-5"><span class="no">4.5</span>提示词对齐</h3>
+<p>让用户输入更像训练描述。两招：训练时每段视频配多种长短（长、中、短）和风格（正式、口语、诗意）的描述；推理时用大模型改写用户提示，原则是：不改原意地加细节；按主体类别加自然的动作；按后训练描述的结构写，先风格、再内容摘要、再细节。速度和效果折中，用 Qwen2.5-Plus 改写。</p>
+<details class="tbl"><summary>表 1 · 改写示例（三组，原文是中文，作者译成了英文；点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>用户提示（大意）</th><th>改写后（大意）</th></tr></thead><tbody>
+<tr><td>维京战士双手挥巨斧，黄昏雪地里与猛犸搏斗，雪花飞舞</td><td>加上体格、皮甲和角盔、坚毅表情；猛犸的长毛、獠牙、怒吼；黄昏、冰原和远山轮廓；冷色调光照；高机位动态近景</td></tr>
+<tr><td>镜头跟随一艘快艇追逐海豚</td><td>纪录片风格；驾驶员穿救生衣戴头盔；海豚跃出水面再潜入；晴天蓝海、远处白云；中景跟拍</td></tr>
+<tr><td>戴王冠的小土豆国王坐在王座上，土豆臣民朝拜</td><td>超现实风格；金冠、高王座、土黄色凹凸表皮；臣民两侧低头；金红色宫殿；顶光营造神圣感；高机位近景</td></tr>
+</tbody></table></div>
+</details>
+
+<h3 id="s4-6"><span class="no">4.6</span>Wan-Bench</h3>
+<p>FVD、FID 和人的感知不一致，所以作者做了自动、全面、和人工对齐的 Wan-Bench：三大维度（动态质量、画面质量、指令遵循），14 个细项（图 13），每项单独设计打分算法，简单的用传统检测器，复杂的用多模态大模型。</p>
+<figure class="pfig" id="fig13">
+<img src="wan/fig13.webp" width="1600" height="519" alt="图 13 和图 14：左边是 Wan-Bench 的三大维度和 14 个细项的树状图，右边是各细项提示词数量的柱状图" loading="lazy">
+<figcaption><span class="lab">图 13、图 14 · 原文第 20 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.SS6">看原图 ↗</a></span>左（图 13）：动态质量 6 项、画面质量 3 项、指令遵循 5 项。右（图 14）：各细项的提示词数量，最多的一项约 155 条，最少约 60 条。</figcaption>
+</figure>
+<details class="tbl"><summary>14 个细项各怎么打分（点开）</summary>
+<ul>
+<li><b>大运动生成：</b>用 RAFT 算光流，按归一化光流幅度打分。</li>
+<li><b>人体伪影：</b>在 2 万张人工标注的生成图上训练 YOLOv3 检测伪影位置，分数综合置信度、框和持续时间。</li>
+<li><b>物理合理性、流畅度：</b>设计物理相关（弹跳、碰撞、流水）和复杂运动的提示，让 Qwen2-VL 问答式找穿模、违反重力、运动不流畅。</li>
+<li><b>像素级稳定：</b>用光流找静止区域，算区域内的帧间差。</li>
+<li><b>ID 一致：</b>人、动物、物体三类，逐帧 DINO 特征的相似度。</li>
+<li><b>综合画质：</b>MANIQA（清晰度）、LAION 美学预测器、MUSIQ 三者平均。</li>
+<li><b>场景生成质量：</b>相邻帧 CLIP 相似度（一致性）和帧与文本的 CLIP 相似度（对齐）加权平均。</li>
+<li><b>风格化：</b>Qwen2-VL 逐帧问答。</li>
+<li><b>单物体、多物体、空间位置：</b>Qwen2-VL 判断类别、数量、空间关系，分数是符合提示的帧的平均比例。</li>
+<li><b>相机控制：</b>平移、升降、推拉、航拍、跟拍五种，130 条提示；前三种用 RAFT 光流判断，后两种用 Qwen2-VL 问答。</li>
+<li><b>动作指令遵循：</b>人、动物、物体三类动作，给 Qwen2-VL 关键帧，问动作是否对、是否完成、有无伪影。</li>
+</ul>
+</details>
+<p><b>人工反馈加权。</b>收集了 5,000 多对不同模型（含 Wan）视频的两两比较，用户按文本选偏好并给大致分数。每个维度的权重来自“模型分数和人工分数的 Pearson 相关”，加权得到总分。</p>
+
+<h3 id="s4-7"><span class="no">4.7</span>评测</h3>
+<h4 id="s4-7-1"><span class="no">4.7.1</span>指标和结果</h4>
+<p>对手包括可灵、海螺、Sora、Runway、Vidu 等商业模型和 Mochi、CogVideoX、HunyuanVideo 等开源模型。每个模型用 Wan-Bench 的提示生成 1,035 个样本，按 4.6 节的人工加权打分。</p>
+<p class="tcap" id="t2">表 2 · Wan-Bench 各维度和加权总分（照录原文）</p>
+<div class="tablewrap"><table class="t-wb"><thead><tr><th>维度</th><th class="n">CNTopB</th><th class="n">Hunyuan</th><th class="n">Mochi</th><th class="n">CNTopA</th><th class="n">Sora</th><th class="n">Wan 1.3B</th><th class="n">Wan 14B</th></tr></thead><tbody>
+<tr><td>大运动生成</td><td class="n">0.405</td><td class="n">0.413</td><td class="n">0.420</td><td class="n">0.284</td><td class="n best">0.482</td><td class="n">0.468</td><td class="n">0.415</td></tr>
+<tr><td>人体伪影</td><td class="n">0.712</td><td class="n">0.734</td><td class="n">0.622</td><td class="n best">0.833</td><td class="n">0.786</td><td class="n">0.707</td><td class="n">0.691</td></tr>
+<tr><td>像素级稳定</td><td class="n">0.977</td><td class="n best">0.983</td><td class="n">0.981</td><td class="n">0.974</td><td class="n">0.952</td><td class="n">0.976</td><td class="n">0.972</td></tr>
+<tr><td>ID 一致</td><td class="n">0.940</td><td class="n">0.935</td><td class="n">0.930</td><td class="n">0.936</td><td class="n">0.925</td><td class="n">0.938</td><td class="n best">0.946</td></tr>
+<tr><td>物理合理性</td><td class="n">0.836</td><td class="n">0.898</td><td class="n">0.728</td><td class="n">0.759</td><td class="n">0.933</td><td class="n">0.912</td><td class="n best">0.939</td></tr>
+<tr><td>流畅度</td><td class="n">0.765</td><td class="n">0.890</td><td class="n">0.530</td><td class="n">0.880</td><td class="n best">0.930</td><td class="n">0.790</td><td class="n">0.910</td></tr>
+<tr><td>综合画质</td><td class="n">0.621</td><td class="n">0.605</td><td class="n">0.530</td><td class="n best">0.668</td><td class="n">0.665</td><td class="n">0.596</td><td class="n">0.640</td></tr>
+<tr><td>场景生成质量</td><td class="n">0.369</td><td class="n">0.373</td><td class="n">0.368</td><td class="n">0.386</td><td class="n best">0.388</td><td class="n">0.385</td><td class="n">0.386</td></tr>
+<tr><td>风格化</td><td class="n best">0.623</td><td class="n">0.386</td><td class="n">0.403</td><td class="n">0.346</td><td class="n">0.606</td><td class="n">0.430</td><td class="n">0.328</td></tr>
+<tr><td>单物体准确</td><td class="n best">0.987</td><td class="n">0.912</td><td class="n">0.949</td><td class="n">0.942</td><td class="n">0.932</td><td class="n">0.930</td><td class="n">0.952</td></tr>
+<tr><td>多物体准确</td><td class="n">0.840</td><td class="n">0.850</td><td class="n">0.693</td><td class="n">0.880</td><td class="n best">0.882</td><td class="n">0.859</td><td class="n">0.860</td></tr>
+<tr><td>空间位置准确</td><td class="n">0.518</td><td class="n">0.464</td><td class="n">0.512</td><td class="n">0.434</td><td class="n">0.458</td><td class="n">0.476</td><td class="n best">0.590</td></tr>
+<tr><td>相机控制</td><td class="n">0.465</td><td class="n">0.406</td><td class="n best">0.605</td><td class="n">0.529</td><td class="n">0.380</td><td class="n">0.483</td><td class="n">0.527</td></tr>
+<tr><td>动作指令遵循</td><td class="n best">0.917</td><td class="n">0.735</td><td class="n">0.907</td><td class="n">0.783</td><td class="n">0.721</td><td class="n">0.844</td><td class="n">0.860</td></tr>
+<tr><td><b>加权总分</b></td><td class="n">0.690</td><td class="n">0.673</td><td class="n">0.639</td><td class="n">0.693</td><td class="n">0.700</td><td class="n">0.689</td><td class="n best">0.724</td></tr>
+</tbody></table></div>
+<p class="tcap">加粗（best）是我标的每行最大值。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · Wan 14B 的领先来自权重</span><p>14 项里 Wan 14B 只在 ID 一致、物理合理性、空间位置 3 项最高；Sora 4 项，CNTopB 3 项。不加权的 14 项平均：Sora 0.7171，Wan 14B 0.7154，CNTopB 0.7125，Wan 1.3B 0.6996，CNTopA 0.6881，Hunyuan 0.6846，Mochi 0.6556。也就是说，等权时 Sora 略高于 Wan 14B；加权后 Wan 14B 0.724 第一、Sora 0.700 第二，排名变化来自人工偏好得到的权重。各维度的权重没有公布，7 个模型 14 个未知数也解不出来，未核实。</p></div>
+<p><b>定性。</b>图 15（第 23 页，样例截图，未放图，<a href="https://arxiv.org/html/2503.20314v2#S4.F15">看原图 ↗</a>）八组提示：80 年代怪物派对、狗骑自行车的老照片、荷塘出水的女子、摩托车越野、跳水、草地上漂浮的人、头顶写“囍”字气球的父子骑车，以及手写体“WAN”的 70 年代片头。作者强调大运动、物理交互、艺术风格和中英文字。</p>
+<p><b>人工评测。</b>700 多个任务，20 多人标注，四个维度。</p>
+<p class="tcap" id="t3">表 3 · T2V 两两比较，Wan 14B 对各模型（照录原文；原文称“胜率差”）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th></th><th class="n">CN-TopA</th><th class="n">CN-TopB</th><th class="n">CN-TopC</th><th class="n">Runway</th><th class="n">总轮数</th></tr></thead><tbody>
+<tr><td>画面质量</td><td class="n">30.6%</td><td class="n">15.9%</td><td class="n">27.8%</td><td class="n">48.1%</td><td class="n">5710</td></tr>
+<tr><td>运动质量</td><td class="n">16.1%</td><td class="n">9.7%</td><td class="n">14.9%</td><td class="n">40.3%</td><td class="n">5785</td></tr>
+<tr><td>匹配度</td><td class="n">46.0%</td><td class="n">57.9%</td><td class="n">56.7%</td><td class="n">69.1%</td><td class="n">5578</td></tr>
+<tr><td>综合排名</td><td class="n">44.0%</td><td class="n">44.0%</td><td class="n">48.9%</td><td class="n">67.6%</td><td class="n">5560</td></tr>
+</tbody></table></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 3 是“胜率减负率”，不是胜率</span><p>表注说数字是“Wan 14B 胜出的次数占总比较次数的比例”。但图 1 右边给了综合比较的负、平、胜比例，相减正好得到表 3 最后一行：CN-TopA 0.69 − 0.25 = 0.44，CN-TopB 0.68 − 0.24 = 0.44，CN-TopC 0.73 − 0.24 = 0.49（表 48.9%），Runway 0.82 − 0.15 = 0.67（表 67.6%）。图 1 的三段之和都是 1.00。表 7（I2V）里还出现了 −4.2%，比例不可能为负。所以两张表的数都是“胜率 − 负率”，标题里的“win rate gap”是对的，表注的说法不准。</p></div>
+<p><b>公开榜单。</b><a class="ds" href="https://vchitect.github.io/VBench-project/">VBench</a> 把视频质量拆成 16 个维度（美学、运动流畅、语义一致等）。</p>
+<p class="tcap" id="t4">表 4 · VBench 分数（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>模型</th><th class="n">质量分</th><th class="n">语义分</th><th class="n">总分</th></tr></thead><tbody>
+<tr><td>MiniMax-Video-01</td><td class="n">84.85%</td><td class="n">77.65%</td><td class="n">83.41%</td></tr>
+<tr><td>Hunyuan（开源版）</td><td class="n">85.09%</td><td class="n">75.82%</td><td class="n">83.24%</td></tr>
+<tr><td>Gen-3（2024-07）</td><td class="n">84.11%</td><td class="n">75.17%</td><td class="n">82.32%</td></tr>
+<tr><td>CogVideoX1.5-5B（5 s SAT，提示优化）</td><td class="n">82.78%</td><td class="n">79.76%</td><td class="n">82.17%</td></tr>
+<tr><td>可灵（2024-07 高性能模式）</td><td class="n">83.39%</td><td class="n">75.68%</td><td class="n">81.85%</td></tr>
+<tr><td>Sora</td><td class="n">85.51%</td><td class="n">79.35%</td><td class="n">84.28%</td></tr>
+<tr><td>Wan 1.3B</td><td class="n">84.92%</td><td class="n">80.10%</td><td class="n">83.96%</td></tr>
+<tr><td>Wan 14B（2025-02-24）</td><td class="n">86.67%</td><td class="n">84.44%</td><td class="n">86.22%</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · VBench 总分 = 0.8 × 质量 + 0.2 × 语义</span><p>VBench 的总分按这个权重合成，表 4 每一行都能复算：Wan 14B 0.8 × 86.67 + 0.2 × 84.44 = 86.224；Wan 1.3B 83.956；Sora 84.278；MiniMax 83.410；Hunyuan 83.236；Gen-3 82.322；可灵 81.848。唯一差 0.01 的是 CogVideoX：算出 82.176，表里 82.17，像是截断而不是四舍五入。正文说 Wan 14B 的视觉质量 86.67%、语义一致 84.44%，和表一致。</p></div>
+
+<h4 id="s4-7-2"><span class="no">4.7.2</span>消融</h4>
+<p>都在 1.3B 上做。</p>
+<p><b>AdaLN 共享与否。</b>adaLN 参数很多，问题是：把参数花在 adaLN 上好，还是花在加深网络上好。参照 PixArt 的 adaLN-single。四种配置：(i) 全共享，30 层，1.3B（原模型）；(ii) 前 15 层共享、后 15 层不共享，1.5B；(iii) 全共享但加深到 35 层，1.5B；(iv) 全不共享，30 层，1.7B。都从头训文生图 20 万步（即 T2V 训练的第一阶段），全局 batch 1536，比较隐空间里的训练 L2 损失。结果（图 16）：全共享 1.3B 损失略高；同为 1.5B 时加深的 (iii) 始终最低；1.7B 的全不共享也不如 (iii)。结论：参数花在深度上比花在 adaLN 上值，所以采用全共享。</p>
+<figure class="pfig narrow" id="fig16">
+<img src="wan/fig16.webp" width="1329" height="693" alt="图 16：四条训练损失曲线，从 0.212 降到约 0.196，四条几乎重合，加深的全共享 1.5B 最低" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 25 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F16">看原图 ↗</a></span>横轴训练步数（到 20 万），纵轴训练损失。四条曲线从约 0.212 降到约 0.196，彼此差距在 0.001 左右，全共享 1.3B（蓝）在最上，加深的全共享 1.5B（橙）在最下。</figcaption>
+</figure>
+<div class="note" id="n13"><span class="lab">读者注 13 · “约 25%”和四个配置的真实参数量</span><p>不共享时，每块要多一个自己的 Linear(dim → 6 dim)，即 \(6d^2+6d\) 个参数。1.3B（\(d=1536\)）：每块 14,164,992，30 块 424,949,760；全不共享共 1,843,946,560，共享省掉 424.9M / 1,843.9M = <b>23.0%</b>。14B（\(d=5120\)）：40 块共 6,292,684,800，全不共享 20,581,176,384，省掉 <b>30.6%</b>。“约 25%”是 1.3B 附近的说法，放在 14B 上低估了。</p>
+<p>消融的四个配置按同样的算法是：(i) 1.419B，(ii) 前 15 层共享 1.419 + 15 × 0.01416 = 1.631B，(iii) 35 层 1.651B，(iv) 1.844B。论文写的 1.3B / 1.5B / 1.5B / 1.7B 都是取整，(ii) 和 (iii) 也不严格等参（差 20M，约 1.2%）。另外图 16 里四条线最大差距只有约 0.001（约 0.5%），论文只给了训练损失，没有生成质量指标，“明显更好”的说法证据偏弱。</p></div>
+<p><b>文本编码器。</b>三个能处理中英文的候选：umT5（5.3B）、Qwen2.5-7B-Instruct、GLM-4-9B，后两者用倒数第二层特征，并按 HunyuanVideo 的做法加一个双向 token refiner。在文生图任务上比训练损失（图 17），umT5 最好。理由之一是 umT5 是双向注意力，更适合扩散模型。再和多模态的 Qwen-VL-7B-Instruct 比 FID（表 6）：用倒数第二层时和 umT5 相当，但模型更大。</p>
+<figure class="pfig narrow" id="fig17">
+<img src="wan/fig17.webp" width="1127" height="717" alt="图 17：三条训练损失曲线，GLM-4-9B 最高，umT5 和 Qwen2.5-7B 接近，umT5 略低" loading="lazy">
+<figcaption><span class="lab">图 17 · 原文第 26 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S4.F17">看原图 ↗</a></span>umT5（蓝）、GLM-4-9B（红虚线）、Qwen2.5-7B-Instruct（绿点划线）。GLM 始终最高，umT5 和 Qwen 接近，umT5 略低。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-s"><thead><tr><th>表 5 · FID ↓</th><th class="n">VAE</th><th class="n">VAE-D</th></tr></thead><tbody>
+<tr><td>10k steps</td><td class="n">42.60</td><td class="n">44.21</td></tr>
+<tr><td>15k steps</td><td class="n">40.55</td><td class="n">41.16</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 6 · FID ↓</th><th class="n">umT5</th><th class="n">Qwen-VL-7B（最后一层）</th><th class="n">Qwen-VL-7B（倒数第二层）</th></tr></thead><tbody>
+<tr><td>FID</td><td class="n">43.01</td><td class="n">43.72</td><td class="n">42.91</td></tr>
+</tbody></table></div>
+<p><b>自编码器。</b>VAE-D 是把重建损失换成扩散损失的变体。两者都在文生图任务上训到 15 万步收敛，比 FID（表 5），VAE 始终更低。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 5 的步数和正文差 10 倍</span><p>正文说训练 150,000 步，在 100,000 和 150,000 步测 FID；表 5 的行名是“10k steps”和“15k steps”。两者差 10 倍，哪个对无法核实。另外表 6 里 Qwen-VL 倒数第二层 42.91 比 umT5 的 43.01 还低 0.10，作者的选择理由是 umT5 更小（我核到的 umT5-XXL 编码器文件 <code>models_t5_umt5-xxl-enc-bf16.pth</code> 为 11,361,920,418 字节，按 bf16 约 5.68B 参数，比正文的 5.3B 多一些，未核实原因）。</p></div>
+
+<h2 id="s5"><span class="no">5</span>扩展应用</h2>
+<h3 id="s5-1"><span class="no">5.1</span>图生视频（I2V）</h3>
+<p>常见做法（I2VGen-XL、SVD、CogVideoX）是把条件图的隐变量和噪声隐变量按通道拼接，Wan-I2V 也这样。</p>
+<p><b>5.1.1 结构。</b>条件图 \(I\in\mathbb R^{C\times1\times H\times W}\) 在时间轴上接零帧，得到 \(I_c\in\mathbb R^{C\times T\times H\times W}\)，经 Wan-VAE 得到条件隐变量 \(z_c\in\mathbb R^{c\times t\times h\times w}\)（\(c=16\)，\(t=1+(T-1)/4\)，\(h=H/8\)，\(w=W/8\)）。二值掩码 \(M\in\{0,1\}^{1\times T\times h\times w\}\) 中 1 表示保留、0 表示要生成；它和目标视频同样长 \(T\)，再重排成 \(s\times t\times h\times w\)（\(s\) 是 VAE 的时间步长）。噪声隐变量 \(z_t\)、\(z_c\)、重排后的掩码 \(m\) 按通道拼接送入 DiT，输入通道从 \(c\) 变成 \(2c+s\)，多出的部分用一个零初始化的投影层接入。另外用 CLIP 图像编码器提取条件图特征，经三层 MLP 投影成全局上下文，用解耦交叉注意力注入。这个掩码机制也能做首尾帧过渡和视频续写，所以训练时把图生视频、续写、首尾帧过渡、随机插帧放在一起：先统一预训练，再分任务微调。</p>
+<figure class="pfig" id="fig18">
+<img src="wan/fig18.webp" width="1595" height="524" alt="图 18：首帧和零填充帧经 Wan 编码器得到隐变量和掩码，与噪声拼接后进入 DiT，CLIP 图像特征和 umT5 文本经解耦交叉注意力注入" loading="lazy">
+<figcaption><span class="lab">图 18 · 原文第 27 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S5.F18">看原图 ↗</a></span>首帧加零填充帧经 Wan-Encoder 得到条件隐变量，和噪声 \(X_t\)、掩码叠在一起进入 N 个 DiT 块；CLIP 图像编码器和 umT5 的输出经解耦交叉注意力注入；Wan-Decoder 输出视频。</figcaption>
+</figure>
+<div class="note" id="n15"><span class="lab">读者注 15 · 36 个输入通道和掩码的“4”</span><p>\(2c+s=2\times16+4=36\)，HF 上 Wan2.1-I2V-14B-480P 的 config.json 写 <code>in_dim: 36</code>，对上。代码（<code>image2video.py</code> 第 210-217 行）先建 81 帧的掩码，首帧为 1、其余为 0，再把首帧重复 4 次得到 84 = 21 × 4 帧，重排成 (4, 21, h, w)，所以掩码占 4 个通道、首个隐帧的 4 个通道全是 1。注意符号：这里的 \(T\) 是总帧数，\(t=1+(T-1)/4\)；§4.1 的 \(T\) 是“总帧数减 1”，隐帧数写成 \(1+T/4\)。同一篇里 \(T\) 的含义变了。另外 Wan2.2 的 I2V-A14B 去掉了 CLIP 分支：<code>Wan2.2/wan/modules/model.py</code> 里已经没有 <code>WanI2VCrossAttention</code>，只靠通道拼接（config 仍是 <code>in_dim: 36</code>）。</p></div>
+<p><b>5.1.2 数据。</b>联合训练阶段用和 T2V 预训练相同的数据。微调阶段每个任务单独挑数据：I2V 要求首帧和后续内容接近（首帧 SigLIP 特征和其余帧均值的余弦相似度高于阈值），否则模型学不稳；续写要求前 1.5 秒和后 3.5 秒的 SigLIP 相似度高；首尾帧过渡反过来提高首尾差异大的样本比例。</p>
+<p><b>5.1.3 评测。</b>两阶段训练。预训练阶段帧数稍多，去掉图像编码器分支，以保持对文本的敏感；这个阶段结束时模型已经会 I2V 和续写。但只靠帧级信息不够，条件帧很少时尤其缺少语义，所以在 SFT 阶段加上图像编码器（解耦交叉注意力）。在 480p 和 720p 两个预训练检查点上分别训练 I2V、续写、首尾帧三个任务。人工比较见表 7；图 19、20（第 28、29 页，样例截图，未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F19">看原图 ↗</a>）是各种图片动起来的例子。</p>
+<p class="tcap" id="t7">表 7 · I2V 两两比较的胜率差（照录原文）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th></th><th class="n">CN-TopA</th><th class="n">CN-TopB</th><th class="n">CN-TopC</th><th class="n">CN-TopD</th><th class="n">总轮数</th></tr></thead><tbody>
+<tr><td>画面质量</td><td class="n">29.2%</td><td class="n">60.8%</td><td class="n">24.6%</td><td class="n">55.6%</td><td class="n">896</td></tr>
+<tr><td>运动质量</td><td class="n">21.7%</td><td class="n">21.7%</td><td class="n">32.5%</td><td class="n">67.0%</td><td class="n">890</td></tr>
+<tr><td>匹配度</td><td class="n">−4.2%</td><td class="n">35.0%</td><td class="n">51.7%</td><td class="n">72.2%</td><td class="n">896</td></tr>
+<tr><td>综合排名</td><td class="n">10.8%</td><td class="n">47.5%</td><td class="n">50.8%</td><td class="n">81.6%</td><td class="n">890</td></tr>
+</tbody></table></div>
+<p>匹配度对 CN-TopA 是 −4.2%，即这一项 Wan-I2V 输得比赢得多（读者注 11）。</p>
+
+<h3 id="s5-2"><span class="no">5.2</span>统一视频编辑</h3>
+<p>在作者此前的 VACE 基础上，把编辑用的图像、视频、参考和掩码统一成“视频条件单元”（VCU）。VACE 用概念解耦让模型分清哪些保留、哪些修改。两种训练方式：把 VCU 作为输入全量微调 Wan；或者用可插拔的 Context Adapter（Res-Tuning 式），不改基座权重但总模型更大。</p>
+<p><b>5.2.1 结构。</b>VCU 写成</p>
+<div class="eq"><div class="m">\[ V=[T;\ F;\ M] \]</div><span class="no">(4)</span></div>
+<p>\(T\) 是文本，\(F=\{u_1,\dots,u_n\}\) 是上下文帧（RGB，归一化到 \([-1,1]\)），\(M=\{m_1,\dots,m_n\}\) 是二值掩码（1 表示要编辑）。\(F\) 和 \(M\) 空间、时间都对齐。概念解耦把帧分成两路：\(F_c=F\times M\)（要改的“反应帧”）和 \(F_k=F\times(1-M)\)（要保留的“非活动帧”），分别经 Wan-VAE 编码到和 \(X\) 相同的隐空间；参考图单独编码后沿时间拼接，解码时再去掉；\(M\) 直接重排并插值。之后 \(F_c\)、\(F_k\)、\(M\) 和 \(X\) 在时空上对齐成 \(n'\times h'\times w'\)。</p>
+<figure class="pfig" id="fig21">
+<img src="wan/fig21.webp" width="1595" height="1152" alt="图 21：上半部分是基于 Wan2.1 的 VACE 框架，下半部分是上下文 token 化流程，包括概念解耦、上下文隐变量编码和上下文嵌入" loading="lazy">
+<figcaption><span class="lab">图 21 · 原文第 31 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S5.F21">看原图 ↗</a></span>(a) VACE 框架：上下文 token 要么和噪声 token 拼接后全量微调，要么经 Context Block 加回 DiT 块（适配器微调）。(b) 上下文 token 化：参考图、深度、姿态、涂鸦等条件经概念解耦分成“反应帧”和“非活动帧”，分别用视频 VAE 编码，掩码重排后拼接。</figcaption>
+</figure>
+<p><b>5.2.2 数据和实现。</b>先切镜头，按分辨率、美学分、运动幅度初筛；首帧用 RAM 打标签、Grounding DINO 检测，过滤目标过大或过小的视频；用 SAM2 的传播做视频分割，按掩码面积阈值算有效帧比例再过滤。基于 Wan-T2V-14B 多阶段训练，最高 720p：先训修补和扩展这类基础任务，再从单参考扩到多参考、从单任务扩到组合任务，最后用更高质量、更长的数据微调。</p>
+<p><b>5.2.3 评测。</b>只有定性结果：图 22、23（外扩、修补、延长、深度、姿态、灰度、涂鸦、布局、物体、人脸等任务）和图 24（组合任务和图像编辑），都是样例截图，未放图（<a href="https://arxiv.org/html/2503.20314v2#S5.F22">看原图 ↗</a>）。</p>
+
+<h3 id="s5-3"><span class="no">5.3</span>文生图</h3>
+<p>Wan 是图像和视频联合训练的，图像数据量接近视频的 10 倍，所以文生图也很强。图 25（第 36 页，未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F25">看原图 ↗</a>）是艺术字、写实人像、创意设计和产品摄影的样图。代码里 <code>t2i-14B</code> 的配置和 <code>t2v-14B</code> 完全相同，只是帧数取 1。</p>
+
+<h3 id="s5-4"><span class="no">5.4</span>视频个性化</h3>
+<p>目标是生成和参考人物身份一致的视频。现有方法用 ArcFace 这类身份提取器（会漏掉疤痕、贴纸等线索，怕低分辨率、光照、遮挡）或 CLIP 这类通用提取器（只抓粗语义）。Wan 不用任何特征提取器，直接在 Wan-VAE 的隐空间里拿人脸图做条件。</p>
+<p><b>5.4.1 结构。</b>作者发现交叉注意力适合接提取器给的稠密表示，自注意力适合同一隐空间里的数据，所以用自注意力范式：在视频前面多接 \(K\) 帧，放分割好、关键点对齐到黑底画布上的人脸；沿通道维给这 \(K\) 帧拼上人脸和全 1 掩码，给后面的视频帧拼上空白图和全 0 掩码，作为条件；在这个加长的视频上做修补式扩散。Wan-T2V 本身不改。训练时随机丢掉一部分人脸，支持 0 到 \(K\) 张参考；推理时把用户的人脸（不超过 \(K\) 张）拼进前 \(K\) 帧，掩码设 1。</p>
+<figure class="pfig" id="fig26">
+<img src="wan/fig26.webp" width="1595" height="451" alt="图 26：上排是条件信号，前两帧是人脸加全一掩码，后三帧是灰图加全零掩码；下排是加长视频，前 K 帧是人脸，后面是视频帧" loading="lazy">
+<figcaption><span class="lab">图 26 · 原文第 37 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S5.F26">看原图 ↗</a></span>沿通道维的两层：上层是条件信号（前 \(K\) 帧人脸配全 1 掩码，其余帧空白配全 0 掩码），下层是加长后的视频（前 \(K\) 帧是要重建的人脸，后面是视频帧）。</figcaption>
+</figure>
+<p><b>5.4.2 数据。</b>用内部人体分类器从 T2V 训练集里筛出约 O(100)M 条视频，1 FPS 做人脸检测：任一帧多于一张脸、或超过 10% 的帧没检测到脸，就丢弃；相邻帧 ArcFace 相似度低的也丢弃；再做人脸分割和关键点检测。小脸不过滤（这类视频多有全身人物）。最后约 O(10)M 条，平均每条 5 张人脸。为了多样性，再随机取 O(1)M 条，用 Instant-ID 按 100 多个风格模板（动漫、线稿、电影、Minecraft 等）和随机姿态合成新脸，按 ArcFace 相似度过滤，得到约 O(1)M 条。</p>
+<p><b>5.4.3 评测。</b>测试人脸取自 Pexels。在未见过的评测集上，按 1 FPS 采样生成视频里的人脸，和输入人脸算 ArcFace 相似度再平均。图 27（第 39 页，未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F27">看原图 ↗</a>）是样例。</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>表 8</th><th class="n">Wan</th><th class="n">CN-TopA</th><th class="n">CN-TopB</th><th class="n">CN-TopC</th></tr></thead><tbody>
+<tr><td>ArcFace 相似度</td><td class="n">0.5526</td><td class="n">0.5655</td><td class="n">0.5197</td><td class="n">0.4998</td></tr>
+</tbody></table></div>
+<p>Wan 排第二，比 CN-TopA 低 0.013；作者的措辞是“有竞争力”。</p>
+
+<h3 id="s5-5"><span class="no">5.5</span>相机运动控制</h3>
+<p>每帧给外参 \([R,t]\in\mathbb R^{3\times4}\) 和内参 \(K_f\in\mathbb R^{3\times3}\)。<b>相机姿态编码器：</b>每个像素用 Plücker 坐标表示，得到 \(P\in\mathbb R^{6\times F\times H\times W}\)；PixelUnshuffle 降低空间分辨率、增加通道；再用一串和 DiT 块数对齐的卷积模块提取多层相机特征。<b>相机姿态适配器：</b>两个零初始化卷积把相机特征变成缩放 \(\gamma_i\) 和平移 \(\beta_i\)，按 \(f_i=(\gamma_i+1)f_{i-1}+\beta_i\) 加到第 \(i\) 个 DiT 块的视频特征上。训练数据用 VGGSfM 从镜头运动明显的视频里估计相机轨迹，约 O(1) 千段，在 T2V 框架里用 Adam 训练。图 29（第 41 页，未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F29">看原图 ↗</a>）是结果。</p>
+<figure class="pfig narrow" id="fig28">
+<img src="wan/fig28.webp" width="1349" height="1260" alt="图 28：左边相机编码器把相机位姿转成 Plücker 嵌入再经 ResBlock，中间 DiT 块在自注意力后插入相机适配器，右边适配器产生缩放和平移" loading="lazy">
+<figcaption><span class="lab">图 28 · 原文第 40 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S5.F28">看原图 ↗</a></span>相机位姿 [B, T, 12] → Plücker 嵌入 [B, T, H′, W′, 6] → ResBlock 堆叠得到 [B, T, H, W, C′]；每个 DiT 块在自注意力之后接相机适配器，把内容嵌入重排成 [B, T, H, W, C]，用相机嵌入算出 [γ, β] 做缩放和平移，再重排回 [B, T·H·W, C]。火焰图标是可训练部分，雪花是冻结部分。</figcaption>
+</figure>
+
+<h3 id="s5-6"><span class="no">5.6</span>实时视频生成</h3>
+<p>互动娱乐、VR、直播、游戏需要即时生成。<b>5.6.1 方法：</b>从预训练的 Wan 出发（收敛快、继承运动先验；这一节部分内容来自 The Matrix 技术报告）。预训练模型只生成 5 到 10 秒的固定长度，要变成无限长的实时流需要两个改动：流式生成和实时加速。</p>
+<p><b>5.6.2 流式生成（Streamer）。</b>假设时间依赖只在一个窗口内。视频 token 排成队列，窗口内各 token 处在不同噪声水平；固定步数后，最左边（噪声最低）的 token 出队并缓存，最右边补一个高斯噪声的新 token。训练时采样 \(2w\) 个 token（\(w\) 是窗口大小，通常等于求解器步数 \(T\)），前 \(w\) 个只用来“预热”、不计损失，损失只算后 \(w\) 个；推理时也丢掉前 \(w\) 个，从第 \(w+1\) 个开始输出。缓存的 token 以噪声水平 0 重新放回队列，参与后续窗口的去噪，保证连续。图 30：8 张 A100 实时 8 FPS 生成 15 分钟视频（未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F30">看原图 ↗</a>）。</p>
+<p><b>5.6.3 一致性模型蒸馏。</b>把 Streamer 和 LCM / VideoLCM 结合，把扩散过程和 CFG 蒸馏成 4 步的一致性模型，保留窗口机制，推理快 10 到 20 倍，达到 8 到 16 FPS。<b>量化：</b>注意力层和线性头用 int8（省显存、提速很少），整体用 TensorRT 量化（明显提速，但有轻微伪影和闪烁），单张 4090 也能实时。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 单张 4090 是 8 FPS 还是 20 FPS</span><p>正文说 TensorRT 量化后“单张 4090 也能达到 8 FPS 的实时”；图 31 的图注说“单张 RTX 4090，int8 和 TensorRT 量化，实时 20 FPS”。两处对不上，原文没有解释（可能分辨率或步数不同），未核实。</p></div>
+
+<h3 id="s5-7"><span class="no">5.7</span>音频生成</h3>
+<p>视频配音（V2A）：生成环境声和背景音乐，不含人声。要求环境声和画面在时间上对齐，音乐符合情绪，并能用文本指定画内或画外声音和音乐风格。</p>
+<p><b>5.7.1 结构。</b>同样是流匹配 DiT。常见做法是把波形转成梅尔谱再用图像 VAE 编码，但 patch 化以后会破坏和视频的时间对齐，所以 Wan 训练一个直接作用在原始波形上的 1D-VAE，隐变量 \(T^a\times C^a\) 保留时间轴。视觉条件：CLIP 逐帧特征，复制到音频特征的采样率（参照 Movie Gen），线性投影后和音频特征逐元素相加；文本条件：冻结的 umT5。数据：从视频数据里去掉没有音轨或含人声的，得到 O(1) 千小时；描述由三部分组成：稠密视频描述、Qwen2-audio 写的环境声描述、背景音乐描述（风格、节奏、旋律、乐器）。实现：最长 12 秒、44.1 kHz 立体声；umT5-XXL 4096 维、CLIP 每帧 1024 维，都投影到 DiT 的 1536 维；12 秒视频降采样到正好 48 帧；一次处理长度 256 的隐序列；训练时按一定概率随机去掉环境声和音乐描述，逼模型从画面本身推断声音。</p>
+<figure class="pfig" id="fig32">
+<img src="wan/fig32.webp" width="1595" height="592" alt="图 32：文本描述经 umT5，音频波形经 1D-VAE 编码后加噪，视频帧经 CLIP，时间对齐后进入 DiT，最后 1D-VAE 解码出波形" loading="lazy">
+<figcaption><span class="lab">图 32 · 原文第 45 页 · Wan Team（阿里巴巴），arXiv 2503.20314，arXiv 非独占分发许可 · 只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2503.20314v2#S5.F32">看原图 ↗</a></span>文字描述（马在奔跑，有马蹄声，没有音乐）经 umT5 作为条件；音频波形经 1D-VAE 编码后加噪，视频帧经 CLIP，两者时间对齐后进入 N 个 DiT 块，最后 1D-VAE 解码出波形。</figcaption>
+</figure>
+<div class="note" id="n17"><span class="lab">读者注 17 · 音频的时间分辨率</span><p>按 5.7.1 的数推算（论文没直接给）：12 秒 48 帧，即视频特征 4 FPS；隐序列 256，每个音频 token 对应 12 / 256 = 46.9 ms，即 44,100 × 12 / 256 ≈ 2,067 个采样点。视频特征要复制 256 / 48 ≈ 5.33 次才能对齐，不是整数倍，论文没说怎么处理，未核实。</p></div>
+<p><b>5.7.2 评测。</b>只有定性比较：和开源的 MMAudio 比（图 33，未放图，<a href="https://arxiv.org/html/2503.20314v2#S5.F33">看原图 ↗</a>，视频是 Wan 生成的 5 秒片段），作者说长时间一致性更好（倒咖啡）、更干净（打字）、节奏感更好（走路、拳击、马蹄）。局限：不会生成笑声、哭声、说话，因为训练数据刻意去掉了人声；MMAudio 能出类似说话的声音是因为它保留了这类数据。</p>
+
+<h2 id="s6"><span class="no">6</span>局限与结论</h2>
+<p><b>局限。</b>大运动场景里保细节仍难；14B 在一张高端 GPU 上不优化要约 30 分钟；缺少教育、医疗等领域的专门能力，希望靠开源和社区补。</p>
+<p><b>结论。</b>报告公开了 Wan-VAE 和 DiT 的设计、训练、数据、评测和结果，探索了 I2V、编辑、个性化等下游应用；除了 14B，1.3B 也有竞争力并能在消费级显卡上跑。之后会继续扩大数据和模型。</p>
+
+<h2 id="s7"><span class="no">7</span>贡献者</h2>
+<p>按名字字母顺序列出 61 人，没有标注分工或通讯作者。</p>
+
+<h2 id="code">代码对照：论文写的和代码里的</h2>
+<p>仓库只有推理代码。下表把报告里能和代码对上的设定列出来；训练相关的不在其中。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>项目</th><th>报告</th><th>代码 / HF 配置</th></tr></thead><tbody>
+<tr><td>1.3B 结构</td><td>30 层（4.7.2）</td><td><code>wan_t2v_1_3B.py</code>：dim 1536，FFN 8960，12 头，30 层</td></tr>
+<tr><td>14B 结构</td><td>未给</td><td><code>wan_t2v_14B.py</code>：dim 5120，FFN 13824，40 头，40 层</td></tr>
+<tr><td>文本</td><td>umT5，512 token</td><td><code>umt5_xxl</code>，<code>text_len = 512</code>，文本维 4096</td></tr>
+<tr><td>VAE</td><td>4 × 8 × 8，16 通道，127M</td><td><code>vae_stride = (4, 8, 8)</code>，<code>z_dim = 16</code>，126,892,531 个参数</td></tr>
+<tr><td>patch</td><td>(1, 2, 2) 3D 卷积</td><td><code>patch_size = (1, 2, 2)</code>，<code>nn.Conv3d</code></td></tr>
+<tr><td>采样步数</td><td>“通常约 50 步”</td><td><code>generate.py</code>：T2V 50 步，I2V 40 步</td></tr>
+<tr><td>时间偏移 shift</td><td>未给</td><td>默认 5.0；480p 的 I2V 用 3.0；首尾帧和 VACE 用 16</td></tr>
+<tr><td>CFG</td><td>提到用 CFG</td><td><code>sample_guide_scale = 5.0</code>；负提示是一段中文（“色调艳丽，过曝，静态……”）</td></tr>
+<tr><td>采样器</td><td>未给</td><td>UniPC（默认）或 DPM++，都是流匹配版</td></tr>
+<tr><td>帧率</td><td>训练视频 16 fps（4.2.2）</td><td><code>sample_fps = 16</code>，81 帧约 5 秒</td></tr>
+<tr><td>I2V</td><td>通道拼接 + CLIP 解耦交叉注意力</td><td><code>in_dim 36</code>；CLIP 是 open-clip-xlm-roberta-large-vit-huge-14，257 个 token，经 <code>MLPProj</code> 投影</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 默认步数和时间偏移</span><p><code>text2video.py</code> 的 <code>generate</code> 签名默认 <code>sampling_steps=50</code>，但它的文档字符串写“defaults to 40”，两处不一致（实际以签名和 <code>generate.py</code> 为准，T2V 50 步）。时间偏移把均匀的 \(\sigma\) 网格变成 \(\sigma'=s\sigma/(1+(s-1)\sigma)\)：\(s=5\)、50 步时，第 25 步的 \(\sigma'\) 已经是 0.833，即一半的步数花在噪声比例 0.83 以上的阶段；最后一步 \(\sigma'=0.093\)。这样把计算集中在高噪声段（定布局）。第 8 幕可以切换 \(s\) 看网格怎样变。</p></div>
+
+<h2 id="wan22">Wan2.2 与 TI2V-5B</h2>
+<p>Wan2.2 在 2025 年 7 月 28 日开源，没有单独的论文或技术报告。下面依据 <a href="https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/README.md">README</a>（“Introduction of Wan2.2”一节）和代码整理；README 的图来自仓库 <code>assets/</code>，仓库是 Apache-2.0 许可，只做了缩放和格式转换。README 说相比 Wan2.1，训练数据多了 65.6% 的图像和 83.2% 的视频，但没有给其他训练细节。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>模型</th><th>结构</th><th>VAE</th><th>说明</th></tr></thead><tbody>
+<tr><td>T2V-A14B</td><td>两个 14B 专家（MoE），每步只用一个</td><td>Wan2.1-VAE（4 × 8 × 8，16 通道）</td><td>480p / 720p</td></tr>
+<tr><td>I2V-A14B</td><td>同上，<code>in_dim 36</code>，没有 CLIP 分支</td><td>Wan2.1-VAE</td><td>480p / 720p</td></tr>
+<tr><td><b>TI2V-5B</b></td><td>单个 5B 稠密模型</td><td><b>Wan2.2-VAE</b>（4 × 16 × 16，48 通道）</td><td>一个模型同时做 T2V 和 I2V；720p、24 fps</td></tr>
+<tr><td>S2V-14B、Animate-14B</td><td>语音驱动、角色动画</td><td>—</td><td>本页不涉及</td></tr>
+</tbody></table></div>
+<p>注意：只有 TI2V-5B 用 Wan2.2-VAE，两个 A14B 仍用 Wan2.1-VAE（<code>wan_t2v_A14B.py</code>、<code>wan_i2v_A14B.py</code> 的 <code>vae_checkpoint = 'Wan2.1_VAE.pth'</code>）。</p>
+
+<h3 id="wan22-moe">MoE：按噪声水平切换两个专家</h3>
+<p>A14B 用两个专家：<b>高噪声专家</b>负责去噪前期（定整体布局），<b>低噪声专家</b>负责后期（补细节）。每个专家约 14B，总参数约 27B，但每一步只激活一个，所以计算量和显存与 14B 基本相同。和语言模型里按 token 路由的 MoE 不同，这里的“路由”只看时间步，不是学出来的。</p>
+<figure class="pfig" id="fig-w22moe">
+<img src="wan/w22_moe_arch.webp" width="1440" height="270" alt="Wan2.2 MoE 示意：前期由高噪声专家把 x_T 去噪到 x_t，后期由低噪声专家从 x_t 去噪到 x_0" loading="lazy">
+<figcaption><span class="lab">Wan2.2 README 图 · <code>assets/moe_arch.png</code> · Wan-Video/Wan2.2（Apache-2.0）· 只做了格式转换 · <a href="https://github.com/Wan-Video/Wan2.2/blob/main/assets/moe_arch.png">看原图 ↗</a></span>(a) 前期：高噪声专家把 \(x_T\) 去噪到 \(x_t\)，低噪声专家闲置；(b) 后期：低噪声专家从 \(x_t\) 去噪到 \(x_0\)。</figcaption>
+</figure>
+<p>README 用信噪比（SNR）定义切换点：去噪开始时 \(t\) 大、SNR 最小，记为 \(\mathrm{SNR}_{\min}\)；取 SNR 为 \(\mathrm{SNR}_{\min}/2\)（图上纵轴是 log SNR）对应的步 \(t_{\rm moe}\)，\(t\ge t_{\rm moe}\) 用高噪声专家，\(t&lt;t_{\rm moe}\) 换低噪声专家。右图的验证损失：两个专家都用 Wan2.2 的版本最低；只把低噪声专家换成 Wan2.2 也明显好于只换高噪声专家。</p>
+<figure class="pfig" id="fig-w22snr">
+<img src="wan/w22_moe_2.webp" width="1600" height="576" alt="左：log SNR 随去噪步变化的曲线和切换点 t_moe；右：四种结构的验证损失曲线" loading="lazy">
+<figcaption><span class="lab">Wan2.2 README 图 · <code>assets/moe_2.png</code> · Wan-Video/Wan2.2（Apache-2.0）· 只做了缩放和格式转换 · <a href="https://github.com/Wan-Video/Wan2.2/blob/main/assets/moe_2.png">看原图 ↗</a></span>左：横轴是去噪步（从 \(T\) 往 \(T/2\) 走），纵轴 log SNR；\(t_{\rm moe}\) 右侧是高噪声专家，左侧是低噪声专家。右：Wan2.1、Wan2.1 加高噪声专家、Wan2.1 加低噪声专家、Wan2.2（MoE）的验证损失，最后一个最低（约 0.1203）。</figcaption>
+</figure>
+<p><b>代码里的切换。</b><code>wan/text2video.py</code> 的 <code>_prepare_model_for_timestep</code>：<code>t &gt;= boundary × 1000</code> 用 <code>high_noise_model</code>，否则 <code>low_noise_model</code>；不用的那个可以卸到 CPU。两个专家的 CFG 系数也不同。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>配置</th><th class="n">boundary</th><th class="n">shift</th><th class="n">步数</th><th>CFG（低噪 / 高噪）</th><th class="n">高噪声专家步数（我算的）</th></tr></thead><tbody>
+<tr><td>T2V-A14B</td><td class="n">0.875</td><td class="n">12.0</td><td class="n">40</td><td>3.0 / 4.0</td><td class="n">26 / 40</td></tr>
+<tr><td>I2V-A14B</td><td class="n">0.900</td><td class="n">5.0</td><td class="n">40</td><td>3.5 / 3.5</td><td class="n">15 / 40</td></tr>
+</tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 切换点和“SNR_min / 2”对不上，27B 也对不上</span><p><b>步数。</b>按 UniPC 的 <code>set_timesteps</code>：\(\sigma\) 从 0.999 均匀降到 0（取前 40 个），再做时间偏移。T2V（shift 12）有 26 步的 \(\sigma'\ge0.875\)，即 65% 的步用高噪声专家；I2V（shift 5）有 15 步 \(\ge0.9\)。</p>
+<p><b>SNR 定义。</b>线性流匹配里 \(x=(1-\sigma)x_0+\sigma\epsilon\)，SNR \(=((1-\sigma)/\sigma)^2\)。\(\sigma_{\max}=0.999\) 时 log SNR \(=-13.8\)，一半是 \(-6.9\)，对应 \(\sigma\approx0.969\)，而不是配置里的 0.875 或 0.9。所以 README 的“SNR_min 的一半”要么用了别的 SNR 或时间定义（例如训练时的偏移），要么只是示意；用公开代码复算不出来，未核实。</p>
+<p><b>27B。</b>HF 上 T2V-A14B 高噪声专家的 index.json 写 total_size 57,153,966,336 字节，除以 4 是 14,288,491,584，和 Wan2.1-T2V-14B 的参数数完全相同（结构相同）。两个专家合计 28.58B，README 写“总参数 27B”，差 1.6B，原因不明。</p></div>
+
+<h3 id="wan22-vae">Wan2.2-VAE：4 × 16 × 16，48 通道</h3>
+<p>为了更高效地部署，Wan2.2 做了高压缩 VAE：时间 4 倍、空间 16 × 16 倍，48 个通道。README 把“信息压缩率”定义为像素数 × 3 ÷ 隐变量数：Wan2.1-VAE 是 \(3\times4\times8\times8/16=48\)，Wan2.2-VAE 是 \(3\times4\times16\times16/48=64\)。DiT 的 patch 化再做 1 × 2 × 2，所以 TI2V-5B 的总压缩是 <b>4 × 32 × 32</b>：一个 token 对应 4 帧里 32 × 32 的像素块。</p>
+<figure class="pfig" id="fig-w22vae">
+<img src="wan/w22_vae.webp" width="1600" height="538" alt="Wan2.2 README 的 VAE 对比表：SVD、Cosmos、Hunyuan、CogVideoX1.5、Wan2.1-VAE、Wan2.2-VAE 的压缩率、特征维度、信息压缩率、PSNR、SSIM、LPIPS" loading="lazy">
+<figcaption><span class="lab">Wan2.2 README 图 · <code>assets/vae.png</code> · Wan-Video/Wan2.2（Apache-2.0）· 只做了缩放和格式转换 · <a href="https://github.com/Wan-Video/Wan2.2/blob/main/assets/vae.png">看原图 ↗</a></span>Wan2.2-VAE：4 × 16 × 16，48 维，信息压缩率 64，PSNR 33.223，SSIM 0.922，LPIPS 0.022。Wan2.1-VAE：4 × 8 × 8，16 维，48，PSNR 32.222，SSIM 0.911，LPIPS 0.026。Hunyuan 的 PSNR 33.298 最高。README 没说测试集。</figcaption>
+</figure>
+<div class="note" id="n20"><span class="lab">读者注 20 · Wan2.2-VAE 在代码里怎样做到 16 倍</span><p><code>wan/modules/vae2_2.py</code>：编码前先把像素做 2 × 2 的 patchify（<code>"b c (h q) (w r) -&gt; b (c r q) h w"</code>，3 通道变 12 通道），再经过三级下采样（8 倍），合起来空间 16 倍；解码末尾 <code>unpatchify</code> 还原。下采样和上采样块带一条不含参数的捷径（<code>AvgDown3D</code> 按块平均、<code>DupUp3D</code> 复制），时间方向仍是“首帧单独、之后每 4 帧一个隐帧”的因果分块。<code>z_dim=48</code>，编码器基础通道 160，解码器 256。HF 上 TI2V-5B Diffusers 版 VAE 的文件头合计 704,688,668 个参数，是 Wan2.1-VAE（126.9M）的 5.6 倍，README 没提，主要来自更宽的解码器（我的推断）。</p></div>
+
+<h3 id="wan22-ti2v">TI2V-5B：一个模型做文生和图生视频</h3>
+<p>HF 的 <code>config.json</code>：<code>dim 3072</code>，30 层，24 个头（每头 128 维），<code>ffn_dim 14336</code>，<code>in_dim = out_dim = 48</code>，<code>text_len 512</code>，<code>model_type "ti2v"</code>。仓库配置 <code>wan_ti2v_5B.py</code>：<code>vae_stride (4, 16, 16)</code>，<code>patch_size (1, 2, 2)</code>，24 fps，121 帧（约 5 秒），50 步，shift 5.0，CFG 5.0。参数 4,999,787,712（读者注 6）。720p 实际是 1280 × 704：总压缩 32 倍，720 不是 32 的倍数（720 / 32 = 22.5），704 = 22 × 32。</p>
+<p>一段 121 帧、1280 × 704 的视频：VAE 后 31 × 44 × 80 × 48，patch 后 31 × 22 × 40 = <b>27,280 个 token</b>。同样 5 秒 720p，Wan2.1-14B（81 帧，1280 × 720）是 75,600 个 token。每个 token 对应的像素：前者 121 × 704 × 1280 / 27,280 ≈ 3,997（≈ 4 × 32 × 32 = 4,096），后者 81 × 720 × 1280 / 75,600 ≈ 987（≈ 4 × 16 × 16 = 1,024）。</p>
+<p><b>怎样一个模型同时做 T2V 和 I2V。</b>TI2V-5B 没有 Wan2.1-I2V 那样的额外输入通道，也没有 CLIP 分支，输入输出都是 48 通道。做法是：</p>
+<ol>
+<li><b>有起始图（I2V）：</b>把图编码成 1 个隐帧 \(z\)（因果 VAE 的首帧本来就单独编码），直接放在第 1 个隐帧的位置；其余隐帧是噪声。</li>
+<li>这个隐帧的<b>时间步设为 0</b>（“已经干净”），其余 token 用当前的 \(t\)。所以 TI2V-5B 的 DiT 接受<b>每个 token 一个时间步</b>，调制参数的形状是 [B, L, 6, C]，而 Wan2.1 是 [B, 6, C]（每个样本一个）。</li>
+<li>每一步去噪之后，把第 1 个隐帧重新覆盖回 \(z\)，它不随采样变化。</li>
+<li><b>没有起始图（T2V）：</b>所有隐帧都从噪声开始，所有 token 用同一个 \(t\)。</li>
+</ol>
+<div class="note" id="n21"><span class="lab">读者注 21 · 代码核对：TI2V 确实这样实现；“不计损失”无法核对</span><p><code>wan/textimage2video.py</code> 的 <code>i2v</code>：<code>z = self.vae.encode([img])</code>（单帧，得到 1 个隐帧）；<code>mask1, mask2 = masks_like([noise], zero=True)</code> 把 <code>mask2</code> 的第 0 个隐帧置 0、其余为 1；初始化 <code>latent = (1 - mask2) * z + mask2 * noise</code>；每步算 <code>temp_ts = (mask2[0][0][:, ::2, ::2] * timestep).flatten()</code>，即按 patch 网格取掩码乘当前 \(t\)，首帧 token 的 \(t=0\)，再把补齐部分填 \(t\)；每步之后再执行一次 <code>latent = (1 - mask2) * z + mask2 * latent</code>。<code>t2v</code> 路径里 <code>masks_like(noise, zero=False)</code> 全为 1，所有 token 同一个 \(t\)、全部从噪声开始。<code>model.py</code> 里 <code>e</code> 的形状注释是 [B, L1, 6, C]。和任务描述一致。</p>
+<p>训练时首帧“不计损失”：仓库没有训练代码，无法核对，未核实。一个线索：<code>wan/utils/utils.py</code> 的 <code>masks_like</code> 还有一个推理代码从不调用的分支（传入 <code>generator</code> 时）：以概率 <code>p=0.2</code> 把第 0 个隐帧的 <code>mask2</code> 置 0，同时 <code>mask1</code> 取 \(e^{\mathcal N(-3.5,\,0.5)}\approx0.03\)。我推测这是训练时的写法：约 20% 的样本按图生视频训练（首帧干净、\(t=0\)），<code>mask1</code> 可能是首帧的小噪声或损失权重，但用途不明，标“我的推断”。</p></div>
+
+<h2 id="flux2">附：FLUX.2-VAE</h2>
+<p>OpenWAM §4.1.2 拿来和 Wan2.2-VAE 对比的另一个重建式编码器。它来自 Black Forest Labs 的图像模型 FLUX.2，没有时间轴。依据是 BFL 2025 年 11 月 25 日的技术博客 <a href="https://bfl.ai/research/representation-comparison">“FLUX.2: Analyzing and Enhancing the Latent Space of FLUX – Representation Comparison”</a>（博客的图不放，只链接）和 HF / ModelScope 上的配置。</p>
+<p><b>博客要点。</b></p>
+<ul>
+<li><b>三方权衡：</b>可学习性（生成模型在这个隐空间里好不好学）、质量（重建失真）、压缩率。三者互相冲突，最好是丢掉看不出的信息、保留生成模型容易学的语义结构。</li>
+<li><b>做法：</b>FLUX.1 的 VAE 为了编辑任务的高保真，把隐变量维度放大到 SD-VAE 的 4 倍并减弱正则，重建好了但更难学。FLUX.2 的 VAE 维度是 SD-VAE 的 8 倍，并加入语义正则（借鉴 REPA 系列，让 VAE 特征和视觉基础模型对齐），重建和可学习性同时提高。</li>
+<li><b>实验：</b>在 ImageNet 256 × 256 上用 DiT-XL 做潜空间流匹配，比较 SD、FLUX.1、FLUX.2、RAE 四种自编码器；每种 30 组设置（3 种时间步分布 × 5 个训练偏移，加不加 REPA），50 步 Euler 采样并扫 5 个采样偏移。重建（ImageNet 验证集）：LPIPS SD 0.952、FLUX.1 0.338、FLUX.2 0.267、RAE 1.674；PSNR 25.05、31.13、31.46、18.83。生成 gFID（图 1 的数据）：FLUX.2 3.70、FLUX.1 10.13、SD 7.73、RAE 3.10。结论：FLUX.2 的重建最好，可学习性接近 RAE。</li>
+<li><b>和本页有关的一点：</b>博客发现隐变量维度越高，最优的时间偏移越大，近似按 \(\sqrt{m/n}\) 缩放（\(n\)、\(m\) 是两种表示的维度）；FLUX.2 最优训练偏移 4.63，RAE 6.93。Wan 系列推理用 shift 5，原理相同。</li>
+<li><b>和 DiT 对接：</b>博客按 DiT 的做法对 SD、FLUX.1、FLUX.2 的隐变量做 2 × 2 打包，每个 token 的通道数分别是 16、64、128（RAE 768，不打包）。</li>
+</ul>
+<p><b>配置核对。</b>FLUX.2-dev 在 HF 上需要登录同意许可（非商业许可），配置从 ModelScope 的同名仓库读到；和 HF 上不需登录、Apache-2.0 的 FLUX.2-klein-4B 的 <code>vae/config.json</code> 逐项相同（后者 <code>_name_or_path</code> 就是 FLUX.2-dev）：<code>AutoencoderKLFlux2</code>，<code>latent_channels 32</code>，<code>block_out_channels [128, 256, 512, 512]</code>（4 级，3 次下采样，空间 8 倍），<code>patch_size [2, 2]</code>，带 BatchNorm（<code>batch_norm_eps 1e-4</code>）。klein-4B 的 VAE 文件头合计 84,046,372 个数（含 BatchNorm 统计量）。所以“32 通道、8 倍下采样，再 2 × 2 打包成 128 通道、等效 16 倍”是配置本身的设定，和 <a href="openwam.html#n22">OpenWAM 页读者注 22</a> 一致。</p>
+<p><b>在 OpenWAM 里。</b>FLUX.2-VAE 是图像 VAE，逐帧编码；时间上首帧单独、其余每 4 帧平均（<a href="openwam.html#n21">OpenWAM 读者注 21</a>），得到和 Wan2.2-VAE 一样的 3 × 24 × 20 网格，但每个位置 128 通道，DiT token 输入 512 维，是 Wan2.2-VAE（192 维）的 2.7 倍。图 7 里它 84.26，低于 Wan2.2-VAE 的 90.30。</p>
+
+<h2 id="openwam">在 OpenWAM 里怎么用</h2>
+<p><a href="openwam.html">OpenWAM</a> 的世界流就是 <b>Wan2.2-TI2V-5B 的 DiT</b>（30 层，宽 3072），视觉编码器是冻结的 <b>Wan2.2-VAE</b>，文本编码器是冻结的 umT5。它和一个 1B 的 ActionDiT 逐层做联合自注意力，详见 <a href="openwam.html#s4-1-1">OpenWAM §4.1.1</a> 和 <a href="openwam.html#qa-enc">读者问答 问 2</a>。和本页对应的几点：</p>
+<ul>
+<li><b>首帧是干净锚点</b>，就是 TI2V 的首帧条件：OpenWAM 把 9 帧观测编码成 3 个隐帧（1 + 8/4），第 1 个是“现在”的干净隐帧，后 2 个是要去噪的未来；视频内用“首帧因果”掩码，首帧不看带噪帧。</li>
+<li><b>token 数：</b>384 × 320 的画布经 Wan2.2-VAE 得 24 × 20，patch 后 12 × 10 = 120 个 token / 隐帧，3 个隐帧 360 个，是 TI2V-5B 原生 720p 的 27,280 个的 1.3%。</li>
+<li><b>两组实验用法不同：</b>§4.1.1 拷贝 TI2V-5B 的预训练权重（92.39）；§4.1.2 只借结构、权重随机初始化，换六种编码器比较（Wan2.2-VAE 一行 90.30）。</li>
+<li><b>时间偏移：</b>OpenWAM 视频流训练和推理都用 shift 5，和 TI2V-5B 的推理默认值相同。</li>
+</ul>
+
+<h2 id="qa">读者问答</h2>
+<h3 id="qa-ti2v">问 1：TI2V-5B 具体是什么意思？</h3>
+<p><b>名字拆开。</b>Wan2.2 是版本；<b>TI2V</b> = Text-Image-to-Video，表示文本和（可选的）图像共同生成视频；<b>5B</b> 是 50 亿参数（精确 4,999,787,712），而且是一个稠密模型，每一步全部参数都参与计算。</p>
+<p><b>和 A14B 对比。</b></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th></th><th>T2V-A14B</th><th>I2V-A14B</th><th>TI2V-5B</th></tr></thead><tbody>
+<tr><td>任务</td><td>只文生视频</td><td>只图生视频</td><td>两者都做</td></tr>
+<tr><td>结构</td><td>2 个 14.29B 专家，按时间步切换</td><td>同左</td><td>1 个 5.00B 稠密 DiT</td></tr>
+<tr><td>每步激活参数</td><td>14.29B</td><td>14.29B</td><td>5.00B</td></tr>
+<tr><td>DiT 宽度 × 层数</td><td>5120 × 40</td><td>5120 × 40</td><td>3072 × 30</td></tr>
+<tr><td>VAE</td><td>Wan2.1-VAE，4 × 8 × 8，16 通道</td><td>同左</td><td>Wan2.2-VAE，4 × 16 × 16，48 通道</td></tr>
+<tr><td>输入通道</td><td>16</td><td>36（噪声 16 + 条件 16 + 掩码 4）</td><td>48（首帧直接替换，不加通道）</td></tr>
+<tr><td>图像条件方式</td><td>—</td><td>通道拼接</td><td>替换首个隐帧，该帧 \(t=0\)</td></tr>
+<tr><td>5 秒 720p 的 token 数</td><td>75,600（81 帧）</td><td>75,600</td><td>27,280（121 帧，1280 × 704）</td></tr>
+<tr><td>帧率 / 步数</td><td>16 fps / 40 步</td><td>16 fps / 40 步</td><td>24 fps / 50 步</td></tr>
+</tbody></table></div>
+<p><b>一个模型怎样同时做两件事。</b>关键是“每个 token 一个时间步”。有起始图时，图经 VAE 得到的隐帧直接当第 1 个隐帧，时间步标 0，告诉网络“这一帧已经是干净的，照着它往后生成”；每一步去噪后再把它覆盖回去。没有起始图时，所有隐帧都是噪声、时间步相同，就是普通的文生视频。两种情况用的是同一套权重、同一个输入格式，不需要额外通道或图像编码器。代码核对见<a href="#n21">读者注 21</a>，3D 动画第 10 幕可以切换两种模式。</p>
+<p><b>为什么 OpenWAM 选它。</b>OpenWAM §4.1.1 在 RoboTwin2.0-Full 上比较了四个骨干：Wan2.1-VACE-1.3B 90.14、Cosmos-Predict2.5-2B 91.64、<b>Wan2.2-TI2V-5B 92.39</b>、Wan2.1-I2V-14B 93.79。14B 最好，5B 只低 93.79 − 92.39 = <b>1.40</b> 点，参数是它的 5.00 / 16.39 = 31%（按 I2V-14B 的精确参数）。另外几个原因是我从结构推出来的：TI2V 的“首帧干净、后续去噪”正好对应机器人里“当前观测已知、预测未来”；Wan2.2-VAE 的 4 × 32 × 32 总压缩让 token 少，30 层 × 3072 也比 40 层 × 5120 便宜得多，和动作流逐层联合注意力时开销可控。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。按编号排列，点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">图 4 的数</a>：十项平均 Wan 75.46 对 Gemini 70.59；Gemini 三项同为 52.6。</li>
+<li><a href="#n2">VAE 的分块和缓存</a>：代码和图 6 一致；RMSNorm 只在通道维。</li>
+<li><a href="#n3">127M</a>：文件头 126,892,531，对上。</li>
+<li><a href="#n4">图 7 读数</a>：速度 2.55 倍对上；HunyuanVideo PSNR 高约 0.4 dB。</li>
+<li><a href="#n5">块的代码结构</a>：交叉注意力不受调制；3D RoPE 44/42/42。</li>
+<li><a href="#n6">参数量逐项算</a>：1.3B 实为 1,418,996,800，14B 为 14,288,491,584，I2V 16.39B，5B 4,999,787,712，全部和 HF 一致。</li>
+<li><a href="#n7">t 方向相反</a>：论文 t = 1 是数据，代码 t = 1000 是噪声。</li>
+<li><a href="#n8">8 TB 和 token 数</a>：γ ≥ 39 即超 8 TB；单个 5 秒 720p 只有 75,600 token。</li>
+<li><a href="#n9">128 卡的算术</a>：全局 batch 8b，对上。</li>
+<li><a href="#n10">Wan-Bench 领先来自权重</a>：等权平均 Sora 0.7171 略高于 Wan 14B 0.7154。</li>
+<li><a href="#n11">表 3 是胜率减负率</a>：和图 1 逐个对上；表 7 有负数。</li>
+<li><a href="#n12">VBench 总分</a>：0.8 / 0.2 加权，8 行都能复算，CogVideoX 差 0.01。</li>
+<li><a href="#n13">“约 25%”</a>：1.3B 省 23.0%，14B 省 30.6%；消融四个配置实为 1.42 / 1.63 / 1.65 / 1.84B。</li>
+<li><a href="#n14">表 5 的步数</a>：正文 10 万 / 15 万，表里 10k / 15k；umT5 文件按 bf16 约 5.68B。</li>
+<li><a href="#n15">I2V 的 36 通道</a>：16 + 16 + 4；T 的含义前后不同；Wan2.2 I2V 去掉了 CLIP。</li>
+<li><a href="#n16">4090 上的 FPS</a>：正文 8，图注 20。</li>
+<li><a href="#n17">音频时间分辨率</a>：每 token 46.9 ms；视频特征复制 5.33 倍，未说明。</li>
+<li><a href="#n18">默认步数和 shift</a>：文档字符串写 40、实际 50；shift 5 时一半步数在 σ ≥ 0.83。</li>
+<li><a href="#n19">MoE 切换点和 27B</a>：26 / 40 和 15 / 40 步；SNR_min/2 复算是 σ ≈ 0.969；两个专家合计 28.58B。</li>
+<li><a href="#n20">Wan2.2-VAE 的实现</a>：先 2 × 2 patchify 再 8 倍；704.7M 参数。</li>
+<li><a href="#n21">TI2V 的代码核对</a>：首帧替换、t = 0、每步覆盖，都对上；“不计损失”未核实。</li>
+</ol>
+<p>和 OpenWAM 页的对照：OpenWAM 读者注 21、22 和问 2 里关于 Wan2.2-VAE（16 倍、48 通道、首帧单独加每 4 帧）、TI2V-5B（30 层、3072、每层约 1.64 亿参数）和 FLUX.2-VAE（32 通道 × 2 × 2 = 128）的说法，本页都核对过，没有发现矛盾。</p>
+<p>论文没写、我也没找到的：训练时间步分布的参数、训练总步数和数据量的具体数字、Wan-Bench 的维度权重、Wan2.2 的训练细节（包括 TI2V 的首帧损失处理和两个专家怎样初始化、各训多少步）。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、代码和权重。链接在 2026 年 11 月 16 日用脚本检查过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/Wan-Video/Wan2.1">Wan2.1</a></td><td>本文，代码和权重</td><td><a href="https://huggingface.co/Wan-AI">HF Wan-AI</a></td><td><a href="https://arxiv.org/abs/2503.20314">2503.20314</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Wan-Video/Wan2.2">Wan2.2</a></td><td>后续版本：MoE、Wan2.2-VAE、TI2V-5B</td><td><a href="https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B">TI2V-5B 权重</a></td><td>无单独论文</td></tr>
+<tr><td><a class="ds" href="https://vchitect.github.io/VBench-project/">VBench</a></td><td>视频生成评测基准，表 4</td><td>vchitect.github.io/VBench-project</td><td><a href="https://arxiv.org/abs/2311.17982">2311.17982</a></td></tr>
+<tr><td><a class="ds" href="https://laion.ai/blog/laion-5b/">LAION-5B</a></td><td>图文数据集，其美学分类器用于初筛</td><td>laion.ai/blog/laion-5b</td><td><a href="https://arxiv.org/abs/2210.08402">2210.08402</a></td></tr>
+<tr><td><a class="ds" href="https://video-mme.github.io/">Video-MME</a></td><td>视频理解基准，评描述模型</td><td>video-mme.github.io</td><td><a href="https://arxiv.org/abs/2405.21075">2405.21075</a></td></tr>
+<tr><td><a class="ds" href="https://www.image-net.org/">ImageNet</a></td><td>FLUX.2 博客的实验数据</td><td>image-net.org（脚本访问超时，未确认 200）</td><td>Deng 等，CVPR 2009</td></tr>
+<tr><td><a class="ds" href="https://robotwin-platform.github.io/">RoboTwin 2.0</a></td><td>OpenWAM 比较骨干和编码器的基准</td><td>robotwin-platform.github.io</td><td><a href="https://arxiv.org/abs/2506.18088">2506.18088</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/ali-vilab/VACE">VACE</a></td><td>5.2 节的统一编辑框架</td><td>github.com/ali-vilab/VACE</td><td><a href="https://arxiv.org/abs/2503.07598">2503.07598</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/google/umt5-xxl">umT5</a></td><td>文本编码器</td><td>huggingface.co/google/umt5-xxl</td><td><a href="https://arxiv.org/abs/2304.09151">2304.09151</a></td></tr>
+<tr><td><a class="ds" href="https://bfl.ai/research/representation-comparison">FLUX.2 隐空间博客</a></td><td>FLUX.2-VAE 的设计分析</td><td>bfl.ai/research</td><td>技术博客，2025-11-25</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/black-forest-labs/FLUX.2-klein-4B">FLUX.2-klein-4B</a></td><td>不需登录的 FLUX.2 权重，VAE 配置和 dev 相同</td><td>huggingface.co/black-forest-labs</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://modelscope.cn/models/black-forest-labs/FLUX.2-dev">FLUX.2-dev（ModelScope）</a></td><td>读 VAE 配置用；HF 版需登录（401）</td><td>modelscope.cn</td><td>—</td></tr>
+<tr><td><a class="ds" href="https://github.com/hkchengrex/MMAudio">MMAudio</a></td><td>5.7 节的对比方法</td><td>github.com/hkchengrex/MMAudio</td><td><a href="https://arxiv.org/abs/2412.15322">2412.15322</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2503.20314 后的整理，不是作者的官方内容。原文：Wan Team（阿里巴巴集团），《Wan: Open and Advanced Large-Scale Video Generative Models》，arXiv 2503.20314v2，以 arXiv 非独占分发许可发布；文中原图从 PDF 裁切，只做了裁切和格式转换，经站点作者决定放原图，版权归原作者。Wan2.2 的图来自 Wan-Video/Wan2.2 仓库（Apache-2.0）。表格数字照录原文；读者注、代码对照和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
