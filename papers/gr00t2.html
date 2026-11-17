@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -954,7 +954,28 @@ td.best{font-weight:700}
 <p><b>能不能复现论文的表。</b>表 1–7、13–17、22–29 都是真机（YAM、Dexter、XHAND、G1）结果，复现不了。能自己测的是五个公开仿真基准（表 30–34：RoboCasa365、RoboDojo、RoboLab、MolmoSpaces、G1 Factory），以及等权重发布后在 LIBERO 上按标准协议重测；白皮书本身没有标准 LIBERO 数字（<a href="#libero">见上</a>）。</p>
 
 <h2 id="qa">读者问答</h2>
-<p>暂无提问。</p>
+<section id="qa-list">
+<h3 id="qa-2v4a">问 1：“去噪 2v4a”是什么意思？什么叫“DiT 前向 4 次，其中联合 2 次”？</h3>
+<p><b>先说去噪。</b>GR00T 2 生成未来画面和动作，都是从纯噪声开始，一步步“擦掉噪声”。每一步做一次 DiT 前向，模型预测一个速度（“噪声减数据”），再用 Euler 法走一小步，噪声强度 σ 从 1（全是噪声）降到 0（干净结果）。步数越多越精细，也越慢。部署时步数压得很少（附录 I.1）。</p>
+<p><b>2v4a = 视频（video）去噪 2 步，动作（action）去噪 4 步。</b>两者在同一个 DiT 的同一条序列里，但步数可以不同。动作要 4 次更新，视频只要 2 次，所以 4 次前向里只有 2 次需要算视频（附录 F.1.1、图 46）：</p>
+<div class="tablewrap"><table><thead><tr><th>动作去噪事件</th><th>类型</th><th>这次前向算了什么</th></tr></thead><tbody>
+<tr><td>k = 0</td><td><b>联合步</b></td><td>整条序列（历史视频、带噪的未来视频、状态、动作）全部过 DiT，视频和动作各走一步</td></tr>
+<tr><td>k = 1</td><td>缓存步</td><td>只让动作 token 过 DiT；视频和状态的注意力 K、V 直接用 k = 0 那次算好的，视频不更新</td></tr>
+<tr><td>k = 2</td><td><b>联合步</b></td><td>同 k = 0，视频走第 2 步（也是最后一步）</td></tr>
+<tr><td>k = 3</td><td>缓存步</td><td>同 k = 1，复用 k = 2 的 K、V，动作走最后一步</td></tr>
+</tbody></table></div>
+<p>所以“前向 4 次、联合 2 次”就是：一共调用 4 次 DiT，其中 2 次是算全序列的“贵”的联合步，另外 2 次是只算动作的“便宜”的缓存步。这和大语言模型的 KV cache 一个道理：前缀的 K、V 算一次存起来，后面只算新的那几个 token。</p>
+<p><b>为什么这样分配。</b>视频 token 远多于动作 token：按本页 3D 动画第 3 幕的算法，每路相机光历史就有 2 × 280 = 560 个 token，四路就是 2,240 个，还没算要生成的未来帧；动作块只有 48 步。缓存步里只有这几十个动作 token 做查询，计算量小得多。另外，机器人执行的是动作，动作需要精细，所以多给几步；未来画面只是给动作当“想象中的参照”，不需要画得很清楚，少走几步就够了。</p>
+<details><summary>三种配置和它们用在哪</summary>
+<div class="tablewrap"><table><thead><tr><th>配置</th><th>DiT 前向</th><th>用在</th></tr></thead><tbody>
+<tr><td>2v4a</td><td>4 次 = 联合 2 + 缓存 2</td><td>YAM；G1 Turbo 的基线</td></tr>
+<tr><td>2v2a</td><td>2 次，两次都是联合步</td><td>Dexter</td></tr>
+<tr><td>1v2a</td><td>2 次 = 联合 1 + 缓存 1</td><td>G1 Turbo 加速后</td></tr>
+</tbody></table></div>
+<p>G1 Turbo 从 2v4a 改成 1v2a 是图 19 时延优化的最后一步：RTX 5090 上 54.79 → 38.40 ms，Jetson Thor 上 182.22 → 123.97 ms。“2v2a 两次都是联合步”是从“视频和动作步数相同”推出来的，白皮书只直接写了 2v4a 的联合 / 缓存排法。白皮书没给每一步的 σ 取值。RL 时的 CPS 噪声只加在动作的去噪上，视频去噪保持确定（图 46）。</p>
+</details>
+<p>3D 动画第 6 幕可以切换这三种配置，看每次前向是联合步还是缓存步。</p>
+</section>
 
 <h2 id="notes">读者注汇总</h2>
 <p>以下各条都是本页加的核算或对照，不属于白皮书内容。按编号排列，点编号跳到对应位置。</p>
