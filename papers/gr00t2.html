@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1080,6 +1080,27 @@ td.best{font-weight:700}
 <div class="eq"><div class="m">\[ \hat a_{\rm data}=a-\sigma v,\qquad \hat\epsilon=a+(1-\sigma)v \]</div><span class="no">(10)</span></div>
 <p>代入 \(a=(1-\sigma)x_0+\sigma\epsilon\)、\(v=\epsilon-x_0\) 就能验证这两式。每走一步，\(\sigma\) 变小，输入里的噪声就少一些。所以本页说的“去噪步”泛指“从噪声走向数据的一步”，不是特指 DDPM 式扩散。</p>
 <p>流匹配也有更宽的用法：起点不一定是高斯噪声，可以是任意分布，那时就和扩散不等价了。机器人和视频模型里用的基本都是高斯起点。</p>
+<h3 id="qa-vla-head">问 8：WAM 的动作是 DiT 去噪生成的，那 VLA 的动作是怎么出来的？动作前面是一个 MLP 吗？</h3>
+<p><b>VLA 没有统一的动作头。</b>前面的 VLM 主干大家都差不多，“最后怎么变成动作”有四类做法：</p>
+<div class="tablewrap"><table><thead><tr><th>做法</th><th>代表</th><th>怎么出动作</th><th>要不要多步去噪</th></tr></thead><tbody>
+<tr><td>① 动作当成词</td><td>RT-2、OpenVLA</td><td>每个动作维度切成 256 档，每档对应词表里的一个 token，LLM 像说话一样一个个吐出来（OpenVLA 占用了 Llama 词表里最少用的 256 个 token）。没有额外的动作头</td><td>不要；自回归，每维一次前向</td></tr>
+<tr><td>② 压缩后当成词</td><td>π0-FAST</td><td>先把一整段动作做 DCT 变换再做 BPE 压缩，变成更少的 token，再自回归生成</td><td>不要</td></tr>
+<tr><td>③ MLP 直接回归</td><td>OpenVLA-OFT</td><td>往序列里放一组空的动作占位 token，一次前向后取它们的隐状态，过一个 <b>MLP 动作头</b>直接输出连续动作，用 L1 损失训练</td><td>不要；一次前向出一整段</td></tr>
+<tr><td>④ 生成式动作头</td><td>Octo（小 MLP 扩散头）、CogACT（DiT 扩散）、π0 / π0.5（流匹配动作专家）、GR00T N1.x（流匹配 DiT）</td><td>从噪声开始，读 VLM 的特征作条件，多步去噪出一段连续动作</td><td>要；GR00T N1 是 4 步，π0 是 10 步</td></tr>
+</tbody></table></div>
+<p><b>所以“动作前面是不是 MLP”要看 MLP 在干什么。</b>它可能扮演三种角色：</p>
+<ul>
+<li><b>整个动作头</b>（③）：MLP 直接把特征映射成动作，一步到位，没有去噪。</li>
+<li><b>小去噪器</b>（④ 里的 Octo）：MLP 本身就是扩散模型的网络，只是很小。</li>
+<li><b>进出的投影层</b>（GR00T 系列）：最常见，但不负责“生成”。GR00T N1 的流程是：带噪动作 + 时间步 → <b>动作编码器（MLP）</b> → DiT（交叉注意力读 VLM）→ <b>动作解码器（MLP）</b> → 速度。机器人状态也先过一个状态编码器 MLP。这些 MLP 每种具身各一套，因为不同机器人的动作维度不同；真正做生成的是中间的 DiT。</li>
+</ul>
+<p><b>GR00T 2 也是这个套路</b>，只是中间那个 DiT 换成了整个视频模型：动作和状态还是先过每具身一套的 MLP 编码器变成 token，和视频 token 一起进 2B DiT，出来再过每具身的 MLP 解码器（附录 E.3）。所以从“动作头”的角度看，GR00T N1.x → GR00T 2 的变化不是“MLP 换成 DiT”，而是：</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>GR00T N1.x（VLA）</th><th>GR00T 2（WAM）</th></tr></thead><tbody>
+<tr><td>谁做生成</td><td>单独的动作 DiT（约 0.5B），旁边挂一个 VLM 提供条件</td><td>视频模型本身，动作 token 和视频 token 在同一个 DiT 里</td></tr>
+<tr><td>动作从哪看画面</td><td>交叉注意力读 VLM 输出的特征</td><td>自注意力直接看视频 token，包括正在生成的未来帧</td></tr>
+<tr><td>MLP 的角色</td><td colspan="2">都是每具身一套的进出投影，不负责生成</td></tr>
+</tbody></table></div>
+<p>GR00T N1 的动作编码器、解码器和 DiT 的参数量见 <a href="gr00t.html">GR00T N1 页</a>读者注 2。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
