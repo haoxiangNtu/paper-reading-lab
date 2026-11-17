@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LingBot-Touch 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.12806 LingBot-Touch 的框架做成 11 幕 3D 动画：三类触觉数据、标准指尖空间、5D 地址和 RoPE、tokenizer、掩码 warm-up、Tactile-JEPA 训练、布局增广、冻结探针、接入策略、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="lingbot-touch.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/lingbot-touch.html">返回精读</a><a href="../../papers/lingbot-touch.html#s3-2">原文 §3.2</a><a href="../../papers/lingbot-touch.html#code">代码要点</a><a href="https://arxiv.org/abs/2611.12806">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2611.12806 · LingBot-Touch</p>
+<h1>三种触觉传感器，怎样喂进同一个编码器</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是数据和标准指尖空间；第 4、5 幕是 token 的地址和内容；<b>第 6 幕当场算掩码 warm-up 的概率</b>；第 7 幕是 Tactile-JEPA 训练回路；第 8 幕是布局增广；第 9、10 幕是冻结编码器的两种用法；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。网络尺寸来自 Hugging Face 上两个模型的 config.json 和官方代码（提交 dec8025）；柱子是原文图表的数字。指尖的触点布局、信号曲线是示意，没有任何 LingBot-Touch 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：论文和代码并列</h2>
+<p class="sub">代码是 robbyant/lingbot-touch 提交 dec8025（2026-11-11），只读未运行；config 是 Hugging Face 上 lingbot-touch-tiny / -small 的 config.json（2026-11-09）。训练部分只有论文，没有代码。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / config</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入</td></tr>
+<tr><td>I1</td><td>片段</td><td>X ∈ ℝ^(T×N×3)，单通道补零到 3 通道</td><td>signal [B,T,5,M,3]，手指顺序固定；coverage_mask [5,M] 标真实触点</td></tr>
+<tr><td>I2</td><td>几何</td><td>式 (1) p = αp̃ + b，α = 1/r，b = −o/r</td><td>p = (p_sensor Rᵀ − o)/r + offset（geometry.py）</td></tr>
+<tr><td>I3</td><td>幅值</td><td>法向到 [0,1]，切向到 [−1,1]</td><td>视触觉 z/255；XHand 除以 [128,128,255]；PaXini 除以 [2.56,2.56,5.12]</td></tr>
+<tr><td>I4</td><td>地址</td><td>式 (2) (t, f, x, y, z)</td><td>time_id、finger_id、pos_xyz，每个 token 一份</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>tokenizer</td><td>每类传感器一个两层 MLP，2 帧 × 3 = 6 个数 → 1 个 token</td><td>Linear(3τ→d)、GELU、Linear(d→d)；Tiny τ = 2，Small τ = 4</td></tr>
+<tr><td>N2</td><td>HaT</td><td>12 层，宽 192 / 384</td><td>pre-norm，3 / 6 头（head 64），MLP 比 4，GELU</td></tr>
+<tr><td>N3</td><td>RoPE</td><td>五轴各占 head 的一段，只作用于 q、k</td><td>每轴 12 维，共 60，剩 4 维不转；θ：时间、手指 10000，空间 100；空间坐标 × π/2</td></tr>
+<tr><td>N4</td><td>输出</td><td>四层特征各自归一化后拼接</td><td>output_layers [2,5,8,11]，C = 768 / 1536</td></tr>
+<tr><td>N5</td><td>参数量</td><td>5.46M / 21.76M（不含预测器和下游头）</td><td>5,455,488 / 21,755,904（我按结构算的）</td></tr>
+<tr><td>N6</td><td>预测器</td><td>分组输入输出投影 + 共享预测 Transformer，同样的 5D RoPE</td><td>未公开</td></tr>
+<tr class="grp"><td colspan="4">训练（只有论文）</td></tr>
+<tr><td>T1</td><td>损失</td><td>式 (4)：被掩码位置 L1 + 0.5 × 可见位置 L1，目标停止梯度</td><td>未公开</td></tr>
+<tr><td>T2</td><td>掩码</td><td>按触点选、贯穿整段；40% → 80%，前 300 步线性</td><td>未公开</td></tr>
+<tr><td>T3</td><td>EMA</td><td>目标端是上下文端的 EMA；表 1 里 0.999 → 1.0 最好</td><td>未公开</td></tr>
+<tr><td>T4</td><td>增广</td><td>多分辨率视图；位置扰动 ‖δ‖ ≤ 0.5 dᵢ</td><td>参考布局和固定重采样映射公开（sampling.py），随机扰动未公开</td></tr>
+<tr><td>T5</td><td>规模</td><td>200,000 次更新；三种来源等概率采样</td><td>未公开</td></tr>
+<tr class="grp"><td colspan="4">下游</td></tr>
+<tr><td>D1</td><td>探针</td><td>1 层交叉注意力池化 + 线性头，宽 192、3 头</td><td>未公开；README 建议用注意力读出</td></tr>
+<tr><td>D2</td><td>策略接入</td><td>16 帧 → 每手 40 个读出 token → 线性投影到策略条件维度</td><td>未公开</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>指尖和触点。</b>半球上的斐波那契点，数量按原文（9、16、61、96、200 等），但位置不是真实传感器布局。</li>
+<li><b>第 3 幕的原始坐标。</b>三种传感器的原始位姿、半径、原点是我设的；变换公式是代码的。</li>
+<li><b>第 5 幕的信号。</b>16 帧的触点读数是合成的。</li>
+<li><b>第 6 幕。</b>96 个触点、接触 k 个、每步一个新掩码是玩具；概率按不放回抽样当场算，和正文的 0.8ᵏ 近似对照。</li>
+<li><b>第 7 幕。</b>token 的个数和掩码位置是示意；层数、输出层、λ、warm-up 按论文和 config。</li>
+<li><b>第 8 幕。</b>重采样的高斯带宽是我设的；位置扰动的上界 0.5 dᵢ 按式 (5) 当场算。</li>
+<li><b>第 9 到 11 幕的柱子</b>都是原文图表的数字。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2611.12806 后的理解，不是作者的官方图。原图见<a href="../../papers/lingbot-touch.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
