@@ -41,7 +41,7 @@ details.tbl[open] summary{margin-bottom:6px}
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a><a href="#qa-ctx">问 2 上下文编码器与掩码</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -907,6 +907,93 @@ show('hatc');
 
 <p><b>和下游使用的关系：</b>训练结束后，<b>冻结并发布的是 EMA 目标编码器</b>，不是上下文编码器（§4.1 协议、§3.2 末段）。它见过完整输入，参数是长时间平均，更平滑，所以拿来给探针、VLA 和 RL 提供触觉 token。官方仓库里的 <code>encoder.pt</code> 就是它。</p>
 <p class="tcap">同样的做法出自 BYOL，I-JEPA、V-JEPA 和 DINO 系列也用；同站 <a href="dinov3.html">DINOv3</a> 页的教师网络也是学生的 EMA。</p>
+<h3 id="qa-ctx">问 2：图 3 里的上下文编码器是干什么的？为什么叫“上下文”？HaT 放在中间做什么？为什么先去掉掩码 token、过了 HaT 再加回来？EMA 又是做什么的？</h3>
+<p class="tcap">配合<a href="#fig3r">图 3 重画</a>一起看。哪些是论文写的、哪些是我按 MAE / I-JEPA 的通行解释补的，下面分开标了。</p>
+<p><b>先说结论：</b>整个训练是在做一道“看一部分、猜其余部分”的填空题。</p>
+<ul>
+<li><b>上下文编码器</b>负责“读题”：只看露出来的 20% 触点，把它们编码成特征。</li>
+<li><b>预测器</b>负责“答题”：在被遮住的位置上填答案。</li>
+<li><b>目标编码器</b>负责给“标准答案”：它看完整片段。</li>
+<li><b>EMA</b> 让标准答案慢慢变化、不跟着答题者一起乱动。</li>
+<li><b>HaT</b> 是三种传感器共用的那块“大脑”，训练完真正留下来用的就是它。</li>
+</ul>
+
+<div class="ctx-tool" id="ctx-tool">
+<p class="lab">小演示 · 12 个 token 走一遍（真实的 Sharpa 样例是 8,000 个）。点按钮一步步看。</p>
+<div class="ctx-btns" role="group" aria-label="步骤"><button type="button" data-s="0" aria-pressed="true">① 完整片段</button><button type="button" data-s="1">② 掩码</button><button type="button" data-s="2">③ 去掉被掩码的</button><button type="button" data-s="3">④ 过 HaT</button><button type="button" data-s="4">⑤ 加回掩码 token</button><button type="button" data-s="5">⑥ 预测器 → 对答案</button></div>
+<div class="ctx-row" id="ctx-row"></div>
+<p class="ctx-say" id="ctx-say"></p>
+</div>
+
+<p><b>1. 为什么叫“上下文编码器”。</b>这是 JEPA 系列（I-JEPA、V-JEPA）的叫法：露出来的那部分是“上下文”（context），被遮住、要去猜的那部分是“目标”（target）。上下文编码器就是“只编码上下文”的那个编码器，和语言里“根据上下文猜词”是一个意思。原文：“present only \(\mathbf X_{\mathcal C}\) to a context encoder”（<a href="#p-jepa">§3.2 第一段</a>）。</p>
+
+<p><b>2. HaT 是什么、为什么在中间。</b>HaT（Haptic Transformer）是一个 12 层的 Transformer 编码器，所有传感器共用。它前面是按传感器分开的 tokenizer，后面是按传感器分开的预测器投影，所以它夹在中间。论文的设计原则就是“传感器专用的参数只放在网络边界的浅层投影里”（<a href="#p-tok">§3.2 tokenizer 一段</a>）：</p>
+<div class="tablewrap"><table>
+<tr><th>位置</th><th>部件</th><th>分不分传感器</th><th>作用</th></tr>
+<tr><td>入口</td><td>tokenizer（两层 MLP）</td><td>分，三个</td><td>把各传感器不同含义的读数翻成同一种 token</td></tr>
+<tr><td>中间</td><td>HaT（12 层）</td><td><b>共享</b></td><td>在 token 之间做注意力，学“接触”本身：哪里压、压多大、怎么变；位置通过 5D RoPE 进来</td></tr>
+<tr><td>出口</td><td>预测器的输入、输出投影</td><td>分，三个</td><td>只在训练时用</td></tr>
+</table></div>
+<p>放在中间、而且共享，好处是三种传感器的数据都在训练同一个 HaT，相当于把 4,983 小时合在一起用。HaT 也是唯一留到下游的主体：训练完扔掉预测器，只留（目标端的）tokenizer + HaT，冻结后给策略产出触觉 token。</p>
+
+<p><b>3. 为什么先去掉被掩码的 token，过 HaT 后再加回来。</b>论文只写了做法（“上下文编码器只看可见 token；预测器把可见 token 的表征和掩码 token 一起处理”，<a href="#p-tok">式 (3) 下一段</a>），没解释原因。下面三条是 MAE / I-JEPA 的通行理由，放在这里同样成立：</p>
+<ul>
+<li><b>不让编码器看到“假 token”。</b>如果在编码器输入里放占位符，编码器训练时会见到大量占位符，下游使用时却一个都不会见到，训练和使用的输入分布就不一致。去掉后，编码器只学怎样理解真实读数。</li>
+<li><b>省计算。</b>只剩约 20% 的 token。注意力的计算量和 token 数的平方成正比，Sharpa 样例 8,000 个 token 剩 1,600 个，注意力部分约为 \((1600/8000)^2=4\%\)。</li>
+<li><b>预测器需要知道“往哪里猜”。</b>所以过完 HaT 后，要在每个被遮住的地址上放一个可学习的掩码 token \(\Delta_{\mathcal M}\)。它本身不含读数，但通过 5D RoPE 带着地址 (t, f, x, y, z)，等于在问：“第 t 个时间窗、第 f 根手指、这个位置上，触觉特征应该是什么？”预测器根据旁边可见 token 的特征回答。</li>
+</ul>
+<p>还有一个论文明确写的细节：同一个触点在<b>所有时间窗</b>都被遮住（<a href="#p-mask">掩码一段</a>）。否则模型可以从同一触点前一帧的读数直接抄过来，题就太简单了。</p>
+
+<p><b>4. EMA 做什么。</b>“标准答案”也是网络算出来的。如果目标编码器也直接用梯度训练，两边可以一起输出常数，损失为零，什么都没学到（表示塌缩）。所以目标编码器不接梯度（图里的 stop grad），参数只按 \(\bar\theta\leftarrow m\bar\theta+(1-m)\theta\) 慢慢跟上上下文编码器，\(m\) 从 0.999 升到 1.0。表 1 里起点改成 0.998 就塌缩了。细节和小演示见<a href="#qa-ema">问 1</a>。</p>
+<p class="tcap">一句话串起来：tokenizer 把不同传感器翻成同一种 token → 遮掉 80% → HaT 只理解剩下的 20% → 在空位放带地址的掩码 token → 预测器填空 → 和 EMA 目标编码器看完整片段给出的答案比 L1 距离。训练完只留 tokenizer + HaT。</p>
+<style>
+.ctx-tool{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:14px 0;background:var(--bg2)}
+.ctx-tool .lab{font-size:13px;color:var(--muted);margin:0 0 8px}
+.ctx-btns{display:flex;flex-wrap:wrap;gap:6px}
+.ctx-btns button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 9px;cursor:pointer}
+.ctx-btns button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.ctx-row{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 6px;min-height:58px;align-items:center}
+.ctx-c{width:44px;height:44px;border-radius:8px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-family:var(--font-mono);background:var(--panel);transition:all .25s}
+.ctx-c.v{border-color:#3b82c4;background:rgba(59,130,196,.15)}
+.ctx-c.m{border-color:#d04545;background:rgba(208,69,69,.12);color:#d04545}
+.ctx-c.e{border-color:#3b82c4;background:rgba(59,130,196,.38);font-weight:600}
+.ctx-c.k{border-color:#7a5cc4;border-style:dashed;background:rgba(122,92,196,.12);color:#7a5cc4}
+.ctx-c.p{border-color:#2e9e6a;background:rgba(46,158,106,.16)}
+.ctx-c.gone{display:none}
+.ctx-say{font-size:14px;line-height:1.7;margin:4px 0 0}
+</style>
+<script>
+(function(){
+var root=document.getElementById('ctx-tool'); if(!root) return;
+var row=document.getElementById('ctx-row'), say=document.getElementById('ctx-say');
+var M=[1,2,4,5,6,8,9,10,11,3]; /* 10 of 12 masked ≈ 80% */
+var vis=[0,7];
+var txt=[
+'一个片段切成 12 个 token（每个 = 一个触点的 τ 帧读数，带地址 t, f, x, y, z）。目标编码器看的就是这完整的 12 个。',
+'随机遮掉约 80% 的触点（红色）。同一个触点在所有时间窗都被遮。',
+'被遮的 token 直接拿掉，上下文编码器的输入只剩 2 个蓝色 token。',
+'这 2 个 token 过 HaT（12 层，共享），变成上下文特征（深蓝）。HaT 从头到尾没见过任何占位符。',
+'在 10 个被遮的地址上放回可学习的掩码 token（紫色虚线）。它们没有读数，只带地址：“这个位置是什么？”',
+'预测器处理全部 12 个位置，输出预测（绿色），和目标编码器在完整片段上算出的答案逐个比 L1 距离：被遮位置权重 1，可见位置权重 0.5。'];
+function draw(s){
+  var h='';
+  for(var i=0;i<12;i++){
+    var m=M.indexOf(i)>=0, c='ctx-c', t='x'+i;
+    if(s===0){c+=' v';}
+    else if(s===1){c+=m?' m':' v'; t=m?'遮':'x'+i;}
+    else if(s===2){c+=m?' gone':' v';}
+    else if(s===3){c+=m?' gone':' e'; t='h'+i;}
+    else if(s===4){c+=m?' k':' e'; t=m?'Δ':'h'+i;}
+    else {c+=' p'; t='ẑ'+i;}
+    h+='<div class="'+c+'">'+t+'</div>';
+  }
+  row.innerHTML=h; say.textContent=txt[s];
+  root.querySelectorAll('.ctx-btns button').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.s===s?'true':'false');});
+}
+root.querySelectorAll('.ctx-btns button').forEach(function(b){b.addEventListener('click',function(){draw(+b.dataset.s);});});
+draw(0);
+})();
+</script>
 </section>
 <style>
 .ema-tool{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px;margin:14px 0}
