@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LingBot-Touch 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.12806 LingBot-Touch（蚂蚁灵波）的中文精读：按原文章节逐节整理，含编号公式、主要结果表、裁切的原图（CC BY 4.0）、官方推理代码对照、新闻稿数字核对、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-s{min-width:420px}.t-m{min-width:560px}.t-w{min-width:720px}.t-xw{min-width:980px}.t-links{min-width:640px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+details.tbl{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg2)}
+details.tbl summary{cursor:pointer;font-size:14px;color:var(--fg)}
+details.tbl[open] summary{margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/lingbot-touch/index.html">3D 框架动画</a><a href="#code">代码要点</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2611.12806 · cs.RO · v1 2026 年 11 月 9 日 · 技术报告 · 中文精读</p>
+<h1>LingBot-Touch：一个编码器读三类触觉传感器</h1>
+<p class="orig">Learning Heterogeneous Tactile Representation for General Dexterous Manipulation</p>
+<p>作者 Bing Han、Yichuan Peng、Haoyu Dong、Yuanmeng Hu、Yongyi Jia、Fangjing Wang、Kecheng Zheng、Yiming Zhang、Yanhong Zeng、Xiaoqing Zhang、Chen Song、Rundong Zou、Anqi Dong、Yuan Guan、Ka Leong Cheng、Xing Zhu、Yujun Shen、Nan Xue、Wei Ning（项目负责人），来自 Robbyant（蚂蚁灵波）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2611.12806">arXiv 原文</a><a href="https://arxiv.org/pdf/2611.12806">PDF</a><a href="https://technology.robbyant.com/lingbot-touch">项目主页</a><a href="https://github.com/robbyant/lingbot-touch">官方代码</a><a href="https://huggingface.co/collections/robbyant/lingbot-touch">权重（Hugging Face）</a><span>正文 19 页，附录到第 24 页，共 27 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。PDF 里没有和它矛盾的版权声明。这里按原文顺序覆盖正文六节和附录 A 到 C，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1 到图 16 从 arXiv PDF 裁切，作者是 Bing Han 等，许可 CC BY 4.0，只做了裁切、缩放和格式转换，没有改内容。这篇没有 arXiv HTML 版，“看原图”链接到 PDF 对应页。图下的文字是我写的。“读者注”是整理时核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码是 <a href="https://github.com/robbyant/lingbot-touch/tree/dec8025b212e7099b235cc2ef13a4921a7e59545">robbyant/lingbot-touch 提交 dec8025</a>（2026-11-11），Apache-2.0，部分代码沿用 Meta 的 MIT 许可（见仓库 THIRD_PARTY_NOTICES.md）。只读，没有运行。仓库只有推理用的目标编码器和数据接口，没有训练代码，详见 <a href="#code">代码与使用要点</a>。Hugging Face 上两个模型的 <code>config.json</code> 我也读了（各 518 字节），权重没有下载。</p>
+<p><b>项目主页</b>页脚写着 “© 2026 Robbyant … All rights reserved”。我只打开过一次看它的使用条款，没有抓取其中的图、视频或数据，本页只链接它。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>触觉传感器有压阻、磁、视触觉（光学）几类，每类的通道、布局、分辨率、采样率都不一样，一种传感器的数据对另一种上训练的模型没有意义。论文认为根子在于数据绑定了传感器的物理原理，而“接触”本身不绑定：指尖压在边上，不管谁来记录都是同一件事。</p>
+<p>LingBot-Touch 是一个触觉基础模型（编码器）。做法有三步：把每种传感器的触点（taxel）坐标放进一个统一的<b>标准指尖空间</b>；每类传感器一个浅层 tokenizer，后面接一个共享的 Transformer（论文叫 Haptic Transformer，HaT），位置只通过 5 维 RoPE 进入；用 JEPA 式的<b>隐空间预测</b>做自监督预训练，不重建原始信号。</p>
+<ul>
+<li><b>数据：</b>4,983 小时、464,431 个回合、约 13.3 亿帧。三分之二来自人戴的触觉手套，三分之一来自遥操作的 Sharpa Wave 机器人手。</li>
+<li><b>模型：</b>Tiny 5.46M 参数、Small 21.76M 参数，都是 12 层。</li>
+<li><b>探针：</b>冻结编码器，在一只见过的手（Sharpa Wave，视触觉）和一只没见过的手（XHand1，磁）上做五个任务，都明显好于 FTP-1。</li>
+<li><b>真机：</b>26 个双臂任务、四种策略，加 LingBot-Touch token 后平均成功率提高 13.9 到 24.8 个点；直接加原始触觉信号只提高 6.6 到 11.2 个点。</li>
+<li><b>仿真 RL：</b>12 个灵巧任务平均成功率 69.0%，任务内训练的 CNN 特征 45.6%，不用触觉 21.4%。</li>
+</ul>
+<p>读完我认为最值得记住的三点：一是“跨传感器的小时数可以互相顶替”只对力和动态成立，空间精度仍要本传感器的数据（§4.3 两组对照）；二是隐空间预测和重建的差距主要在空间和检索任务上，重建目标在数据变多时甚至变差（§4.4）；三是公开的只是冻结编码器，Small 版的 tubelet 是 4 帧，不是正文写的 2 帧（<a href="#n3">读者注 3</a>）。</p>
+
+<figure class="pfig" id="fig1">
+<img src="lingbot-touch/fig1.webp" width="1572" height="989" alt="图 1：上排三格是数据的三个特点：多来源、异构、稀疏；中间是 LINGBOT-TOUCH 字样；下排三格是用途：触觉语义理解、模仿学习和 VLA、强化学习" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=2">看原图 ↗</a></span>上排说数据长什么样：多来源（第一视角手套和真机，三种传感器）、异构（触点几何、分辨率、通道都不同，统一到标准指尖空间）、稀疏（大多数触点大多数时间没信号）。下排说一个编码器能做什么：恢复接触力、位置、面积和动态并和视觉对齐；接进模仿学习和 VLA 策略；接进仿真强化学习。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>人手的灵巧很大程度靠触觉，指尖失去感觉的人连划火柴、扣扣子都困难。机器人却几乎只靠视觉操作，看不出按得多重、抓得是否在滑、被手指挡住的地方发生了什么。</p>
+<p><b>为什么触觉没跟上。</b>传感器有的是，但缺少让视觉和语言得以扩展的三样东西：没有统一的输入格式；没有大规模语料（不同传感器的数据不能合并，每小时数据都要一只带传感器的手去碰真实世界）；没有公认的做法（触觉有用的证据散落在各自传感器、各自任务的研究里）。论文认为三个缺口同根：数据绑定了传感器的物理。去掉这部分，接触的表征就能共享。</p>
+<p><b>做法。</b>一个编码器覆盖压阻、磁、光学三种原理，不重训就能用到新传感器。三个设计：标准指尖空间（§3.2）；JEPA 式隐空间预测，适合稀疏无标签的信号（§3.2）；5,000 小时的手套加遥操作语料（§3.1）。</p>
+<p><b>结果概览。</b>冻结特征在见过的光学手和没见过的磁手上都能恢复接触力、位置、面积、短时动态，并能只凭触觉检索对应视频帧；在没见过的手上五个探针任务都好于加了专用适配器的 FTP-1。26 个真机任务上，加入 5.46M 的冻结编码器让 Diffusion Policy、π0.5、LingBot-VLA、T-Rex 的成功率提高“14 到 26 个百分点”（我核算是 13.9 到 24.8，见<a href="#n13">读者注 13</a>）；加原始信号最多只有约一半的收益。仿真 RL 12 个任务 69% 对 46%（CNN）和 21%（无触觉）。Small 从 1K 到 5K 小时每个探针任务都单调变好；一种传感器的数据能改进另一种的表征；隐空间预测明显好于信号重建，VAE 甚至数据越多越差。</p>
+<p><b>贡献。</b>（1）5,000 小时、46.4 万回合、13.3 亿帧、24 类任务的语料；（2）标准指尖空间、分模态 tokenizer、共享 HaT，加上 Tactile-JEPA 目标（含掩码 warm-up 和布局增广）；（3）两只手的探针、26 个真机任务、12 个仿真 RL 任务，以及规模、多来源、目标函数的分析；（4）公开推理代码、少量样例数据、Tiny 和 Small 的权重。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>2.1 触觉传感。</b>磁式靠形变引起的磁场变化，例如 ReSkin、AnySkin，PaXini 的商用产品用霍尔效应。光学式靠内部成像看形变，例如 GelSight、DIGIT、Sharpa Wave 的指尖。电阻和电容式靠电阻或电容的变化，例如压阻手套 STAG、电容皮肤 DexSkin。它们测的是同一种物理接触，信号却在通道含义、空间分辨率、采样率、布局上都不同。</p>
+<p><b>2.2 触觉表征学习。</b>自监督方法大致三类：联合嵌入（DINO、CLIP、SigLIP、VideoCLIP）、生成式（MAE、VideoMAE）、联合嵌入预测（I-JEPA、V-JEPA、V-JEPA 2、LeJEPA、V-JEPA 2.1）。触觉方向：<a class="ds" href="https://arxiv.org/abs/2410.24090">Sparsh</a> 在光学触觉上比较了重建、自蒸馏和 JEPA；<a class="ds" href="https://arxiv.org/abs/2406.13640">T3</a> 用传感器专用编码器加共享 Transformer；<a class="ds" href="https://arxiv.org/abs/2401.18084">UniTouch</a> 把触觉接到多模态嵌入；<a class="ds" href="https://arxiv.org/abs/2502.12191">AnyTouch</a> 结合掩码建模、多模态对齐和跨传感器匹配，AnyTouch 2 强调力和时间动态；Sparsh-skin 学磁式触觉历史，Sparsh-X 融合 Digit 360 的多种信号；HTT 处理光学和阵列式的异构；<a class="ds" href="https://arxiv.org/abs/2606.13102">FTP-1</a> 把异构观测映射成形态感知的 token，新硬件要配传感器专用编码器。FTP-1 是本文主要对手。</p>
+
+<h2 id="s3"><span class="no">3</span>LingBot-Touch</h2>
+<figure class="pfig" id="fig3">
+<img src="lingbot-touch/fig3.webp" width="1568" height="648" alt="图 3：左侧三种触觉信号经标准球面空间和加权采样进入；上方上下文编码器：分模态 tokenizer、去掉被掩码 token、Haptic Transformer、拼接掩码 token、分模态预测器；下方目标编码器由 EMA 更新，输出目标 token；右侧上下文损失和预测损失" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=5">看原图 ↗</a></span>左边是磁、压阻、光学三种手的信号，下方小图是标准球面空间（法向和侧视）。上半是上下文编码器：按模态选 tokenizer，去掉被掩码的 token，经 HaT（带 5D RoPE），再拼回掩码 token，交给对应模态的预测器。下半是目标编码器，看完整片段，参数是上半的 EMA，梯度在这里截断。右边两个损失：可见位置的上下文损失、被掩码位置的预测损失。</figcaption>
+</figure>
+<p>两个难点。第一，数据少：没有够规模的触觉语料，于是自己采了 5,000 小时（§3.1）；手套和机器人手的传感器不同，所以要有统一的几何接口和分模态 tokenizer（§3.2）。第二，没有标签：片段最多有任务级描述，没有力、接触位置、接触起止时间的标注，所以用自监督的隐空间预测加掩码 warm-up（§3.2），再用布局增广帮助跨传感器迁移（§3.3）。</p>
+<p><b>问题表述。</b>归一化后的触觉片段 \(\mathbf X\in\mathbb R^{T\times N\times3}\)，\(T\) 是帧数，\(N\) 是所有手指上有效触点的总数。每个触点带一个 3D 位置和手指编号。单通道传感器补零到 3 通道。目标是编码器 \(\mathbf Z=E^{(g)}_\theta(\mathbf X;\mathbf A)\)，\(g\) 选模态分支，\(\mathbf A\) 是每个 token 的 5 维地址。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>规模化的触觉：5,000 小时手套和机器人手数据</h3>
+<p><b>结论先说：</b>语料 4,983 小时，靠手套（压阻和磁）撑起大头，遥操作的 Sharpa Wave 补三分之一；三种来源按任务类别对齐，不按硬件对齐；除任务类别外没有任何标签；预训练时三种来源等概率采样。</p>
+<figure class="pfig" id="fig2">
+<img src="lingbot-touch/fig2.webp" width="1536" height="795" alt="图 2：左上环形图按模态分数据量：压阻 44.1%、磁 22.8%、光学 33.1%，总 4.98K 小时、464.43K 回合、1.33B 帧；右上按任务类别的堆叠柱状图；下排三组触觉图样，分别标 2,197 小时、1,136 小时、1,650 小时" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=4">看原图 ↗</a></span>环形图是三种模态的占比，右边是 24 个任务类别的数据量（按模态堆叠，从多到少）。下排每组上方是视频帧，下方是指尖触觉图：压阻（第一视角手套）2,197 小时、86,906 个回合；磁（第一视角手套）1,136 小时、294,871 个回合；视触觉（遥操作）1,650 小时、82,654 个回合。</figcaption>
+</figure>
+<p>手套不需要机器人，一个人一天能在普通环境里录几个小时日常操作，物体和动作覆盖面广。遥操作用双臂系统加 Sharpa Wave 灵巧手（指尖是视触觉传感器），录的是同一批任务族，也是后面部署用的手。每个回合标到 24 个任务类别之一（开、关、装配、擦、倒、使用工具等），多数类别有不止一个来源。传感器的明细见附录<a href="#t4">表 4</a>。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 语料数字核算</span><p>按表 4：2,197 + 1,136 + 1,650 = 4,983 小时；86,906 + 294,871 + 82,654 = 464,431 个回合，都对得上。占比 2,197/4,983 = 44.09%、1,136/4,983 = 22.80%、1,650/4,983 = 33.11%，和图 2 的 44.1%、22.8%、33.1% 一致；手套合计 66.9%，即正文说的三分之二。平均回合长度差别很大：压阻约 91 秒，磁约 13.9 秒，视触觉约 72 秒。</p><p>“13.3 亿帧”我算不到：按表 4 每类取最高采样率，压阻 2,197 h × 3600 × 100 Hz + 磁 1,136 h × 3600 × 83.3 Hz + 视触觉 1,650 h × 3600 × 30 Hz = 13.10 亿帧，已经是上限，仍比 13.3 亿少 1.5%。一种可能是双手数据按单手分别计帧（双臂遥操作有两只手）。论文没说怎么计，<b>未核实</b>。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>Tactile-JEPA：在隐空间里预测接触</h3>
+<p><b>结论先说：</b>上下文编码器只看可见触点，预测器要在每个位置（被掩码的和可见的）上输出目标编码器对完整片段的表征。两边都不重建信号，所以损失不会被占满片段的零背景主导（§4.4 对比了重建）。要让它跨传感器工作，需要三样：对任何传感器都有意义的 token 地址、只在边界处分模态的共享骨干、适合稀疏信号的掩码和损失。</p>
+<p><b>标准指尖空间和 token 地址。</b>触点下标只是传感器内部的顺序，不同传感器的同一下标不对应同一物理位置。所以改用连续的 3D 坐标加手指编号描述测量位置，并把每种传感器的坐标放进同一个标准指尖空间：从传感器的几何资产出发，把指尖转到标准朝向，再缩放平移到一个单位半径参考几何的指尖局部坐标系里：</p>
+<div class="eq"><div class="m">\[ \mathbf p_i=\alpha\,\tilde{\mathbf p}_i+\mathbf b \]</div><span class="no">(1)</span></div>
+<p>\(\tilde{\mathbf p}_i\) 是 token \(i\) 对应触点在朝向对齐后的位置，\(\alpha&gt;0\)、\(\mathbf b\in\mathbb R^3\) 对每个“传感器-手指”模板离线定好。PaXini 和 XHand1：\(\alpha=1/r\)、\(\mathbf b=-\mathbf o/r\)，\(\mathbf c\)、\(r\) 是触点和参考指尖几何的最小包围球的球心和半径，原点 \(\mathbf o=(u_x,c_y,u_z)\)，\(\mathbf u\) 是指定的接触中心锚点，\(y\) 是手指方向。Sharpa Wave 用密集表面点做同样的“高度对齐”，再加一个深度平移去对齐 PaXini 的参考球。Juqiao 和 Wujie 用固定的 PaXini 参考半径和接触区锚点。Tachin 在参考球内做最大的各向同性拟合，按指腹深度对齐，再乘 0.999。这些参数对所有时间窗复用。</p>
+<p>每个有效 token 得到一个 5 维地址：</p>
+<div class="eq"><div class="m">\[ \mathbf a_i=(t_i,f_i,\mathbf p_i)\in\mathbb R^5,\qquad \mathbf A=(\mathbf a_i)_{i=1}^{L} \]</div><span class="no">(2)</span></div>
+<p>\(t_i\) 是时间窗下标，\(f_i\) 是手指，\(L\) 是有效 token 数；同一触点在各时间窗里 \(\mathbf p_i\) 不变。地址<b>只</b>通过作用在注意力 query 和 key 上的 RoPE 进入模型，五个轴各占 head 维度的一段。这种位置编码不要求固定的 token 数，也不需要传感器专用的位置表，所以一个骨干能处理不同布局，也能迁移到没见过的传感器。</p>
+<p>信号幅值用每种传感器测量范围的固定上下界归一化：非负的法向响应映射到 [0, 1]，有符号的切向响应映射到 [−1, 1]。几何加上无量纲的幅值，就是多来源学习的公共输入接口。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 式 (1) 和代码里的写法</span><p>代码 <code>data_interfaces/geometry.py</code> 的 <code>normalize_positions</code> 是 \(\mathbf p=(\mathbf p_{\rm sensor}R^\top-\mathbf o)/r+\text{offset}\)，比式 (1) 多了旋转 \(R\)（论文的“朝向对齐”）和一个 offset（对应 Sharpa Wave 的“额外深度平移”）。去掉这两项就是 \(\alpha=1/r,\ \mathbf b=-\mathbf o/r\)。<code>height_aligned_origin</code> 把原点的 \(y\) 换成包围球心的 \(y\)，正是 \(\mathbf o=(u_x,c_y,u_z)\)。这些标定参数不在公开代码里：Sharpa 样例已经是标准坐标，XHand 适配器内置了固定目标坐标，新传感器要自己标定。</p><p>两个小出入：文中 \(\mathbf c\) 定义后，式 (1) 只通过 \(\mathbf o\) 用到它的 \(y\) 分量；正文提到的 “Wujie” 不在表 4 的来源里（表 4 的压阻手套是 Juqiao、Xspark AI、TACHIN），可能是某款产品的另一个名字，<b>未核实</b>。</p></div>
+<p><b>分模态 tokenizer 和共享 HaT。</b>传感器专用的参数只放在网络边界的浅层投影里。三个 tokenizer（磁、压阻、视触觉）各是一个两层 MLP，把一个有效触点的连续两帧（共 6 个数）嵌入成一个 token，所以 tokenization 保留了传感器的空间粒度，\(T\) 帧的片段产生 \(L=NT/2\) 个 token。之后进入所有来源共享的 Transformer 编码器 HaT，时间、手指、标准位置通过上面的五轴 RoPE 进入。预测器 \(P^{(g)}_\phi\) 同样是分组的输入输出投影夹着共享的预测 Transformer，用同样的 5 维位置编码：</p>
+<div class="eq"><div class="m">\[ \hat{\mathbf z}=P^{(g)}_\phi\Big(E^{(g)}_\theta(\mathbf X_{\mathcal C};\mathbf A_{\mathcal C}),\ \Delta_{\mathcal M};\ \mathbf A\Big),\qquad \bar{\mathbf z}=\bar E^{(g)}_{\bar\theta}(\mathbf X;\mathbf A) \]</div><span class="no">(3)</span></div>
+<p>分号后面是通过 RoPE 给的位置条件，\(\Delta_{\mathcal M}\) 是放在被掩码地址上的可学习掩码 token。上下文编码器只看可见 token；预测器同时处理可见 token 的表征和掩码 token，两组都输出预测。\(\bar E\) 是目标编码器，按原始 token 下标和预测对齐。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · Small 每个 token 吃 4 帧，不是 2 帧</span><p>正文说 tokenizer 把“连续两帧、六个数”嵌成一个 token，\(L=NT/2\)。Hugging Face 上的 <code>config.json</code>：Tiny 的 <code>tubelet_size</code> 是 2，Small 是 4（仓库 DATA_INTERFACE_GUIDE.md 也写着 “Tiny uses tubelet size 2 and Small uses 4”）。所以 Small 每个 token 输入 12 个数，\(L=NT/4\)。参数量也印证这一点：Small 按 tubelet 4 算是 21,755,904，按 2 算是 21,748,992（≈21.75M），只有 4 能对上论文的 21.76M（算式见<a href="#n7">读者注 7</a>）。表 1 的消融也说 2 或 4 帧一个 token 最好，两个尺寸各用了一个。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 五轴 RoPE 怎么切 head 维度</span><p>代码 <code>tactile_jepa_inference/rope.py</code>：每轴占 \(2\lfloor (d_{\rm head}/2)/5\rfloor\) 维。两个模型的 head 维度都是 64（Tiny 192/3 头，Small 384/6 头），所以每轴 12 维、五轴 60 维，<b>剩下 4 维不旋转</b>，论文没提这一点。频率：时间和手指 \(\theta=10000\)，空间三轴 \(\theta=100\)，空间坐标先乘 <code>spatial_coordinate_scale</code> \(=\pi/2\)（config 里是 1.5707963…）。单位半径坐标乘 \(\pi/2\) 后，最高频那一对的相位范围大约是 ±π/2，不会绕圈；最低频是 \(100^{-10/12}\approx0.0215\)。时间和手指用的是整数下标。</p></div>
+<p><b>目标和损失。</b>沿用 <a href="vjepa21.html">V-JEPA 2.1</a> 的多层监督：目标编码器处理完整片段，取四个深度的特征，各自归一化后拼接成 \(\bar{\mathbf z}\)；上下文编码器也拼接对应层，让预测器拿到多层上下文。被掩码和可见位置一起监督：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\frac{1}{|\mathcal M|D}\sum_{i\in\mathcal M}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1+\frac{\lambda}{|\mathcal C|D}\sum_{i\in\mathcal C}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1 \]</div><span class="no">(4)</span></div>
+<p>\(D\) 是拼接后的特征维度，sg 是停止梯度，\(\lambda=0.5\)。第一项（预测损失）让模型从可见上下文推断缺失的接触信息；第二项（上下文损失）让可见位置的预测和完整片段算出的目标对齐，保留观测到的信息。梯度更新在线的 tokenizer、HaT、预测器和掩码 token；目标端只通过 EMA 更新。下游时冻结 EMA 目标端的 tokenizer 和编码器，按传感器类型选 tokenizer 分支，取 HaT 四层的 token 特征，各自 LayerNorm 后在特征维拼接，给探针和策略用。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · “四层拼接”的具体数字</span><p>config 的 <code>output_layers</code> 是 [2, 5, 8, 11]（从 0 数，即第 3、6、9、12 层），<code>model.py</code> 的 <code>AddressTransformer</code> 对每层单独 LayerNorm 再拼接。所以输出通道 \(C=4\times\)宽度：Tiny 768，Small 1536。§4.6 说每根手指的特征是 768 维、五指拼成 3,840 维，用的是 Tiny，对得上。代码里最后那个 <code>self.norm</code> 有参数但前向没用到。</p></div>
+<p><b>掩码和掩码 warm-up。</b>随机选有效触点掩码，同一空间掩码贯穿整个片段，所以被掩码触点的所有 token 都在 \(\mathcal M\) 里，上下文编码器不能从别的时刻读它，只能从周围触点和它们的时间变化推断。最终掩码比例是有效触点的 80%。但触觉稀疏，一开始就用 80% 不行：如果接触只涉及 \(k\) 个触点、掩码均匀，\(k\) 个全被藏住的概率约 \(0.8^k\)；指尖通常只按到少数几个触点，于是很多片段给预测器的上下文里完全没有接触，目标里却有。损失被无法预测的目标主导，实践中出现梯度爆炸。所以在前 300 步把比例从 40% 线性升到 80%，之后固定（图 4）。整个预训练是 200,000 次优化器更新，warm-up 只占很小一段。</p>
+<figure class="pfig narrow" id="fig4">
+<img src="lingbot-touch/fig4.webp" width="802" height="407" alt="图 4：横轴训练步数，纵轴掩码比例，从 40% 线性升到第 300 步的 80% 后保持；上方三组指尖触点图，红色是被掩码、绿色是可见" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 7 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=7">看原图 ↗</a></span>掩码比例在前 300 步从 40% 线性升到 80%，然后不变。上方三组五指示意分别是 40%、60%、80% 时的掩码，红点被掩码，绿点可见。</figcaption>
+</figure>
+<div class="note" id="n6"><span class="lab">读者注 6 · warm-up 的数值</span><p>300 / 200,000 = 0.15% 的训练步数。按正文的近似：接触 3 个触点时，80% 掩码全部藏住的概率 \(0.8^3=0.512\)，40% 时 \(0.4^3=0.064\)；接触 2 个触点时是 0.64 对 0.16。按不放回抽样精确算（一指 96 个触点、掩码 77 个、接触 3 个）：\(\frac{77\cdot76\cdot75}{96\cdot95\cdot94}=0.512\)，和近似一样。动画第 6 幕在一个玩具指尖上当场算这条曲线。注意表 1 的消融默认配置用的是 90% 掩码，不是最终的 80%，表注说明了默认配置只作公共基线。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>数据 → 标准指尖空间 → 5D 地址和 RoPE → tokenizer → 掩码 warm-up → Tactile-JEPA 训练 → 布局增广 → 冻结编码器和探针 → 接入策略 → 结果。下面嵌的是第 7 幕（训练回路）。网络尺寸来自 Hugging Face 上的 config.json；触点布局、信号都是示意。</p>
+<iframe src="../interactives/lingbot-touch/index.html?embed=1&amp;scene=7" title="LingBot-Touch 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/lingbot-touch/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s3-3"><span class="no">3.3</span>与布局无关的增广</h3>
+<p><b>结论先说：</b>标准空间只让坐标可比，不保证编码器不在乎布局。预训练只有三种布局，RoPE 又把精确坐标交给骨干，它完全可以记住三组点。所以把布局当作干扰变量，在两方面随机化：采样密度和每个触点的精确位置。</p>
+<p><b>多种采样密度。</b>磁式：从原生布局（拇指 116 个、其余每指 96 个触点）构造每指 24、32、48、64、76、96 个触点的视图；96 视图取拇指的固定子集、其余手指全保留，更低分辨率的视图对原始测量重采样。视触觉：把形变图聚合成每指 32、96 或 200 个虚拟触点。重采样用源点和目标点 3D 距离的局部高斯权重，作用在观测到的响应通道上。每个训练片段从该来源可用的分辨率里均匀抽一个。压阻保留原生布局：Juqiao 和 Xspark 织物手套指尖只有 3×3 和 4×4，再降采样会丢掉本已有限的空间细节。</p>
+<p><b>触点位置扰动。</b>为了不让模型走“精确坐标模板”的捷径，给标准坐标加一个以局部间距为界的偏移：</p>
+<div class="eq"><div class="m">\[ \mathbf p'_i=\mathbf p_i+\boldsymbol\delta_i,\qquad \|\boldsymbol\delta_i\|_2\le0.5\,d_i \]</div><span class="no">(5)</span></div>
+<p>\(d_i\) 是触点 \(i\) 到同一手指上最近的其他有效触点的距离，所以偏移随局部密度缩放、不会跑出自己的邻域。偏移每个片段重新抽，一个触点在所有时间窗、上下文分支和目标分支里共用同一个偏移，两边看到的几何一致。扰动后的坐标只替换地址里的 \(\mathbf p_i\)，响应序列不动。消融见表 1，增广明显改善了下游理解任务。</p>
+
+<h2 id="s4"><span class="no">4</span>实验：探测触觉表征</h2>
+<p>这一节始终冻结预训练编码器，只训练轻量探针，所以数字衡量的是表征本身。三个问题：表征是否暴露了接触物理，在没见过的传感器上也是否如此（§4.2）；时长、传感器种类、模型大小怎样影响它（§4.3）；哪些设计重要（§4.4、§4.5）。最后看隐空间本身（§4.6）。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>设置</h3>
+<p><b>平台。</b>两只灵巧手。<a class="ds" href="https://www.sharpa.com/">Sharpa Wave</a>：视触觉指尖，正是预训练机器人数据的来源，属于“见过”。每个指尖原生形变图 240×240、30 Hz，空间降采样到 96 个触点输入模型。XHand1：磁式指尖，型号不在预训练数据里，分辨率、采样率、触点位置都和预训练手套不同。每指 120 个原生触点、30 Hz，实验里降采样到每指 96 个（模型也能直接吃 120 个）。XHand1 走和其他磁式来源相同的流程：用传感器几何映射到标准空间，交给磁式 tokenizer。为适配新传感器，不更新任何 tokenizer 或编码器参数。</p>
+<p><b>模型。</b>LingBot-Touch-Tiny 和 -Small，参数 5.46M 和 21.76M，都是 12 层，宽度 192 和 384。参数量包括 tokenizer 和共享 HaT，不含预训练用的预测器和下游头。除非另说，本节用全量数据预训练的 Small。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 参数量可以从结构算出来</span><p>按 config（宽度 \(d\)，12 层，MLP 比 4，三个 tokenizer，四个输出 LayerNorm，加一个未使用的末层 LayerNorm）：</p><ul>
+<li>每层：qkv \(d\cdot3d+3d\)，proj \(d^2+d\)，两个 LayerNorm \(4d\)，MLP \(8d^2+5d\)。\(d=192\) 时每层 444,864，12 层 5,338,368。</li>
+<li>tokenizer：\((3\tau d+d)+(d^2+d)\)，\(\tau\) 是 tubelet。Tiny（\(\tau=2\)）每个 38,400，三个 115,200。</li>
+<li>LayerNorm：末层 384 + 四个输出 1,536。</li>
+</ul><p>Tiny 合计 <b>5,455,488</b>，Small（\(d=384,\tau=4\)）合计 <b>21,755,904</b>，四舍五入就是 5.46M 和 21.76M。仓库的 <code>tests/test_release.py</code> 里也有一条正则专门禁止 README 出现 “5,455,488|21,755,904”，说明作者内部用的正是这两个数。Hugging Face 上 <code>encoder.pt</code> 的大小 21,859,018 和 87,060,996 字节，各减去参数量 × 4 字节后剩约 37 KB，是 float32 权重加序列化开销，也对得上。</p></div>
+<figure class="pfig" id="fig5">
+<img src="lingbot-touch/fig5.webp" width="1563" height="452" alt="图 5：五个探针任务的示意：顶部是真机视频帧；左边指尖力恢复和未来力预测的曲线，中间接触中心和接触面积的触点图，右边触觉到视频检索的相似度矩阵" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 9 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=9">看原图 ↗</a></span>五个冻结编码器探针任务：指尖力恢复（强度）、接触中心和接触面积（空间）、未来力预测（时间）、触觉到视频检索（跨模态）。力标签是相邻两帧每指合力向量取平均再取模；接触中心是阈值以上触点按强度加权的质心；覆盖率是激活触点的比例；未来力标签是之后四帧相对最后一帧历史的力变化。只在有接触时监督接触中心。</figcaption>
+</figure>
+<p><b>协议。</b>按 V-JEPA 的评测：冻结 EMA 目标 tokenizer 和目标编码器，读出多层拼接特征，每个任务训一个注意力探针（一层交叉注意力池化加线性头）。数据规模和超参见附录<a href="#t5">表 5</a>、<a href="#t6">表 6</a>。</p>
+<p><b>任务。</b>五个任务测四个方面：强度（回归合力，单位牛）；空间（接触中心，毫米误差；接触面积，覆盖率误差，单位百分点）；时间（由触觉历史和未来关节状态预测之后四帧的合力）；跨模态（找同一时刻录的视频帧，top-5 召回）。</p>
+
+<h3 id="s4-2"><span class="no">4.2</span>冻结编码器里的接触物理</h3>
+<p>对手是 FTP-1：为异构传感器设计，带磁式分支，范围最接近。做法是冻结它公开的共享触觉骨干，每个传感器、每个探针单独训一个输入适配器：Sharpa Wave 的适配器编码每指 96 个形变值（替换原来的图像 tokenizer），XHand1 的编码每指 120 个三通道触点；适配器和探针头一起在下游训练集上训 100 轮。LingBot-Touch 只训探针头，不加适配器。</p>
+<figure class="pfig" id="fig6">
+<img src="lingbot-touch/fig6.webp" width="1555" height="624" alt="图 6：上排 Sharpa、下排 XHand，五个任务的柱状对比，灰色 FTP-1，彩色 LingBot-Touch" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 10 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=10">看原图 ↗</a></span>灰色是带专用适配器的 FTP-1，彩色是 LingBot-Touch（HaT-Small，5K 小时，不做传感器适配）。数字照录在下表。</figcaption>
+</figure>
+<p class="tcap" id="t-f6">图 6 的数字（照录原文图中标注）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>手</th><th>方法</th><th>力 MAE (N) ↓</th><th>中心误差 (mm) ↓</th><th>覆盖率 MAE (pp) ↓</th><th>未来力 MAE (N) ↓</th><th>检索 R@5 (%) ↑</th></tr></thead><tbody>
+<tr><td rowspan="2">Sharpa Wave（见过）</td><td>FTP-1</td><td>2.31</td><td>2.19</td><td>2.90</td><td>1.67</td><td>16.50</td></tr>
+<tr><td>LingBot-Touch</td><td><b>0.81</b></td><td><b>0.12</b></td><td><b>0.66</b></td><td><b>1.04</b></td><td><b>72.63</b></td></tr>
+<tr><td rowspan="2">XHand1（没见过）</td><td>FTP-1</td><td>3.72</td><td>5.89</td><td>4.39</td><td>2.00</td><td>6.00</td></tr>
+<tr><td>LingBot-Touch</td><td><b>1.32</b></td><td><b>0.16</b></td><td><b>0.43</b></td><td><b>1.45</b></td><td><b>47.13</b></td></tr>
+</tbody></table></div>
+<p><b>见过的传感器。</b>Sharpa Wave（量程 0 到 30 N）上，力误差 0.81 N、接触中心 0.12 mm、覆盖率 0.66 个百分点；FTP-1 是 2.31 N、2.19 mm、2.90 点。未来力 1.67 降到 1.04 N。差距最大的是检索：top-5 召回从 16.5% 到 72.6%，说明表征里有整个交互的信息，不只是局部接触。这些优势不依赖全量语料：1,000 小时时力和未来力误差已低于 2 N，中心低于 1 mm，覆盖率低于 2 点（图 7）。</p>
+<p><b>没见过的传感器。</b>XHand1 上不更新任何参数，四个物理任务 1.32 N、0.16 mm、0.43 点、1.45 N，检索 47.1%；FTP-1 配了 XHand1 专用适配器也只有 3.72 N、5.89 mm、4.39 点、2.00 N、6.0%。空间任务差距最大：没见过的传感器上的中心误差，比 FTP-1 在见过的传感器上低一个数量级以上。五个任务里四个在 XHand1 上比 Sharpa Wave 差，符合预期，但任务排序和与 FTP-1 的差距在两只手上一样。论文认为这正是标准指尖空间和布局增广想要的效果。</p>
+
+<h3 id="s4-3"><span class="no">4.3</span>扩展语料：时长、传感器、模型大小</h3>
+<figure class="pfig" id="fig7">
+<img src="lingbot-touch/fig7.webp" width="1558" height="562" alt="图 7：上排 Sharpa、下排 XHand，五个任务随预训练小时数 1k 到 5k 的折线，浅色是 Tiny，深色是 Small" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 10 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=10">看原图 ↗</a></span>浅色线是 Tiny，深色线是 Small，横轴是 1K 到 5K 小时（来源比例固定）。Small 在两只手的每个任务上都随数据变好或持平；Tiny 约 4K 小时饱和，5K 时检索召回反而下降（Sharpa 63.75 → 52.25，XHand 34.88 → 27.75）。</figcaption>
+</figure>
+<details class="tbl"><summary>图 7 的全部数字（照录图中标注，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>手</th><th>任务</th><th>模型</th><th>1K</th><th>2K</th><th>3K</th><th>4K</th><th>5K</th></tr></thead><tbody>
+<tr><td rowspan="10">Sharpa</td><td rowspan="2">力 MAE (N)</td><td>Tiny</td><td>1.83</td><td>1.72</td><td>1.60</td><td>1.45</td><td>1.47</td></tr><tr><td>Small</td><td>1.68</td><td>1.23</td><td>1.09</td><td>0.92</td><td>0.81</td></tr>
+<tr><td rowspan="2">中心 (mm)</td><td>Tiny</td><td>0.68</td><td>0.24</td><td>0.20</td><td>0.18</td><td>0.18</td></tr><tr><td>Small</td><td>0.58</td><td>0.21</td><td>0.15</td><td>0.13</td><td>0.12</td></tr>
+<tr><td rowspan="2">覆盖率 (pp)</td><td>Tiny</td><td>1.67</td><td>1.09</td><td>0.92</td><td>0.77</td><td>0.79</td></tr><tr><td>Small</td><td>1.32</td><td>1.02</td><td>0.86</td><td>0.71</td><td>0.66</td></tr>
+<tr><td rowspan="2">未来力 (N)</td><td>Tiny</td><td>1.49</td><td>1.45</td><td>1.45</td><td>1.43</td><td>1.43</td></tr><tr><td>Small</td><td>1.46</td><td>1.26</td><td>1.10</td><td>1.06</td><td>1.04</td></tr>
+<tr><td rowspan="2">检索 R@5 (%)</td><td>Tiny</td><td>41.38</td><td>54.25</td><td>55.5</td><td>63.75</td><td>52.25</td></tr><tr><td>Small</td><td>42.50</td><td>54.88</td><td>64.88</td><td>69.75</td><td>72.63</td></tr>
+<tr><td rowspan="10">XHand1</td><td rowspan="2">力 MAE (N)</td><td>Tiny</td><td>2.52</td><td>2.47</td><td>2.31</td><td>2.25</td><td>2.22</td></tr><tr><td>Small</td><td>2.50</td><td>2.04</td><td>1.89</td><td>1.60</td><td>1.32</td></tr>
+<tr><td rowspan="2">中心 (mm)</td><td>Tiny</td><td>1.12</td><td>0.60</td><td>0.56</td><td>0.45</td><td>0.38</td></tr><tr><td>Small</td><td>0.60</td><td>0.22</td><td>0.17</td><td>0.16</td><td>0.16</td></tr>
+<tr><td rowspan="2">覆盖率 (pp)</td><td>Tiny</td><td>1.25</td><td>0.66</td><td>0.65</td><td>0.53</td><td>0.55</td></tr><tr><td>Small</td><td>0.93</td><td>0.66</td><td>0.51</td><td>0.45</td><td>0.43</td></tr>
+<tr><td rowspan="2">未来力 (N)</td><td>Tiny</td><td>1.84</td><td>1.80</td><td>1.79</td><td>1.76</td><td>1.74</td></tr><tr><td>Small</td><td>1.80</td><td>1.75</td><td>1.63</td><td>1.52</td><td>1.45</td></tr>
+<tr><td rowspan="2">检索 R@5 (%)</td><td>Tiny</td><td>22.75</td><td>33.0</td><td>32.75</td><td>34.88</td><td>27.75</td></tr><tr><td>Small</td><td>22.5</td><td>30.38</td><td>39.63</td><td>44.88</td><td>47.13</td></tr>
+</tbody></table></div></details>
+<p><b>更多小时。</b>Tiny 和 Small 各在 1K 到 5K 小时的五个子集上预训练。Small 每加一千小时，两只手的每个任务都变好或持平；Sharpa Wave 上力误差 1.68 → 0.81 N，检索 42.5% → 72.6%。Tiny 到 4K 左右就平了，5K 时两只手的检索召回都下降。论文的解读是此时瓶颈是模型而不是数据，容量要跟着语料涨。§5 的真机结果也随预训练时长变好。</p>
+<figure class="pfig" id="fig8">
+<img src="lingbot-touch/fig8.webp" width="1574" height="493" alt="图 8：上排是固定本传感器小时数、加入其他传感器数据的对比；下排是固定 1000 小时总预算的单来源和多来源对比；四个物理任务的柱状图" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 11 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=11">看原图 ↗</a></span>蓝色在 Sharpa Wave 上探测，橙色在 XHand1 上探测，都用 Tiny。上排：单来源视触觉 331 小时、单来源磁 228 小时，对比再加 441 小时压阻和另一种传感器的数据（合计 1,000 小时）。下排：总预算都是 1,000 小时，单来源只用本传感器，多来源是三种混合。粗体是每对中更好的。</figcaption>
+</figure>
+<p class="tcap">图 8 的数字（照录图中标注；“单”是单来源，“多”是同一个 1,000 小时多来源模型）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>设置</th><th>探测的手</th><th>力 (N)</th><th>中心 (mm)</th><th>覆盖率 (pp)</th><th>未来力 (N)</th></tr></thead><tbody>
+<tr><td>单 · 视触觉 331 h</td><td>Sharpa</td><td>3.24</td><td><b>0.41</b></td><td>2.37</td><td>1.99</td></tr>
+<tr><td>单 · 视触觉 1,000 h</td><td>Sharpa</td><td><b>1.21</b></td><td><b>0.34</b></td><td><b>0.97</b></td><td>1.67</td></tr>
+<tr><td>多 · 1,000 h</td><td>Sharpa</td><td>1.83</td><td>0.68</td><td>1.67</td><td><b>1.49</b></td></tr>
+<tr><td>单 · 磁 228 h</td><td>XHand1</td><td>4.34</td><td>1.27</td><td>1.46</td><td>3.77</td></tr>
+<tr><td>单 · 磁 1,000 h</td><td>XHand1</td><td><b>2.38</b></td><td><b>0.33</b></td><td><b>0.44</b></td><td><b>1.78</b></td></tr>
+<tr><td>多 · 1,000 h</td><td>XHand1</td><td>2.52</td><td>1.12</td><td>1.25</td><td>1.84</td></tr>
+</tbody></table></div>
+<p><b>固定本传感器数据，加别人的。</b>单来源视触觉 331 小时、单来源磁 228 小时；多来源模型在此之上加 441 小时压阻和另一种传感器，合计 1,000 小时。八个“传感器-任务”对里七个变好。磁这边全部变好（力 4.34 → 2.52 N，未来力 3.77 → 1.84 N）；视触觉的力、覆盖率、未来力变好，接触中心从 0.41 变差到 0.68 mm。</p>
+<p><b>固定总预算。</b>每个单来源模型给 1,000 小时本传感器数据，对比同样 1,000 小时的混合（其中视触觉 33%、磁 23%）。这次单来源在本传感器上八对赢七对：空间任务差距大（中心 0.34 对 0.68 mm、0.33 对 1.12 mm），时间预测差距小，视触觉的未来力反而是多来源更好（1.49 对 1.67 N）。两组结论一致：力和动态能跨传感器迁移，本传感器数据少时别人的小时数能顶上；空间精度要看到本传感器自己的布局和分辨率，固定预算下混合要牺牲一些，换来一个服务三类传感器的编码器。</p>
+<p><b>什么都没贡献的传感器。</b>XHand1 不在任何语料里，却从每个旋钮里获益：它的探针曲线随小时数的形状和 Sharpa Wave 一样，图 8 的磁式柱子就是 XHand1 结果。论文的说法是，数据越多越杂，学到的越是“接触”的表征，而不是某个换能器的。</p>
+<p><b>要点。</b>把所有传感器合起来用，模型随数据一起放大。论文进一步说：小时数能跨换能器迁移，所以扩数据时该选的不是最强的传感器，而是能力和采集便利的平衡点，这就是三分之二语料来自能整天戴着的手套的原因。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 图 6 到图 8 的文字说法逐条核对</span><ul>
+<li>§4.2 的十个数和图 6、图 7 的 Small 5K 一致。“1,000 小时时已低于 2 N / 1 mm / 2 点”：Small 1K 是 1.68、1.46 N，0.58 mm，1.32 点，成立。</li>
+<li>“XHand1 五个任务四个比 Sharpa 差”：Small 5K 覆盖率 XHand1 是 0.43，比 Sharpa 的 0.66 还好，其余四个更差，成立。“低一个数量级以上”：2.19 / 0.16 = 13.7 倍，成立。</li>
+<li>“Small 每加一千小时都变好或持平”：逐格看图 7，Small 二十条线段没有一段变差（XHand 中心 0.17 → 0.16 → 0.16 是持平），成立。Tiny 在 5K 除了检索下降，Sharpa 力（1.45 → 1.47）、覆盖率（0.77 → 0.79）和 XHand 覆盖率（0.53 → 0.55）也略变差。</li>
+<li>图 8：上排 8 对中 7 对变好（只有视触觉中心变差），下排单来源 7 对赢（只有视触觉未来力输），都成立。图 8 的“多来源 1,000 h”四个数和图 7 的 Tiny 1K 完全相同，是同一个模型。331 + 228 + 441 = 1,000，比例 33.1%、22.8%、44.1% 和全量语料相同，符合“比例固定”。</li>
+</ul></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>隐空间预测 vs 信号重建</h3>
+<p><b>结论先说：</b>同样数据、匹配超参，VAE 和 MAE 都做信号重建，LingBot-Touch 做隐空间预测；后者在两个数据规模的每个任务上都最好或并列最好，重建目标不随数据扩展。</p>
+<figure class="pfig" id="fig9">
+<img src="lingbot-touch/fig9.webp" width="1569" height="676" alt="图 9：左上预训练损失曲线，右上 LingBot-VLA 加不同编码器在五个真机任务上的成功率，下方五个探针任务的 MAE、VAE、Ours 柱状图（1K 和 4K 两组）" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 12 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=12">看原图 ↗</a></span>左上：三种目标的预训练损失（VAE 用左轴，JEPA 和 MAE 用右轴），本文的损失先降后升到非零平台。右上：LingBot-VLA 加 4K 小时的 VAE、MAE、本文编码器在五个 Sharpa Wave 任务上的成功率。下方：每个任务左组是 1K 小时，右组是 4K 小时，绿 MAE、粉 VAE、蓝本文。</figcaption>
+</figure>
+<p class="tcap">图 9 下方的数字（照录图中标注，三者都是 5.46M 参数）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>数据</th><th>目标</th><th>力 (N)</th><th>中心 (mm)</th><th>覆盖率 (pp)</th><th>未来力 (N)</th><th>检索 R@5 (%)</th></tr></thead><tbody>
+<tr><td rowspan="3">1K h</td><td>MAE</td><td>3.13</td><td>3.07</td><td>2.96</td><td>1.98</td><td>5.55</td></tr>
+<tr><td>VAE</td><td>2.90</td><td>3.03</td><td>2.36</td><td>1.67</td><td>4.44</td></tr>
+<tr><td>Ours</td><td>2.18</td><td>0.90</td><td>1.46</td><td>1.67</td><td>32.07</td></tr>
+<tr><td rowspan="3">4K h</td><td>MAE</td><td>2.38</td><td>2.57</td><td>1.98</td><td>2.29</td><td>8.69</td></tr>
+<tr><td>VAE</td><td>2.49</td><td>4.08</td><td>3.11</td><td>2.08</td><td>3.06</td></tr>
+<tr><td>Ours</td><td>1.85</td><td>0.32</td><td>0.65</td><td>1.60</td><td>49.32</td></tr>
+</tbody></table></div>
+<p><b>训练曲线。</b>VAE 几百步内就降到低平台；MAE 收敛到小的重建误差。两者的优化信号都不对应好的表征。本文的损失先降后升到非零平台，这是 EMA 目标在移动的正常表现。三种损失不在同一空间，只通过探针比较。</p>
+<p><b>探针。</b>1K 小时时本文把中心误差降到重建模型的三分之一以下（0.90 mm 对 VAE 3.03、MAE 3.07），检索 32.1% 对 4.4% 和 5.6%。4K 小时五个任务都变好，到 0.32 mm 和 49.3%。重建目标不这样：VAE 五个任务里四个随数据变差（中心 3.03 → 4.08 mm，检索 4.4% → 3.1%）；MAE 四个变好，但检索一直低于 9%。论文的解释：重建一个大多是零的信号，奖励的是背景建模，背景再多也没用；隐空间预测从不把背景当目标。</p>
+<p>右上的真机结果（我按图中数字算的平均）：五个任务上 LingBot-VLA 本身 55.9%，加 4K 的 VAE 63.15%，加 MAE 61.65%，加本文 81.4%。VAE 和 MAE 在叠杯分离（95 → 77.5 / 82.5）和擦盘子（74 → 66）上都让策略变差。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 9 的 “Ours” 和图 7 的 Tiny 不是同一组数</span><p>图 9 的 LingBot-Touch 说是 5.46M（即 Tiny），1K 和 4K 小时。但它和图 7 的 Tiny 在同样小时数下差得不少：1K 时图 9 是 2.18 N、0.90 mm、1.46 pp、1.67 N、32.07%，图 7 是 1.83、0.68、1.67、1.49、41.38；4K 时图 9 是 1.85、0.32、0.65、1.60、49.32，图 7 是 1.45、0.18、0.77、1.43、63.75。十个数里图 7 有八个更好，只有两格覆盖率是图 9 更好。论文只说图 9 三种方法“超参匹配”，没说和主模型的训练设置有何不同，大概是为了和 VAE、MAE 对齐用了另一套训练预算。所以图 9 只适合看三种目标之间的相对差距，不要拿它的绝对值和图 7 比。原因<b>未核实</b>。文字里的说法（最好或并列最好、VAE 四项变差、MAE 四项变好且检索低于 9%）我逐格核过，都成立；1K 的未来力是 VAE 和本文并列 1.67。</p></div>
+
+<h3 id="s4-5"><span class="no">4.5</span>消融</h3>
+<p><b>结论先说：</b>80% 空间掩码、贯穿整段的时间掩码、2 到 4 帧一个 token、32 帧片段、0.999 → 1.0 的 EMA 动量、数值加位置增广、分组 tokenizer 和按组路由的预测器，这些都明显有用；上下文损失近乎中性。所有变体都是 Tiny、1K 小时、100 轮，只有块内比较有意义。</p>
+<p class="tcap" id="t1">表 1 · Sharpa Wave 上的消融（照录原文。默认配置：90% 空间掩码、时间掩码 [75, 75]%、只做数值增广、4 帧片段、1 帧 tubelet、恒定 EMA 0.99925、共享 tokenizer 和预测器接口、目标加上下文损失；默认配置不是最终配置）</p>
+<details class="tbl" open><summary>表 1 全表（默认展开，可收起）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>消融</th><th>设置</th><th>力 (N) ↓</th><th>中心 (mm) ↓</th><th>覆盖率 (pp) ↓</th><th>未来力 (N) ↓</th><th>R@5 (%) ↑</th></tr></thead><tbody>
+<tr><td rowspan="5">空间掩码 (%)</td><td>20</td><td>2.074</td><td>1.168</td><td>2.173</td><td>1.522</td><td>23.875</td></tr>
+<tr><td>40</td><td>2.189</td><td>0.945</td><td>2.328</td><td>1.526</td><td>25.375</td></tr>
+<tr><td>60</td><td>2.574</td><td>1.762</td><td>3.671</td><td>1.567</td><td>24.500</td></tr>
+<tr><td>80</td><td><b>1.688</b></td><td><b>0.223</b></td><td><b>0.873</b></td><td><b>1.452</b></td><td><b>35.375</b></td></tr>
+<tr><td>90</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td rowspan="4">时间掩码（占片段 %）</td><td>[50, 50]</td><td>2.576</td><td>0.909</td><td>2.207</td><td>1.552</td><td>20.000</td></tr>
+<tr><td>[75, 75]</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td>[75, 100]</td><td>2.155</td><td><b>0.728</b></td><td>2.017</td><td>1.556</td><td>22.750</td></tr>
+<tr><td>[100, 100]</td><td><b>1.886</b></td><td>0.904</td><td><b>1.305</b></td><td><b>1.551</b></td><td><b>26.500</b></td></tr>
+<tr><td rowspan="4">数据增广</td><td>数值 + 位置</td><td><b>1.590</b></td><td><b>0.239</b></td><td><b>0.931</b></td><td>1.478</td><td><b>37.125</b></td></tr>
+<tr><td>只数值</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td>只位置</td><td>1.702</td><td>0.305</td><td>0.988</td><td><b>1.453</b></td><td>30.625</td></tr>
+<tr><td>无</td><td>1.808</td><td>0.639</td><td>1.428</td><td>1.508</td><td>25.625</td></tr>
+<tr><td rowspan="4">片段长度（帧）</td><td>4</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td>8</td><td>2.383</td><td>2.407</td><td>4.519</td><td>1.655</td><td>9.500</td></tr>
+<tr><td>16</td><td>1.806</td><td>0.689</td><td>1.332</td><td>1.529</td><td>29.250</td></tr>
+<tr><td>32</td><td><b>1.538</b></td><td><b>0.207</b></td><td><b>0.765</b></td><td><b>1.480</b></td><td><b>33.250</b></td></tr>
+<tr><td rowspan="4">tubelet（帧/token）</td><td>1</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td>2</td><td>1.653</td><td>0.212</td><td><b>0.889</b></td><td><b>1.400</b></td><td>33.375</td></tr>
+<tr><td>4</td><td><b>1.496</b></td><td><b>0.182</b></td><td>1.027</td><td>1.446</td><td><b>35.125</b></td></tr>
+<tr><td>8</td><td>2.931</td><td>2.193</td><td>4.218</td><td>1.648</td><td>13.375</td></tr>
+<tr><td rowspan="3">EMA 动量</td><td>0.998 → 1.0</td><td>7.221</td><td>3.401</td><td>8.221</td><td>1.728</td><td>1.375</td></tr>
+<tr><td>0.999 → 1.0</td><td><b>1.529</b></td><td><b>0.271</b></td><td><b>1.361</b></td><td><b>1.463</b></td><td><b>34.625</b></td></tr>
+<tr><td>0.99925（恒定）</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td rowspan="2">tokenizer / 预测器接口</td><td>共享 / 共享</td><td>2.284</td><td>2.324</td><td>3.429</td><td>1.624</td><td>14.375</td></tr>
+<tr><td>分组 / 按组路由</td><td><b>1.682</b></td><td><b>0.702</b></td><td><b>1.147</b></td><td><b>1.562</b></td><td><b>21.750</b></td></tr>
+<tr><td rowspan="2">训练目标</td><td>目标 + 上下文</td><td><b>2.284</b></td><td><b>2.324</b></td><td>3.429</td><td>1.624</td><td><b>14.375</b></td></tr>
+<tr><td>只目标</td><td>2.303</td><td>2.380</td><td><b>3.137</b></td><td><b>1.610</b></td><td>14.000</td></tr>
+</tbody></table></div></details>
+<p><b>掩码。</b>80% 在五个指标上都最好，比 90% 力误差 2.28 → 1.69 N、检索 14.4% → 35.4%。V-JEPA 报告更高比例给更抽象的特征；稀疏触觉则要和上下文里还剩多少接触证据平衡，这和 warm-up 的动机相同。掩码贯穿整段在五个指标里赢四个，说明不能让预测器从相邻时刻抄被掩码的触点。</p>
+<p><b>片段长度和 tubelet。</b>对 30 Hz 的视触觉，32 帧（约 1.07 s）、每 token 2 或 4 帧（67 或 133 ms）最好；1 帧和 8 帧明显差。这些值和采样率绑定，换到别的采样率不能按帧数照搬。</p>
+<p><b>增广。</b>数值加位置在五个指标里赢四个，检索从无增广的 25.6% 升到 37.1%；只做位置增广在未来力上略好（1.45 对 1.48 N）。</p>
+<p><b>EMA 动量。</b>0.999 → 1.0 的调度五项全赢；从 0.998 起步会塌缩，力误差超过 7 N、检索约 1%。目标移动得多快，对稀疏信号上的隐空间目标训练非常敏感。</p>
+<p><b>接口和目标。</b>分组 tokenizer 加按组路由的预测器接口五项全赢，中心误差 2.32 → 0.70 mm，说明 §3.2 的传感器专用边界层有必要。加上下文损失近乎中性：三项略好，两项略差。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 1 的一致性和它没回答的事</span><p>默认配置那一行（2.284 / 2.324 / 3.429 / 1.624 / 14.375）在八个块里出现八次，数字完全一样，说明块之间共用同一个基线。正文对表 1 的每条说法我逐格核过：80% 五项最好；整段时间掩码四项最好（中心是 [75, 100] 的 0.728 更好）；数值加位置四项最好；32 帧五项最好；EMA 0.999 → 1.0 五项最好；分组接口五项最好；上下文损失三好两差。都成立。</p><p>没回答的：最终模型的片段长度。表 1 说 32 帧最好，但下游探针（表 6）用 16 帧窗口，真机用 16 帧，仿真用 8 帧，公开样例也是 16 帧；预训练最终用多长，论文没写。</p></div>
+
+<h3 id="s4-6"><span class="no">4.6</span>隐空间编码了什么</h3>
+<figure class="pfig" id="fig10">
+<img src="lingbot-touch/fig10.webp" width="1571" height="535" alt="图 10：六组例子，每组左边是各手指的力信号随时间的曲线，右边是冻结特征的 UMAP 投影" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 14 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=14">看原图 ↗</a></span>每组左边是各手指的触觉响应（曲线颜色区分手指，横轴下的色带是阶段标注），右边是冻结 LingBot-Touch 特征的 UMAP。每个点是一个 16 帧的五指窗口，颜色按阶段。无接触窗口聚成一团，有接触的窗口排成连续的曲线。</figcaption>
+</figure>
+<p><b>做法。</b>用全量数据预训练的 Tiny，从冻结目标编码器提 16 帧、步长 2 帧的窗口特征；每根手指在时间和触点上平均，五根手指的 768 维拼成 3,840 维，再用 <a class="ds" href="https://umap-learn.readthedocs.io/">UMAP</a> 投到二维。点按窗口的标注阶段上色：无接触、接触开始、力增加、力减小、松开。</p>
+<p><b>观察。</b>每个例子里无接触窗口都缩成远离其他点的一团，这在意料之中（输入接近零）。重要的是接触内部的结构：接触窗口形成按时间排序的平滑曲线，响应增强、减弱、在手指间转移时，相邻窗口在曲线上相邻，同一交互的不同阶段占曲线的不同段。也就是说表征保留了接触过程中的连续变化，而不只是“有没有接触”，而这正是策略掌握动作时机需要的。</p>
+
+<h2 id="s5"><span class="no">5</span>实验：用冻结触觉 token 做机器人学习</h2>
+<p>这一节问机器人能不能用上这个表征。LingBot-Touch 始终是即插即用的模块：编码器冻结，token 附加到策略原有的观测上，策略和训练的其他部分不变。三个问题：真机上模仿学习和 VLA 能提高多少、比直接加原始信号多多少（§5.2）；仿真 RL 的最终表现和训练稳定性（§5.3）；探针上的排序能不能转化到策略上（§5.4）。</p>
+
+<h3 id="s5-1"><span class="no">5.1</span>设置</h3>
+<p><b>平台。</b>同样两只手，各装在双臂系统上。两只手也都做了仿真，触觉信号按几何穿透深度渲染成形变图（附录 C）。</p>
+<p><b>接入。</b>真机上用冻结的 Tiny（5.46M），对每只活动的手编码 30 Hz 采样的 16 帧窗口。可训练的交叉注意力读出把输出聚合成每只手 40 个 token，线性投影到各策略的条件维度，作为视觉和本体之外的额外条件输入。编码器只给 T-Rex、π0.5、LingBot-VLA 增加 0.16%、0.15%、0.13% 的参数。仿真里同一个编码器处理 8 帧窗口，可训练读出压缩成特征，和非触觉观测拼接作为策略输入。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 参数占比反推出的策略大小</span><p>5.46M 除以 0.16%、0.15%、0.13%，分别是约 3.41B、3.64B、4.20B。考虑百分比是四舍五入到两位小数，范围是 T-Rex 3.31 到 3.52B、π0.5 3.52 到 3.77B、LingBot-VLA 4.04 到 4.37B。论文没给三个策略的参数量，也没说分子是否包括 40 个 token 的读出和投影层，所以这些区间<b>未核实</b>，只说明“不到 0.2%”这一说法自洽。</p></div>
+<p><b>真机协议。</b>四种策略：<a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a>（模仿学习基线），<a class="ds" href="https://arxiv.org/abs/2504.16054">π0.5</a>、<a class="ds" href="https://arxiv.org/abs/2607.06403">LingBot-VLA</a>、T-Rex（VLA 基线；T-Rex 论文没给编号）。每种三个配置：不加触觉；加原始触觉信号；加 LingBot-Touch token。三者看同样的示教：每任务 200 条，双手任务 500 条；每任务连续评测 20 次。</p>
+<p><b>仿真协议。</b>12 个灵巧任务，Sharpa Wave 8 个、XHand1 4 个，沿用之前的触觉 RL 套件：Sharpa Wave 上是 Baoding 球旋转、手内旋转、拧螺母、转盘子、转笔、盲抓、抓握稳定、托球平衡；XHand1 上是 Baoding 球、托球平衡、盲抓、抓握稳定。PPO、三个种子，比较五种触觉观测：无、每触点二值接触、原始信号、和策略一起训练的 CNN 特征、冻结的 LingBot-Touch 特征。</p>
+
+<h3 id="s5-2"><span class="no">5.2</span>真机：模仿学习和 VLA 策略</h3>
+<p><b>结论先说：</b>四种策略在 26 个任务上平均提高 13.9、21.8、24.8、23.2 个点；原始信号只提高 7.0、6.6、8.2、11.2 个点，而且在 104 对里有 22 对变差。在没见过的 XHand1 上，原始信号几乎没用，LingBot-Touch 仍然提高 13.8 到 24.5 个点。</p>
+<p><b>任务。</b>26 个任务（Sharpa Wave 20、XHand1 6），挑的是触觉有用的：精细操作（弹出 SD 卡、拔笔帽、插吸管）、接触丰富（拧瓶盖、扣喷壶扳机、拉拉链）、易碎和可变形物体（转移鸡蛋、运送薄壁杯、抽袋子）、触觉辨别（按软硬分类、按麻将牌面分类）、双手配合（交接盒子、抽书）。</p>
+<p class="tcap" id="t2">表 2 · 真机成功率的均值（照录原文。20 次试验，HaT-Tiny，4K 小时预训练；Base 原策略，+T 加原始触觉，Ours 加 LingBot-Touch）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">手</th><th colspan="3">Diffusion Policy</th><th colspan="3">π0.5</th><th colspan="3">LingBot-VLA</th><th colspan="3">T-Rex</th></tr><tr><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th></tr></thead><tbody>
+<tr><td>Sharpa Wave（20 个）</td><td>22.31</td><td>30.06</td><td><b>35.51</b></td><td>47.56</td><td>56.70</td><td><b>68.58</b></td><td>45.60</td><td>56.29</td><td><b>72.51</b></td><td>44.06</td><td>57.99</td><td><b>70.05</b></td></tr>
+<tr><td>XHand1（6 个）</td><td>19.38</td><td>24.00</td><td><b>35.67</b></td><td>49.71</td><td>48.00</td><td><b>74.17</b></td><td>57.21</td><td>57.21</td><td><b>75.04</b></td><td>49.96</td><td>51.92</td><td><b>63.79</b></td></tr>
+<tr><td>26 个任务（我算的加权）</td><td>21.63</td><td>28.66</td><td>35.55</td><td>48.06</td><td>54.69</td><td>69.87</td><td>48.28</td><td>56.50</td><td>73.09</td><td>45.42</td><td>56.59</td><td>68.61</td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 2 全表：26 个任务逐项（照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">手</th><th rowspan="2">任务</th><th colspan="3">Diffusion Policy</th><th colspan="3">π0.5</th><th colspan="3">LingBot-VLA</th><th colspan="3">T-Rex</th></tr><tr><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th><th>Base</th><th>+T</th><th>Ours</th></tr></thead><tbody>
+<tr><td rowspan="20">Sharpa Wave</td><td>翻单页 Single-page turning</td><td>3.75</td><td>21.25</td><td>30.00</td><td>30.00</td><td>76.25</td><td>86.25</td><td>23.75</td><td>60.00</td><td>67.50</td><td>52.50</td><td>55.00</td><td>67.50</td></tr>
+<tr><td>擦盘子 Plate wiping</td><td>24.00</td><td>44.00</td><td>47.00</td><td>68.00</td><td>74.00</td><td>76.00</td><td>74.00</td><td>81.00</td><td>83.00</td><td>50.00</td><td>75.00</td><td>75.00</td></tr>
+<tr><td>叠杯分离 Stacked cup separation</td><td>50.00</td><td>45.00</td><td>70.00</td><td>61.25</td><td>67.50</td><td>72.50</td><td>95.00</td><td>70.00</td><td>97.50</td><td>42.50</td><td>65.00</td><td>80.00</td></tr>
+<tr><td>麻将分类 Mahjong sorting</td><td>22.50</td><td>40.00</td><td>28.75</td><td>35.00</td><td>40.00</td><td>70.00</td><td>28.75</td><td>5.00</td><td>56.25</td><td>35.00</td><td>47.50</td><td>58.75</td></tr>
+<tr><td>药盒补装 Pillbox refilling</td><td>8.75</td><td>12.50</td><td>12.50</td><td>22.50</td><td>22.50</td><td>32.50</td><td>22.50</td><td>25.00</td><td>31.25</td><td>26.25</td><td>23.75</td><td>41.25</td></tr>
+<tr><td>抽名片 Business card extraction</td><td>20.00</td><td>32.50</td><td>56.25</td><td>50.00</td><td>50.00</td><td>75.00</td><td>42.50</td><td>61.25</td><td>75.00</td><td>65.00</td><td>57.50</td><td>75.00</td></tr>
+<tr><td>发牌 Card dealing</td><td>46.25</td><td>60.00</td><td>75.00</td><td>56.25</td><td>75.00</td><td>78.75</td><td>58.75</td><td>65.00</td><td>75.00</td><td>73.75</td><td>78.75</td><td>88.75</td></tr>
+<tr><td>运薄壁杯 Deformable cup transport</td><td>46.25</td><td>42.50</td><td>63.75</td><td>72.50</td><td>81.25</td><td>78.75</td><td>93.30</td><td>93.75</td><td>96.70</td><td>95.00</td><td>97.50</td><td>100.00</td></tr>
+<tr><td>弹出 SD 卡 SD card ejection</td><td>6.00</td><td>10.00</td><td>16.00</td><td>47.00</td><td>69.00</td><td>64.00</td><td>34.00</td><td>72.00</td><td>64.00</td><td>32.00</td><td>84.00</td><td>92.00</td></tr>
+<tr><td>翻方块 Block flipping</td><td>9.00</td><td>8.00</td><td>10.00</td><td>67.00</td><td>84.00</td><td>90.00</td><td>34.00</td><td>48.00</td><td>75.00</td><td>29.00</td><td>73.00</td><td>83.00</td></tr>
+<tr><td>拔笔帽 Pen uncapping</td><td>0.00</td><td>0.00</td><td>0.00</td><td>36.00</td><td>52.00</td><td>59.00</td><td>33.00</td><td>48.00</td><td>65.00</td><td>22.00</td><td>33.00</td><td>61.00</td></tr>
+<tr><td>拧瓶盖 Cap twisting</td><td>56.25</td><td>70.00</td><td>76.25</td><td>78.75</td><td>85.00</td><td>91.25</td><td>75.00</td><td>75.00</td><td>87.50</td><td>56.25</td><td>62.50</td><td>90.00</td></tr>
+<tr><td>抽袋子 Bag extraction</td><td>11.00</td><td>20.00</td><td>16.00</td><td>47.50</td><td>40.00</td><td>53.75</td><td>46.25</td><td>60.50</td><td>82.50</td><td>40.00</td><td>46.25</td><td>62.50</td></tr>
+<tr><td>插吸管 Straw insertion</td><td>14.00</td><td>18.00</td><td>21.00</td><td>30.00</td><td>30.00</td><td>41.00</td><td>35.00</td><td>56.00</td><td>59.00</td><td>29.00</td><td>44.00</td><td>44.00</td></tr>
+<tr><td>开风扇 Fan opening</td><td>17.50</td><td>27.50</td><td>41.25</td><td>25.00</td><td>45.00</td><td>52.25</td><td>31.25</td><td>50.00</td><td>70.00</td><td>58.75</td><td>51.25</td><td>66.25</td></tr>
+<tr><td>拉拉链 Zipper closing</td><td>14.00</td><td>9.00</td><td>22.00</td><td>39.00</td><td>15.00</td><td>59.00</td><td>11.00</td><td>16.00</td><td>55.00</td><td>15.00</td><td>17.00</td><td>42.00</td></tr>
+<tr><td>扣喷壶 Spray trigger actuation</td><td>30.00</td><td>32.50</td><td>28.75</td><td>51.25</td><td>60.00</td><td>71.25</td><td>42.50</td><td>60.00</td><td>87.50</td><td>28.75</td><td>65.00</td><td>76.25</td></tr>
+<tr><td>软硬分类 Stiffness sorting</td><td>48.00</td><td>52.50</td><td>28.75</td><td>41.25</td><td>57.50</td><td>81.25</td><td>37.50</td><td>56.25</td><td>72.50</td><td>32.50</td><td>63.75</td><td>68.75</td></tr>
+<tr><td>抽书 Book extraction</td><td>11.00</td><td>38.00</td><td>41.00</td><td>36.00</td><td>62.00</td><td>76.00</td><td>36.00</td><td>64.00</td><td>81.00</td><td>50.00</td><td>69.00</td><td>59.00</td></tr>
+<tr><td>交接盒子 Box handover</td><td>8.00</td><td>18.00</td><td>26.00</td><td>57.00</td><td>48.00</td><td>63.00</td><td>58.00</td><td>59.00</td><td>69.00</td><td>48.00</td><td>51.00</td><td>70.00</td></tr>
+<tr><td rowspan="6">XHand1</td><td>翻单页</td><td>11.25</td><td>35.00</td><td>48.75</td><td>53.75</td><td>50.00</td><td>91.25</td><td>65.00</td><td>67.50</td><td>68.75</td><td>47.50</td><td>50.00</td><td>62.50</td></tr>
+<tr><td>转移鸡蛋 Egg transfer</td><td>32.50</td><td>25.00</td><td>22.50</td><td>67.50</td><td>65.00</td><td>83.75</td><td>65.00</td><td>28.75</td><td>66.25</td><td>55.00</td><td>33.75</td><td>68.75</td></tr>
+<tr><td>叠杯分离</td><td>27.50</td><td>32.50</td><td>41.25</td><td>32.50</td><td>32.50</td><td>72.50</td><td>58.75</td><td>85.00</td><td>86.25</td><td>41.25</td><td>46.25</td><td>55.00</td></tr>
+<tr><td>运薄壁杯</td><td>11.00</td><td>23.00</td><td>26.00</td><td>52.00</td><td>48.00</td><td>54.00</td><td>37.00</td><td>58.00</td><td>90.00</td><td>44.00</td><td>53.00</td><td>63.00</td></tr>
+<tr><td>软硬分类</td><td>30.00</td><td>22.50</td><td>47.50</td><td>32.50</td><td>62.50</td><td>82.50</td><td>67.50</td><td>50.00</td><td>65.00</td><td>50.00</td><td>67.50</td><td>72.50</td></tr>
+<tr><td>交接盒子</td><td>4.00</td><td>6.00</td><td>28.00</td><td>60.00</td><td>30.00</td><td>61.00</td><td>50.00</td><td>54.00</td><td>74.00</td><td>62.00</td><td>61.00</td><td>61.00</td></tr>
+</tbody></table></div>
+<p>这张表在 PDF 里是旋转排版，pdftotext 按列输出，我按列重新对齐；每列平均都和原文“Mean”行一致（脚本核过），所以列没有错位。</p></details>
+<figure class="pfig narrow" id="fig11">
+<img src="lingbot-touch/fig11.webp" width="1080" height="441" alt="图 11：四种策略在 26 个任务上的平均成功率，每种三根柱：原模型、加原始触觉、加 LingBot-Touch" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 17 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=17">看原图 ↗</a></span>柱顶数字就是 26 个任务的平均，和我按表 2 加权算的 21.63 / 28.66 / 35.55 等完全一致。LingBot-Touch 只在后训练时作为冻结 token 加入，不参与任何基线的预训练。</figcaption>
+</figure>
+<p><b>不同策略。</b>26 个任务平均，LingBot-Touch token 让 Diffusion Policy 21.6% → 35.6%，π0.5 48.1% → 69.9%，LingBot-VLA 48.3% → 73.1%，T-Rex 45.4% → 68.6%，收益 13.9、21.8、24.8、23.2 个点，参数增加远不到 0.2%。收益不集中在少数任务：104 个“任务-策略”对里 89 对是三个配置中最好的，99 对不低于原策略。</p>
+<p><b>是表征，不是模态。</b>原始触觉配置是对照组，用来区分“有触觉”和“懂触觉”。加原始信号最多带来约一半的收益（7.0、6.6、8.2、11.2 点），104 对里 22 对变差，有的很严重：LingBot-VLA 的麻将分类 28.8% → 5.0%、转移鸡蛋 65.0% → 28.8%，π0.5 的拉拉链 39.0% → 15.0%。论文的解释：只有 200 条示教，策略学不会从零读一个稀疏高维的传感器，还可能被它分散注意力；冻结 token 到手时已经有意义。</p>
+<p><b>没见过的手。</b>XHand1 的 6 个任务上原始信号几乎无用，四种策略平均变化 +4.6、−1.7、0.0、+2.0 点；同一信号经 LingBot-Touch（不做传感器专用训练）带来 +16.3、+24.5、+17.8、+13.8 点。</p>
+<p><b>收益来自哪里。</b>单任务最大的提升都在视觉判断不了的那一步：拉链头是否卡住（LingBot-VLA 11% → 55%）、扳机是否扣到位（LingBot-VLA 42.5% → 87.5%）、卡是否已经弹出（T-Rex 32% → 92%）、瓶盖是否已经松动（T-Rex 56% → 90%）、最上面的杯子是否已经分离（π0.5 在 XHand1 上 32.5% → 72.5%）。录像里，加触觉的策略恰在这些时刻调整握力和时机，而不是照搬示教轨迹。LingBot-Touch 也不是处处更好：104 对里 9 对低于原始信号配置（5 对是 Diffusion Policy），5 对低于原策略。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 表 2 的均值和计数全部核对</span><p>我把表 2 的 312 个数录进脚本：两只手各自的列平均和原文 “Mean” 行 24 个数完全一致；26 个任务按 20:6 加权的平均和图 11 柱顶的 12 个数完全一致。计数也都对：Ours 严格高于另两个配置的 89 对（含并列是 93 对）；Ours ≥ 原策略 99 对；原始信号低于原策略 22 对；Ours 低于原始信号 9 对，其中 Diffusion Policy 5 对；Ours 低于原策略 5 对（DP 的扣喷壶、软硬分类、XHand 转移鸡蛋，LingBot-VLA 的 XHand 软硬分类，T-Rex 的 XHand 交接盒子）。</p><p>一处措辞对不上：§1 说收益是 “14 到 26 个百分点”，按 26 个任务算是 13.9 到 24.8。26 只在只看 Sharpa Wave 时出现（LingBot-VLA 26.9、T-Rex 26.0；那时 DP 是 13.2）。所以 “14 到 26” 混用了两种口径，较准确的说法是 “14 到 25”。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 2 用的是 4K 小时的编码器，不是公开的那个</span><p>表 2 表注写 “HaT-Tiny，pretrained on 4K hours”。公开权重按 §1 的说法是在约 5,000 小时上预训练的。§5.4 的五个任务可以把两者对上：LingBot-VLA 在翻方块、弹 SD 卡、扣喷壶、叠杯分离、擦盘子上，表 2 的 Base 平均 (34 + 34 + 42.5 + 95 + 74)/5 = 55.9，Ours 平均 (75 + 64 + 87.5 + 97.5 + 83)/5 = 81.4，正好是图 13a 的 “4k hours” 柱；图 13b 用的 5K 编码器是 82.2（77、66、90、95、83）。也就是说，正文 26 个任务的结果是用比公开权重少 1K 小时的编码器跑的，用公开权重复现时数字可能略有不同。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 成功率是按分项打分算的，有几格和表 7 的分制对不上</span><p>附录表 7 每个任务按分项给分（例如翻单页 4 分、擦盘子 5 分），表 2 的“成功率”是 20 次得分的平均占满分的比例，不是二值成功率。所以每格应落在 \(100/(20P)\) 的整数倍上：4 分制是 1.25 的倍数，5 分制是整数。我逐格检查了表 7 给出总分的 17 个任务，大部分对得上，以下不行（<b>我的推断</b>，可能是个别格子试验次数不是 20，或表 7 的分制写错）：</p><ul>
+<li>药盒补装：表 7 写总分 5，但四种策略的 12 个数都是 1.25 的倍数（8.75、12.5、22.5、31.25 等），像是 4 分制。</li>
+<li>抽袋子：表 7 总分 4，DP 的 11、16 只能是 5 分制，LingBot-VLA 的 60.5 两种分制都不是。</li>
+<li>开风扇：表 7 总分 4，π0.5 的 52.25 不是 1.25 的倍数。</li>
+</ul></div>
+<p class="tcap" id="t3">表 3 · 仿真 RL 成功率（%，三个种子的均值 ± 标准差，照录原文）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>手</th><th>任务</th><th>无触觉</th><th>二值</th><th>原始</th><th>CNN</th><th>Ours</th></tr></thead><tbody>
+<tr><td rowspan="8">Sharpa Wave</td><td>Baoding 球旋转</td><td>34.9 ± 6.8</td><td>38.2 ± 11.4</td><td>35.5 ± 8.7</td><td>44.8 ± 9.3</td><td><b>55.5 ± 1.8</b></td></tr>
+<tr><td>手内旋转</td><td>11.5 ± 13.5</td><td>18.3 ± 31.7</td><td>33.4 ± 19.5</td><td>26.6 ± 23.1</td><td><b>56.4 ± 7.5</b></td></tr>
+<tr><td>拧螺母</td><td>28.3 ± 19.9</td><td>21.9 ± 13.5</td><td>55.8 ± 7.5</td><td>40.8 ± 17.3</td><td><b>86.5 ± 4.2</b></td></tr>
+<tr><td>转盘子</td><td>0.5 ± 0.8</td><td>56.5 ± 40.5</td><td>82.9 ± 14.7</td><td>59.9 ± 36.7</td><td><b>97.4 ± 2.0</b></td></tr>
+<tr><td>转笔</td><td>31.8 ± 55.1</td><td>64.2 ± 55.6</td><td>30.5 ± 52.8</td><td>62.1 ± 54.0</td><td><b>97.1 ± 1.1</b></td></tr>
+<tr><td>盲抓</td><td>33.7 ± 11.1</td><td>30.8 ± 18.3</td><td>38.6 ± 18.3</td><td>67.6 ± 12.4</td><td><b>85.2 ± 9.2</b></td></tr>
+<tr><td>抓握稳定</td><td>35.2 ± 14.4</td><td>27.8 ± 9.8</td><td>63.3 ± 9.0</td><td>74.3 ± 15.9</td><td><b>80.3 ± 4.5</b></td></tr>
+<tr><td>托球平衡</td><td>0.0 ± 0.0</td><td>0.0 ± 0.0</td><td>32.4 ± 4.0</td><td>31.1 ± 11.3</td><td><b>67.7 ± 1.8</b></td></tr>
+<tr><td rowspan="4">XHand1</td><td>Baoding 球旋转</td><td>0.1 ± 0.1</td><td>24.2 ± 2.6</td><td>2.5 ± 1.8</td><td>30.4 ± 6.6</td><td><b>41.0 ± 2.5</b></td></tr>
+<tr><td>托球平衡</td><td>0.0 ± 0.0</td><td>0.0 ± 0.0</td><td>10.0 ± 5.9</td><td>0.7 ± 0.6</td><td><b>35.9 ± 4.9</b></td></tr>
+<tr><td>盲抓</td><td>75.0 ± 8.7</td><td>72.4 ± 4.0</td><td>55.1 ± 7.2</td><td>77.0 ± 4.9</td><td><b>87.8 ± 4.2</b></td></tr>
+<tr><td>抓握稳定</td><td>6.0 ± 3.2</td><td>9.7 ± 5.9</td><td>21.7 ± 12.7</td><td>31.8 ± 2.1</td><td><b>36.6 ± 3.4</b></td></tr>
+<tr><td colspan="2">12 个任务平均（我算的）</td><td>21.4</td><td>30.3</td><td>38.5</td><td>45.6</td><td><b>69.0</b></td></tr>
+</tbody></table></div>
+<details class="tbl"><summary>表 3 的回报（Reward，照录原文，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>手</th><th>任务</th><th>无触觉</th><th>二值</th><th>原始</th><th>CNN</th><th>Ours</th></tr></thead><tbody>
+<tr><td rowspan="8">Sharpa Wave</td><td>Baoding 球旋转</td><td>175.8 ± 5.4</td><td>162.9 ± 22.9</td><td>169.3 ± 8.2</td><td>195.7 ± 32.6</td><td>212.7 ± 0.3</td></tr>
+<tr><td>手内旋转</td><td>187.7 ± 75.9</td><td>208.3 ± 75.7</td><td>188.1 ± 17.0</td><td>127.9 ± 36.8</td><td>265.1 ± 28.0</td></tr>
+<tr><td>拧螺母</td><td>2269.6 ± 88.0</td><td>1972.4 ± 300.5</td><td>2504.0 ± 234.9</td><td>2383.0 ± 140.8</td><td>2680.4 ± 176.1</td></tr>
+<tr><td>转盘子</td><td>21.2 ± 78.1</td><td>180.3 ± 218.3</td><td>286.7 ± 46.6</td><td>248.8 ± 151.3</td><td>394.4 ± 17.7</td></tr>
+<tr><td>转笔</td><td>220.5 ± 342.8</td><td>417.7 ± 356.2</td><td>191.3 ± 326.0</td><td>396.1 ± 339.5</td><td>623.3 ± 3.0</td></tr>
+<tr><td>盲抓</td><td>−22.6 ± 17.9</td><td>−23.2 ± 37.8</td><td>−15.0 ± 41.6</td><td>34.2 ± 29.5</td><td>78.5 ± 18.3</td></tr>
+<tr><td>抓握稳定</td><td>23.9 ± 3.3</td><td>23.3 ± 2.3</td><td>30.6 ± 2.2</td><td>34.0 ± 3.2</td><td>36.6 ± 0.6</td></tr>
+<tr><td>托球平衡</td><td>−190.4 ± 2.3</td><td>−185.1 ± 0.4</td><td>−71.0 ± 16.2</td><td>−71.6 ± 51.0</td><td>127.2 ± 21.1</td></tr>
+<tr><td rowspan="4">XHand1</td><td>Baoding 球旋转</td><td>93.6 ± 13.6</td><td>151.0 ± 5.7</td><td>115.2 ± 7.0</td><td>185.2 ± 6.4</td><td>192.9 ± 14.2</td></tr>
+<tr><td>托球平衡</td><td>−184.9 ± 0.3</td><td>−183.7 ± 0.4</td><td>−128.8 ± 27.9</td><td>−171.9 ± 6.1</td><td>−2.8 ± 17.0</td></tr>
+<tr><td>盲抓</td><td>46.0 ± 25.0</td><td>45.1 ± 10.4</td><td>−17.7 ± 15.9</td><td>53.1 ± 10.6</td><td>85.5 ± 8.5</td></tr>
+<tr><td>抓握稳定</td><td>10.9 ± 3.1</td><td>11.5 ± 2.3</td><td>16.6 ± 4.8</td><td>18.9 ± 0.7</td><td>20.5 ± 0.7</td></tr>
+</tbody></table></div></details>
+
+<h3 id="s5-3"><span class="no">5.3</span>仿真中的强化学习</h3>
+<p><b>最终表现。</b>LingBot-Touch 特征在全部 12 个任务上成功率和回报都最高。按任务等权平均，成功率 69.0%，和策略一起训练的 CNN 45.6%，原始信号 38.5%，二值接触 30.3%，无触觉 21.4%。这个顺序本身有信息：学到的表征好于原始信号，预训练的表征好于任务内学的。接触连续变化、策略要跟上的任务差距最大：转盘子 97.4% 对最好的替代 82.9%，转笔 97.1% 对 64.2%；托球平衡 Sharpa Wave 67.7% 对 32.4%，XHand1 35.9% 对 10.0%，二值接触和无触觉在两只手上都是 0。</p>
+<p><b>稳定性。</b>LingBot-Touch 在种子间的标准差最大 9.2、平均 3.9；其他配置在转笔上到 55、转盘子上到 40，意味着有的种子解出任务、有的完全不行。图 12 的曲线也显示：转笔、两只手的托球平衡、XHand1 盲抓上，LingBot-Touch 的回报更早上升，阴影带窄。拧螺母是例外，起步慢但最终回报最高。论文认为，一个已经区分接触状态的冻结表征降低了探索的负担。</p>
+<figure class="pfig" id="fig12">
+<img src="lingbot-touch/fig12.webp" width="1563" height="1074" alt="图 12：12 个仿真任务的学习曲线，横轴 PPO 更新次数，纵轴平均回合回报，五种触觉观测各一条线，带标准差阴影" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 17 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=17">看原图 ↗</a></span>(a) 到 (h) 是 Sharpa Wave，(i) 到 (l) 是 XHand1。线是三个种子的平均回报，阴影是平滑后各种子曲线的一个标准差。紫色是 LingBot-Touch，灰色无触觉，绿二值，橙原始，红 CNN。</figcaption>
+</figure>
+<div class="note" id="n15"><span class="lab">读者注 15 · 表 3 的核算，以及一处排版</span><p>五种配置在 12 个任务上的成功率平均：21.42、30.33、38.48、45.59、68.95，和正文的 21.4、30.3、38.5、45.6、69.0 一致。LingBot-Touch 的标准差最大 9.2（Sharpa 盲抓），平均 3.92；其他配置最大 55.6（转笔二值）和 40.5（转盘子二值），也一致。12 个任务的回报也都是 LingBot-Touch 最高。</p><p>排版：pdftotext 默认输出时 XHand1 Baoding 那一行只有四个数，“0.1 ± 0.1 / 93.6 ± 13.6”被挤到了表尾。我用 <code>pdftotext -bbox</code> 看了坐标，0.1 在“无触觉”列，所以那一行是 0.1、24.2、2.5、30.4、41.0。按这个读法平均值才对得上。值得注意的是这一格：无触觉的成功率只有 0.1%，回报却有 93.6，比原始信号的 2.5%（115.2）低得不多，说明这个任务的回报和成功判据（至少 10 次交换）相差较远。</p></div>
+
+<h3 id="s5-4"><span class="no">5.4</span>哪种表征帮得上策略</h3>
+<p>同一个 LingBot-VLA 骨干，每任务 200 条示教后训练，在 Sharpa Wave 的五个任务（翻方块、弹 SD 卡、扣喷壶、叠杯分离、擦盘子）上各测 20 次。策略本身平均 55.9%，加 Tiny 后 82.2%。</p>
+<p><b>预训练时长。</b>1K 到 5K 小时的编码器分别把策略提到 69.8%、74.3%、77.4%、81.4%、82.2%。每多一千小时（都不是这些任务、也不是这台机器人的示教），策略都变好，曲线形状和 §4.3 的探针曲线一样。</p>
+<p><b>换一个编码器。</b>同一策略换成 FTP-1 的触觉编码器是 67.5%，收益不到一半（11.6 对 26.3 个点）。FTP-1 在三个任务上有帮助，但让叠杯分离 95% → 85%、擦盘子 74% → 67%；LingBot-Touch 五个任务都不低于原策略。§4.2 的探针差距转成了策略差距。</p>
+<figure class="pfig" id="fig13">
+<img src="lingbot-touch/fig13.webp" width="1555" height="403" alt="图 13：左边是 LingBot-VLA 加不同预训练时长编码器的平均成功率柱状图；右边是五个任务上原策略、加 FTP-1、加 LingBot-Touch 的对比" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 19 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=19">看原图 ↗</a></span>(a) 编码器预训练 1K 到 5K 小时时的平均成功率：55.90 → 69.80、74.30、77.40、81.40、82.20。(b) 五个任务上原策略 / 加 FTP-1 / 加本文（5K）：翻方块 34 / 58 / 77，弹 SD 卡 34 / 55 / 66，扣喷壶 42.5 / 72.5 / 90，叠杯分离 95 / 85 / 95，擦盘子 74 / 67 / 83，平均 55.9 / 67.5 / 82.2。</figcaption>
+</figure>
+
+<h2 id="s6"><span class="no">6</span>结论与讨论</h2>
+<p>三个发现：表征属于接触而不属于换能器（不更新参数就能在没见过的磁式手上恢复接触物理，并好于带专用适配器的 FTP-1）；机器人学习的收益来自表征而不是模态（冻结 token 在 26 个真机和 12 个仿真任务上都有帮助，原始信号最多一半且常常有害）；表征随时长、传感器种类、模型大小持续变好，信号重建则停滞。</p>
+<p>对如何扩展触觉的启示：没有哪种传感器有几千小时数据，也不需要。强度和动态能跨原理迁移，所以可以用最容易采集的传感器采数据，用到部署的手上，代价是一部分空间精度。</p>
+<p><b>局限。</b>真机和仿真需要更多种手；传感器覆盖还能扩，电容式没有进预训练，因为手上的电容数据质量不达标；标准几何和预训练布局集中在指尖，手掌和指节上的接触覆盖不足，扩到整只手是重要的下一步。</p>
+
+<h2 id="apA"><span class="no">A</span>附录 A：实现细节</h2>
+<p class="tcap" id="t4">表 4 · 预训练语料构成（照录原文）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>原理</th><th>传感器 / 厂商</th><th>平台</th><th>采集</th><th>小时</th><th>回合</th><th>触点/指</th><th>采样率 (Hz)</th></tr></thead><tbody>
+<tr><td rowspan="3">压阻</td><td>Juqiao</td><td rowspan="3">触觉手套（人）</td><td rowspan="3">第一视角</td><td rowspan="3">2,197</td><td rowspan="3">86,906</td><td>9</td><td>100</td></tr>
+<tr><td>Xspark AI</td><td>16</td><td>60</td></tr>
+<tr><td>TACHIN</td><td>124 / 61†</td><td>60</td></tr>
+<tr><td>磁</td><td><a class="ds" href="https://www.paxini.com/">PaXini</a></td><td>触觉手套（人）</td><td>第一视角</td><td>1,136</td><td>294,871</td><td>116 / 96†</td><td>41.7–83.3</td></tr>
+<tr><td>视触觉</td><td>Sharpa Wave 指尖</td><td>双臂机器人</td><td>遥操作</td><td>1,650</td><td>82,654</td><td>240×240</td><td>30</td></tr>
+<tr><td colspan="4">合计</td><td>4,983</td><td>464,431</td><td></td><td></td></tr>
+</tbody></table></div>
+<p>† TACHIN 拇指 124 个有效触点、其余每指 61 个；PaXini 拇指 116 个、其余每指 96 个。</p>
+<p class="tcap" id="t5">表 5 · 接触物理探针任务（照录原文。\(M\) 是每指触点数，\(J\) 是关节数）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>输入</th><th>输出</th><th>训练 (h)</th><th>测试 (h)</th><th>指标</th></tr></thead><tbody>
+<tr><td>指尖力恢复</td><td>触觉片段 16×5×M×3</td><td>力大小 8×5×1</td><td>2.492</td><td>0.361</td><td>力大小 MAE (N)</td></tr>
+<tr><td>接触中心</td><td>触觉片段 16×5×M×3</td><td>3D 接触中心 8×5×3</td><td>2.616</td><td>0.334</td><td>距离误差 (mm)</td></tr>
+<tr><td>接触面积</td><td>触觉片段 16×5×M×3</td><td>覆盖率 8×5×1</td><td>2.616</td><td>0.334</td><td>覆盖率 MAE (%)</td></tr>
+<tr><td>未来力预测</td><td>触觉片段 16×5×M×3；关节 5×J</td><td>未来力大小 4×5×1</td><td>1.843</td><td>0.484</td><td>力大小 MAE (N)</td></tr>
+<tr><td>触觉到视频检索</td><td>触觉片段 16×5×M×3</td><td>相似度分数</td><td>1.798</td><td>0.237</td><td>Top-5 召回 (%)</td></tr>
+</tbody></table></div>
+<p>输出的 8 对应 16 帧每两帧一个标签，和图 5 说的“相邻两帧平均”一致。探针数据都只有一两个小时，量很小。</p>
+<details class="tbl"><summary>表 6 · 探针训练超参（照录原文，点开）</summary>
+<div class="tablewrap" id="t6"><table class="t-w"><thead><tr><th colspan="2">共享设置</th></tr></thead><tbody>
+<tr><td>触觉编码器</td><td>冻结的预训练目标编码器</td></tr>
+<tr><td>触觉输入</td><td>16 帧；一只手的 5 根手指</td></tr>
+<tr><td>读出块数 / 宽度 / 头数</td><td>1 / 192 / 3</td></tr>
+<tr><td>MLP 隐层宽度 / dropout</td><td>768 / 0</td></tr>
+<tr><td>优化器 / 学习率 / 权重衰减</td><td>AdamW / 1e−4 / 0.01</td></tr>
+<tr><td>训练轮数 / 每次 GPU 数</td><td>100 / 8</td></tr>
+<tr><td>学习率调度 / warm-up</td><td>恒定 / 无</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>损失</th><th>全局 batch</th><th>指标</th><th>其他</th></tr></thead><tbody>
+<tr><td>力恢复</td><td>大小 L1</td><td>128</td><td>MAE (N)</td><td>注意力读出</td></tr>
+<tr><td>接触中心</td><td>欧氏距离</td><td>128</td><td>平均距离 (mm)</td><td>按手指用训练集 z-score 坐标</td></tr>
+<tr><td>接触覆盖</td><td>覆盖率 L1</td><td>128</td><td>MAE (pp)</td><td>sigmoid 输出；目标在 [0, 1]</td></tr>
+<tr><td>未来力预测</td><td>大小 L1</td><td>128</td><td>4 帧大小 MAE (N)</td><td>测得的当前/未来关节位置和最后一帧力大小；状态/融合宽度 64/64</td></tr>
+<tr><td>触觉-视频检索</td><td>对称 InfoNCE</td><td>64 对</td><td>Recall@5 (%)</td><td>冻结 V-JEPA 2 ViT-L；16 帧视频 256×256；投影维度 1024；τ = 0.07</td></tr>
+</tbody></table></div>
+<p>中心和覆盖共用一个探针，两个损失等权。检索 batch 每个录制取一对，负样本跨 GPU 共享。</p></details>
+
+<h2 id="apB"><span class="no">B</span>附录 B：真机评测</h2>
+<p>表 7 列出每个任务的描述、在哪只手上测、打分规则。括号里是分数，除非写明是序数制，分数是累加的；序数制取达到的最高级。图 14、15 是两个任务的五帧示例。</p>
+<figure class="pfig" id="fig14">
+<img src="lingbot-touch/fig14.webp" width="1580" height="188" alt="图 14：XHand1 叠杯分离的五帧：稳住杯叠、抓住最上面的杯子、分离、单独握住" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 21 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=21">看原图 ↗</a></span>XHand1 上的叠杯分离：机器人稳住套在一起的杯子，抓住并分开最上面一个，再单独握住它。</figcaption>
+</figure>
+<figure class="pfig" id="fig15">
+<img src="lingbot-touch/fig15.webp" width="1580" height="188" alt="图 15：Sharpa Wave 扣喷壶的五帧：抓起喷壶、对准植物、扣扳机喷水" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 21 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=21">看原图 ↗</a></span>Sharpa Wave 上的扣喷壶：抓起喷壶，喷嘴对准目标，扣动扳机喷出水。</figcaption>
+</figure>
+<details class="tbl"><summary>表 7 · 任务和打分规则（意译，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>手</th><th>描述</th><th>打分</th></tr></thead><tbody>
+<tr><td>翻单页</td><td>两只</td><td>从右往左翻一页</td><td>接近页边、靠接触移动页、只一页越过书脊、翻完，各 1 分；不得撕页。共 4</td></tr>
+<tr><td>擦盘子</td><td>Sharpa</td><td>擦掉固定盘子上的污渍</td><td>拿起布、稳住盘、碰到污渍、擦净、放回布并撤手，各 1 分；盘完好稳定。共 5</td></tr>
+<tr><td>叠杯分离</td><td>两只</td><td>分开最上面的套杯</td><td>稳住杯叠、抓顶杯、分开、握 2 s，各 1 分；只分一个、不损坏不扰动。共 4</td></tr>
+<tr><td>麻将分类</td><td>Sharpa</td><td>凭触觉给一张牌分类</td><td>抓起 1；放对盘 +3，放错 +1；最高 4。识别时牌面朝向策略相机则作废</td></tr>
+<tr><td>药盒补装</td><td>Sharpa</td><td>补装一格并合盖</td><td>接近卡扣、打开、抓替代物、放入、合盖，各 1 分；替代物留在格里，盖扣好。共 5</td></tr>
+<tr><td>抽名片</td><td>Sharpa</td><td>抽出并拿住一张名片</td><td>对齐、捏住、抽出、抽出后稳握，各 1 分。共 4</td></tr>
+<tr><td>发牌</td><td>Sharpa</td><td>分出并拿起一张扑克</td><td>序数制：接近 1、接触 2、滑出 3、抓起 4（PDF 里这一行排版错位，我按内容对应）</td></tr>
+<tr><td>运薄壁杯</td><td>两只</td><td>不损坏地运送薄壁杯</td><td>按接触、抓稳、运送、形变控制、放置给分；满分要抓外侧壁、不过度变形、竖直放进目标盘</td></tr>
+<tr><td>弹出 SD 卡</td><td>Sharpa</td><td>弹出并取走 SD 卡壳</td><td>接近 1；按下并撤指解锁 2；抓住并完全取出 2。共 5</td></tr>
+<tr><td>翻方块</td><td>Sharpa</td><td>把方块翻到目标面</td><td>抓起 1；手指翻转 2；放进容器 1；目标面朝上 1。只转手腕不给翻转分。共 5</td></tr>
+<tr><td>拔笔帽</td><td>Sharpa</td><td>双手拔笔帽</td><td>握笔杆、提到两手间、接近笔帽、稳抓笔帽、拔下并拿住，各 1 分。共 5</td></tr>
+<tr><td>拧瓶盖</td><td>Sharpa</td><td>拧开并取下瓶盖</td><td>序数制：接近 1、有效抓转 2、完全拧开 3、提离 4</td></tr>
+<tr><td>抽袋子</td><td>Sharpa</td><td>从抽取盒里拉出一只袋子</td><td>稳住盒、接近袋、稳定捏住、明显提出，各 1 分。共 4</td></tr>
+<tr><td>插吸管</td><td>Sharpa</td><td>把吸管扎穿封口膜</td><td>按规定抓法、接触并压下膜、扎穿、到规定深度给分；不弯折、不打翻、不碰杯底</td></tr>
+<tr><td>开风扇</td><td>Sharpa</td><td>打开并转向风扇</td><td>稳住风扇、碰按钮、按下开机、转向吹动小旗，各 1 分。共 4</td></tr>
+<tr><td>拉拉链</td><td>Sharpa</td><td>拉上袋子的拉链</td><td>提起并稳住袋、接近、抓拉链头、拉上、放进容器，各 1 分；拉链保持合上。共 5</td></tr>
+<tr><td>扣喷壶</td><td>Sharpa</td><td>对准并操作喷壶</td><td>抓起 1；瞄准 1；扳机阶段：扣动 1 或看到喷水 2。最高 4</td></tr>
+<tr><td>软硬分类</td><td>两只</td><td>按压海绵按软硬分类</td><td>按压-松开、类别正确、放进对应盘给分；满分要和预定类别一致</td></tr>
+<tr><td>抽书</td><td>Sharpa</td><td>抽出一本塞紧的书</td><td>碰到书边 1；部分拉出 2；拇指-手指抓住 1；完全提出 1。共 5</td></tr>
+<tr><td>交接盒子</td><td>两只</td><td>两手之间交接盒子</td><td>独立提起、共同抓握、完全转交、放到目标给分；满分要接收手独立握住并稳定放下不掉</td></tr>
+<tr><td>转移鸡蛋</td><td>XHand1</td><td>把仿真蛋从一个托移到另一个托</td><td>抓起、提离、移到目标上方、松开，各 1 分；蛋稳定落座。共 4</td></tr>
+</tbody></table></div></details>
+
+<h2 id="apC"><span class="no">C</span>附录 C：仿真中的触觉表征评测</h2>
+<h3 id="apC-1"><span class="no">C.1</span>仿真探针</h3>
+<p>LingBot-Touch 在真实数据上预训练，能否泛化到仿真触觉要先验证，再做 RL。在 Sharpa Wave 上采了 7,200 秒（2 小时）单手抓取仿真数据，47 个物体、多种抓姿，做四个探针任务（不含检索），超参和指标同真机。</p>
+<figure class="pfig" id="fig16">
+<img src="lingbot-touch/fig16.webp" width="1555" height="445" alt="图 16：仿真探针的四个面板：五指的力曲线预测、接触中心的形变图、未来力预测曲线、接触面积的预测和真值叠加" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 23 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=23">看原图 ↗</a></span>左上：五指的力（真值实线、预测虚线），测试 MAE 3.264 N。右上：形变强度图上的真值和预测接触中心，测试平均误差 0.0536（原生单位）。左下：未来力，ΔF 的测试 MAE 0.459 N。右下：接触面积的真值、预测和重叠，接触时面积 MAE 1.089 pp，下方百分比是每例的真值和预测覆盖率。</figcaption>
+</figure>
+<p>接触中心和面积的结果说明冻结特征在仿真里仍保留可解码的空间接触信息：整个测试集上，有接触区域的平均 Dice 0.708，面积 MAE 1.089 个百分点。力恢复能跟上加载、保持、卸载的趋势，但绝对值有偏差，总 MAE 3.264 N；未来力变化的 MAE 0.459 N，图里的绝对未来力是“当前观测力 + 预测变化”。论文把绝对力的误差归因于 Isaac Sim 基于形变的触觉和真实传感器在响应机制和接触动力学上的差别。</p>
+<h3 id="apC-2"><span class="no">C.2</span>仿真灵巧操作任务</h3>
+<details class="tbl"><summary>表 8 · 八类仿真任务和成功判据（意译，点开）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>Sharpa</th><th>XHand1</th><th>描述</th><th>成功判据</th></tr></thead><tbody>
+<tr><td>Baoding 球旋转</td><td>✓</td><td>✓</td><td>掌内两个不同形状大小的物体反复交换位置</td><td>至少 10 次交换</td></tr>
+<tr><td>手内旋转</td><td>✓</td><td>—</td><td>绕指定轴转动 9 种形状、3 种尺度的物体</td><td>绕指定轴净转至少 1 圈</td></tr>
+<tr><td>拧螺母</td><td>✓</td><td>—</td><td>在固定螺栓的螺纹约束下用手指拧 4 种尺寸的六角螺母</td><td>回合结束时离初始角净转至少 5 圈</td></tr>
+<tr><td>转盘子</td><td>✓</td><td>—</td><td>托住方盘绕竖轴转，控制倾斜并保持支撑接触</td><td>40 s 内完成 3 圈有效净转</td></tr>
+<tr><td>转笔</td><td>✓</td><td>—</td><td>手指协调连续转动细长胶囊形笔，不掉</td><td>12 s 内完成 3 圈有效净转</td></tr>
+<tr><td>盲抓</td><td>✓</td><td>✓</td><td>没有视觉，找到、抓起并保持随机位姿和尺寸的立方体和圆柱</td><td>对向接触下提升 ≥ 6 cm 并保持 2 s</td></tr>
+<tr><td>抓握稳定</td><td>✓</td><td>✓</td><td>在外力和外力矩下稳住长方体，同时减小接触载荷</td><td>保持 12 s 不失败；平均总法向载荷 ≤ 10 N</td></tr>
+<tr><td>托球平衡</td><td>✓</td><td>✓</td><td>用手控制托盘朝向，让滚动的球不掉</td><td>保持 10 s 不失败</td></tr>
+</tbody></table></div></details>
+<h3 id="apC-3"><span class="no">C.3</span>强化学习实验设置</h3>
+<p><b>仿真触觉生成。</b>沿用 TacMap 的几何穿透深度方法：在弯曲指尖表面预设感测点和法向，仿真时 GPU 并行地沿法向对物体网格做射线查询，估计局部穿透深度，拼成表示接触分布和指尖局部形变的形变图。</p>
+<p><b>触觉观测处理。</b>按两只手的布局构造：Sharpa Wave 每指 96 个感测点，XHand1 每指 120 个。形变值归一化后堆叠 8 帧。</p>
+<p><b>五种观测配置。</b>无触觉只用本体等非触觉观测；二值触觉是对形变阈值化的接触指示；原始触觉历史直接用形变序列；触觉 CNN 是和策略一起优化的可训练编码器；LingBot-Touch 用冻结编码器处理形变，再接可训练读出。给预训练编码器时，标量形变放在三通道输入的第三通道，前两个通道置零。触觉特征和非触觉观测拼接后输入策略网络。</p>
+<p><b>协议。</b>同一任务内，所有配置用同一套 RL 框架、动作空间、奖励、环境随机化和训练设置，唯一差别是触觉怎样表示和处理。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 仿真里走哪个 tokenizer 分支没写</span><p>C.3 说标量形变放在第三通道。Sharpa Wave 的真实信号也是标量形变，显然走视触觉分支。但 XHand1 在仿真里同样是“120 点标量形变”，而真机 XHand1 是三轴磁信号、走磁式分支。仿真 XHand1 用磁式分支（前两通道置零，和真机分布不同）还是视触觉分支（布局和预训练的视触觉不同），论文没写，代码也没有仿真部分。<b>未核实</b>。另外，仿真 XHand1 用 120 个点，真机实验却降到 96 个，两者也不同。</p></div>
+
+<h2 id="code">代码与使用要点</h2>
+<p><b>结论先说：</b>仓库只给推理：冻结的目标编码器、三类传感器的数据接口、Sharpa 和 XHand 各 30 对样例。预测器、掩码、EMA、增广、预训练数据、探针头、策略读出和接入代码都没有公开。这和论文 §1 “公开推理代码、少量样例、Tiny 和 Small 权重”的承诺一致。</p>
+<p>代码版本：<a href="https://github.com/robbyant/lingbot-touch/tree/dec8025b212e7099b235cc2ef13a4921a7e59545">dec8025</a>（2026-11-11），Apache-2.0。包名 <code>lingbot-touch</code> 0.5.0，Python 3.12，固定 torch 2.11.0、numpy 2.4.4。仓库里还放了论文 PDF（Git LFS），我比对过文本，和 arXiv v1 只差页边的 arXiv 戳记。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>部分</th><th>文件</th><th>内容</th></tr></thead><tbody>
+<tr><td>编码器</td><td><code>tactile_jepa_inference/model.py</code>、<code>tokenizer.py</code>、<code>rope.py</code></td><td><code>TargetEncoder</code> = 按模态路由的 <code>PointTokenizer</code>（Linear(3τ→d)、GELU、Linear(d→d)）+ 12 层 pre-norm Transformer（注意力里对 q、k 做五轴 RoPE）+ 四层输出各 LayerNorm 后拼接。<code>requires_grad(False)</code>，<code>train()</code> 被改成永远 eval</td></tr>
+<tr><td>加载</td><td><code>loading.py</code></td><td>读 <code>config.json</code> 和 <code>encoder.pt</code>；检查键、形状、dtype、有限值后严格加载；<code>weights_only=True</code></td></tr>
+<tr><td>数据接口</td><td><code>data_interfaces/interfaces.py</code>、<code>geometry.py</code>、<code>xhand.py</code>、<code>infer_sharpa.py</code>、<code>infer_xhand.py</code></td><td>原始信号 → 归一化 → 放进固定手指顺序；几何标定；XHand 120 → 96 选点</td></tr>
+<tr><td>重采样</td><td><code>sampling.py</code>、<code>pretraining_sampling.py</code>，<code>data/*.json</code></td><td>12 种参考布局（磁 96/76/64/48/32/24，压阻 61/16/9，视触觉 200/96/32）；PaXini 原生 116 点和 Sharpa 240×240 形变图到参考布局的固定映射</td></tr>
+<tr><td>命令行</td><td><code>infer.py</code> → <code>data_interfaces/infer.py</code></td><td><code>--input-format sharpa|xhand|normalized</code>，输出已存在时拒绝覆盖</td></tr>
+<tr><td>测试</td><td><code>tests/</code></td><td>样例哈希、Tiny/Small 真实推理、CLI 一致性、归一化、补齐、三种模态路由；要先下载权重</td></tr>
+</tbody></table></div>
+<p><b>权重。</b>Hugging Face <a href="https://huggingface.co/robbyant/lingbot-touch-tiny">robbyant/lingbot-touch-tiny</a>、<a href="https://huggingface.co/robbyant/lingbot-touch-small">-small</a>（也在 ModelScope），每个只有 <code>config.json</code> 和 <code>encoder.pt</code>（Tiny 21.9 MB，Small 87.1 MB），Apache-2.0。README 说“需要有权限的账号”，但我 2026-11-17 查 Hugging Face API，两个仓库的 <code>gated</code> 都是 False，<code>config.json</code> 可以直接读。放到 <code>checkpoints/lingbot-touch-tiny/</code> 下。</p>
+<p class="tcap">两个模型的 config.json（Hugging Face，2026-11-09 版）</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>键</th><th>Tiny</th><th>Small</th></tr></thead><tbody>
+<tr><td>embed_dim / depth / num_heads</td><td>192 / 12 / 3</td><td>384 / 12 / 6</td></tr>
+<tr><td>mlp_ratio</td><td>4.0</td><td>4.0</td></tr>
+<tr><td>tubelet_size</td><td>2</td><td><b>4</b></td></tr>
+<tr><td>output_layers</td><td>[2, 5, 8, 11]</td><td>[2, 5, 8, 11]</td></tr>
+<tr><td>address_rope</td><td colspan="2">time_theta = finger_theta = 10000，spatial_theta = 100，spatial_coordinate_scale = π/2</td></tr>
+<tr><td>use_shared_projector</td><td>false</td><td>false</td></tr>
+<tr><td>参数量（我算的）</td><td>5,455,488</td><td>21,755,904</td></tr>
+<tr><td>输出通道 C</td><td>768</td><td>1536</td></tr>
+</tbody></table></div>
+<p><b>输入接口</b>（见仓库 DATA_INTERFACE_GUIDE.md）。编码器只认归一化后的张量：</p>
+<ul>
+<li><code>signal</code>：<code>[B,T,5,M,3]</code>，手指顺序固定为拇指、食指、中指、无名指、小指；\(T\) 必须能被 tubelet 整除（Tiny 2，Small 4），样例是 16 帧。左右手分别推理，不要拼成 10 指。</li>
+<li><code>pos_xyz</code>：<code>[5,M,3]</code> 或 <code>[B,5,M,3]</code>，标准指尖空间坐标；左手要先转成“标准右手”。</li>
+<li><code>coverage_mask</code>：<code>[5,M]</code> 布尔，标哪些槽位是真实触点。手指触点数不同时按最多的补齐，补的槽位 False。真实触点信号为零也要 True：它决定哪些槽位产生 token、参与自注意力，不是接触检测。</li>
+<li><code>modality</code>：<code>magnetic</code>、<code>piezoresistive</code>、<code>visuotactile</code> 三选一，按传感原理选，每次调用只走一个 tokenizer。</li>
+</ul>
+<p><b>三类传感器怎样进 tokenizer。</b></p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>类型</th><th>每个触点的 3 个通道</th><th>归一化</th><th>参考布局</th></tr></thead><tbody>
+<tr><td>视触觉（Sharpa Wave）</td><td>[0, 0, z]，z 是解码后的形变强度（不是 RGB）</td><td>z/255，截到 [0, 1]</td><td>200 / 96 / 32 点每指；样例是 200 点，已是标准坐标</td></tr>
+<tr><td>磁（XHand1）</td><td>[x, y, z] 三轴</td><td>除以 [128, 128, 255]，xy 截到 [−1, 1]、z 截到 [0, 1]</td><td>120 点先选成 96 点，用内置的 magnetic96 坐标</td></tr>
+<tr><td>磁（PaXini 原生）</td><td>[x, y, z]</td><td>先按固定权重重采样，再除以 [2.56, 2.56, 5.12]</td><td>96 / 76 / 64 / 48 / 32 / 24</td></tr>
+<tr><td>压阻</td><td>[0, 0, z]</td><td>按该传感器确认过的量程，xy 置零</td><td>61 / 16 / 9；61 点布局拇指 124 点，M 补到 124</td></tr>
+</tbody></table></div>
+<p><b>输出。</b><code>latent</code> <code>[B,N,C]</code>，以及每个 token 的 <code>time_id</code> <code>[N]</code>、<code>finger_id</code> <code>[N]</code>、<code>pos_xyz</code> <code>[B,N,3]</code>，\(N=(T/\tau)\times\)有效触点数。按样例算：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>输入</th><th>Tiny</th><th>Small</th></tr></thead><tbody>
+<tr><td>Sharpa 样例 16 帧 × 5 × 200</td><td>[1, 8000, 768]</td><td>[1, 4000, 1536]</td></tr>
+<tr><td>XHand 样例 16 帧 × 5 × 96（选点后）</td><td>[1, 3840, 768]</td><td>[1, 1920, 1536]</td></tr>
+</tbody></table></div>
+<p>没有池化后的向量，也没有任务头。README 强烈建议用注意力读出（可学习或任务条件的 query 对所有 token 做交叉注意力），不要默认用逐 token 线性投影或 mean/max 池化：自注意力之后每个 token 已经混了其他触点和时刻的信息，按地址挑 token 或池化并不能分离出某根手指、某段时间的信息。论文的探针（1 块、宽 192、3 头）和策略接入（每手 40 个读出 token）都是这个做法，但这两部分的代码没有公开。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 代码和论文对不上或论文没写的地方</span><ul>
+<li><b>Small 的 tubelet 是 4</b>，论文正文写的是 2 帧（<a href="#n3">读者注 3</a>）。</li>
+<li><b>RoPE 留了 4 维不旋转</b>，空间坐标乘 π/2（<a href="#n4">读者注 4</a>）。</li>
+<li><b>Sharpa 的点数。</b>§4.1 说 Sharpa Wave 降采样到每指 96 点输入，公开样例和 README 例子用的是 200 点（“不需要再重采样”）。两种都在预训练支持的分辨率里，但论文探针用的不是样例的分辨率。</li>
+<li><b>XHand 的 120 → 96 不是均匀降采样。</b><code>xhand.py</code> 先取 96 个固定点；如果某帧某指 z 最大的触点不在这 96 个里，就把它映射到对应目标槽位替换进去（README 说是“保峰”，不是高斯平均）。论文只说“降采样到 96”。README 还说作者验证过 120 → 96 比直接用 120 点的表征更好，论文说模型也能直接吃 120 点，没给对比数字。</li>
+<li><b>归一化量程</b>：预训练的 PaXini 磁信号除以 [2.56, 2.56, 5.12]，XHand 除以 [128, 128, 255]。论文只说“按测量范围的固定上下界”，没给数。</li>
+<li><b>可选的共享投影层</b> <code>SharedPointwiseProjector</code>（tokenizer 之后的残差 MLP）在代码里存在，两个公开模型都关着，论文没提。</li>
+<li><b>标定参数</b>（旋转、原点、半径、偏移）只对样例内置，新传感器要自己按式 (1) 标定；仓库没有为 Juqiao、Xspark、TACHIN、PaXini 提供原始坐标到标准空间的标定文件，只有标准空间里的参考布局。</li>
+</ul></div>
+
+<h2 id="press">新闻稿数字核对</h2>
+<p>新闻稿里常见的几个数，和论文、代码对照如下。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>新闻稿</th><th>论文 / 代码出处</th><th>结论</th></tr></thead><tbody>
+<tr><td>4,983 小时预训练数据</td><td>图 2、§3.1、表 4：2,197 + 1,136 + 1,650</td><td>对得上；正文多处说 “5,000 小时” 是取整（<a href="#n1">读者注 1</a>）</td></tr>
+<tr><td>Tiny 5.46M 参数</td><td>§4.1；按 config 算 5,455,488</td><td>对得上（<a href="#n7">读者注 7</a>）</td></tr>
+<tr><td>Small 21.76M 参数</td><td>§4.1；按 config（tubelet 4）算 21,755,904</td><td>对得上；但只在 tubelet 为 4 时成立，和正文“两帧一个 token”矛盾（<a href="#n3">读者注 3</a>）</td></tr>
+<tr><td>原始信号 62.5% vs LingBot-Touch 90%</td><td>表 2：T-Rex 在 Sharpa Wave 拧瓶盖，Base 56.25、+原始 62.50、Ours 90.00</td><td>数字对得上，但这是 104 对里的一个单任务（<a href="#n18">读者注 18</a>）</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · “62.5% vs 90%”是哪一格</span><p>我在表 2 的 104 个“任务-策略”对里找 “+原始 = 62.5、Ours = 90” 的组合，只有一格：T-Rex 在 Sharpa Wave 上拧瓶盖（Base 56.25）。正文 §5.2 引的是同一格，但写的是和原策略比（“56% to 90%”）。这是收益较大的一格，不代表平均水平：T-Rex 在 Sharpa Wave 20 个任务上平均是 57.99%（原始）对 70.05%（Ours），26 个任务是 56.59% 对 68.61%；四种策略平均下来，原始信号比原策略多 6.6 到 11.2 个点，LingBot-Touch 多 13.9 到 24.8 个点。另外这里的“成功率”是分项得分的平均（<a href="#n14">读者注 14</a>）。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">语料数字核算</a>：小时、回合、占比都对；13.3 亿帧超过按表 4 最高采样率算的上限 13.10 亿，未核实。</li>
+<li><a href="#n2">式 (1) 和代码里的写法</a>：代码多了旋转和偏移；“Wujie” 不在表 4。</li>
+<li><a href="#n3">Small 每个 token 吃 4 帧</a>：config 的 tubelet 是 4，参数量也只在 4 时对得上。</li>
+<li><a href="#n4">五轴 RoPE 怎么切 head 维度</a>：每轴 12 维，剩 4 维不旋转，空间乘 π/2。</li>
+<li><a href="#n5">四层拼接的数字</a>：Tiny 768、Small 1536，和 §4.6 的 768 一致。</li>
+<li><a href="#n6">warm-up 的数值</a>：0.15% 的步数；3 个接触点时全被藏住的概率 0.512 对 0.064。</li>
+<li><a href="#n7">参数量可以算出来</a>：5,455,488 和 21,755,904，测试代码和权重文件大小都印证。</li>
+<li><a href="#n8">图 6 到图 8 的说法逐条核对</a>：都成立；图 8 多来源 1,000 h = 图 7 Tiny 1K。</li>
+<li><a href="#n9">图 9 和图 7 的 Tiny 不是同一组数</a>：同样小时数下图 7 十项里八项更好。</li>
+<li><a href="#n10">表 1 的一致性</a>：基线行八处相同，说法都成立；最终片段长度没写。</li>
+<li><a href="#n11">参数占比反推策略大小</a>：约 3.4B、3.6B、4.2B，未核实。</li>
+<li><a href="#n12">表 2 的均值和计数</a>：全部对上；“14 到 26 个点”应是 14 到 25。</li>
+<li><a href="#n13">表 2 用 4K 小时编码器</a>：五个任务 81.4 = 图 13a 的 4K 柱，公开权重是 5K。</li>
+<li><a href="#n14">分数颗粒度和表 7 分制</a>：药盒补装、抽袋子、开风扇有几格对不上。</li>
+<li><a href="#n15">表 3 的核算和排版</a>：平均和方差都对；XHand Baoding 的 0.1 在“无触觉”列。</li>
+<li><a href="#n16">仿真走哪个分支没写</a>：仿真 XHand1 是标量形变，分支未说明。</li>
+<li><a href="#n17">代码和论文的差异</a>：tubelet、RoPE 余维、Sharpa 200 点、XHand 保峰选点、量程、共享投影层、标定文件。</li>
+<li><a href="#n18">“62.5% vs 90%”是哪一格</a>：T-Rex 拧瓶盖，单个任务，不是平均。</li>
+</ol>
+<p>论文没写、我也没找到的：预训练最终的片段长度和 batch 大小；EMA 调度的具体形式；三种来源各自的布局采样比例；预测器的层数和宽度；探针和策略读出的代码；T-Rex 的论文编号。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的模型、传感器和工具。除注明的以外，链接在 2026 年 11 月 17 日用脚本核对都返回 200，arXiv 编号核对过标题。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/robbyant/lingbot-touch">LingBot-Touch</a></td><td>本文</td><td><a href="https://technology.robbyant.com/lingbot-touch">项目页</a> · <a href="https://huggingface.co/collections/robbyant/lingbot-touch">HF</a> · <a href="https://www.modelscope.cn/collections/Robbyant/LingBot-Touch">ModelScope</a></td><td><a href="https://arxiv.org/abs/2611.12806">2611.12806</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.13102">FTP-1</a></td><td>主要对比的触觉基础策略</td><td>–</td><td><a href="https://arxiv.org/abs/2606.13102">2606.13102</a></td></tr>
+<tr><td><a class="ds" href="https://diffusion-policy.cs.columbia.edu/">Diffusion Policy</a></td><td>模仿学习基线</td><td>diffusion-policy.cs.columbia.edu</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2504.16054">π0.5</a></td><td>VLA 基线</td><td>physicalintelligence.company（脚本访问返回 429，未核对）</td><td><a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2607.06403">LingBot-VLA</a></td><td>VLA 基线（原文参考文献 [31]）</td><td>–</td><td><a href="https://arxiv.org/abs/2607.06403">2607.06403</a></td></tr>
+<tr><td>T-Rex</td><td>触觉反应式 VLA 基线</td><td>–</td><td>原文参考文献 [21]，没有编号</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2404.08471">V-JEPA</a></td><td>评测协议来源</td><td><a href="https://github.com/facebookresearch/vjepa2">代码</a></td><td><a href="https://arxiv.org/abs/2404.08471">2404.08471</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2506.09985">V-JEPA 2</a></td><td>检索任务的视频编码器（ViT-L）</td><td><a href="https://github.com/facebookresearch/vjepa2">代码</a></td><td><a href="https://arxiv.org/abs/2506.09985">2506.09985</a></td></tr>
+<tr><td><a class="ds" href="vjepa21.html">V-JEPA 2.1</a></td><td>多层监督的来源，本站有精读</td><td>–</td><td><a href="https://arxiv.org/abs/2603.14482">2603.14482</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2301.08243">I-JEPA</a></td><td>JEPA 的图像版</td><td>–</td><td><a href="https://arxiv.org/abs/2301.08243">2301.08243</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2410.24090">Sparsh</a></td><td>光学触觉自监督表征</td><td>–</td><td><a href="https://arxiv.org/abs/2410.24090">2410.24090</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2406.13640">T3</a></td><td>可迁移触觉 Transformer</td><td>–</td><td><a href="https://arxiv.org/abs/2406.13640">2406.13640</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2401.18084">UniTouch</a></td><td>触觉接多模态嵌入</td><td>–</td><td><a href="https://arxiv.org/abs/2401.18084">2401.18084</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2502.12191">AnyTouch</a></td><td>多视触觉传感器统一表征</td><td>–</td><td><a href="https://arxiv.org/abs/2502.12191">2502.12191</a></td></tr>
+<tr><td><a class="ds" href="https://www.sharpa.com/">Sharpa Wave</a></td><td>视触觉指尖灵巧手（见过）</td><td>sharpa.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.robotera.com/">XHand1</a></td><td>磁式指尖灵巧手（没见过）；链接是星动纪元官网，我认为 XHand 是它的产品，论文没给链接</td><td>robotera.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.paxini.com/">PaXini</a></td><td>磁式（霍尔）触觉手套</td><td>paxini.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a></td><td>仿真器（附录 C）</td><td>developer.nvidia.com/isaac/sim</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://umap-learn.readthedocs.io/">UMAP</a></td><td>降维可视化</td><td>umap-learn.readthedocs.io</td><td><a href="https://arxiv.org/abs/1802.03426">1802.03426</a></td></tr>
+</tbody></table></div>
+
+<h2 id="qa">读者问答</h2>
+<section id="qa-list"><p>暂无提问。</p></section>
+
+<footer><p>精读是我读 arXiv 2611.12806 后的整理，不是作者的官方内容。原文：Bing Han、Yichuan Peng、Haoyu Dong 等（Robbyant），《Learning Heterogeneous Tactile Representation for General Dexterous Manipulation》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 16 从原文 PDF 裁切，只做了裁切、缩放和格式转换。表格数字照录原文；读者注、核算和动画是本页所加。代码对照基于 robbyant/lingbot-touch 提交 dec8025（Apache-2.0）。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -35,6 +35,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 最早几篇 | `gauge` `simpler` `3dws` |
 | 仿真评测与世界模型 | `real2sim-eval`（Real-to-Sim + 3DGS + PhysTwin，和 `simpler` 对照）`phystwin` `rgbench`（布料模拟器基准）`mundo`（无论文，只读项目页和博客） |
 | SuperMimic 及其引用论文 | `supermimic`，以及它相关工作和表 1 引到的全部论文：`shac` `dreamer` `supertrack` `rwm` `deepmimic` `rwm-u` `dreamerv3` `td-mpc` `daydreamer` `controlvae` `sonic` `phc` `moconvq` `superdyno` `beyondmimic` `pulse` `latent` `npmp` `physicsvae` `maskedmimic` |
+| 触觉（2026-11-17） | `lingbot-touch`（arXiv 2611.12806，CC BY 4.0 放原图；项目网页 © All rights reserved，只链接不抓取）；页末有空的 `#qa` 节 |
 | NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`；和 OpenWAM 相关的页末有 `#openwam` 节 |
 | WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`、`libero`（基准本身，CC BY 4.0）；上游模型 `wan`、`dinov3`、`vjepa21`、`svae`、`rae`，各页末有 `#openwam` 节。三页都有 `#repro` 节；LIBERO 环境与各家评测协议对照在 `openwam.html#qa-libero` |
 | 抓取 / 位姿架构专题 | `graspgen`（已升级为逐节精读）`foundationpose` `wapr` `tro-grasp` `tro-grasp-plus-plus`。这批大多由用户的另一个账号推送 |
