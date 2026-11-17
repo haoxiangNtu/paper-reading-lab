@@ -325,7 +325,7 @@
         for (let i = 0; i < S.a; i++) { const joint = i < S.v ? (S.a === 4 ? i * 2 === i * 2 && (i % 2 === 0) : true) : false; steps.push(joint); }
         if (S.a === 4 && S.v === 2) steps = [true, false, true, false]; else if (S.a === 2 && S.v === 2) steps = [true, true]; else if (S.a === 2 && S.v === 1) steps = [true, false];
         steps.forEach((j, i) => { const w = j ? 2.6 : 1.0; const b = block(w, 1.0, 1.0, j ? COL.model : COL.act, [-4 + i * 3.4, 3.2, 0]); sub.add(b); sub.add(lab(j ? `k=${i} 联合步` : `k=${i} 缓存步`, [-4 + i * 3.4, 4.4, 0], { size: 12 })); });
-        swap(G, LS, `${S.k}：DiT 前向 ${S.a} 次，其中联合 ${steps.filter(x => x).length} 次`, [2, 9.4, 0], { size: 16, border: 'rgba(56,209,255,.7)' }); }
+        swap(G, LS, `${S.k} = 视频 ${S.v} 步、动作 ${S.a} 步：DiT 前向 ${S.a} 次 = 联合 ${steps.filter(x => x).length} 次（全序列）+ 缓存 ${steps.filter(x => !x).length} 次（只算动作）`, [2, 9.4, 0], { size: 16, border: 'rgba(56,209,255,.7)' }); }
       const nA = S.a, prog = clamp(p / 0.9, 0, 1), done_ = prog * nA, kA = Math.floor(done_);
       const nV = steps.filter((x, i) => x && i <= kA).length;
       const vlev = clamp(1 - Math.min(nV, S.v) / S.v * seg(p, 0, 0.9), 0, 1);
