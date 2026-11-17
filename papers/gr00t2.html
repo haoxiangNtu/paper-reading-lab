@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -996,6 +996,23 @@ td.best{font-weight:700}
 <p>时延不要混着比：Turbo 在 G1 上的 38.40 ms（表 27）和 GR00T 2 在 YAM 上的 179.79 ms 用的视图数、动作长度、去噪步数都不同。同口径的只有 171 对 52 ms（读者注 13）。</p>
 </details>
 <p>3D 动画第 1 幕可以切换 GR00T 2 / Turbo，第 3 幕当场算两者的 token 数，第 10 幕是 Turbo + SONIC 三层栈。</p>
+<h3 id="qa-sonic">问 3：“SONIC 全身运动 token”是什么意思？</h3>
+<p><b>SONIC 是什么。</b>SONIC 是 NVIDIA 先前的一篇工作（arXiv 2511.07820，本站有<a href="sonic.html">精读</a>），是 G1 人形的<b>全身控制器</b>。你给它一小段“想让身体怎么动”的目标动作，它负责让机器人真的照着做出来，同时不摔倒。它用约 700 小时动捕数据、靠强化学习练“动作跟踪”，在没见过的动作上跟踪成功率 99.6%。</p>
+<p><b>为什么叫“全身”。</b>人形机器人要动的不只是手臂：弯腰、下蹲、迈步、转身都会改变重心，手伸出去，腿和腰也得跟着调整平衡。所以“全身运动”指腿、躯干、手臂一起协调的整套动作，不是单独控制一只机械臂。</p>
+<p><b>token 是什么。</b>SONIC 内部有几个编码器（机器人动作、人体动作、VR 头手关键点各一个），会把“接下来一小段要做的全身动作”压缩成一个很短的数字向量。这个向量还要经 FSQ 量化，也就是每一维四舍五入到固定的几个档位。压缩并量化后的这个向量就是一个运动 token。另一端的解码器读这个 token 加机器人当前状态，输出各个关节该到的位置。不管动作是从人体动捕、VR 遥操作还是机器人数据来的，都变成同一种 token，所以叫“通用 token 空间”。</p>
+<div class="tablewrap"><table><thead><tr><th>层</th><th>谁</th><th>频率</th><th>输入 → 输出</th></tr></thead><tbody>
+<tr><td>S1</td><td>GR00T 2 Turbo（Jetson Thor）</td><td>约 1 Hz</td><td>相机 + 本体感知 → 80 个运动 token（每 20 ms 一个，共 1.6 秒）+ 夹爪宽度</td></tr>
+<tr><td>S0</td><td>SONIC（Jetson Orin NX）</td><td>50 Hz</td><td>当前这一个 token + 机器人状态 → 关节位置目标，并保持平衡</td></tr>
+<tr><td>底层</td><td>关节 PD 控制器</td><td>1000 Hz</td><td>关节位置目标 → 电机力矩</td></tr>
+</tbody></table></div>
+<p>夹爪宽度不经过 SONIC，直接给夹爪（附录 H.1）。</p>
+<p><b>为什么不让 Turbo 直接出关节角。</b>三个原因：</p>
+<ul>
+<li><b>分工：</b>Turbo 1 秒才想一次，管不了每 20 ms 的平衡。“做什么”交给 Turbo，“怎么站稳地做出来”交给 SONIC。</li>
+<li><b>数据同口径：</b>采遥操作数据时，操作者的动作也被编码成同样的 token 再由 SONIC 执行，所以示范直接就录在 Turbo 的动作空间里，仿真重放也用同一个 SONIC（附录 H.1、H.3）。</li>
+<li><b>更好学：</b>SONIC 论文里，让 GR00T N1.5 预测 token 比直接预测全身姿态成功率高很多（三个任务平均 68% 对 27%）。</li>
+</ul>
+<p><b>代价</b>（§5）：token 里只有运动，没有显式的接触力，需要用力控制的任务表达不了。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
