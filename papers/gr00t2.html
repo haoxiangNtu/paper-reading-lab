@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -975,6 +975,27 @@ td.best{font-weight:700}
 <p>G1 Turbo 从 2v4a 改成 1v2a 是图 19 时延优化的最后一步：RTX 5090 上 54.79 → 38.40 ms，Jetson Thor 上 182.22 → 123.97 ms。“2v2a 两次都是联合步”是从“视频和动作步数相同”推出来的，白皮书只直接写了 2v4a 的联合 / 缓存排法。白皮书没给每一步的 σ 取值。RL 时的 CPS 噪声只加在动作的去噪上，视频去噪保持确定（图 46）。</p>
 </details>
 <p>3D 动画第 6 幕可以切换这三种配置，看每次前向是联合步还是缓存步。</p>
+<h3 id="qa-turbo">问 2：GR00T 2 和 GR00T 2 Turbo 有什么区别？</h3>
+<p><b>一句话：</b>模型主体完全一样，只把“看视频的那层压缩”换得更狠。视频 token 少了 3/4，所以快了约 3 倍。代价是需要看清细节的灵巧任务明显变差（§2、§4.3、§5）。</p>
+<div class="tablewrap"><table><thead><tr><th></th><th>GR00T 2</th><th>GR00T 2 Turbo</th></tr></thead><tbody>
+<tr><td>Transformer</td><td colspan="2">同一个 2B DiT，同样的联合世界-动作预测和训练流程</td></tr>
+<tr><td>视频 VAE</td><td>Wan 2.1，空间每边压 8 倍</td><td>Wan 2.2，空间每边压 16 倍</td></tr>
+<tr><td>每路相机每个隐帧</td><td>28 × 40 网格 → 280 个 token</td><td>14 × 20 网格 → 70 个 token（少 4 倍）</td></tr>
+<tr><td>其他改动</td><td colspan="2">只有隐变量的输入、输出投影随之适配；动作长度不变</td></tr>
+<tr><td>每次服务调用（YAM，RTX 5090）</td><td>171 ms</td><td>52 ms（约快 3.3 倍）</td></tr>
+<tr><td>YAM 长任务成功率（表 1a 均值）</td><td>71.7%</td><td>65.0%（掉 6.7 点；有 3 个任务反超）</td></tr>
+<tr><td>灵巧手任务成功率（表 1a 均值）</td><td>68.6%</td><td>34.3%（掉一半）</td></tr>
+<tr><td>Dexter 零样本成功率（表 3）</td><td>49.8%</td><td>36.6%</td></tr>
+<tr><td>YAM V2 基础技能（表 2、表 13）</td><td colspan="2">统计上分不出（Turbo 高 14 Elo，区间 −28 到 +58）；竞技场排行榜第一是一个 Turbo 检查点</td></tr>
+<tr><td>主要用在</td><td>Dexter、YAM（工作站 GPU）</td><td>G1 人形，机载 Jetson Thor 124 ms；配 SONIC 全身控制器</td></tr>
+</tbody></table></div>
+<p><b>为什么能这样换。</b>GR00T 2 每次要生成的 token 绝大多数是未来视频，动作只占几十个，而视频本身冗余很大。所以压视频 token 是最直接的提速办法，Transformer 和动作部分都不用动。</p>
+<p><b>为什么灵巧任务掉得多。</b>作者的解释是：策略需要预测多少视觉细节，取决于任务和具身。夹爪做的粗动作，在 16 倍压缩的画面里也够用；手指级的精细接触，在 16 倍压缩下细节丢得太多。作者也承认这个对比不能确定原因（§5）。</p>
+<details><summary>Turbo 在人形上怎么用</summary>
+<p>三层结构（图 9、附录 H.1）：S2 推理模型选任务、标目标；S1 Turbo 读头部和双腕相机加本体感知，约 1 Hz 预测 1.6 秒的动作块，内容是 80 个 SONIC 全身运动 token 加夹爪宽度；S0 SONIC 以 50 Hz 把 token 解码成关节位置目标，PD 控制器以 1000 Hz 跟踪。所以 Turbo 在 G1 上的“动作”不是关节角，而是 SONIC 的运动隐变量。去噪用 1v2a（见问 1）。G1 四个全身任务平均：Turbo 80.8%，GR00T 1.7 是 62.5%（表 25）。</p>
+<p>时延不要混着比：Turbo 在 G1 上的 38.40 ms（表 27）和 GR00T 2 在 YAM 上的 179.79 ms 用的视图数、动作长度、去噪步数都不同。同口径的只有 171 对 52 ms（读者注 13）。</p>
+</details>
+<p>3D 动画第 1 幕可以切换 GR00T 2 / Turbo，第 3 幕当场算两者的 token 数，第 10 幕是 Turbo + SONIC 三层栈。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
