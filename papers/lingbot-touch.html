@@ -34,14 +34,14 @@ details.tbl[open] summary{margin-bottom:6px}
 <div class="meta"><a href="https://arxiv.org/abs/2611.12806">arXiv 原文</a><a href="https://arxiv.org/pdf/2611.12806">PDF</a><a href="https://technology.robbyant.com/lingbot-touch">项目主页</a><a href="https://github.com/robbyant/lingbot-touch">官方代码</a><a href="https://huggingface.co/collections/robbyant/lingbot-touch">权重（Hugging Face）</a><span>正文 19 页，附录到第 24 页，共 27 页</span></div>
 
 <div class="callout">
-<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。PDF 里没有和它矛盾的版权声明。这里按原文顺序覆盖正文六节和附录 A 到 C，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。PDF 里没有和它矛盾的版权声明。这里按原文顺序覆盖正文六节和附录 A 到 C，小节编号和原文一致，用自己的话整理，不是逐字翻译；<b>§3 是逐段翻译</b>，并附一张可点击的图 3 重画。公式按原文编号，表格数字照录原文。</p>
 <p>图 1 到图 16 从 arXiv PDF 裁切，作者是 Bing Han 等，许可 CC BY 4.0，只做了裁切、缩放和格式转换，没有改内容。这篇没有 arXiv HTML 版，“看原图”链接到 PDF 对应页。图下的文字是我写的。“读者注”是整理时核算或对照的结果，不属于论文内容，页尾有汇总。</p>
 <p><b>代码。</b>官方代码是 <a href="https://github.com/robbyant/lingbot-touch/tree/dec8025b212e7099b235cc2ef13a4921a7e59545">robbyant/lingbot-touch 提交 dec8025</a>（2026-11-11），Apache-2.0，部分代码沿用 Meta 的 MIT 许可（见仓库 THIRD_PARTY_NOTICES.md）。只读，没有运行。仓库只有推理用的目标编码器和数据接口，没有训练代码，详见 <a href="#code">代码与使用要点</a>。Hugging Face 上两个模型的 <code>config.json</code> 我也读了（各 518 字节），权重没有下载。</p>
 <p><b>项目主页</b>页脚写着 “© 2026 Robbyant … All rights reserved”。我只打开过一次看它的使用条款，没有抓取其中的图、视频或数据，本页只链接它。</p>
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -73,42 +73,301 @@ details.tbl[open] summary{margin-bottom:6px}
 <p><b>2.2 触觉表征学习。</b>自监督方法大致三类：联合嵌入（DINO、CLIP、SigLIP、VideoCLIP）、生成式（MAE、VideoMAE）、联合嵌入预测（I-JEPA、V-JEPA、V-JEPA 2、LeJEPA、V-JEPA 2.1）。触觉方向：<a class="ds" href="https://arxiv.org/abs/2410.24090">Sparsh</a> 在光学触觉上比较了重建、自蒸馏和 JEPA；<a class="ds" href="https://arxiv.org/abs/2406.13640">T3</a> 用传感器专用编码器加共享 Transformer；<a class="ds" href="https://arxiv.org/abs/2401.18084">UniTouch</a> 把触觉接到多模态嵌入；<a class="ds" href="https://arxiv.org/abs/2502.12191">AnyTouch</a> 结合掩码建模、多模态对齐和跨传感器匹配，AnyTouch 2 强调力和时间动态；Sparsh-skin 学磁式触觉历史，Sparsh-X 融合 Digit 360 的多种信号；HTT 处理光学和阵列式的异构；<a class="ds" href="https://arxiv.org/abs/2606.13102">FTP-1</a> 把异构观测映射成形态感知的 token，新硬件要配传感器专用编码器。FTP-1 是本文主要对手。</p>
 
 <h2 id="s3"><span class="no">3</span>LingBot-Touch</h2>
+<p class="tcap">本节（§3 到 §3.3）是<b>逐段翻译</b>，按原文段落顺序，公式编号同原文。原文以 CC BY 4.0 发布，翻译是改编作品，署名见页尾。方括号 [译注] 和读者注是我加的，不属于原文。术语：taxel 译作“触点”，即触觉传感器上的一个测量单元。</p>
+
+<p>LingBot-Touch 从数据中学习可用于灵巧操作策略的触觉表征。这面临两个挑战。第一，触觉数据稀缺。和视觉、语言不同，目前没有任何触觉语料达到表征学习所需的规模。我们直接应对这一点：采集了 5,000 小时的触觉记录（§3.1）。由于这些数据横跨人戴的触觉手套和装有不同传感器的机器人手，它们在换能原理、触点布局、分辨率和采样率上都是异构的；我们用一个标准几何接口和分模态 tokenizer 来处理这一点，这些 tokenizer 再接入一个共享的 Haptic Transformer（§3.2）。第二，这些记录最多只有粗略的任务级描述，没有任何东西标注片段内部的接触物理，例如施加的力、接触发生在哪里、范围多大、何时开始和结束。因此模型必须自己发现接触的结构。我们用一个在隐空间中预测接触的自监督目标来应对，配合一个让训练在稀疏信号上保持稳定的掩码 warm-up（§3.2），以及让学到的表征能跨传感器迁移的布局增广（§3.3）。</p>
+
+<p id="p-form"><b>问题表述。</b>我们把一个归一化后的触觉片段表示为 \(\mathbf X\in\mathbb R^{T\times N\times3}\)，其中 \(T\) 是帧数，\(N\) 是所有手指上有效触点的总数。每个触点关联一个三维位置和一个手指编号。不同传感器的布局可以在触点数量和排列上不同；单通道的观测补零到公共的三通道接口。我们要找的是一个触觉基础编码器，把这些观测映射到一个共享的表征空间：\(\mathbf Z=E^{(g)}_\theta(\mathbf X;\mathbf A)\)，其中 \(g\) 选择传感模态的分支，\(\mathbf A\) 表示标准的五维 token 地址。</p>
+
 <figure class="pfig" id="fig3">
 <img src="lingbot-touch/fig3.webp" width="1568" height="648" alt="图 3：左侧三种触觉信号经标准球面空间和加权采样进入；上方上下文编码器：分模态 tokenizer、去掉被掩码 token、Haptic Transformer、拼接掩码 token、分模态预测器；下方目标编码器由 EMA 更新，输出目标 token；右侧上下文损失和预测损失" loading="lazy">
 <figcaption><span class="lab">图 3 · 原文第 5 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=5">看原图 ↗</a></span>左边是磁、压阻、光学三种手的信号，下方小图是标准球面空间（法向和侧视）。上半是上下文编码器：按模态选 tokenizer，去掉被掩码的 token，经 HaT（带 5D RoPE），再拼回掩码 token，交给对应模态的预测器。下半是目标编码器，看完整片段，参数是上半的 EMA，梯度在这里截断。右边两个损失：可见位置的上下文损失、被掩码位置的预测损失。</figcaption>
 </figure>
-<p>两个难点。第一，数据少：没有够规模的触觉语料，于是自己采了 5,000 小时（§3.1）；手套和机器人手的传感器不同，所以要有统一的几何接口和分模态 tokenizer（§3.2）。第二，没有标签：片段最多有任务级描述，没有力、接触位置、接触起止时间的标注，所以用自监督的隐空间预测加掩码 warm-up（§3.2），再用布局增广帮助跨传感器迁移（§3.3）。</p>
-<p><b>问题表述。</b>归一化后的触觉片段 \(\mathbf X\in\mathbb R^{T\times N\times3}\)，\(T\) 是帧数，\(N\) 是所有手指上有效触点的总数。每个触点带一个 3D 位置和手指编号。单通道传感器补零到 3 通道。目标是编码器 \(\mathbf Z=E^{(g)}_\theta(\mathbf X;\mathbf A)\)，\(g\) 选模态分支，\(\mathbf A\) 是每个 token 的 5 维地址。</p>
 
-<h3 id="s3-1"><span class="no">3.1</span>规模化的触觉：5,000 小时手套和机器人手数据</h3>
-<p><b>结论先说：</b>语料 4,983 小时，靠手套（压阻和磁）撑起大头，遥操作的 Sharpa Wave 补三分之一；三种来源按任务类别对齐，不按硬件对齐；除任务类别外没有任何标签；预训练时三种来源等概率采样。</p>
+<figure class="f3r" id="fig3r">
+<p class="lab">重画 · 图 3 架构图（可点击）· 结构按原文图 3 和 §3.2，形状按 Tiny 的 config.json；点任意方块看它做什么、张量多大、对应哪一段</p>
+<div class="f3r-ctl" role="group" aria-label="显示模式">
+<button type="button" data-mode="train" aria-pressed="true">预训练时</button><button type="button" data-mode="down" aria-pressed="false">下游使用时</button>
+<span class="f3r-hint" id="f3r-hint">两条支路都在用：上面算预测，下面给答案</span>
+</div>
+<div class="f3r-wrap">
+<svg id="f3r-svg" viewBox="0 0 1060 520" role="img" aria-label="LingBot-Touch 架构：三种传感器经标准指尖空间和等概率采样，分成上下文编码器支路和目标编码器支路，预测器输出与目标比较得到预测损失和上下文损失，目标编码器由 EMA 更新">
+<defs>
+<marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+</defs>
+<!-- branch backgrounds -->
+<rect x="318" y="30" width="590" height="190" rx="14" class="bgc"/>
+<text x="330" y="50" class="bl c">上下文编码器支路（在线，梯度更新）</text>
+<rect x="318" y="300" width="590" height="160" rx="14" class="bgt"/>
+<text x="330" y="452" class="bl t">目标编码器支路（EMA 更新，不接梯度）</text>
+
+<!-- inputs -->
+<g class="blk" data-k="sensors" data-p="in">
+<rect x="14" y="70" width="128" height="300" rx="10"/>
+<text x="78" y="96" class="h">三种传感器</text>
+<text x="78" y="134">磁式</text><text x="78" y="152" class="s">PaXini 手套</text>
+<text x="78" y="190">压阻</text><text x="78" y="208" class="s">Juqiao、Xspark、</text><text x="78" y="224" class="s">TACHIN 手套</text>
+<text x="78" y="258">视触觉</text><text x="78" y="276" class="s">Sharpa Wave</text>
+<text x="78" y="318" class="s">原始读数 + 触点几何</text><text x="78" y="340" class="s">（XHand1 不在预训练里）</text>
+</g>
+<g class="blk" data-k="canon" data-p="in">
+<rect x="164" y="70" width="132" height="150" rx="10"/>
+<text x="230" y="96" class="h">标准指尖空间</text>
+<circle cx="230" cy="148" r="34" class="sph"/>
+<circle cx="214" cy="140" r="3" class="dot"/><circle cx="228" cy="132" r="3" class="dot"/><circle cx="244" cy="142" r="3" class="dot"/><circle cx="222" cy="158" r="3" class="dot"/><circle cx="240" cy="162" r="3" class="dot"/>
+<text x="230" y="204" class="s">式 (1) 坐标归一化</text>
+</g>
+<g class="blk" data-k="aug" data-p="in">
+<rect x="164" y="232" width="132" height="58" rx="10" class="dash"/>
+<text x="230" y="256" class="h2">布局增广 §3.3</text>
+<text x="230" y="276" class="s">多密度 + 位置扰动 (5)</text>
+</g>
+<g class="blk" data-k="sample" data-p="in">
+<rect x="164" y="302" width="132" height="68" rx="10"/>
+<text x="230" y="326" class="h2">等概率采样</text>
+<text x="230" y="344" class="s">一个片段 X [T, N, 3]</text>
+<text x="230" y="360" class="s">+ 5D 地址 A</text>
+</g>
+<path d="M142 145H160" class="ar" marker-end="url(#f3a)"/>
+<path d="M230 220V230" class="ar" marker-end="url(#f3a)"/>
+<path d="M230 290V300" class="ar" marker-end="url(#f3a)"/>
+
+<!-- mask -->
+<g class="blk" data-k="mask" data-p="tr">
+<rect x="420" y="232" width="130" height="56" rx="10" class="mk"/>
+<text x="485" y="254" class="h2">空间掩码</text>
+<text x="485" y="273" class="s">80% 触点，贯穿整段</text>
+</g>
+
+<!-- split arrows -->
+<path d="M296 320H312V125H328" class="ar" marker-end="url(#f3a)"/>
+<path d="M296 345H312V375H328" class="ar" marker-end="url(#f3a)"/>
+
+<!-- context branch -->
+<g class="blk" data-k="tokc" data-p="tr">
+<rect x="330" y="70" width="104" height="110" rx="10" class="cb"/>
+<text x="382" y="94" class="h2">tokenizer</text>
+<text x="382" y="112" class="s">按传感器选 1/3</text>
+<text x="382" y="134" class="s">两层 MLP</text>
+<text x="382" y="152" class="s">τ 帧×3 → d</text>
+<text x="382" y="170" class="s">[L, 192]</text>
+</g>
+<g class="blk" data-k="drop" data-p="tr">
+<rect x="448" y="70" width="88" height="110" rx="10" class="cb"/>
+<text x="492" y="98" class="h2">去掉</text>
+<text x="492" y="116" class="h2">被掩码</text>
+<text x="492" y="134" class="h2">token</text>
+<text x="492" y="160" class="s">[|C|, 192]</text>
+</g>
+<path d="M492 232V184" class="ar mka" marker-end="url(#f3a)"/>
+<path d="M434 125H444" class="ar" marker-end="url(#f3a)"/>
+<g class="blk" data-k="hatc" data-p="tr">
+<rect x="550" y="70" width="110" height="110" rx="10" class="cb"/>
+<text x="605" y="96" class="h2">HaT</text>
+<text x="605" y="114" class="s">12 层 · 宽 192</text>
+<text x="605" y="132" class="s">3 头 · head 64</text>
+<text x="605" y="152" class="rp">5D RoPE</text>
+<text x="605" y="170" class="s">共享</text>
+</g>
+<path d="M536 125H546" class="ar" marker-end="url(#f3a)"/>
+<g class="blk" data-k="concat" data-p="tr">
+<rect x="674" y="70" width="96" height="110" rx="10" class="cb"/>
+<text x="722" y="96" class="h2">拼回</text>
+<text x="722" y="114" class="h2">掩码 token</text>
+<text x="722" y="140" class="s">可见：编码输出</text>
+<text x="722" y="158" class="s">掩码处：Δ_M</text>
+</g>
+<path d="M660 125H670" class="ar" marker-end="url(#f3a)"/>
+<g class="blk" data-k="pred" data-p="tr">
+<rect x="784" y="70" width="112" height="110" rx="10" class="cb"/>
+<text x="840" y="96" class="h2">预测器</text>
+<text x="840" y="114" class="s">分组投影 +</text>
+<text x="840" y="132" class="s">共享 Transformer</text>
+<text x="840" y="152" class="rp">5D RoPE</text>
+<text x="840" y="170" class="s">输出 ẑ（全部位置）</text>
+</g>
+<path d="M770 125H780" class="ar" marker-end="url(#f3a)"/>
+
+<!-- target branch -->
+<g class="blk" data-k="tokt" data-p="tg">
+<rect x="330" y="318" width="104" height="110" rx="10" class="tb"/>
+<text x="382" y="342" class="h2">tokenizer</text>
+<text x="382" y="360" class="s">目标端副本</text>
+<text x="382" y="382" class="s">看完整片段</text>
+<text x="382" y="400" class="s">[L, 192]</text>
+</g>
+<g class="blk" data-k="hatt" data-p="tg">
+<rect x="550" y="318" width="110" height="110" rx="10" class="tb"/>
+<text x="605" y="342" class="h2">HaT</text>
+<text x="605" y="360" class="s">目标端副本</text>
+<text x="605" y="380" class="rp">5D RoPE</text>
+<text x="605" y="400" class="s">12 层</text>
+</g>
+<path d="M434 373H546" class="ar" marker-end="url(#f3a)"/>
+<g class="blk" data-k="readout" data-p="tg">
+<rect x="674" y="318" width="96" height="110" rx="10" class="tb"/>
+<text x="722" y="342" class="h2">四层读出</text>
+<text x="722" y="362" class="s">第 3/6/9/12 层</text>
+<text x="722" y="380" class="s">各自 LN 后拼接</text>
+<text x="722" y="404" class="s">z̄ [L, 768]</text>
+</g>
+<path d="M660 373H670" class="ar" marker-end="url(#f3a)"/>
+<g class="blk" data-k="sg" data-p="tr">
+<rect x="784" y="340" width="112" height="66" rx="10" class="sgb"/>
+<text x="840" y="366" class="h2">stop grad</text>
+<text x="840" y="388" class="s">不回传梯度</text>
+</g>
+<path d="M770 373H780" class="ar trn" marker-end="url(#f3a)"/>
+
+<!-- EMA -->
+<g class="blk" data-k="ema" data-p="tr">
+<path d="M382 180V318M605 180V318" class="ema"/>
+<rect x="560" y="232" width="92" height="54" rx="10" class="emab"/>
+<text x="606" y="254" class="h2">EMA</text>
+<text x="606" y="273" class="s">θ̄ ← mθ̄+(1−m)θ</text>
+</g>
+
+<!-- losses -->
+<g class="blk" data-k="loss" data-p="tr">
+<rect x="922" y="150" width="124" height="190" rx="10" class="lb"/>
+<text x="984" y="176" class="h2">损失 (4)</text>
+<text x="984" y="204" class="s">预测损失</text>
+<text x="984" y="220" class="s">被掩码位置 · 权 1</text>
+<text x="984" y="252" class="s">上下文损失</text>
+<text x="984" y="268" class="s">可见位置 · 权 0.5</text>
+<text x="984" y="298" class="s">L1 距离</text>
+<text x="984" y="316" class="s">‖ẑ − sg(z̄)‖₁</text>
+</g>
+<path d="M896 125H984V146" class="ar trn" marker-end="url(#f3a)"/>
+<path d="M896 373H984V344" class="ar trn" marker-end="url(#f3a)"/>
+
+<!-- downstream -->
+<g class="blk" data-k="down" data-p="dn">
+<rect x="784" y="468" width="262" height="44" rx="10" class="db"/>
+<text x="915" y="488" class="h2">下游：冻结目标端 → 探针 / 策略</text>
+<text x="915" y="504" class="s">Tiny 每个 token 768 维</text>
+</g>
+<path d="M722 428V490H780" class="ar dna" marker-end="url(#f3a)"/>
+</svg>
+</div>
+<div class="f3r-info" id="f3r-info" aria-live="polite"></div>
+<figcaption>自己画的，不是原图；方块排布参照原文图 3。Tiny：宽 192、tubelet τ = 2、输出 768 维；Small：宽 384、τ = 4、输出 1,536 维。预测器的层数和宽度论文和代码都没给。</figcaption>
+</figure>
+<style>
+.f3r{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:12px 14px;margin:18px 0}
+.f3r .lab{font-size:13px;color:var(--muted);margin:0 0 8px}
+.f3r-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.f3r-ctl button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer}
+.f3r-ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.f3r-hint{font-size:13px;color:var(--muted)}
+.f3r-wrap{overflow-x:auto}
+.f3r svg{width:100%;min-width:760px;height:auto;display:block}
+.f3r text{font-size:12px;fill:var(--fg);text-anchor:middle;pointer-events:none}
+.f3r text.h{font-size:15px;font-weight:600}.f3r text.h2{font-size:13.5px;font-weight:600}
+.f3r text.s{font-size:12px;fill:var(--muted)}
+.f3r text.rp{font-size:12px;font-weight:600;fill:#b8860b}
+.f3r text.bl{text-anchor:start;font-size:12.5px;font-weight:600}
+.f3r text.bl.c{fill:#3b82c4}.f3r text.bl.t{fill:#c47a1d}
+.f3r .bgc{fill:rgba(59,130,196,.07);stroke:rgba(59,130,196,.45);stroke-dasharray:5 4}
+.f3r .bgt{fill:rgba(196,122,29,.07);stroke:rgba(196,122,29,.45);stroke-dasharray:5 4}
+.f3r .blk rect{fill:var(--panel);stroke:var(--line);stroke-width:1.4}
+.f3r .blk rect.cb{stroke:#3b82c4}.f3r .blk rect.tb{stroke:#c47a1d}
+.f3r .blk rect.mk{stroke:#d04545;stroke-dasharray:4 3}
+.f3r .blk rect.dash{stroke-dasharray:4 3}
+.f3r .blk rect.emab{stroke:#7a5cc4}.f3r .blk rect.sgb{stroke:#888;stroke-dasharray:3 3}
+.f3r .blk rect.lb{stroke:#2e9e6a}.f3r .blk rect.db{stroke:#2e9e6a}
+.f3r .blk{cursor:pointer}
+.f3r .blk:hover rect,.f3r .blk.on rect{stroke-width:2.6}
+.f3r .blk.on rect{fill:color-mix(in srgb,var(--accent) 16%,var(--panel))}
+.f3r .sph{fill:none;stroke:var(--muted);stroke-width:1.2}
+.f3r .dot{fill:#3b82c4}
+.f3r .ar{fill:none;stroke:var(--muted);stroke-width:1.5}
+.f3r .ah{fill:var(--muted)}
+.f3r .mka{stroke:#d04545}
+.f3r .ema{fill:none;stroke:#7a5cc4;stroke-width:1.6;stroke-dasharray:6 4}
+.f3r .dna{stroke:#2e9e6a;stroke-width:2}
+.f3r.down .blk[data-p="tr"],.f3r.down .trn,.f3r.down .bgc,.f3r.down text.bl.c,.f3r.down .mka{opacity:.16}
+.f3r.down .blk[data-p="tg"] rect{stroke-width:2.6}
+.f3r:not(.down) .blk[data-p="dn"],.f3r:not(.down) .dna{opacity:.35}
+.f3r-info{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:14px;line-height:1.7;min-height:5.2em}
+.f3r-info h4{margin:0 0 4px;font-size:15px}
+.f3r-info p{margin:4px 0}
+.f3r-info .sh{font-family:var(--font-mono);font-size:12.5px;color:var(--muted)}
+.f3r figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}
+</style>
+<script>
+(function(){
+var I={
+sensors:['三种传感器（输入）','预训练语料来自五种传感器、三类原理（表 4）：磁式 PaXini 手套，压阻 Juqiao、Xspark、TACHIN 手套，视触觉 Sharpa Wave 机器人指尖。它们各有自己的通道数、触点数、排布和采样率：磁式每个触点测三轴磁场，压阻每个触点一个压力值，视触觉是凝胶后摄像头看到的形变图。单通道的读数补零到 3 通道。','原始：每类不同；统一后 X ∈ ℝ^{T×N×3}','#p-form'],
+canon:['标准指尖空间（式 1）','把每种传感器的触点几何对齐到标准朝向，再缩放平移到一个半径为 1 的参考指尖上。触点不再用“第几号”标记，而用这个空间里的连续坐标 p = (x, y, z)。幅值也归一化：法向 [0, 1]，切向 [−1, 1]。每个 token 的地址是 (时间窗 t, 手指 f, x, y, z) 五个数（式 2）。','地址 A：每个 token 一个 5 维向量','#p-geo'],
+aug:['布局增广（§3.3，只在预训练时）','预训练只有三种布局，模型可能直接记住三组点。所以每个片段随机换一种采样密度（磁式每指 24–96 个触点，视触觉 32/96/200 个虚拟触点；压阻保留原生），并给每个触点坐标加一个不超过到最近邻距离一半的随机偏移。只改地址，不改读数。','偏移 ‖δᵢ‖ ≤ 0.5 dᵢ，上下文和目标两支共用同一偏移','#s3-3'],
+sample:['等概率采样一个片段','从压阻、磁、视触觉三个来源以相同概率抽片段（不是按小时比例）。原图里的 “Weighted Sampling” 就是这一步。之后同一个片段同时送进上下两条支路。','X [T, N, 3]，A [L, 5]','#s3-1'],
+mask:['空间掩码 + warm-up','随机选 80% 的有效触点，同一个掩码贯穿整个片段：被选中的触点在所有时间窗都看不到，只能从周围触点和时间变化推断。前 300 步比例从 40% 线性升到 80%，避免一开始把仅有的几个接触触点全藏掉（k 个接触触点全被藏住的概率约 0.8^k）。','可见集合 C（约 20% 触点）/ 被掩码集合 M（约 80%）','#p-mask'],
+tokc:['tokenizer（上下文端）','三个 tokenizer 只取一个：按传感器类型路由。每个是两层 MLP（Linear → GELU → Linear），把一个触点的 τ 帧 × 3 个数嵌成 1 个 token。这是网络里唯一分传感器的地方（另一个在预测器两端）。','Tiny：τ = 2，6 个数 → 192 维；L = N·T/2 个 token。Small：τ = 4，12 个数 → 384 维','#p-tok'],
+drop:['去掉被掩码 token','上下文编码器只处理可见 token，被掩码触点的 token 直接丢掉，不用占位符。这样编码器处理的 token 数只有全部的约 20%。','[|C|, 192]，|C| ≈ 0.2 L','#p-jepa'],
+hatc:['Haptic Transformer（HaT，共享）','所有传感器共用的 Transformer 编码器。位置不加在 token 上，只通过 5D RoPE 旋转注意力里的 q 和 k：五个轴（t, f, x, y, z）各占 head 维度的一段。所以它不需要固定 token 数，也不需要按传感器建位置表。','Tiny：12 层、宽 192、3 头 × 64；Small：12 层、宽 384、6 头 × 64','#p-rope'],
+concat:['拼回掩码 token','把上下文编码器的输出放回可见位置，在每个被掩码的地址上放一个可学习的掩码 token Δ_M，凑回完整的 L 个位置，再交给预测器。掩码 token 靠 RoPE 知道自己“在哪个时间、哪根手指、哪个位置”。','[L, ·]（预测器宽度未公开）','#p-tok'],
+pred:['预测器','结构和编码器同一模式：按传感器分组的输入、输出投影，中间夹一个共享的预测 Transformer，同样用 5D RoPE。它对所有位置都输出预测 ẑ：被掩码位置要“猜”，可见位置要和完整片段的结果对齐。预训练完就扔掉。','ẑ [L, 768]（和 z̄ 对齐；内部层数、宽度未公开）','#p-tok'],
+tokt:['tokenizer（目标端）','和上下文端结构完全一样，参数是上下文端的 EMA。区别在于它看完整片段，没有任何掩码。','[L, 192]','#p-obj'],
+hatt:['HaT（目标端）','上下文端 HaT 的 EMA 副本，处理完整片段的全部 L 个 token。下游用的就是它。','12 层 × 192','#p-obj'],
+readout:['四层读出','从 HaT 第 3、6、9、12 层（代码 output_layers = [2, 5, 8, 11]）各取 token 特征，每层单独 LayerNorm，再在特征维拼起来，得到多层目标 z̄。沿用 V-JEPA 2.1 的多层监督。','Tiny：4 × 192 = 768 维；Small：4 × 384 = 1,536 维','#p-obj'],
+sg:['stop grad','目标 z̄ 当作常数，损失的梯度不流进目标支路。目标支路只靠 EMA 更新。两者一起防止“两边都输出常数”的表示塌缩。','—','#qa-ema'],
+ema:['EMA 更新','每步训练后，目标端参数 θ̄ 向在线参数 θ 挪一小步：θ̄ ← m·θ̄ + (1−m)·θ。m 很接近 1，最终配置是从 0.999 逐渐升到 1.0；从 0.998 起步会塌缩（表 1）。','m：0.999 → 1.0','#qa-ema'],
+loss:['损失（式 4）','对每个位置算 ẑ 和 sg(z̄) 的 L1 距离，再除以位置数和特征维 D 取平均。被掩码位置（预测损失）权重 1，可见位置（上下文损失）权重 λ = 0.5。不重建原始读数，所以近零的背景不会主导损失。','D = 768（Tiny）','#p-obj'],
+down:['下游使用','预训练结束后只留目标端：tokenizer + HaT + 四层读出，全部冻结。新数据按传感器类型选 tokenizer，输出每个（时间窗、触点）一个 token，交给注意力探针或策略。上下文编码器、预测器、掩码和损失都不再用。','Sharpa 样例 16 帧：Tiny [1, 8000, 768]（8 个时间窗 × 1000 触点）','#code']
+};
+var fig=document.getElementById('fig3r'), box=document.getElementById('f3r-info'), hint=document.getElementById('f3r-hint');
+function show(k){var d=I[k]; if(!d) return;
+  fig.querySelectorAll('.blk').forEach(function(b){b.classList.toggle('on',b.dataset.k===k);});
+  box.innerHTML='<h4>'+d[0]+'</h4><p>'+d[1]+'</p><p class="sh">形状：'+d[2]+'</p><p><a href="'+d[3]+'">读对应段落 ↓</a></p>';}
+fig.querySelectorAll('.blk').forEach(function(b){b.addEventListener('click',function(){show(b.dataset.k);});});
+fig.querySelectorAll('.f3r-ctl button').forEach(function(b){b.addEventListener('click',function(){
+  var dn=b.dataset.mode==='down'; fig.classList.toggle('down',dn);
+  fig.querySelectorAll('.f3r-ctl button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});
+  hint.textContent=dn?'只剩下面那条：冻结的目标编码器，输出触觉 token':'两条支路都在用：上面算预测，下面给答案';
+  show(dn?'down':'pred');});});
+show('hatc');
+})();
+</script>
+
+
+<h3 id="s3-1"><span class="no">3.1</span>规模化的触觉：来自触觉手套和机器人手的 5,000 小时</h3>
+<p>如图 2 汇总，我们的多来源触觉数据集包含 4,983 小时记录、464,431 个交互回合、约 13.3 亿帧，来自压阻、磁和视触觉三类传感器。达到这个规模很难，因为每一小时都需要一只带传感器的手和真实世界发生物理交互。我们结合两种产生这类数据的方式。语料的主体由戴触觉手套的人类操作者产生。手套不需要机器人，所以一个操作者每天可以在普通环境里录几个小时的日常操作；这些第一视角记录覆盖的物体和行为范围很广，要让机器人按脚本做到同样的覆盖会很慢。这部分我们用压阻和磁式手套录制。其余部分来自遥操作：一套装有 Sharpa Wave 灵巧手的双臂系统（指尖带视触觉传感器），用我们之后要部署的那只手录制同样几类任务。手套占语料的三分之二，遥操作占其余三分之一。</p>
 <figure class="pfig" id="fig2">
 <img src="lingbot-touch/fig2.webp" width="1536" height="795" alt="图 2：左上环形图按模态分数据量：压阻 44.1%、磁 22.8%、光学 33.1%，总 4.98K 小时、464.43K 回合、1.33B 帧；右上按任务类别的堆叠柱状图；下排三组触觉图样，分别标 2,197 小时、1,136 小时、1,650 小时" loading="lazy">
 <figcaption><span class="lab">图 2 · 原文第 4 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=4">看原图 ↗</a></span>环形图是三种模态的占比，右边是 24 个任务类别的数据量（按模态堆叠，从多到少）。下排每组上方是视频帧，下方是指尖触觉图：压阻（第一视角手套）2,197 小时、86,906 个回合；磁（第一视角手套）1,136 小时、294,871 个回合；视触觉（遥操作）1,650 小时、82,654 个回合。</figcaption>
 </figure>
-<p>手套不需要机器人，一个人一天能在普通环境里录几个小时日常操作，物体和动作覆盖面广。遥操作用双臂系统加 Sharpa Wave 灵巧手（指尖是视触觉传感器），录的是同一批任务族，也是后面部署用的手。每个回合标到 24 个任务类别之一（开、关、装配、擦、倒、使用工具等），多数类别有不止一个来源。传感器的明细见附录<a href="#t4">表 4</a>。</p>
+<p>两种来源是按<b>行为</b>对齐的，不是按硬件对齐的。每个回合都被归入 24 个任务类别之一，从开、关、装配到擦拭、倒水和使用工具（图 2），大多数类别被不止一个来源覆盖。相反，传感器在换能原理、每指触点数、采样率和指尖几何上都不同（<a href="#t4">表 4</a>）。<b>用彼此不可比的传感器观察可比的交互</b>，正是让一个共享编码器能够学到“不属于任何单一传感器的接触规律”的原因；§4.3 直接检验了这一点。</p>
+<p>标注只到回合级的任务类别。没有任何片段带有力、接触位置或接触时间的标签。预训练时，我们以<b>相等的采样概率</b>从压阻、磁和视触觉三个来源抽取片段，所有监督都来自 §3.2 的隐空间预测目标。</p>
+<p class="tcap">[译注] “相等的采样概率”意味着三个来源各占约 1/3 的训练片段，而不是按小时数（44% / 23% / 33%）的比例；磁式数据相对被上采样，压阻相对被下采样。图 3 里的 “Weighted Sampling” 指的就是这一步。</p>
 <div class="note" id="n1"><span class="lab">读者注 1 · 语料数字核算</span><p>按表 4：2,197 + 1,136 + 1,650 = 4,983 小时；86,906 + 294,871 + 82,654 = 464,431 个回合，都对得上。占比 2,197/4,983 = 44.09%、1,136/4,983 = 22.80%、1,650/4,983 = 33.11%，和图 2 的 44.1%、22.8%、33.1% 一致；手套合计 66.9%，即正文说的三分之二。平均回合长度差别很大：压阻约 91 秒，磁约 13.9 秒，视触觉约 72 秒。</p><p>“13.3 亿帧”我算不到：按表 4 每类取最高采样率，压阻 2,197 h × 3600 × 100 Hz + 磁 1,136 h × 3600 × 83.3 Hz + 视触觉 1,650 h × 3600 × 30 Hz = 13.10 亿帧，已经是上限，仍比 13.3 亿少 1.5%。一种可能是双手数据按单手分别计帧（双臂遥操作有两只手）。论文没说怎么计，<b>未核实</b>。</p></div>
 
-<h3 id="s3-2"><span class="no">3.2</span>Tactile-JEPA：在隐空间里预测接触</h3>
-<p><b>结论先说：</b>上下文编码器只看可见触点，预测器要在每个位置（被掩码的和可见的）上输出目标编码器对完整片段的表征。两边都不重建信号，所以损失不会被占满片段的零背景主导（§4.4 对比了重建）。要让它跨传感器工作，需要三样：对任何传感器都有意义的 token 地址、只在边界处分模态的共享骨干、适合稀疏信号的掩码和损失。</p>
-<p><b>标准指尖空间和 token 地址。</b>触点下标只是传感器内部的顺序，不同传感器的同一下标不对应同一物理位置。所以改用连续的 3D 坐标加手指编号描述测量位置，并把每种传感器的坐标放进同一个标准指尖空间：从传感器的几何资产出发，把指尖转到标准朝向，再缩放平移到一个单位半径参考几何的指尖局部坐标系里：</p>
+<h3 id="s3-2"><span class="no">3.2</span>Tactile-JEPA：在隐空间中预测接触</h3>
+<p id="p-jepa">Tactile-JEPA 训练编码器 \(E^{(g)}_\theta\) 的方式是：在隐空间中，从一个部分可见的片段预测完整片段的表征（图 3）。给定片段 \(\mathbf X\)，我们把它的有效位置划分为被掩码集合 \(\mathcal M\) 和可见集合 \(\mathcal C\)，只把 \(\mathbf X_{\mathcal C}\) 交给<b>上下文编码器</b>。<b>目标编码器</b>处理完整片段，而<b>预测器</b>必须在每一个位置（不论被掩码还是可见）把上下文编码器的输出映射到目标编码器的输出。两个分支都不重建信号本身，所以目标不会被占据触觉片段大部分的近零背景所主导；§4.4 把这一选择和信号空间重建做了比较。要让这个方案跨传感器工作，需要三样东西：一个对任何传感器都有意义的 token 地址；一个除边界之外在各传感器间共享的骨干；以及适合稀疏信号的掩码和损失设计。下面逐一介绍。</p>
+
+<p id="p-geo"><b>标准指尖空间和 token 地址。</b>触点下标描述的是传感器内部的排列顺序，但并不能在不同传感器之间对应到相同的物理位置。因此我们用一个连续的三维坐标加一个手指编号来描述一次测量发生在哪里，并把每种传感器的坐标放进同一个标准指尖空间。从每种传感器的几何资产出发，我们先把指尖对齐到标准朝向，再把它缩放、平移到一个共享的、以单位半径参考几何为基准的手指局部坐标系中（图 3 左下）：</p>
 <div class="eq"><div class="m">\[ \mathbf p_i=\alpha\,\tilde{\mathbf p}_i+\mathbf b \]</div><span class="no">(1)</span></div>
-<p>\(\tilde{\mathbf p}_i\) 是 token \(i\) 对应触点在朝向对齐后的位置，\(\alpha&gt;0\)、\(\mathbf b\in\mathbb R^3\) 对每个“传感器-手指”模板离线定好。PaXini 和 XHand1：\(\alpha=1/r\)、\(\mathbf b=-\mathbf o/r\)，\(\mathbf c\)、\(r\) 是触点和参考指尖几何的最小包围球的球心和半径，原点 \(\mathbf o=(u_x,c_y,u_z)\)，\(\mathbf u\) 是指定的接触中心锚点，\(y\) 是手指方向。Sharpa Wave 用密集表面点做同样的“高度对齐”，再加一个深度平移去对齐 PaXini 的参考球。Juqiao 和 Wujie 用固定的 PaXini 参考半径和接触区锚点。Tachin 在参考球内做最大的各向同性拟合，按指腹深度对齐，再乘 0.999。这些参数对所有时间窗复用。</p>
-<p>每个有效 token 得到一个 5 维地址：</p>
+<p>其中 \(\tilde{\mathbf p}_i\) 是 token \(i\) 所对应触点在朝向对齐后的位置，\(\alpha&gt;0\) 和 \(\mathbf b\in\mathbb R^3\) 针对每个“传感器–手指”模板离线固定。对 PaXini 和 XHand1，我们取 \(\alpha=1/r\)、\(\mathbf b=-\mathbf o/r\)，其中 \(\mathbf c\) 和 \(r\) 是触点位置与参考指尖几何的最小包围球的球心和半径。坐标原点是 \(\mathbf o=(u_x,c_y,u_z)\)，其中 \(\mathbf u\) 是指定的接触中心锚点，\(y\) 表示手指方向。Sharpa Wave 用它的密集表面点做同样的“高度对齐”归一化，并额外做一次深度方向的平移，以匹配 PaXini 的参考球。Juqiao 和 Wujie 使用固定的 PaXini 参考半径和接触区锚点。Tachin 在参考球内做最大的各向同性拟合，约束是指腹深度对齐，之后再乘一个 0.999 的缩放系数。这些参数在所有时间窗之间复用。</p>
+<p class="tcap">[译注] 直观地说：不管传感器原来多大、触点怎么排，都把它“套”到同一个半径为 1 的参考指尖上；原点放在指腹接触中心附近，\(y\) 轴沿手指方向。这样“指腹中央偏左一点”在任何传感器上都是差不多的坐标。</p>
+<p>随后每个有效 token 得到一个五维地址：</p>
 <div class="eq"><div class="m">\[ \mathbf a_i=(t_i,f_i,\mathbf p_i)\in\mathbb R^5,\qquad \mathbf A=(\mathbf a_i)_{i=1}^{L} \]</div><span class="no">(2)</span></div>
-<p>\(t_i\) 是时间窗下标，\(f_i\) 是手指，\(L\) 是有效 token 数；同一触点在各时间窗里 \(\mathbf p_i\) 不变。地址<b>只</b>通过作用在注意力 query 和 key 上的 RoPE 进入模型，五个轴各占 head 维度的一段。这种位置编码不要求固定的 token 数，也不需要传感器专用的位置表，所以一个骨干能处理不同布局，也能迁移到没见过的传感器。</p>
-<p>信号幅值用每种传感器测量范围的固定上下界归一化：非负的法向响应映射到 [0, 1]，有符号的切向响应映射到 [−1, 1]。几何加上无量纲的幅值，就是多来源学习的公共输入接口。</p>
+<p id="p-rope">其中 \(t_i\) 是 token 所在时间窗的下标，\(f_i\) 标识手指，\(L\) 是有效 token 的数量；同一个触点在不同时间窗里保持相同的 \(\mathbf p_i\)。地址<b>只</b>通过作用在注意力 query 和 key 上的旋转位置编码（RoPE）进入模型，五个轴各自作用在 head 维度的一段上。这种位置编码不要求固定的 token 数，也不需要传感器专用的位置表，因此一个共享骨干可以处理不同的传感器布局，并支持迁移到没见过的传感器。</p>
+<p id="p-amp">最后，信号幅值按每种传感器测量范围对应的固定通道响应上下界做归一化：非负的法向响应映射到 [0, 1]，有符号的切向响应映射到 [−1, 1]。这些无量纲的幅值和标准几何一起，构成了多来源学习的公共输入接口。</p>
 <div class="note" id="n2"><span class="lab">读者注 2 · 式 (1) 和代码里的写法</span><p>代码 <code>data_interfaces/geometry.py</code> 的 <code>normalize_positions</code> 是 \(\mathbf p=(\mathbf p_{\rm sensor}R^\top-\mathbf o)/r+\text{offset}\)，比式 (1) 多了旋转 \(R\)（论文的“朝向对齐”）和一个 offset（对应 Sharpa Wave 的“额外深度平移”）。去掉这两项就是 \(\alpha=1/r,\ \mathbf b=-\mathbf o/r\)。<code>height_aligned_origin</code> 把原点的 \(y\) 换成包围球心的 \(y\)，正是 \(\mathbf o=(u_x,c_y,u_z)\)。这些标定参数不在公开代码里：Sharpa 样例已经是标准坐标，XHand 适配器内置了固定目标坐标，新传感器要自己标定。</p><p>两个小出入：文中 \(\mathbf c\) 定义后，式 (1) 只通过 \(\mathbf o\) 用到它的 \(y\) 分量；正文提到的 “Wujie” 不在表 4 的来源里（表 4 的压阻手套是 Juqiao、Xspark AI、TACHIN），可能是某款产品的另一个名字，<b>未核实</b>。</p></div>
-<p><b>分模态 tokenizer 和共享 HaT。</b>传感器专用的参数只放在网络边界的浅层投影里。三个 tokenizer（磁、压阻、视触觉）各是一个两层 MLP，把一个有效触点的连续两帧（共 6 个数）嵌入成一个 token，所以 tokenization 保留了传感器的空间粒度，\(T\) 帧的片段产生 \(L=NT/2\) 个 token。之后进入所有来源共享的 Transformer 编码器 HaT，时间、手指、标准位置通过上面的五轴 RoPE 进入。预测器 \(P^{(g)}_\phi\) 同样是分组的输入输出投影夹着共享的预测 Transformer，用同样的 5 维位置编码：</p>
-<div class="eq"><div class="m">\[ \hat{\mathbf z}=P^{(g)}_\phi\Big(E^{(g)}_\theta(\mathbf X_{\mathcal C};\mathbf A_{\mathcal C}),\ \Delta_{\mathcal M};\ \mathbf A\Big),\qquad \bar{\mathbf z}=\bar E^{(g)}_{\bar\theta}(\mathbf X;\mathbf A) \]</div><span class="no">(3)</span></div>
-<p>分号后面是通过 RoPE 给的位置条件，\(\Delta_{\mathcal M}\) 是放在被掩码地址上的可学习掩码 token。上下文编码器只看可见 token；预测器同时处理可见 token 的表征和掩码 token，两组都输出预测。\(\bar E\) 是目标编码器，按原始 token 下标和预测对齐。</p>
-<div class="note" id="n3"><span class="lab">读者注 3 · Small 每个 token 吃 4 帧，不是 2 帧</span><p>正文说 tokenizer 把“连续两帧、六个数”嵌成一个 token，\(L=NT/2\)。Hugging Face 上的 <code>config.json</code>：Tiny 的 <code>tubelet_size</code> 是 2，Small 是 4（仓库 DATA_INTERFACE_GUIDE.md 也写着 “Tiny uses tubelet size 2 and Small uses 4”）。所以 Small 每个 token 输入 12 个数，\(L=NT/4\)。参数量也印证这一点：Small 按 tubelet 4 算是 21,755,904，按 2 算是 21,748,992（≈21.75M），只有 4 能对上论文的 21.76M（算式见<a href="#n7">读者注 7</a>）。表 1 的消融也说 2 或 4 帧一个 token 最好，两个尺寸各用了一个。</p></div>
 <div class="note" id="n4"><span class="lab">读者注 4 · 五轴 RoPE 怎么切 head 维度</span><p>代码 <code>tactile_jepa_inference/rope.py</code>：每轴占 \(2\lfloor (d_{\rm head}/2)/5\rfloor\) 维。两个模型的 head 维度都是 64（Tiny 192/3 头，Small 384/6 头），所以每轴 12 维、五轴 60 维，<b>剩下 4 维不旋转</b>，论文没提这一点。频率：时间和手指 \(\theta=10000\)，空间三轴 \(\theta=100\)，空间坐标先乘 <code>spatial_coordinate_scale</code> \(=\pi/2\)（config 里是 1.5707963…）。单位半径坐标乘 \(\pi/2\) 后，最高频那一对的相位范围大约是 ±π/2，不会绕圈；最低频是 \(100^{-10/12}\approx0.0215\)。时间和手指用的是整数下标。</p></div>
-<p><b>目标和损失。</b>沿用 <a href="vjepa21.html">V-JEPA 2.1</a> 的多层监督：目标编码器处理完整片段，取四个深度的特征，各自归一化后拼接成 \(\bar{\mathbf z}\)；上下文编码器也拼接对应层，让预测器拿到多层上下文。被掩码和可见位置一起监督：</p>
+
+<p id="p-tok"><b>分模态 tokenizer 和共享的 Haptic Transformer。</b>传感器专用的参数只限于网络边界处的浅层投影。我们用三个 tokenizer，磁、压阻、视触觉各一个。每个都是一个两层 MLP，把<b>单个有效触点的连续两帧</b>（共六个数）嵌入成一个 token，所以 tokenization 保留了传感器的空间粒度，\(T\) 帧的片段产生 \(L=NT/2\) 个 token。这些 token 随后进入 Haptic Transformer（HaT）：一个所有来源共享的 Transformer 编码器，通过上面的五轴 RoPE 引入时间、手指编号和标准位置。tokenizer 从异构测量中提取浅层特征，HaT 的逐层堆叠则在越来越高的抽象层次上学习共享的触觉表征。对传感组 \(g\)，我们把 tokenizer 连同 HaT 记作 \(E^{(g)}_\theta\)。预测器 \(P^{(g)}_\phi\) 遵循同样的模式：分组的输入、输出投影包在一个共享的预测 Transformer 外面，使用同样的五维位置编码。预测和目标为</p>
+<div class="eq"><div class="m">\[ \hat{\mathbf z}=P^{(g)}_\phi\Big(E^{(g)}_\theta(\mathbf X_{\mathcal C};\mathbf A_{\mathcal C}),\ \Delta_{\mathcal M};\ \mathbf A\Big),\qquad \bar{\mathbf z}=\bar E^{(g)}_{\bar\theta}(\mathbf X;\mathbf A) \]</div><span class="no">(3)</span></div>
+<p>其中分号之后的参数表示通过 RoPE 施加的位置条件，\(\Delta_{\mathcal M}\) 表示放在被掩码地址上的可学习掩码 token。上下文编码器只看可见 token；预测器把可见 token 的表征和掩码 token 一起处理，并为两组都输出预测。\(\bar E^{(g)}_{\bar\theta}\) 是目标编码器，带有下文所述的多层读出。预测和目标按它们原始的 token 下标对齐。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · Small 每个 token 吃 4 帧，不是 2 帧</span><p>正文说 tokenizer 把“连续两帧、六个数”嵌成一个 token，\(L=NT/2\)。Hugging Face 上的 <code>config.json</code>：Tiny 的 <code>tubelet_size</code> 是 2，Small 是 4（仓库 DATA_INTERFACE_GUIDE.md 也写着 “Tiny uses tubelet size 2 and Small uses 4”）。所以 Small 每个 token 输入 12 个数，\(L=NT/4\)。参数量也印证这一点：Small 按 tubelet 4 算是 21,755,904，按 2 算是 21,748,992（≈21.75M），只有 4 能对上论文的 21.76M（算式见<a href="#n7">读者注 7</a>）。表 1 的消融也说 2 或 4 帧一个 token 最好，两个尺寸各用了一个。</p></div>
+
+<p id="p-obj"><b>目标和损失。</b>沿用 <a href="vjepa21.html">V-JEPA 2.1</a> 的多层监督，目标编码器处理完整片段，我们从四个深度取它的特征，各自归一化后拼接，得到 \(\bar{\mathbf z}\)。上下文编码器也拼接对应层的特征，使预测器得到多层的上下文。我们对被掩码位置和可见位置同样施加监督，最小化</p>
 <div class="eq"><div class="m">\[ \mathcal L=\frac{1}{|\mathcal M|D}\sum_{i\in\mathcal M}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1+\frac{\lambda}{|\mathcal C|D}\sum_{i\in\mathcal C}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1 \]</div><span class="no">(4)</span></div>
-<p>\(D\) 是拼接后的特征维度，sg 是停止梯度，\(\lambda=0.5\)。第一项（预测损失）让模型从可见上下文推断缺失的接触信息；第二项（上下文损失）让可见位置的预测和完整片段算出的目标对齐，保留观测到的信息。梯度更新在线的 tokenizer、HaT、预测器和掩码 token；目标端只通过 EMA 更新。下游时冻结 EMA 目标端的 tokenizer 和编码器，按传感器类型选 tokenizer 分支，取 HaT 四层的 token 特征，各自 LayerNorm 后在特征维拼接，给探针和策略用。</p>
+<p>其中 \(D\) 是拼接后的特征维度，sg 表示停止梯度，\(\lambda=0.5\)。<b>预测损失</b>监督被掩码位置的表征，促使模型从可见上下文推断缺失的接触信息。<b>上下文损失</b>让可见位置的预测与从完整片段算出的目标对齐，促使模型保留已观测到的接触信息。损失在采样的片段上取平均。梯度更新在线的 tokenizer、HaT 和预测器，包括由 \(\phi\) 参数化的可学习掩码 token。目标 tokenizer 和目标编码器<b>只</b>通过对其在线对应部分做 EMA 来更新。下游任务中，我们冻结预训练好的 EMA 目标 tokenizer 和编码器。每个输入按传感器类型路由到对应的 tokenizer 分支，再由共享的 HaT 骨干处理。从 HaT 选出的四层取 token 特征，各自做 LayerNorm 后沿特征维拼接，为任务专用的探针和控制策略提供多个深度的表征。</p>
+<p class="tcap">[译注] EMA 是什么、为什么目标端不接梯度，见页尾<a href="#qa-ema">读者问答 问 1</a>。</p>
 <div class="note" id="n5"><span class="lab">读者注 5 · “四层拼接”的具体数字</span><p>config 的 <code>output_layers</code> 是 [2, 5, 8, 11]（从 0 数，即第 3、6、9、12 层），<code>model.py</code> 的 <code>AddressTransformer</code> 对每层单独 LayerNorm 再拼接。所以输出通道 \(C=4\times\)宽度：Tiny 768，Small 1536。§4.6 说每根手指的特征是 768 维、五指拼成 3,840 维，用的是 Tiny，对得上。代码里最后那个 <code>self.norm</code> 有参数但前向没用到。</p></div>
-<p><b>掩码和掩码 warm-up。</b>随机选有效触点掩码，同一空间掩码贯穿整个片段，所以被掩码触点的所有 token 都在 \(\mathcal M\) 里，上下文编码器不能从别的时刻读它，只能从周围触点和它们的时间变化推断。最终掩码比例是有效触点的 80%。但触觉稀疏，一开始就用 80% 不行：如果接触只涉及 \(k\) 个触点、掩码均匀，\(k\) 个全被藏住的概率约 \(0.8^k\)；指尖通常只按到少数几个触点，于是很多片段给预测器的上下文里完全没有接触，目标里却有。损失被无法预测的目标主导，实践中出现梯度爆炸。所以在前 300 步把比例从 40% 线性升到 80%，之后固定（图 4）。整个预训练是 200,000 次优化器更新，warm-up 只占很小一段。</p>
+
+<p id="p-mask"><b>掩码和掩码 warm-up。</b>我们随机选择有效触点做掩码，并把同一个空间掩码延伸到整个片段，使 \(\mathcal M\) 包含一个被掩码触点的<b>所有</b> token。因此上下文编码器无法在另一个时间步读到被掩码触点的响应，必须从周围的触点及其时间演化去推断。最终的掩码比例是有效触点的 80%。但触觉信号是稀疏的，这个比例不能从第一步就用上。如果接触涉及 \(k\) 个触点、掩码是均匀的，那么 \(k\) 个全部被藏住的概率约为 \(0.8^k\)；对于指尖通常按到的少数几个触点，相当一部分片段交给预测器的上下文里完全没有接触，而它的目标（从完整片段算出）却有接触。于是损失被那些无法从输入预测的目标主导，实践中我们观察到梯度爆炸和不稳定的优化。因此我们对掩码比例做 warm-up（图 4）：在前 300 个优化步内从 40% 线性升到 80%，之后保持不变。warm-up 只占训练中可以忽略的一小段（LingBot-Touch 一共预训练 200,000 次优化器更新）；它在编码器还没训练好时降低了抹掉全部接触证据的概率，然后把预测难度提高到其余预训练所用的水平。</p>
 <figure class="pfig narrow" id="fig4">
 <img src="lingbot-touch/fig4.webp" width="802" height="407" alt="图 4：横轴训练步数，纵轴掩码比例，从 40% 线性升到第 300 步的 80% 后保持；上方三组指尖触点图，红色是被掩码、绿色是可见" loading="lazy">
 <figcaption><span class="lab">图 4 · 原文第 7 页 · 作者 Bing Han 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/pdf/2611.12806#page=7">看原图 ↗</a></span>掩码比例在前 300 步从 40% 线性升到 80%，然后不变。上方三组五指示意分别是 40%、60%、80% 时的掩码，红点被掩码，绿点可见。</figcaption>
@@ -123,11 +382,12 @@ details.tbl[open] summary{margin-bottom:6px}
 </div>
 
 <h3 id="s3-3"><span class="no">3.3</span>与布局无关的增广</h3>
-<p><b>结论先说：</b>标准空间只让坐标可比，不保证编码器不在乎布局。预训练只有三种布局，RoPE 又把精确坐标交给骨干，它完全可以记住三组点。所以把布局当作干扰变量，在两方面随机化：采样密度和每个触点的精确位置。</p>
-<p><b>多种采样密度。</b>磁式：从原生布局（拇指 116 个、其余每指 96 个触点）构造每指 24、32、48、64、76、96 个触点的视图；96 视图取拇指的固定子集、其余手指全保留，更低分辨率的视图对原始测量重采样。视触觉：把形变图聚合成每指 32、96 或 200 个虚拟触点。重采样用源点和目标点 3D 距离的局部高斯权重，作用在观测到的响应通道上。每个训练片段从该来源可用的分辨率里均匀抽一个。压阻保留原生布局：Juqiao 和 Xspark 织物手套指尖只有 3×3 和 4×4，再降采样会丢掉本已有限的空间细节。</p>
-<p><b>触点位置扰动。</b>为了不让模型走“精确坐标模板”的捷径，给标准坐标加一个以局部间距为界的偏移：</p>
+<p>§3.2 的标准指尖空间让每种传感器的触点有了可比的坐标，但它本身并不能让编码器对布局无所谓。预训练恰好只呈现三种布局，每种传感器一种，而 RoPE 把它们的精确坐标交给骨干，所以没有什么能阻止骨干<b>记住这三组点</b>。一只从没见过的手就是第四组点。因此我们把布局当作干扰变量，在预训练中从两个方面随机化：指尖被采样的密度，以及每个触点的精确位置。§4.3 在一个不在预训练中的传感器上检验了结果，§4.5 对增广做了消融。</p>
+<p id="p-dens"><b>多种采样密度。</b>我们让模型在多种空间分辨率下看到同一次交互。对磁式传感，我们从原生布局（拇指 116 个触点、其余每指 96 个）构造出每指 24、32、48、64、76 和 96 个触点的视图。96 触点视图使用拇指触点的一个固定子集，并保留其余手指的全部触点；更低分辨率的视图通过对原生测量重采样得到。对视触觉传感，我们把形变图响应聚合成每指 32、96 或 200 个虚拟触点。重采样使用基于源位置和目标位置之间三维距离的局部高斯权重，作用在观测到的响应通道上。对每个训练片段，我们从其来源可用的分辨率中均匀抽取一个视图。压阻来源保留原生布局。特别是 Juqiao 和 Xspark 织物手套的指尖阵列很粗，分别只有 3 × 3 和 4 × 4 个触点，进一步降采样会丢掉本已有限的空间细节，所以不做。在多分辨率视图之间，底层的交互是共享的，变化的只是空间采样，这促使表征在不同分辨率之间泛化。</p>
+<p id="p-pert"><b>触点位置扰动。</b>为了抑制基于精确坐标模板的捷径，我们给标准触点位置加上以局部间距为界的偏移：</p>
 <div class="eq"><div class="m">\[ \mathbf p'_i=\mathbf p_i+\boldsymbol\delta_i,\qquad \|\boldsymbol\delta_i\|_2\le0.5\,d_i \]</div><span class="no">(5)</span></div>
-<p>\(d_i\) 是触点 \(i\) 到同一手指上最近的其他有效触点的距离，所以偏移随局部密度缩放、不会跑出自己的邻域。偏移每个片段重新抽，一个触点在所有时间窗、上下文分支和目标分支里共用同一个偏移，两边看到的几何一致。扰动后的坐标只替换地址里的 \(\mathbf p_i\)，响应序列不动。消融见表 1，增广明显改善了下游理解任务。</p>
+<p>其中 \(\mathbf p_i\) 是式 (1) 的标准坐标，\(d_i\) 是触点 \(i\) 到同一手指上最近的其他有效触点的距离。这个上界随局部采样密度缩放，保证每个位移都留在该触点自己的邻域内。偏移对每个训练片段重新采样，并且一个触点在所有时间窗之间、在上下文分支和目标分支之间共用同一个偏移，所以两个分支看到相同的几何，目标和上下文保持一致。扰动后的坐标替换地址中的 \(\mathbf p_i\)，得到 \(\mathbf a'_i=(t_i,f_i,\mathbf p'_i)\)。响应序列及其时间对应关系不受影响；只有位置编码看到一个邻近但不同的布局。数据增广的消融见<a href="#t1">表 1</a>。结果表明，数据增广显著提升了 LingBot-Touch 在下游触觉理解任务上的表现。</p>
+<p class="tcap">[译注] 为什么上界取 \(0.5\,d_i\)：两个相邻触点各自最多移动半个间距，最坏情况是正好移到同一点，但不会“越过”对方交换位置，所以触点之间的相对顺序大体保留。这是我的理解，原文只说“留在自己的邻域内”。</p>
 
 <h2 id="s4"><span class="no">4</span>实验：探测触觉表征</h2>
 <p>这一节始终冻结预训练编码器，只训练轻量探针，所以数字衡量的是表征本身。三个问题：表征是否暴露了接触物理，在没见过的传感器上也是否如此（§4.2）；时长、传感器种类、模型大小怎样影响它（§4.3）；哪些设计重要（§4.4、§4.5）。最后看隐空间本身（§4.6）。</p>
@@ -678,7 +938,7 @@ details.tbl[open] summary{margin-bottom:6px}
 })();
 </script>
 
-<footer><p>精读是我读 arXiv 2611.12806 后的整理，不是作者的官方内容。原文：Bing Han、Yichuan Peng、Haoyu Dong 等（Robbyant），《Learning Heterogeneous Tactile Representation for General Dexterous Manipulation》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 16 从原文 PDF 裁切，只做了裁切、缩放和格式转换。表格数字照录原文；读者注、核算和动画是本页所加。代码对照基于 robbyant/lingbot-touch 提交 dec8025（Apache-2.0）。</p></footer>
+<footer><p>精读是我读 arXiv 2611.12806 后的整理，不是作者的官方内容。原文：Bing Han、Yichuan Peng、Haoyu Dong 等（Robbyant），《Learning Heterogeneous Tactile Representation for General Dexterous Manipulation》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 16 从原文 PDF 裁切，只做了裁切、缩放和格式转换。§3 为原文的中文翻译（改编），其余各节为摘要式整理；图 3 另有自己的重画。表格数字照录原文；读者注、核算和动画是本页所加。代码对照基于 robbyant/lingbot-touch 提交 dec8025（Apache-2.0）。</p></footer>
 </div>
 <a class="totop" href="#toc">目录</a>
 <script>
