@@ -41,7 +41,7 @@ details.tbl[open] summary{margin-bottom:6px}
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -607,7 +607,76 @@ details.tbl[open] summary{margin-bottom:6px}
 </tbody></table></div>
 
 <h2 id="qa">读者问答</h2>
-<section id="qa-list"><p>暂无提问。</p></section>
+<section id="qa-list">
+<h3 id="qa-ema">问 1：“目标编码器是上下文编码器的 EMA”是什么意思？EMA 是什么？</h3>
+<p><b>先说结论：</b>EMA 是 exponential moving average，指数滑动平均。在这篇论文里，目标编码器<b>不靠梯度训练</b>，它的每个参数都是上下文编码器同一参数的“慢速平均”。每一步训练后照下式更新：</p>
+\[ \bar\theta \leftarrow m\,\bar\theta + (1-m)\,\theta \]
+<p>\(\theta\) 是上下文编码器（在线网络，靠梯度更新）的参数，\(\bar\theta\) 是目标编码器的参数，\(m\) 是动量，取值很接近 1。\(m=0.999\) 就是每步只往在线参数挪 0.1%。出处：<a href="#s3-2">§3.2</a> 式 (4) 后一段（“target tokenizers and encoder are updated exclusively through an EMA of their online counterparts”）。</p>
+
+<p><b>为什么叫“指数”：</b>把上式展开，\(\bar\theta\) 是过去所有在线参数的加权和，\(k\) 步之前那份的权重是 \((1-m)\,m^{k}\)，越早的越小，按指数衰减。所以目标编码器大致等于“最近约 \(1/(1-m)\) 步的在线编码器的平均”：</p>
+<div class="tablewrap"><table>
+<tr><th>动量 \(m\)</th><th>平均窗口 \(1/(1-m)\)</th><th>半衰期 \(\ln 0.5/\ln m\)</th><th>1,000 步前参数的残留 \(m^{1000}\)</th></tr>
+<tr><td>0.998</td><td>500 步</td><td>346 步</td><td>13.5%</td></tr>
+<tr><td>0.999</td><td>1,000 步</td><td>693 步</td><td>36.8%</td></tr>
+<tr><td>0.99925</td><td>1,333 步</td><td>924 步</td><td>47.2%</td></tr>
+</table></div>
+
+<div class="ema-tool" id="ema-tool">
+<p class="lab">小演示 · 一个参数在训练中的轨迹。灰线是上下文编码器（梯度更新，抖动大），蓝线是目标编码器（EMA）。拖动 m 看蓝线跟得多紧。</p>
+<label>m = <b id="ema-mv">0.990</b> <input type="range" id="ema-m" min="0" max="5" step="1" value="2"></label>
+<svg id="ema-svg" viewBox="0 0 640 220" role="img" aria-label="在线参数轨迹和它的指数滑动平均"></svg>
+<p class="tcap">示意：为了在 600 步里看清效果，滑块用的是 0.9–0.999 的较小动量，不是论文的数值；轨迹是随机生成的。</p>
+</div>
+
+<p><b>在 LingBot-Touch 里两个编码器各做什么：</b></p>
+<ul>
+<li><b>上下文编码器（在线）：</b>只看没被掩码的触点 token，输出交给预测器，预测器去猜被遮住的位置的特征。它和预测器靠损失的梯度更新。</li>
+<li><b>目标编码器（EMA）：</b>看完整、没遮挡的片段，给出“正确答案”特征 \(\bar z\)。损失里对它加了 stop-gradient（式 (4) 的 \(\mathrm{sg}(\bar z_i)\)），梯度不会流进它；它只通过上面的 EMA 公式跟着上下文编码器慢慢变。</li>
+</ul>
+
+<p><b>为什么要这样做：</b>JEPA 在隐空间里做预测，答案也是网络自己算出来的。如果目标编码器也直接用梯度训练，最省事的解就是两边都输出常数，损失为零但什么都没学到，这叫<b>表示塌缩</b>。让目标慢一拍、不接梯度，在线网络就追的是一个缓慢移动、相对稳定的目标，能避开这个平凡解。这也是 <a href="#s4-4">§4.4</a> 里本文损失“先降后升到非零平台”的原因：目标在移动，损失不会一直降到零。</p>
+
+<p><b>论文自己的证据（<a href="#t1">表 1</a> 的 EMA 动量三行）：</b></p>
+<div class="tablewrap"><table>
+<tr><th>动量</th><th>力误差 (N) ↓</th><th>R@5 (%) ↑</th><th>结果</th></tr>
+<tr><td>0.998 → 1.0</td><td>7.221</td><td>1.375</td><td>塌缩</td></tr>
+<tr><td>0.999 → 1.0</td><td>1.529</td><td>34.625</td><td>最好</td></tr>
+<tr><td>0.99925（恒定）</td><td>2.284</td><td>14.375</td><td>默认配置</td></tr>
+</table></div>
+<p>“0.999 → 1.0”是训练中把 \(m\) 从 0.999 逐渐升到 1.0：开始时目标跟得较快，后期几乎冻结。只要起点从 0.999 降到 0.998（平均窗口从 1,000 步缩到 500 步），目标就跟得太紧，模型塌缩，检索只有 1.4%。论文没写这个调度是线性还是余弦（<a href="#code">代码与使用要点</a>里列在“没写的”中），公开代码也不含训练部分。</p>
+
+<p><b>和下游使用的关系：</b>训练结束后，<b>冻结并发布的是 EMA 目标编码器</b>，不是上下文编码器（§4.1 协议、§3.2 末段）。它见过完整输入，参数是长时间平均，更平滑，所以拿来给探针、VLA 和 RL 提供触觉 token。官方仓库里的 <code>encoder.pt</code> 就是它。</p>
+<p class="tcap">同样的做法出自 BYOL，I-JEPA、V-JEPA 和 DINO 系列也用；同站 <a href="dinov3.html">DINOv3</a> 页的教师网络也是学生的 EMA。</p>
+</section>
+<style>
+.ema-tool{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px;margin:14px 0}
+.ema-tool label{font-size:14px;display:flex;gap:8px;align-items:center}
+.ema-tool svg{width:100%;height:auto;display:block;margin-top:6px}
+</style>
+<script>
+(function(){
+  var ms=[0.9,0.95,0.99,0.995,0.998,0.999];
+  var N=600, on=[], s=1, x=0, seed=7;
+  function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647-0.5;}
+  for(var i=0;i<N;i++){x+= (i<300?0.004:-0.003) + rnd()*0.12; x*=0.995; on.push(x);}
+  var svg=document.getElementById('ema-svg'), mv=document.getElementById('ema-mv'), sl=document.getElementById('ema-m');
+  if(!svg) return;
+  var lo=Math.min.apply(null,on), hi=Math.max.apply(null,on);
+  function px(i){return 30+i*(600/(N-1));}
+  function py(v){return 200-(v-lo)/(hi-lo||1)*180;}
+  function path(a){return a.map(function(v,i){return (i?'L':'M')+px(i).toFixed(1)+' '+py(v).toFixed(1);}).join('');}
+  function draw(){
+    var m=ms[+sl.value]; mv.textContent=m.toFixed(3);
+    var e=[], t=on[0]; for(var i=0;i<N;i++){t=m*t+(1-m)*on[i]; e.push(t);}
+    svg.innerHTML='<line x1="30" y1="205" x2="630" y2="205" stroke="#aaa"/>'+
+      '<text x="30" y="218" font-size="11" fill="#888">训练步 0</text><text x="590" y="218" font-size="11" fill="#888">600</text>'+
+      '<path d="'+path(on)+'" fill="none" stroke="#9aa3ad" stroke-width="1"/>'+
+      '<path d="'+path(e)+'" fill="none" stroke="#1f6feb" stroke-width="2.4"/>'+
+      '<text x="40" y="16" font-size="12" fill="#6b7280">灰：上下文编码器 θ</text><text x="190" y="16" font-size="12" fill="#1f6feb">蓝：目标编码器 θ̄（EMA）· 窗口约 '+Math.round(1/(1-m))+' 步</text>';
+  }
+  sl.addEventListener('input',draw); draw();
+})();
+</script>
 
 <footer><p>精读是我读 arXiv 2611.12806 后的整理，不是作者的官方内容。原文：Bing Han、Yichuan Peng、Haoyu Dong 等（Robbyant），《Learning Heterogeneous Tactile Representation for General Dexterous Manipulation》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 16 从原文 PDF 裁切，只做了裁切、缩放和格式转换。表格数字照录原文；读者注、核算和动画是本页所加。代码对照基于 robbyant/lingbot-touch 提交 dec8025（Apache-2.0）。</p></footer>
 </div>
