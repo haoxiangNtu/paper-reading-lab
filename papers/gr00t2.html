@@ -1067,7 +1067,17 @@ td.best{font-weight:700}
 <p><b>放到这一页：</b>GR00T 2 的动作 token 也是连续向量、也靠去噪生成，和视频 token 待遇一样。只是借用了 LLM 的 KV cache 思路，让动作专用的去噪步不重算视频（问 1）。</p>
 <p>这两条路也在互相借鉴：有按块自回归生成的视频模型，也有用扩散生成文字的语言模型。上表说的是目前主流做法。ViT 和 DiT 的对比见 <a href="openwam.html#qa-vd">OpenWAM 问 5</a>。</p>
 <h3 id="qa-fm">问 7：流匹配和扩散不是两种方法吗？为什么说“流匹配 DiT”“靠去噪得到动作”？</h3>
-<p><b>先分清两层。</b>DiT 是<b>网络结构</b>（用 Transformer 做生成，问 6）；扩散和流匹配是<b>训练目标加采样方法</b>。两层可以随意组合：最早的 DiT 论文用的是扩散，Wan、Cosmos-Predict2.5、GR00T 2 用的是流匹配。所以“流匹配 DiT”的意思是“用流匹配训练的 DiT”，问 5 里原先写成“π0 的动作头也是流匹配 DiT”不准确，π0 的动作专家并不叫 DiT，已改正。</p>
+<p><b>先分清两层。</b>DiT 是<b>网络结构</b>（用 Transformer 做生成，问 6）。扩散和流匹配是两套<b>生成方法</b>，每一套都包含下表的三件事。并不是“扩散是训练目标、流匹配是采样方法”。</p>
+<div class="tablewrap"><table><thead><tr><th>一套生成方法的三件事</th><th>扩散（DDPM 一类）</th><th>流匹配</th></tr></thead><tbody>
+<tr><td>① 怎么把数据弄脏</td><td>按噪声表混入噪声，路径是曲线</td><td>数据和噪声按比例线性混合，路径是直线</td></tr>
+<tr><td>② 训练时网络学什么（训练目标）</td><td>从脏数据里猜出加进去的噪声 \(\epsilon\)</td><td>从脏数据里猜出速度 \(v=\epsilon-x_0\)</td></tr>
+<tr><td>③ 推理时怎么从噪声走回数据（采样方法）</td><td>DDPM / DDIM 等，一步步去掉噪声</td><td>解常微分方程，最简单是 Euler：\(x\leftarrow x-\Delta\cdot v\)</td></tr>
+</tbody></table></div>
+<details><summary>一维数字例子：流匹配训练一步、采样一步</summary>
+<p><b>训练</b>（每个样本做一次）：取一个真实动作 \(x_0=2\)，抽噪声 \(\epsilon=-1\)，随机抽 \(t=0.25\)。弄脏：\(x_t=0.75\times2+0.25\times(-1)=1.25\)。正确答案 \(v=\epsilon-x_0=-3\)。把 \((x_t=1.25,\ t=0.25,\ \text{条件})\) 喂给 DiT，让它输出接近 \(-3\)，损失是两者差的平方。</p>
+<p><b>采样</b>（推理时）：从纯噪声 \(x=-1\)、\(t=1\) 出发，分 4 步走到 \(t=0\)，每步 \(\Delta=0.25\)。每一步让 DiT 预测 \(v\)，再更新 \(x\leftarrow x-0.25\,v\)。如果每一步都预测准了（\(v=-3\)），4 步后 \(x=-1+4\times0.25\times3=2\)，正好回到数据。这就是 2v4a 里“动作 4 步”的含义（问 1）。</p>
+</details>
+<p>DiT 和这三件事是两回事。网络只负责第 ② 件里的“猜”，猜什么、怎么用猜的结果由生成方法决定。两层可以随意组合：最早的 DiT 论文用的是扩散，Wan、Cosmos-Predict2.5、GR00T 2 用的是流匹配。所以“流匹配 DiT”的意思是“用流匹配训练的 DiT”，问 5 里原先写成“π0 的动作头也是流匹配 DiT”不准确，π0 的动作专家并不叫 DiT，已改正。</p>
 <p><b>扩散和流匹配确实名字不同、写法不同。</b>设 \(x_0\) 是干净数据，\(\epsilon\) 是高斯噪声：</p>
 <div class="tablewrap"><table><thead><tr><th></th><th>扩散（DDPM 一类）</th><th>流匹配（rectified flow 一类）</th></tr></thead><tbody>
 <tr><td>加噪的路径</td><td>\(x_t=\sqrt{\bar\alpha_t}\,x_0+\sqrt{1-\bar\alpha_t}\,\epsilon\)，一条弯的路径</td><td>\(x_t=(1-t)\,x_0+t\,\epsilon\)，数据和噪声之间的直线</td></tr>
