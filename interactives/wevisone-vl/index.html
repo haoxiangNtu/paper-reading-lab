@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WeVisOne-VL 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.31329 WeVisOne-VL 的框架做成 11 幕 3D 动画：数据引擎、抠图准则、任务格式、ViT 截层、框引导查询解码器、像素融合、由粗到细精修、训练课程、RL 奖励、结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="wevisone-vl.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/wevisone-vl.html">返回精读</a><a href="../../papers/wevisone-vl.html#s3-2">原文 §3.2</a><a href="../../papers/wevisone-vl.html#code">代码要点</a><a href="https://arxiv.org/abs/2610.31329">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2610.31329 · WeVisOne-VL</p>
+<h1>一个 &lt;OBJ&gt; token，怎样变成一张 alpha</h1>
+<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是数据引擎和抠图标注的准则；第 4 幕是输出格式；第 5 到 8 幕把 9.6M 的像素解码器从输入拆到输出（<b>第 6 幕当场算可变形注意力的初始采样点</b>）；第 9、10 幕是训练课程和 RL 奖励；第 11 幕是结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。层宽、层数、分辨率来自官方代码（提交 9a6bcd8）和 Hugging Face 上的 config；柱子是原文表格的数字。图像、框、掩码都是手画的示意，没有任何 WeVisOne-VL 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：论文和代码并列</h2>
+<p class="sub">代码是 Tencent/WeVisOne-VL 提交 9a6bcd8（2026-10-25），只读未运行；config 是仓库里的 <code>configs/wevisone_vl_v1_decoder.json</code> 和 Hugging Face 上两个模型的 config.json。训练部分只有论文，没有代码。参数个数是我按结构算的。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / config</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">底座</td></tr>
+<tr><td>B1</td><td>VLM</td><td>Qwen3-VL，2B 和 4B</td><td>Qwen3VLForConditionalGeneration；LLM 宽 2048 / 2560，28 / 36 层；ViT 24 层宽 1024，patch 16，2×2 合并</td></tr>
+<tr><td>B2</td><td>词表</td><td>&lt;0&gt;…&lt;1000&gt; 坐标 token、任务标签、&lt;OBJ&gt;</td><td>新增 1010 个 token（含未用的 &lt;polygon&gt;），&lt;OBJ&gt; id 152678；词表 152,680；输出头不再和嵌入共享</td></tr>
+<tr><td>B3</td><td>参数</td><td>2B / 4B</td><td>2,441,744,384 / 4,830,581,248（不含解码器）</td></tr>
+<tr class="grp"><td colspan="4">像素解码器（式 1–8）</td></tr>
+<tr><td>D1</td><td>取特征</td><td>L 个合并前的 ViT 中间层</td><td>第 5、11、17、23 层，合并器之前截取；四层同一张 H<sub>p</sub>×W<sub>p</sub> 网格</td></tr>
+<tr><td>D2</td><td>适配器</td><td>式 (1)(2)，T 个块</td><td>1×1 卷积 1024→192 + GroupNorm；T = 3；DW 3×3、GELU、PW 1×1、LN、FFN 768、LN；1,794,432 参数</td></tr>
+<tr><td>D3</td><td>查询</td><td>q = W<sub>h</sub>h，p = MLP(φ(b))</td><td>LN(Linear(h))；φ 对 x1、y1、0.2·log w + 0.5、0.2·log h + 0.5 各用 32 个倍频 sin/cos；578,880（4B）/ 480,576（2B）</td></tr>
+<tr><td>D4</td><td>查询解码器</td><td>6 块：自注意力、多尺度可变形交叉注意力、FFN</td><td>8 头、4 层 × 4 点；参考框 cx, cy, w, h；纯 PyTorch grid_sample；3,560,832</td></tr>
+<tr><td>D5</td><td>像素融合</td><td>式 (3)(4)：自顶向下融合；Up(G<sub>1</sub>) + CNN(I)，512×512</td><td>同尺度 FPN；两次 pixel shuffle；缩到 256 再残差 ×2 到 512；RGB 1024 → 两层 CNN（步长 2、1）→ 512；64 通道；3,184,896</td></tr>
+<tr><td>D6</td><td>动态掩码头</td><td>式 (5)：M = kᵀP + β</td><td>MLP 192→192→65；粗掩码 512×512；49,601</td></tr>
+<tr><td>D7</td><td>精修</td><td>式 (6)–(8)：三个上采样阶段，(1 + tanh γ)⊙U + δ</td><td>S/4 → S/2 → S/1（256 → 512 → 1024），48 通道，每级 2 个残差块；(1 + 0.1 tanh γ)⊙U + 0.1 δ；分割和抠图都走；441,123</td></tr>
+<tr><td>D8</td><td>合计</td><td>约 9.6M</td><td>4B 9,609,764（和 config 一致），2B 9,511,460</td></tr>
+<tr class="grp"><td colspan="4">训练（只有论文）</td></tr>
+<tr><td>T1</td><td>SFT 阶段 1</td><td>只训 LLM；90.2M；13,000 步；16–512 视觉 token；上下文 4,096；每类 ≤ 50 个框</td><td>未公开</td></tr>
+<tr><td>T2</td><td>SFT 阶段 2</td><td>全解冻；40.5M；8,995 步；64–1,960 token；≤ 500 个框；上下文 8,192</td><td>未公开</td></tr>
+<tr><td>T3</td><td>解码器 warm-up</td><td>250M 分割样本，100K 步，式 (9)；只留解码器和 &lt;OBJ&gt; 嵌入</td><td>未公开</td></tr>
+<tr><td>T4</td><td>SFT 阶段 3</td><td>41.8M，9,062 步，NTP 和分割 1:1 交替，式 (10)；LLM 用 LoRA r = 128</td><td>未公开</td></tr>
+<tr><td>T5</td><td>抠图微调</td><td>冻结 VLM，130M，100K 步，1024×1024，式 (11)</td><td>未公开（数据引擎的标注器在 mask2alpha 分支）</td></tr>
+<tr><td>T6</td><td>RL</td><td>按式 (12) 选样本，178K；GRPO，G = 8，593 步，式 (13)；只训 LLM</td><td>未公开</td></tr>
+<tr class="grp"><td colspan="4">推理</td></tr>
+<tr><td>I1</td><td>生成</td><td>贪心，≤ 1,960 视觉 token</td><td>温度 0，repetition_penalty 1.05（分割、抠图评测 1.0）；max_pixels = 2025×32×32</td></tr>
+<tr><td>I2</td><td>像素解码</td><td>每个 &lt;OBJ&gt; 调一次解码器</td><td>回复里有 &lt;OBJ&gt; 就把整段再前向一遍取特征；每批 16 个；fp32；输出 sigmoid 图缩放到原图</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>图像和掩码。</b>两只“狗”是手画的色块，框的坐标借用原文图 3 的例子；掩码、alpha、毛发都是程序生成的。</li>
+<li><b>第 2 幕。</b>流程按原文图 2；方块大小不代表任何量。</li>
+<li><b>第 3 幕。</b>48×48 的玩具网格，S 和 B 的形状是我设的；七条准则和阈值按 §2.6，当场算。</li>
+<li><b>第 4 幕。</b>拒答一例里 <code>None</code> 的确切写法论文没给，按“坐标字段写 None”示意；指点的坐标是用框中心算的。</li>
+<li><b>第 6 幕。</b>采样点是代码 <code>reset_parameters</code> 里的初始位置（训练前），训练后的偏移不知道。</li>
+<li><b>第 8 幕。</b>三张 alpha 是玩具；分辨率和级数按代码。</li>
+<li><b>第 10 幕。</b>框和 IoU 是玩具，奖励按式 (13) 当场算；不确定性曲线按“奖励只取 0/1”画。</li>
+<li><b>第 11 幕的柱子</b>都是原文表格的数字。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2610.31329 后的理解，不是作者的官方图。原图见<a href="../../papers/wevisone-vl.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
