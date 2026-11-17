@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WeVisOne-VL 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.31329 WeVisOne-VL（微信视觉，腾讯）的中文精读：按原文章节逐节整理，含编号公式、主要结果表、裁切的原图（CC BY 4.0）、官方推理代码对照、9.6M 像素解码器参数核算、README 表格核对、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-s{min-width:420px}.t-m{min-width:560px}.t-w{min-width:720px}.t-xw{min-width:980px}.t-links{min-width:640px}
+.t-xw td,.t-xw th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+details.tbl{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg2)}
+details.tbl summary{cursor:pointer;font-size:14px;color:var(--fg)}
+details.tbl[open] summary{margin-bottom:6px}
+pre.tok{font-family:var(--font-mono);font-size:13px;line-height:1.5;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;white-space:pre}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/wevisone-vl/index.html">3D 框架动画</a><a href="#code">代码要点</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2610.31329 · cs.CV · 视觉-语言模型 / 感知 · v2 2026 年 10 月 24 日 · 技术报告 · 中文精读</p>
+<h1>WeVisOne-VL：一个 VLM 从框做到 alpha 抠图</h1>
+<p class="orig">WeVisOne-VL: Unified Visual Perception from Objects to Pixels</p>
+<p>作者 Tianming Liang、Junyi Pan、Yuxi Li（三人共同一作）、Canmiao Fu、Zhipeng Huang、Chong Sun（项目负责人）、Chen Li（通讯作者）、Jing Lyu，来自 WeChat Vision, Tencent Inc.（微信视觉）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2610.31329">arXiv 原文</a><a href="https://arxiv.org/pdf/2610.31329v2">PDF</a><a href="https://arxiv.org/html/2610.31329v2">HTML 版</a><a href="https://tencent.github.io/WeVisOne-VL">项目主页</a><a href="https://github.com/Tencent/WeVisOne-VL">官方代码</a><a href="https://huggingface.co/collections/tencent/wevisone-vl">权重（Hugging Face）</a><span>正文到第 26 页，参考文献到第 33 页，附录第 34–36 页，共 36 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布（v1 2026-10-22，v2 2026-10-24，两版 PDF 同为 32,841 KB；这里读的是 v2）。PDF 里没有找到 “All rights reserved” 之类和它矛盾的声明。这里按原文顺序覆盖正文 9 节和附录 A、B，小节编号和原文一致，用自己的话整理，不是逐字翻译。公式按原文编号，表格数字照录原文。</p>
+<p>图 1 到图 13 从 arXiv PDF 裁切，作者是 Tianming Liang 等，许可 CC BY 4.0，只做了裁切、缩放和格式转换，没有改内容。“看原图”链接到 arXiv HTML 版对应的图。表 1 原文是六个环形图，这里改写成表格（数字照录）。图下的文字是我写的。“读者注”是整理时核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码是 <a href="https://github.com/Tencent/WeVisOne-VL/tree/9a6bcd85404505df0d05cfb5d97512ccacf35dee">Tencent/WeVisOne-VL 提交 9a6bcd8</a>（2026-10-25），Apache-2.0；LICENSE 文件开头另有腾讯惯用的一行 “Copyright (C) 2026 Tencent. All rights reserved.”，后面接 Apache-2.0 全文。另外看了 <a href="https://github.com/Tencent/WeVisOne-VL/tree/mask2alpha"><code>mask2alpha</code> 分支</a>（提交 2dfe851，2026-10-23，数据引擎里的抠图标注器）；这个分支里没有 LICENSE 文件，所以本页对它只引文件名和结构，不摘代码。两处都只读，没有运行。Hugging Face 上 2B、4B 两个模型的模型卡、<code>config.json</code>、<code>tokenizer.json</code> 和文件列表我读了，权重没有下载。</p>
+<p><b>项目主页</b>页脚写着 “© 2026 WeChat Vision, Tencent Inc. Code released under the Apache License 2.0”，没有给页面内容本身的许可。我只打开过一次看条款，没有抓取其中的图或数据，本页只链接它。Hugging Face Space 上的在线 demo 没有调用。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 数据引擎</a><a href="#s2-6">2.6 抠图数据</a><a href="#s3">3 模型</a><a href="#s3-1">3.1 任务格式</a><a href="#s3-2">3.2 像素解码器</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 训练</a><a href="#s4-1">4.1 三阶段 SFT</a><a href="#s4-2">4.2 混合任务 RL</a><a href="#s5">5 实验</a><a href="#s5-1-1">检测</a><a href="#s5-1-2">指代</a><a href="#s5-1-3">计数</a><a href="#s5-1-4">指点</a><a href="#s5-1-5">OCR</a><a href="#s5-1-6">指代分割</a><a href="#s5-1-7">抠图</a><a href="#s6">6 定性</a><a href="#s7">7 相关工作</a><a href="#s8">8 局限</a><a href="#s9">9 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#code">代码与使用要点</a><a href="#readme">README 表格核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-io">问 1 输入与输出</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>现有 VLM 做细粒度感知不可靠：会编出不存在的物体，看不懂陌生的描述，密集场景漏检。WeVisOne-VL（WeChat Vision All-in-One）把目标级任务（检测、指代定位、计数、指点、OCR）和像素级任务（指代分割、可提示抠图）都写成<b>结构化的下一个 token 预测</b>，再用一个特殊的 <code>&lt;OBJ&gt;</code> token 接一个约 9.6M 参数的<b>像素解码器</b>，输出二值掩码或连续 alpha。底座是 Qwen3-VL，做了 2B 和 4B 两个尺寸。</p>
+<ul>
+<li><b>数据：</b>自建数据引擎 WDE，约 1 亿张图、约 36 亿个框；框经 VLM 核验，再扩到掩码和 alpha。</li>
+<li><b>输出格式：</b>坐标用 1001 个专用 token <code>&lt;0&gt;</code>…<code>&lt;1000&gt;</code>；目标不存在时写 <code>None</code>；像素任务在每个框的四个坐标后多生成一个 <code>&lt;OBJ&gt;</code>。</li>
+<li><b>训练：</b>三阶段课程 SFT（任务对齐 → 高分辨率和密集 → 像素任务），再做混合任务 GRPO，奖励只看框。</li>
+<li><b>结果：</b>31 个基准（我数的），4B 在检测、计数、OCR、指代分割、抠图上多数领先；拒答很突出，WeRef-Bench 拒答率 96.4%，Ref-ZOM 86.0%。</li>
+<li><b>开源：</b>推理包、Cookbook、评测管线、Gradio demo、2B/4B 权重、抠图标注器 Mask2Alpha；训练代码没有公开。</li>
+</ul>
+<p>读完我认为最值得记住的三点：一是像素解码器真的很小，4B 版按代码算正好 9,609,764 个参数，大头是可变形查询解码器和像素融合，精修头只有 0.44M（<a href="#n4">读者注 4</a>）；二是公开的解码器只有一个，分割掩码就是 alpha 输出取 0.5 阈值，任务提示也和抠图共用（<a href="#n5">读者注 5</a>）；三是拒答能力来自数据引擎专门构造并复核的“困难负样本”，加上 RL 里“无目标时什么都不输出才给 1 分”的奖励。</p>
+
+<figure class="pfig" id="fig1">
+<img src="wevisone-vl/fig1.webp" width="1600" height="772" alt="图 1：上半是像素级感知示例：指代分割、抠图、推理分割、指代抠图、多目标分割和一只兔子的 alpha 抠图；下半是目标级感知示例：目标检测、密集检测、计数、指点、指代、拒答" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S0.F1">看原图 ↗</a></span>上排是像素级：指代分割（“穿 21 号球衣的球员”）、抠图、推理分割（“维生素 C 最多的食物”）、指代抠图（“鸽子”）、多目标分割（“鹅”），右边大图把一只兔子拆成前景、alpha 和原图三块。下排是目标级：检测、密集检测、计数（花洒孔 45 个）、指点、指代（“互相靠着的人”）、拒答（“蓝色的弯腰长颈鹿”返回 none）。</figcaption>
+</figure>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>一个视觉系统要回答三件事：图里有什么，用户说的是哪个，它在哪。从 YOLO、DETR 到 Grounding-DINO、SAM，再到大 VLM，模型能认的概念和能听懂的指令越来越多，但兼顾效果和效率时仍不够部署：会幻觉出不存在的物体，遇到不熟悉的描述会误解，不显眼的实例会漏掉。</p>
+<p><b>做法。</b>一个自然语言接口统一目标级和像素级感知。三块设计：</p>
+<ul>
+<li><b>数据引擎（§2）。</b>用共享的知识图谱组织类别概念和组合式指代表达，指导定向采集；多个定位专家出候选，VLM 核验“查询-实例”的对应；在核验过的框上生成掩码，再为抠图训练一个专用标注器生成 alpha；每轮训练后复核模型错误，回头改数据。</li>
+<li><b>模型（§3）。</b>Qwen3-VL 底座加一个轻量像素解码器。坐标 token <code>&lt;0&gt;</code>…<code>&lt;1000&gt;</code> 编码归一化坐标（沿用 Rex-Omni 的做法）；像素任务在每个框后生成 <code>&lt;OBJ&gt;</code>，它的隐状态就是这个实例的表示，解码器把它和共享 ViT 的多层特征组合，在整张图上出结果。不需要另挂一个大分割模型。</li>
+<li><b>训练（§4）。</b>三阶段 SFT：阶段 1 学会按指令输出合法格式；阶段 2 加高分辨率和密集数据，提高小目标和拥挤场景的召回；阶段 3 加像素任务。之后挑 SFT 模型最拿不准的样本做 GRPO，提高定位精度，压住重复和幻觉输出。</li>
+</ul>
+<p><b>结果概览。</b>和通用 VLM、专用视觉系统相比都有竞争力，拥挤场景召回高，目标不存在时能正确拒答。</p>
+
+<h2 id="s2"><span class="no">2</span>WeVisOne-VL 数据引擎（WDE）</h2>
+<p><b>结论先说：</b>WDE 的核心是“检测器广撒网，VLM 做裁判”，并且一个实例的框、掩码、alpha 共用同一条查询，跨任务不丢身份。数据来自 GRIT、CC3M、LAION、SA-1B 和若干任务专用数据集，标注库超过 1 亿张图、约 36 亿个框。</p>
+<figure class="pfig" id="fig2">
+<img src="wevisone-vl/fig2.webp" width="1600" height="973" alt="图 2：数据引擎流程。左侧语义发现和采集：Tokenize Anything 出类别、Qwen3-VL 出指代表达、知识图谱、定向采集；中间定位和语义复核：检测路径用 SAM3 和自研开放词表检测器，指代路径用 SAM3 Agent，再由 Qwen3-VL 核验；右侧实例对齐的监督：保留检测框、SAM2 生成可见区域掩码；下方抠图数据引擎三步和错误复核回路" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S2.F2">看原图 ↗</a></span>①语义发现和采集：Tokenize Anything 给类别查询，Qwen3-VL 写指代表达，二者进知识图谱，再定向采图。②定位和语义复核：类别查询走 SAM3 加自研开放词表（OV）检测器，指代查询走 SAM3 Agent 加同一个检测器；候选交给 Qwen3-VL 判断是否匹配，选择、去重、解决冲突。③实例对齐的监督：保留检测器的框，SAM2 生成可见区域掩码，统一成检测、指代、分割、抠图四种监督。下方是抠图数据引擎（专家标注 → 训练标注器 → 全库重标），底部虚线是“训练 → 错误复核 → 数据修正 → 更新采集”的回路。</figcaption>
+</figure>
+
+<h3 id="s2-1"><span class="no">2.1</span>概念发现和定向采集</h3>
+<p>两类标注查询：检测用优化过的 Tokenize Anything 发现类别；指代任务让 Qwen3-VL 写出通过属性、状态、动作、关系来指定目标的表达。两类都放进一个共享知识图谱，图谱从 Wikipedia 和 WordNet 初始化，记录规范名、别名、分类关系和整体-部分关系。新词先通过文本检索和视觉-语言核验挂到已有节点上，只有视觉证据稳定时才加为新节点；规范化时合并同义类别，但保留限定指代范围的描述条件。</p>
+<p>图谱也用来定向采集：概念名和别名作文本检索词，核验过的实例作视觉检索线索，历史错误指出哪里缺数据。采样优先级按概念覆盖、图像领域、目标尺度和困难条件（遮挡、密集排布）设定，易混类别和反复出错的指代也会加权。</p>
+
+<h3 id="s2-2"><span class="no">2.2</span>检测标注</h3>
+<p>传统检测器擅长密集物体但不认长尾和开放概念；VLM 认得出但密集场景召回低。所以先让检测器给出尽量全的候选，再用 VLM 做事后核验：SAM3 和一个自研的 DINO 结构开放词表检测器（迭代改进过）并行出候选，合并成一个候选池；Qwen3-VL 逐个判断区域是否符合类别查询，据此选择、去重、解决冲突。保留下来的实例<b>用定位模型给的框</b>（不是 VLM 的框），这些框既是检测监督，也确定后面分割标注的目标实例。</p>
+
+<h3 id="s2-3"><span class="no">2.3</span>指代标注</h3>
+<p>指代要求区域满足表达的组合含义。这一步基于 SAM3 Agent 框架，再把自研检测器加进来作另一个定位专家；两者在同一个以表达为条件的流程里出候选。Qwen3-VL 检查每个候选在图像上下文里是否符合表达里的属性、状态、动作、关系，并区分“要找的目标”和“只作为参照提到的物体”；指整体还是部件也由表达决定。结果把每条表达绑定到一个目标或一组目标。</p>
+
+<h3 id="s2-4"><span class="no">2.4</span>掩码标注</h3>
+<p>对每个定位到的实例，用 SAM2 预测可见区域的二值掩码，掩码继承生成它的框的查询。于是同一实例在同一查询下既有框又有掩码：类别查询下分别监督检测和类别条件分割，指代表达下分别监督指代定位和指代分割。人工抽检一部分，查掩码和框是否连到对的实例、掩码是否准；问题交给 §2.7 的修正流程。每条标注都记录来源，方便追溯和重生成。</p>
+
+<h3 id="s2-5"><span class="no">2.5</span>困难样本构造</h3>
+<p>候选查询来自知识图谱里的易混概念、视觉相似类别、对描述条件的受控改动（例如“红车”改“蓝车”）和观察到的模型错误。<b>负样本要人工确认：</b>改成“蓝车”不代表图里没有蓝车，检测器什么都没找到也可能是漏检，所以每个候选负样本都要对照整张图检查属性、动作、关系，真有目标就送回正样本标注。</p>
+<p>“困难”由当前模型决定：复核过的负样本，如果模型仍然预测出区域，就成为困难负样本。它的目标集合为空，教模型拒答而不引入任何框或像素目标；错误预测保留下来作为混淆的证据。困难正样本记录漏检、选错指代对象、拥挤或遮挡下难定位的情况。每个模型版本重新评估难度，采样重点跟着持续存在和新出现的失败模式调整。</p>
+
+<h3 id="s2-6"><span class="no">2.6</span>抠图数据引擎</h3>
+<p><b>结论先说：</b>高质量 alpha 标注贵、量少；合成到新背景又有光照和边界不自然的问题。已有的实例标注知道目标是谁、在哪，只缺连续的 alpha。所以分三步：专家辅助标注、训练专用标注器、用标注器重标全库，alpha 始终挂在原来的描述和框上。</p>
+<p><b>专家辅助标注。</b>对每个带二值掩码 \(S\) 的实例，在同一裁剪上取两个候选：BiRefNet 的软前景 \(\alpha_B\)，以及 MatAnyone2 的 alpha \(\alpha_M\)。MatAnyone2 用膨胀、腐蚀后的 \(S\) 初始化，把裁剪图重复成一小段视频，取 warm-up 之后的最后一帧。BiRefNet 只看 RGB、没有实例提示，可能抠到别的物体或只抠一部分，所以只用它的二值化前景 \(B=\mathbb 1[\alpha_B\ge\tau_\alpha]\)（\(\tau_\alpha=0.5\)）检查和 \(S\) 的空间一致性。BiRefNet 候选必须同时满足：</p>
+<ul>
+<li>\(|B|\ge 8\)，\(\mathrm{IoU}(B,S)\ge0.5\)；覆盖率 \(|B\cap S|/|S|\ge0.5\)，前景精度 \(|B\cap S|/|B|\ge0.8\)；面积比 \(|B|/|S|\in[0.5,2]\)；</li>
+<li>两者外接框 IoU 至少 0.7；质心偏移不超过 \(S\) 外接框对角线的 0.15 倍。</li>
+</ul>
+<p>通过后，只保留 \(\alpha_B\ge0.01\) 的连通块中至少 10% 面积落在稍微膨胀过的 \(S\) 里的那些；块内 alpha 不按 \(S\) 截断，细结构可以伸出粗边界。BiRefNet 被拒或过滤后前景不足 8 个像素时，如果 \(\mathrm{IoU}(\mathbb 1[\alpha_M\ge\tau_\alpha],S)\ge0.9\) 就退回用 \(\alpha_M\)，否则保留 \(S\)。每个实例记录用了哪个来源（包括 MatAnyone2 因裁剪太小或推理失败退回 \(S\) 的情况），以区分模型预测和二值退化。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · BiRefNet 七条准则里有两条是多余的</span><p>只要 \(\mathrm{IoU}(B,S)\ge0.5\)，覆盖率 ≥ 0.5 和面积比 ∈ [0.5, 2] 就自动成立。记 \(I=|B\cap S|\)、\(U=|B\cup S|\)，有 \(U\ge|S|\)、\(U\ge|B|\)：</p><ul>
+<li>覆盖率 \(I/|S|\ge I/U\ge0.5\)；</li>
+<li>\(|S|\ge I\ge0.5U\ge0.5|B|\)，所以 \(|B|/|S|\le2\)；对称地 \(|B|\ge0.5|S|\)，所以 \(|B|/|S|\ge0.5\)。</li></ul>
+<p>同理 IoU ≥ 0.5 也推出前景精度 ≥ 0.5，但论文要求 0.8，这一条更严，不多余。真正起额外作用的是 \(|B|\ge8\)、精度 ≥ 0.8、外接框 IoU ≥ 0.7 和质心偏移。举例：\(|S|=1000\)、\(|B|=1100\)、\(I=900\)，则 IoU = 900/1200 = 0.75，覆盖率 0.9，精度 0.818，面积比 1.1，前四条都过；若 \(B\) 再多出 100 个不重叠像素，精度降到 0.75 就被拒，IoU 仍有 0.692。动画第 3 幕可以拖着试。</p></div>
+<p><b>训练抠图标注器。</b>按 1:1 抽“带初始标签的实例”和“高质量抠图数据”，兼顾覆盖面和 alpha 细节。受 SAM2Matting 启发，冻结一个 SAM2.1-Base+，加一个新的轻量 alpha 精修头：融合多尺度图像特征、在每个解码阶段注入的提示掩码、浅层 RGB 分支的局部细节，自顶向下直接出 alpha。训练时提示掩码有四种来源：目标 alpha 二值化、实例分割掩码、对它们的随机扰动、用框提示 SAM2 分割。损失是多尺度 L1 和拉普拉斯 alpha 损失、前景/背景监督，加一个只对未扰动的物体级提示计算的提示一致性项；对有连续 alpha 标签的样本再加过渡区损失（小目标除外）。</p>
+<p><b>全库重标。</b>训练好的标注器用已有实例标注指定目标，对训练库里所有标注实例出 alpha，替换初始标签，作为 §4 抠图训练的最终伪标签。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 公开的 Mask2Alpha 和 §2.6 对照</span><p>仓库 <code>mask2alpha</code> 分支（2dfe851）就是这个标注器的推理版。对得上的：冻结 SAM2.1-B+（<code>mask2alpha/model.py</code> 里 <code>SAM2AlphaRefiner</code> 继承 SAM2 的 <code>SAM2Base</code>，加载官方 <code>sam2.1_hiera_base_plus.pt</code> 并校验 SHA256）；头 <code>RefineMattingHead</code>（<code>matting_head.py</code>）取 SAM2 的三层特征（步长 4、8、16），每一级都拼进按尺寸缩放的提示掩码，另有一个吃“RGB + 提示”4 通道的两级浅层 stem，自顶向下在步长 8、4、2 各出一个 alpha，最后一级当输出。</p>
+<p>我按它的通道配置（特征 32/64/256，宽度 32/64/128/256，stem 32/64）数了参数：3,910,851 个（卷积无偏置 + BatchNorm 仿射 + 三个 1×1 输出层），按 fp32 是 15.64 MB；仓库里 <code>weights/mask2alpha_sam2_bplus.pt</code> 是 15,699,010 字节，差的约 0.06 MB 正好够放 BatchNorm 的滑动统计和文件头。推理支持掩码、框、点三种提示，框和点先让 SAM2 出掩码。训练代码、损失和数据都没有公开。论文没给这个头的参数量。</p></div>
+
+<h3 id="s2-7"><span class="no">2.7</span>训练反馈和数据修正</h3>
+<p>每轮训练后按概念、图像领域、目标尺度、遮挡、任务、失败类型整理错误，聚类去重后挑代表性样本复核。复核区分“模型错”和“标注错”：标注可靠就不改，可能加大采样权重或作为相关图像的检索种子；标注有缺陷才修正或重生成，再进下一版数据。也就是说，模型和标注不一致只触发调查，标注只在复核后才改。不同失败对应不同更新：漏检 → 加采集和困难正样本；指代混淆 → 实例对比和更具体的描述；误报 → 构造困难负样本；框、掩码、跨任务关联有缺陷 → 退回对应标注阶段。</p>
+<p>每次数据发布都记录标注来源、暴露错误的模型版本、复核和修订历史；没解决的样本不进训练。原图、它的近重复图和派生的任务记录在各版本里留在同一个数据划分。一个固定的监控集只做内部回归，不进训练也不用于阈值标定；正式基准和训练、和反馈驱动的数据构造都隔离。</p>
+
+<h2 id="s3"><span class="no">3</span>模型设计</h2>
+<p>两处扩展：任务格式上加坐标 token 和任务标签 token，输出紧凑；结构上加一个轻量解码器，把离散 token 的表示变成分割和抠图的稠密输出。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>任务格式</h3>
+<p>所有任务都是结构化的下一个 token 预测。参考 Rex-Omni 和 LocateAnything，加入 <code>&lt;0&gt;</code> 到 <code>&lt;1000&gt;</code> 共 1001 个 token 表示归一化坐标。模型依次生成对象引用和坐标：框是 \([x_0,y_0,x_1,y_1]\)，点是 \([x_0,y_0]\)；目标不存在时坐标字段写 <code>None</code>。分割和抠图在每个框的四个坐标后、同一个 <code>&lt;box&gt;</code> 字段里紧接着生成一个 <code>&lt;OBJ&gt;</code>，给像素解码提供目标表示。</p>
+<figure class="pfig" id="fig3">
+<img src="wevisone-vl/fig3.webp" width="1535" height="948" alt="图 3：六种任务的输入输出示例：检测、指代、指点、计数、OCR、分割/抠图，每行一个输入指令和一个用 ref、box、point 标签和坐标 token 写成的输出" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 7 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S3.F3">看原图 ↗</a></span>六行分别是检测、指代、指点、计数、OCR、分割/抠图。输出都由 <code>&lt;ref&gt;名称&lt;/ref&gt;</code> 加 <code>&lt;box&gt;</code> 或 <code>&lt;point&gt;</code> 里的坐标 token 组成；计数在框后写 “Total number: 3.”；抠图在每个框后多一个 <code>&lt;OBJ&gt;</code>。</figcaption>
+</figure>
+<p>一个抠图请求的输出（取自图 3）：</p>
+<pre class="tok">&lt;ref&gt;dogs&lt;/ref&gt;&lt;box&gt;&lt;81&gt;&lt;327&gt;&lt;394&gt;&lt;746&gt;&lt;OBJ&gt;,&lt;552&gt;&lt;284&gt;&lt;902&gt;&lt;721&gt;&lt;OBJ&gt;&lt;/box&gt;</pre>
+<p>两只狗，每只 4 个坐标 token 加 1 个 <code>&lt;OBJ&gt;</code>。坐标是千分比：第一只狗左上角在宽度的 8.1%、高度的 32.7%。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 图 3 的提示词、词表和代码对照</span><ul>
+<li><b>新 token 一共 1010 个。</b>Hugging Face 的 <code>tokenizer.json</code>：id 151669–152669 是 <code>&lt;0&gt;</code>…<code>&lt;1000&gt;</code>（1001 个），152670–152677 是 <code>&lt;ref&gt;</code>、<code>&lt;/ref&gt;</code>、<code>&lt;box&gt;</code>、<code>&lt;/box&gt;</code>、<code>&lt;point&gt;</code>、<code>&lt;/point&gt;</code>、<code>&lt;polygon&gt;</code>、<code>&lt;/polygon&gt;</code>，152678 是 <code>&lt;OBJ&gt;</code>。<code>&lt;polygon&gt;</code> 论文没提；解析和可视化代码的正则能识别它，但 11 个任务的提示词里没有一个要求输出多边形。</li>
+<li><b>提示词和图 3 不完全一样。</b><code>wevisone_vl/prompts.py</code>：指代是 “Locate the instances that match …”（图 3 多一个 best）；指点是 “point to: …”（图 3 是 “Point to …”）；计数是 “… Please count them with boxes.”（图 3 是 bounding boxes，评测脚本用的才是 bounding boxes）；OCR 是 “detect all the word in the box format”（图 3 是 “Detect all the text in the image and recognize it.”）；分割和抠图<b>共用</b>一句 “Locate the instances that match the following description and provide the alpha mattes: …”。评测脚本 <code>evaluation/utils/prompt_builder.py</code> 又有一套：RefCOCOg、DVGBench、Ref-L4 用 “Locate a single instance that best matches …”。我没法判断训练时用的是哪一套，按代码用最稳。</li>
+<li><b>代码多一个任务</b> <code>visual_prompt</code>：给参考框，找“相似物体”。论文和 README 的任务表都没写。</li>
+<li><b>图 3 的 OCR 例子</b>两个单词用了完全相同的框 <code>&lt;93&gt;&lt;118&gt;&lt;286&gt;&lt;231&gt;</code>，第一个词后面也没有 <code>&lt;/box&gt;</code>，像是排版时复制出的笔误。图 5–12 里模型名印成 “WeVisionOne-VL”，也是笔误。</li></ul></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>模型结构</h3>
+<p>图像和指令进来，Qwen3-VL 视觉编码器编码图像，语言模型自回归生成上面的结构化回复。像素任务对每个生成的 <code>&lt;OBJ&gt;</code> 调一次轻量解码器，输入三样：这个 token 的隐状态、它前面的预测框、Qwen3-VL 视觉编码器的多层特征。图像上下文来自共享的视觉特征，空间引导来自框，所以不需要 SAM 这样的独立大分割模型。</p>
+<figure class="pfig" id="fig4">
+<img src="wevisone-vl/fig4.webp" width="1600" height="802" alt="图 4：像素解码器。左边①视觉特征适配器：四层 ViT 特征 F1 到 F4 投影，经 T 个由深度卷积、GELU、逐点卷积、LayerNorm、FFN 组成的块；右上②框引导查询解码器：每个 OBJ 的隐状态经线性层得到 q，框经位置编码得到 p，T 层自注意力、可变形交叉注意力、FFN；右下③实例条件稠密预测：像素融合、pixel shuffle、两层 CNN，MLP 生成动态核，得到掩码，再经由粗到细精修得到 alpha" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 8 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S3.F4">看原图 ↗</a></span>①视觉特征适配器：取 ViT 四层特征 \(F_1\)…\(F_4\)，投影后加位置和层级编码，经 \(T\) 个“深度卷积 3×3 → GELU → 逐点卷积 1×1 → LayerNorm → FFN → LayerNorm”的块，输出 \(X^{(T)}_1\)…\(X^{(T)}_4\)。②框引导查询解码器：每个实例的 <code>&lt;OBJ&gt;</code> 隐状态经线性层得到内容查询 \(q_i\)，框 \(b_i\) 经位置编码得到 \(p_i\)，经 \(T\) 层自注意力、可变形交叉注意力、FFN，得到 \(\tilde q_i\)。③实例条件稠密预测：像素融合和 pixel shuffle 得到像素特征，加上原图经两层 CNN 的浅层特征；MLP 从 \(\tilde q_i\) 生成动态核 \([k_i,\beta_i]\)，和像素特征相乘得到掩码 \(M_i\)，再经由粗到细精修得到 alpha \(A_i\)。</figcaption>
+</figure>
+<p>三部分：视觉特征适配器把 ViT 中间层组织成共享的多层记忆；可变形查询解码器把每个 <code>&lt;OBJ&gt;</code> 表示和它的框先验结合；实例条件稠密预测把更新后的查询和视觉特征变成整张图的预测。分割和抠图共用这三部分，抠图另加一个轻量精修模块处理细边界和半透明。整个解码器（含精修模块）约 9.6M 参数。</p>
+
+<h4 id="s3-2-1"><span class="no">3.2.1</span>视觉特征适配器</h4>
+<p>为保留细粒度信息，从 ViT 中间层取 \(L\) 个<b>合并前</b>（pre-merging）的特征 \(\{F_l\in\mathbb R^{C\times H_p\times W_p}\}_{l=1}^L\)。每层映射到 \(d\) 维，并加位置和层级信息：</p>
+<div class="eq"><div class="m">\[ X^{(0)}_l=W_lF_l,\qquad E_l=P_{2D}+e_l \]</div><span class="no">(1)</span></div>
+<p>\(W_l\in\mathbb R^{d\times C}\) 是可学习投影，\(P_{2D}\) 是二维位置编码，\(e_l\) 是可学习的层级嵌入。适配器有 \(T\) 个块，第 \(t\) 块：</p>
+<div class="eq"><div class="m">\[ \bar X^{(t)}_l=\mathrm{LN}\Big(X^{(t)}_l+\mathrm{PWConv}_t\big(\mathrm{GELU}(\mathrm{DWConv}_t(X^{(t)}_l+E_l))\big)\Big),\qquad X^{(t+1)}_l=\mathrm{LN}\big(\bar X^{(t)}_l+\mathrm{FFN}_t(\bar X^{(t)}_l)\big) \]</div><span class="no">(2)</span></div>
+<p>最后各层 \(X^{(T)}_l\) 沿空间展平后拼接，得到视觉记忆 \(\mathcal M\in\mathbb R^{LH_pW_p\times d}\)。</p>
+<p>代码里的具体值（<code>configs/wevisone_vl_v1_decoder.json</code>）：取 ViT 第 5、11、17、23 层（共 24 层，从 0 数），\(L=4\)，\(d=192\)，\(T=3\)，FFN 768。前三层正好是 Qwen3-VL 的 DeepStack 合并器的输入，第 23 层是最终合并器的输入，代码用 forward pre-hook 在合并器前截取，并把 Qwen 按 2×2 块打乱的 patch 顺序还原成行优先（<code>feature_bridge.py</code>）。四层的网格都是 \(H_p\times W_p\)（16 像素一个 patch），分辨率相同。</p>
+
+<h4 id="s3-2-2"><span class="no">3.2.2</span>框引导查询解码器</h4>
+<p>沿用 Deformable DETR 的解码器，区别在实例查询的初始化：不用静态的可学习嵌入，而直接从 VLM 输出实例化。回复里有 \(N\) 个实例，第 \(i\) 个的 <code>&lt;OBJ&gt;</code> 隐状态记 \(h_i\)，归一化框 \(b_i=[x_{i1},y_{i1},x_{i2},y_{i2}]\)。内容查询 \(q_i=W_hh_i\)，位置查询 \(p_i=\mathrm{MLP}(\phi(b_i))\)，\(\phi\) 是 Fourier 编码。</p>
+<p>六个可变形块，每块是自注意力、多尺度可变形交叉注意力、FFN。自注意力里 \(N\) 个实例查询互相交流，\(q_i+p_i\) 同时当 query 和 key，\(q_i\) 当 value。交叉注意力里每个查询以参考框 \(r_i=[\tfrac{x_{i1}+x_{i2}}2,\tfrac{y_{i1}+y_{i2}}2,x_{i2}-x_{i1},y_{i2}-y_{i1}]\) 为条件，从记忆 \(\mathcal M\) 里做多尺度可变形采样。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>数据引擎 → 抠图准则 → 任务格式 → 视觉特征 → 查询解码器 → 像素融合 → 由粗到细 → 训练课程 → RL 奖励 → 结果。下面嵌的是第 6 幕（框引导查询解码器，采样点按代码的初始化当场算）。层宽、层数来自官方代码和 config；图像、框、采样偏移是示意。</p>
+<iframe src="../interactives/wevisone-vl/index.html?embed=1&amp;scene=6" title="WeVisOne-VL 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/wevisone-vl/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h4 id="s3-2-3"><span class="no">3.2.3</span>实例条件稠密预测</h4>
+<p><b>多层像素融合。</b>深层特征有语义，浅层特征保留空间细节。适配后的特征自顶向下融合：</p>
+<div class="eq"><div class="m">\[ G_l=\begin{cases}\mathrm{Conv}_{1\times1}\,X^{(T)}_L, & l=L\\[2pt] \mathrm{GELU}\Big(\mathrm{GN}\big(\mathrm{Conv}_{3\times3}(G_{l+1}+\mathrm{Conv}_{1\times1}X^{(T)}_l)\big)\Big), & l=L-1,\dots,1\end{cases} \]</div><span class="no">(3)</span></div>
+<p>为了找回融合特征里丢掉的颜色、纹理、边缘，再把输入图 \(I\) 缩放到 1024×1024，过一个两层 CNN 得到浅层特征；把 \(G_1\) 上采样到同样的 512×512，逐元素相加：</p>
+<div class="eq"><div class="m">\[ P=\mathrm{Up}(G_1)+\mathrm{CNN}(I) \]</div><span class="no">(4)</span></div>
+<p><b>动态掩码头。</b>\(\tilde q_i\) 是查询解码器输出的第 \(i\) 个实例表示。一个 MLP 从它生成实例专属的动态核，作用在 \(P\) 上得到逐像素 logit：</p>
+<div class="eq"><div class="m">\[ [k_i,\beta_i]=\mathrm{MLP}(\tilde q_i),\qquad M_i=k_i^{\top}P+\beta_i \]</div><span class="no">(5)</span></div>
+<p><b>由粗到细精修。</b>单次掩码预测对细结构和半透明边界不够。从 \(M^{(0)}_i=M_i\) 开始，经三个上采样阶段 \(j=1,2,3\) 逐步精修。第 \(j\) 阶段把上一阶段特征 \(F^{(j-1)}_i\) 上采样，和缩放后的原图、像素特征、之前的掩码预测 \(C^{(j)}_i\) 拼接：</p>
+<div class="eq"><div class="m">\[ U^{(j)}_i=\mathrm{Conv}_{1\times1}\Big(\mathrm{Up}(F^{(j-1)}_i)\,\|\,\mathrm{Interp}_j(I)\,\|\,\mathrm{Interp}_j(P)\,\|\,C^{(j)}_i\Big) \]</div><span class="no">(6)</span></div>
+<p>Up 是转置卷积，\(\mathrm{Interp}_j\) 是双线性插值到第 \(j\) 阶段的分辨率，\(\|\) 是通道拼接。然后用实例查询做通道级的缩放和平移，经残差卷积块 \(f^{(j)}_{rc}\) 预测 logit 残差：</p>
+<div class="eq"><div class="m">\[ [\gamma^{(j)}_i,\delta^{(j)}_i]=\mathrm{MLP}_j(\tilde q_i),\qquad F^{(j)}_i=f^{(j)}_{rc}\Big(\big(1+\tanh(\gamma^{(j)}_i)\big)\odot U^{(j)}_i+\delta^{(j)}_i\Big) \]</div><span class="no">(7)</span></div>
+<div class="eq"><div class="m">\[ M^{(j)}_i=\mathrm{Interp}_j\big(M^{(j-1)}_i\big)+\mathrm{Conv}_{1\times1}\big(F^{(j)}_i\big) \]</div><span class="no">(8)</span></div>
+<p>输出 \(A_i=\mathrm{Sigmoid}(M^{(3)}_i)\)。</p>
+
+<div class="note" id="n4"><span class="lab">读者注 4 · “9.6M 参数”按代码算：4B 是 9,609,764，2B 是 9,511,460</span><p>按 <code>wevisone_vl/mask_decoder.py</code> 的结构和 config（\(d=192\)、掩码特征 64、Fourier 32 个频率、适配器 3 块、解码器 6 层 8 头、4 层 × 4 点、FFN 768、精修 48 通道 × 每级 2 个残差块），视觉输入 1024 维（两个模型的 ViT 宽度都是 1024），我自己写脚本逐层数了一遍（没有调用仓库代码）：</p>
+<div class="tablewrap"><table class="t-m"><thead><tr><th>部分</th><th class="n">4B</th><th class="n">2B</th><th>主要来源</th></tr></thead><tbody>
+<tr><td>视觉特征适配器</td><td class="n">1,794,432</td><td class="n">1,794,432</td><td>四个 1024→192 投影 787,968；3 个块各 335,232</td></tr>
+<tr><td>查询构造</td><td class="n">578,880</td><td class="n">480,576</td><td>\(W_h\)：LLM 宽度 × 192 + 192（2560 或 2048）；Fourier MLP 86,400</td></tr>
+<tr><td>框引导查询解码器</td><td class="n">3,560,832</td><td class="n">3,560,832</td><td>每层 593,472：自注意力 148,224、可变形注意力 148,224、FFN 295,872</td></tr>
+<tr><td>像素融合（含两层 CNN）</td><td class="n">3,184,896</td><td class="n">3,184,896</td><td>第一个 pixel shuffle 卷积 192→768 一项就 1,327,872</td></tr>
+<tr><td>动态掩码头</td><td class="n">49,601</td><td class="n">49,601</td><td>MLP 192→192→65</td></tr>
+<tr><td>由粗到细精修</td><td class="n">441,123</td><td class="n">441,123</td><td>三级，48 通道</td></tr>
+<tr><td><b>合计</b></td><td class="n"><b>9,609,764</b></td><td class="n"><b>9,511,460</b></td><td>张量 296 个</td></tr>
+</tbody></table></div>
+<p>4B 的合计和 <code>configs/wevisone_vl_v1_decoder.json</code> 里的 <code>"parameters": 9609764</code>、<code>"state_dict_tensors": 296</code> 完全一致。2B 的语言模型宽 2048，只有 \(W_h\) 一项不同：少 \((2560-2048)\times192=98{,}304\) 个参数。Hugging Face 上的文件大小印证了这一点：<code>mask_decoder.pt</code> 4B 是 38,534,741 字节，2B 是 38,141,525 字节，差 393,216 = 98,304 × 4（fp32）；两者扣掉参数后剩下的文件头都是 95,685 字节。</p>
+<p>所以两处写法不准：2B 的模型卡也写 “<code>mask_decoder.pt</code> (9,609,764 parameters)”，那是 4B 的数；仓库只有一份 config，<code>scripts/verify_checkpoint.py</code> 会拿 9,609,764 去校验，按上面的算术 2B 的 sidecar 过不了这个检查（我没有运行，<b>我的推断</b>）。推理不受影响：<code>engine.py</code> 用实际的 LLM 宽度建解码器再严格加载。“约 9.6M”对 4B 准确，2B 是 9.5M。</p></div>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 代码和式 (1)–(8) 不一样的地方</span><ul>
+<li><b>式 (1)：</b>投影后多一个 GroupNorm（<code>Conv2d(1024,192,1)</code> + <code>GroupNorm(32,192)</code>）；\(P_{2D}\) 是 DETR 式正余弦编码。式 (2) 和代码一致。</li>
+<li><b>“多尺度”其实是同尺度：</b>四层都是合并前同一张 \(H_p\times W_p\) 网格（代码类名就叫 <code>SameScaleMSDAEncoder</code>、<code>SameScaleFPN</code>，并检查四层尺寸相同）。可变形注意力的 4 个 level 是 4 个深度，不是 4 个分辨率。</li>
+<li><b>查询：</b>\(q_i\) 是 <code>LayerNorm(Linear(h_i))</code>（有偏置和归一化）；\(p_i\) 也过一个 LayerNorm。\(h_i\) 取自语言模型最后一个解码层的输出（hook 在最后一层上，早于最终的 RMSNorm）。</li>
+<li><b>框的 Fourier 编码</b>不是对 \(x_1,y_1,x_2,y_2\)，而是对 \(x_1\)、\(y_1\)、\(0.2\log w+0.5\)、\(0.2\log h+0.5\) 四个数，每个用 32 个频率 \(2^0\)…\(2^{31}\) 的 sin/cos（共 256 维）。频率到 \(2^{31}\) 而计算在 fp32：相位 \(2\pi x\,2^j\) 的数值精度约为 \(2^{j-22}\) 弧度，\(j\ge19\) 时误差已超过 0.1 弧度，\(j\ge22\) 时超过 1 弧度；坐标本身又量化到 1/1000，\(j\ge9\) 的频率已经混叠。高频那一半更像确定性的哈希，MLP 可以学会忽略。这是<b>我的推断</b>，对结果影响多大不知道。</li>
+<li><b>可变形采样：</b>参考框 4 维，采样位置 = 框中心 + 偏移 / 4 × 半宽高；偏移的初始偏置让 8 个头朝 8 个方向，第 \(k\) 个点在 \(k/4\) 个半框处（<code>msda.py</code> 的 <code>reset_parameters</code>）。</li>
+<li><b>式 (4)：</b>\(G_1\) 先经两个 pixel shuffle（各 ×2）到 \(4H_p\times4W_p\)，再缩放到 256×256，过“GN → GELU → 3×3 卷积”，再用“双线性 ×2 + 零初始化的 pixel shuffle 残差”升到 512×512；两层 CNN 是步长 2 + 步长 1，所以 1024 的图出 512。两路各有一个 1×1 投影再相加，通道 64。</li>
+<li><b>精修的三级是 S/4、S/2、S/1</b>（256、512、1024），不是从 512 往上三次：第一级先把粗掩码缩到 256。按论文“从 512 开始三个上采样阶段”的写法，若每级 ×2 会到 4096，和附录 B.2 的 1024×1024 输出对不上，代码的写法才说得通。缩放平移是 \((1+0.1\tanh\gamma)\odot U+0.1\,\delta\)，比式 (7) 多了 0.1 的系数。S/2 级的残差加在原始粗掩码上，不是式 (8) 的“上采样后的上一级”；上一级以 sigmoid 后的一个输入通道进入。S/4、S/2 两级还额外拼了粗掩码通道。类名 <code>FullCanvasAlphaCascadeHead</code>。</li>
+<li><b>精修总是开着。</b>论文说“抠图另加一个精修模块”，公开解码器只有一个，分割和抠图都走完整的三级精修、输出同一个 sigmoid 图；<code>prompts.py</code> 里分割和抠图的提示词也一样。评测脚本把它取 0.5 阈值当分割掩码。论文表 7 的分割数字是不是用这个抠图微调后的解码器测的，论文没说，<b>未核实</b>。</li>
+<li><b>解码器始终用 fp32 跑</b>（<code>forward</code> 里 <code>self.float()</code> 并关掉 autocast）。</li></ul></div>
+
+<h2 id="s4"><span class="no">4</span>训练流程</h2>
+<p><b>结论先说：</b>三阶段 SFT 先建立统一的输出接口，再提高分辨率和密度，最后把自回归定位接到像素预测上；像素解码器单独 warm-up，最后单独微调成抠图；之后的 RL 直接优化整条回复的定位质量，而不是单个 token 的似然。</p>
+<p class="tcap" id="t1">表 1 · 训练数据组成（原文是六个环形图，这里改成表格，数字照录；“我核”一列是用表 9、表 10 反算的）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>阶段</th><th class="n">样本</th><th>组成</th><th>我核</th></tr></thead><tbody>
+<tr><td>SFT 阶段 1</td><td class="n">90.2M</td><td>检测 67.2%、指代 20.1%、计数 2.7%、指点 3.1%、OCR 2.3%、描述 3.0%、分割 1.7%</td><td>表 9：60.6/90.2 = 67.2%，18.1/90.2 = 20.1% …全对</td></tr>
+<tr><td>SFT 阶段 2</td><td class="n">40.5M</td><td>检测 66.4%、指代 18.8%、计数 3.0%、指点 2.2%、OCR 1.7%、描述 2.2%、分割 5.7%</td><td>26.9/40.5 = 66.4%，2.3/40.5 = 5.7% …全对</td></tr>
+<tr><td>分割 warm-up</td><td class="n">250M</td><td>公开 37.3%、WDE 62.7%</td><td>表 10 分割池 171.4/459.8 = 37.3%（池子 459.8M，warm-up 用 250M）</td></tr>
+<tr><td>SFT 阶段 3</td><td class="n">41.8M</td><td>检测 37.3%、指代 6.2%、计数 1.4%、指点 1.0%、OCR 0.7%、描述 1.0%、分割 52.4%</td><td>15.6/41.8 = 37.3%，21.9/41.8 = 52.4% …全对</td></tr>
+<tr><td>抠图微调</td><td class="n">130M</td><td>公开 0.2%、WDE 99.8%</td><td>表 10：0.3/130.1 = 0.23%；但附录 A.2 说每批按 1:4 抽（<a href="#n6">读者注 6</a>）</td></tr>
+<tr><td>RL</td><td class="n">178K</td><td>检测 44.0%、密集检测 20.8%、指代 17.5%、OCR 7.9%、分割 5.8%、指点 4.0%</td><td>合计 100.0%</td></tr>
+</tbody></table></div>
+
+<h3 id="s4-1"><span class="no">4.1</span>课程式监督微调</h3>
+<p><b>阶段 1：任务对齐。</b>从扩了词表的 Qwen3-VL 出发，冻结视觉编码器和视觉-语言投影，只训语言模型，9,000 万条覆盖所有任务的样本，13K 步。模型学会按不同指令输出结构化结果，目标不存在时返回 <code>None</code>。像素任务的样本只做下一个 token 预测（NTP），不激活像素解码器，先建立“每个预测实例 ↔ 它的 <code>&lt;OBJ&gt;</code>”的对应。每张图 16–512 个视觉 token，上下文 4,096。早期训练容易被极密集的样本（一条回复几百个框）主导，模型很容易陷入重复输出，所以这一阶段主要用每类不超过 50 个框或点的样本。</p>
+<p><b>阶段 2：分辨率和密度扩展。</b>解冻视觉编码器、投影和语言模型。最大输入提高到 1,960 个视觉 token，保住小目标细节；每条回复最多 500 个框或点，见识拥挤场景；上下文 8,192。约 4,000 万条样本、9K 步。像素样本仍只做 NTP。</p>
+<p><b>阶段 3：token 和像素交替优化。</b>目标是让 <code>&lt;OBJ&gt;</code> 成为 VLM 和像素解码器之间的桥。先把阶段 2 的 VLM 和随机初始化的解码器一起在 2.5 亿条分割样本上训 100K 步（warm-up）：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm seg}=20\,\mathcal L_{\rm focal}+\mathcal L_{\rm dice} \]</div><span class="no">(9)</span></div>
+<p>focal 项强调前景背景不平衡下的难像素，Dice 项直接优化掩码重叠。warm-up 后只保留解码器权重和学到的 <code>&lt;OBJ&gt;</code> 嵌入，接回<b>原来的</b>阶段 2 检查点（warm-up 期间更新过的其他 VLM 权重丢掉），再联合训练 VLM 和解码器 9,000 步。为保住定位能力，NTP 和像素任务按 1:1 交替：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm joint}=\mathcal L_{\rm NTP}+10\,\mathcal L_{\rm seg} \]</div><span class="no">(10)</span></div>
+<p>交替训练之后，冻结 VLM，把解码器专门化为连续 alpha 预测：1.3 亿条抠图样本、100K 步。按抠图的常规做法组合 L1、梯度、拉普拉斯损失，再加一个强调难前景/背景像素的 \(\mathcal L_{\rm hard}\)：</p>
+<div class="eq"><div class="m">\[ \mathcal L_{\rm mat}=200\,\mathcal L_{l1}+5\,\mathcal L_{\rm grad}+50\,\mathcal L_{\rm lap}+\mathcal L_{\rm hard} \]</div><span class="no">(11)</span></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 数据量和步数核算</span><ul>
+<li><b>表 9 各列加总</b>：阶段 1 18.4 + 42.2 + 6.3 + 11.8 + 2.4 + 2.8 + 2.1 + 2.7 + 0.9 + 0.6 = 90.2；阶段 2 = 40.5；阶段 3 = 41.8，都和表 1 一致。表 1 三个 SFT 环的 21 个百分比用表 9 反算全部对上（四舍五入到 0.1）。</li>
+<li><b>两个“池子比例”。</b>分割 warm-up 环的 37.3% / 62.7% 是表 10 分割数据池（171.4M + 288.4M = 459.8M）的比例，warm-up 实际用 250M。抠图环的 0.2% / 99.8% 也是池子比例（0.3M / 130.1M），而附录 A.2 说抠图微调时每个 batch 里公开和 WDE 按 1:4 抽，即 20% 来自公开数据。若 130M 指抽样总数，公开的 0.3M 每条平均要被抽约 130 × 0.2 / 0.3 ≈ 87 次；正文写 “use 130M matting samples”，到底是池子大小还是抽样次数不清楚，<b>未核实</b>。</li>
+<li><b>步数。</b>正文“9K 步”（阶段 2）和“9,000 步”（阶段 3），表 11 是 8,995 和 9,062，是取整。</li>
+<li><b>每条样本多少 token（我的推断，假设每阶段刚好一遍）。</b>阶段 1：13,000 步 × 128 卡 × 28,672 token = 477 亿 token，除以 90.2M ≈ 529 token/条；阶段 2：8,995 × 128 × 24,576 = 283 亿，除以 40.5M ≈ 699 token/条。和阶段 1 每图 16–512、阶段 2 64–1,960 个视觉 token 的设置在量级上相符，但打包的填充率论文没给。</li>
+<li><b>RL：</b>178K 条、593 步、每题采 8 条回复。若刚好一遍，约 300 题/步、2,400 条回复/步（<b>我的推断</b>）。</li></ul></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>混合任务强化学习</h3>
+<p>SFT 的 token 级似然不能直接优化任务奖励，所以在一个按不确定性筛过的语料上做混合任务 RL。</p>
+<p><b>按不确定性挑样本。</b>GRPO 靠组内相对优势提供信号。RL 之前用 SFT 模型对每个候选提示 \(x\) 采一组回复、算奖励，组内均值 \(\mu_x\)、标准差 \(\sigma_x\)：</p>
+<div class="eq"><div class="m">\[ U(x)=4\mu_x(1-\mu_x)\,\sigma_x \]</div><span class="no">(12)</span></div>
+<p>它偏好中等难度、奖励方差大的样本：有时成功有时失败，相对优势信号强，RL 更高效。按这个分数选出约 14 万条，再补一些定向的框监督样本和指点数据，共 17.8 万条（任务分布见表 1）。</p>
+<p><b>带定位奖励的 GRPO。</b>奖励在完整的结构化回复上算。每个图像-提示对 \(x\) 从当前策略采 \(G=8\) 条回复，每条解析成一组预测物体。\(\hat B_i\)、\(B^*\) 是预测框集合和真值框集合，在每个语义类内部做一对一匈牙利匹配，匹配对的集合记 \(\mathcal M_i\)：</p>
+<div class="eq"><div class="m">\[ r_i=\frac{2\sum_{(\hat b,b^*)\in\mathcal M_i}\mathrm{IoU}(\hat b,b^*)^3}{N_{\rm gt}+N_{\rm pred}} \]</div><span class="no">(13)</span></div>
+<p>它衡量定位质量，同时惩罚漏检和重复。IoU 取三次方让奖励在高 IoU 区更敏感，鼓励更准的框。分割和抠图在 RL 里也只用框的奖励，不评价掩码或 alpha。指代分割的预测只有框后跟着 <code>&lt;OBJ&gt;</code> 才算有效。负样本只有在模型什么都不预测时奖励才是 1。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 式 (12)(13) 代入几个数</span><ul>
+<li><b>式 (13)。</b>3 个真值、3 个完美预测：\(2\times3/(3+3)=1\)。多一个重复框：\(6/7=0.857\)。漏一个：\(2\times2/(3+2)=0.8\)。三个框 IoU 都是 0.9：\(2\times3\times0.729/6=0.729\)；都是 0.8：0.512。所以 IoU 从 0.8 提到 0.9 带来的奖励增量（+0.217）比多一个重复框的惩罚（−0.143）还大。分子分母都乘 2 是 Dice/F1 的形式：IoU 全为 1 时它就是 F1。</li>
+<li><b>式 (12)。</b>奖励只取 0 或 1 时 \(\sigma=\sqrt{\mu(1-\mu)}\)，\(U=4[\mu(1-\mu)]^{3/2}\)，在 \(\mu=0.5\) 取最大值 0.5；8 条里对 2 条（\(\mu=0.25\)）是 0.325；全对或全错是 0。定位奖励是连续值，同样均值下方差越大分越高。</li>
+<li><b>RL 不训解码器。</b>表 11 的 RL 只训 LLM。表 1 的顺序是阶段 3 → 抠图微调 → RL，附录 B.2 又说抠图微调在“训练全部完成后”。如果 RL 在抠图微调之后，RL 改了 LLM，<code>&lt;OBJ&gt;</code> 的隐状态会跟着漂移，而解码器没有再适配；论文没讨论这一点，顺序本身也<b>未核实</b>。</li></ul></div>
+
+<h2 id="s5"><span class="no">5</span>实验</h2>
+<p>五个目标级任务（检测、指代检测、计数、指点、OCR）和两个像素级任务（指代分割、抠图）。推理用温度 0 的贪心解码，每张图最多 1,960 个视觉 token。主要对比 Qwen 系列（Qwen3-VL 用 Instruct 版；Qwen3.5 开 thinking，因为在他们的评测里更好）和两个 VLM 定位模型 Rex-Omni、LocateAnything。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · “30 多个基准”是 31 个</span><p>按正文和表 2–8 数不重复的基准：检测 4（<a class="ds" href="https://cocodataset.org/">COCO</a>、<a class="ds" href="https://www.lvisdataset.org/">LVIS</a>、Dense200、VisDrone）；指代 8（RefCOCOg、RefCOCOg-Rej、WeRef-Bench、PR-Bench、HumanRef、Ref-Adv、DVGBench、Ref-L4）；计数 5；指点 2（PointBench、PixMo-Points，另外四个复用检测集）；OCR 4；指代分割 4（RefCOCO、RefCOCO+、ReasonSeg、Ref-ZOM，RefCOCOg 已算过）；抠图 4（P3M-500-NP、AM-2K、PPM-100、WeRefMat）。合计 4 + 8 + 5 + 2 + 4 + 4 + 4 = 31，其中 WeRef-Bench、WeRefMat 是自建的，还没公开。</p></div>
+
+<h3 id="s5-1"><span class="no">5.1</span>主要结果</h3>
+<h4 id="s5-1-1"><span class="no">5.1.1</span>目标检测</h4>
+<p><b>基准。</b>常规检测 <a class="ds" href="https://cocodataset.org/">COCO</a>（<a href="https://arxiv.org/abs/1405.0312">论文</a>），长尾检测 <a class="ds" href="https://www.lvisdataset.org/">LVIS</a>（<a href="https://arxiv.org/abs/1908.03195">论文</a>），密集和小目标 <a class="ds" href="https://huggingface.co/datasets/Mountchicken/Rex-Omni-EvalData">Dense200</a>（Rex-Omni 提出，<a href="https://arxiv.org/abs/2510.12798">论文</a>）和 <a class="ds" href="https://github.com/VisDrone/VisDrone-Dataset">VisDrone</a>。<b>指标。</b>AP 需要校准过的置信度，生成式 VLM 给不了，所以和 Rex-Omni、LocateAnything 一样报 F1：预测框和同类、尚未匹配的真值框 IoU 超过阈值算真阳性；按类别算精度和召回再平均，F1 是二者的调和平均。报 IoU = 0.5、0.95 和 0.5:0.05:0.95 的平均（Mean）。</p>
+<p><b>结果。</b>4B 在四个集的 Mean 上都超过同规模 VLM，Dense200 和 VisDrone 上优势最大；IoU = 0.95 也强，说明不只是覆盖全，框也准。</p>
+<p class="tcap" id="t2">表 2 · 检测 F1（%）。COCO、LVIS 是零样本</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="3">COCO</th><th colspan="3">LVIS</th><th colspan="3">Dense200</th><th colspan="3">VisDrone</th></tr><tr><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th></tr></thead><tbody>
+<tr><td>GroundingDINO-T（专用）</td><td class="n">69.8</td><td class="n">23.0</td><td class="n">56.6</td><td class="n">47.7</td><td class="n">22.7</td><td class="n">38.8</td><td class="n">36.9</td><td class="n">19.7</td><td class="n">33.1</td><td class="n">55.2</td><td class="n">3.9</td><td class="n">38.5</td></tr>
+<tr><td>Qwen3-VL-2B</td><td class="n">62.9</td><td class="n">13.1</td><td class="n">45.2</td><td class="n">58.5</td><td class="n">17.8</td><td class="n">40.8</td><td class="n">14.7</td><td class="n">1.8</td><td class="n">10.0</td><td class="n">37.0</td><td class="n">1.5</td><td class="n">23.1</td></tr>
+<tr><td>Qwen3-VL-4B</td><td class="n">66.6</td><td class="n">14.9</td><td class="n">48.7</td><td class="n">61.3</td><td class="n">19.5</td><td class="n">44.0</td><td class="n">20.9</td><td class="n">3.7</td><td class="n">15.2</td><td class="n">49.5</td><td class="n">1.8</td><td class="n">31.0</td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">65.9</td><td class="n">14.8</td><td class="n">47.8</td><td class="n">59.7</td><td class="n">19.6</td><td class="n">42.9</td><td class="n">19.5</td><td class="n">2.9</td><td class="n">13.8</td><td class="n">47.7</td><td class="n">2.0</td><td class="n">29.5</td></tr>
+<tr><td>Qwen3.5-4B</td><td class="n">67.6</td><td class="n">12.9</td><td class="n">48.2</td><td class="n">61.1</td><td class="n">17.8</td><td class="n">42.2</td><td class="n">28.4</td><td class="n">2.3</td><td class="n">18.9</td><td class="n">50.3</td><td class="n">1.3</td><td class="n">29.9</td></tr>
+<tr><td>Qwen3.5-9B</td><td class="n">68.9</td><td class="n">13.8</td><td class="n">49.5</td><td class="n">62.2</td><td class="n">19.4</td><td class="n">43.7</td><td class="n">26.2</td><td class="n">2.5</td><td class="n">18.0</td><td class="n">51.0</td><td class="n">1.4</td><td class="n">31.3</td></tr>
+<tr><td>Rex-Omni-3B</td><td class="n">72.0</td><td class="n">15.9</td><td class="n">52.9</td><td class="n">64.3</td><td class="n">20.7</td><td class="n">46.9</td><td class="n">78.4</td><td class="n">10.3</td><td class="n">58.3</td><td class="n">61.6</td><td class="n">1.5</td><td class="n">35.8</td></tr>
+<tr><td>LocateAnything-3B</td><td class="n">70.1</td><td class="n">19.3</td><td class="n">54.7</td><td class="n">62.3</td><td class="n">31.1</td><td class="n">50.7</td><td class="n">74.0</td><td class="n">18.5</td><td class="n">58.7</td><td class="n">63.0</td><td class="n">3.2</td><td class="n">39.9</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">72.6</td><td class="n">18.7</td><td class="n">55.2</td><td class="n">69.5</td><td class="n">27.5</td><td class="n">53.3</td><td class="n">79.1</td><td class="n">14.1</td><td class="n">61.4</td><td class="n">64.5</td><td class="n">2.8</td><td class="n">40.4</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">74.0</td><td class="n">19.5</td><td class="n">57.1</td><td class="n">71.1</td><td class="n">28.8</td><td class="n">55.3</td><td class="n">86.9</td><td class="n">23.2</td><td class="n">71.3</td><td class="n">68.1</td><td class="n">3.9</td><td class="n">44.7</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-2"><span class="no">5.1.2</span>指代目标检测</h4>
+<p><b>基准。</b>公开的 <a class="ds" href="https://github.com/lichengunc/refer">RefCOCOg</a>（<a href="https://arxiv.org/abs/1511.02283">论文</a>）、<a class="ds" href="https://github.com/IDEA-Research/RexSeek">HumanRef</a>（<a href="https://arxiv.org/abs/2503.08507">论文</a>）、<a class="ds" href="https://arxiv.org/abs/2602.23898">Ref-Adv</a>（用 Ref-Adv-s 划分）、<a class="ds" href="https://arxiv.org/abs/2607.24407">PR-Bench</a>、<a class="ds" href="https://arxiv.org/abs/2601.00998">DVGBench</a>、<a class="ds" href="https://github.com/JierunChen/Ref-L4">Ref-L4</a>（<a href="https://arxiv.org/abs/2406.16866">论文</a>）；<a class="ds" href="https://arxiv.org/abs/2512.17495">RefCOCOg-Rej</a>（GroundingME 构造）里每条改过的表达在图中都没有对应物体。另有自建的 <b>WeRef-Bench</b>：2,880 条中英文查询，含单目标、多目标、无目标三类，比只有单目标正样本的公开基准更难、更贴近实际。<b>指标。</b>多数报 F1 Mean；RefCOCOg-Rej 报拒答率（不出任何框才算对）；WeRef-Bench 和 PR-Bench 同时报 F1 Mean 和拒答率。</p>
+<p><b>结果。</b>单目标、多目标、无目标三种设置都超过现有 VLM；拒答差距最大：RefCOCOg-Rej 上 4B 67.4%，最好的基线 Qwen3-VL-8B 22.5%，两个定位专用模型都不到 1%。</p>
+<p class="tcap" id="t3">表 3 · 指代检测（F1 Mean，%；Rej 是无目标查询的拒答率，%）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="3">RefCOCOg</th><th colspan="2">WeRef-Bench</th><th colspan="2">PR-Bench</th><th rowspan="2">HumanRef</th><th rowspan="2">Ref-Adv</th><th rowspan="2">DVG</th><th rowspan="2">Ref-L4</th></tr><tr><th>val</th><th>test</th><th>Rej</th><th>Mean</th><th>Rej</th><th>Mean</th><th>Rej</th></tr></thead><tbody>
+<tr><td>GroundingDINO-T（专用）</td><td class="n">45.9</td><td class="n">46.8</td><td class="n">0.0</td><td class="n">21.1</td><td class="n">14.7</td><td class="n">25.2</td><td class="n">0.0</td><td class="n">25.2</td><td class="n">19.7</td><td class="n">24.1</td><td class="n">23.1</td></tr>
+<tr><td>Qwen3-VL-2B</td><td class="n">70.8</td><td class="n">71.0</td><td class="n">1.7</td><td class="n">30.8</td><td class="n">22.8</td><td class="n">41.6</td><td class="n">4.3</td><td class="n">63.2</td><td class="n">34.7</td><td class="n">35.2</td><td class="n">67.9</td></tr>
+<tr><td>Qwen3-VL-4B</td><td class="n">74.1</td><td class="n">74.3</td><td class="n">18.8</td><td class="n">46.3</td><td class="n">61.9</td><td class="n">49.9</td><td class="n">10.8</td><td class="n">69.4</td><td class="n">44.4</td><td class="n">42.4</td><td class="n">72.5</td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">74.6</td><td class="n">74.9</td><td class="n">22.5</td><td class="n">36.7</td><td class="n">18.3</td><td class="n">50.3</td><td class="n">7.1</td><td class="n">71.6</td><td class="n">45.0</td><td class="n">43.4</td><td class="n">72.4</td></tr>
+<tr><td>Qwen3.5-4B</td><td class="n">73.3</td><td class="n">73.5</td><td class="n">18.9</td><td class="n">48.1</td><td class="n">71.6</td><td class="n">49.6</td><td class="n">8.7</td><td class="n">75.8</td><td class="n">44.2</td><td class="n">40.2</td><td class="n">70.4</td></tr>
+<tr><td>Qwen3.5-9B</td><td class="n">74.3</td><td class="n">74.6</td><td class="n">15.2</td><td class="n">50.7</td><td class="n">70.7</td><td class="n">50.8</td><td class="n">8.3</td><td class="n">77.8</td><td class="n">47.3</td><td class="n">42.5</td><td class="n">72.0</td></tr>
+<tr><td>Rex-Omni-3B</td><td class="n">73.6</td><td class="n">74.3</td><td class="n">0.5</td><td class="n">50.3</td><td class="n">43.3</td><td class="n">42.7</td><td class="n">0.2</td><td class="n">79.9</td><td class="n">40.9</td><td class="n">33.2</td><td class="n">65.2</td></tr>
+<tr><td>LocateAnything-3B</td><td class="n">76.7</td><td class="n">77.6</td><td class="n">0.6</td><td class="n">51.7</td><td class="n">73.0</td><td class="n">44.5</td><td class="n">0.2</td><td class="n">78.7</td><td class="n">43.5</td><td class="n">34.7</td><td class="n">74.3</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">77.1</td><td class="n">78.2</td><td class="n">50.2</td><td class="n">73.2</td><td class="n">92.9</td><td class="n">49.8</td><td class="n">37.0</td><td class="n">77.4</td><td class="n">43.6</td><td class="n">40.8</td><td class="n">75.1</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">80.8</td><td class="n">81.8</td><td class="n">67.4</td><td class="n">78.7</td><td class="n">96.4</td><td class="n">54.1</td><td class="n">52.6</td><td class="n">80.7</td><td class="n">50.5</td><td class="n">45.2</td><td class="n">78.1</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-3"><span class="no">5.1.3</span>目标计数</h4>
+<p><b>基准。</b><a class="ds" href="https://arxiv.org/abs/2508.06585">CountQA</a> 和 <a class="ds" href="https://huggingface.co/datasets/allenai/pixmo-count">PixMo-Count</a>（<a href="https://arxiv.org/abs/2409.17146">论文</a>）是自然图像计数；<a class="ds" href="https://arxiv.org/abs/2605.30846">CLOC</a> 测跨域泛化；<a class="ds" href="https://arxiv.org/abs/2605.10887">KubriCount</a> 在受控干扰物下考多粒度的目标指定；<a class="ds" href="https://arxiv.org/abs/2605.18063">MixCount</a> 考混合物体场景里的细粒度开放词表计数。<b>指标。</b>通过检测输出的模型以框数为计数；直接给数的模型从回答里抽数字。报精确匹配准确率，差一个也算错。</p>
+<p><b>结果。</b>4B 在每个基准、每个划分上都是最高：PixMo-Count val/test 93.7%/89.6%，MixCount val/test 42.0%/40.4%。</p>
+<p class="tcap" id="t4">表 4 · 计数精确匹配准确率（%）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th rowspan="2">方法</th><th rowspan="2">CountQA</th><th colspan="2">PixMo-Count</th><th colspan="2">CLOC</th><th colspan="2">KubriCount</th><th colspan="2">MixCount</th></tr><tr><th>val</th><th>test</th><th>val</th><th>test</th><th>testA</th><th>testB</th><th>val</th><th>test</th></tr></thead><tbody>
+<tr><td>Grounding DINO-T（专用）</td><td class="n">9.6</td><td class="n">44.8</td><td class="n">48.3</td><td class="n">12.4</td><td class="n">9.5</td><td class="n">5.2</td><td class="n">6.5</td><td class="n">1.7</td><td class="n">2.8</td></tr>
+<tr><td>Qwen3-VL-2B</td><td class="n">20.4</td><td class="n">61.3</td><td class="n">60.4</td><td class="n">16.3</td><td class="n">15.3</td><td class="n">4.3</td><td class="n">7.8</td><td class="n">1.8</td><td class="n">2.7</td></tr>
+<tr><td>Qwen3-VL-4B</td><td class="n">29.2</td><td class="n">69.6</td><td class="n">65.6</td><td class="n">19.7</td><td class="n">18.6</td><td class="n">7.1</td><td class="n">12.1</td><td class="n">3.5</td><td class="n">4.3</td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">22.4</td><td class="n">68.2</td><td class="n">59.4</td><td class="n">18.5</td><td class="n">17.2</td><td class="n">6.6</td><td class="n">10.8</td><td class="n">3.2</td><td class="n">3.5</td></tr>
+<tr><td>Qwen3.5-4B</td><td class="n">40.0</td><td class="n">80.6</td><td class="n">76.9</td><td class="n">21.1</td><td class="n">21.7</td><td class="n">10.0</td><td class="n">16.2</td><td class="n">3.9</td><td class="n">5.2</td></tr>
+<tr><td>Qwen3.5-9B</td><td class="n">41.6</td><td class="n">82.6</td><td class="n">80.4</td><td class="n">23.1</td><td class="n">22.4</td><td class="n">11.9</td><td class="n">19.1</td><td class="n">5.8</td><td class="n">7.0</td></tr>
+<tr><td>Rex-Omni-3B</td><td class="n">37.6</td><td class="n">82.2</td><td class="n">71.9</td><td class="n">19.0</td><td class="n">22.3</td><td class="n">13.5</td><td class="n">18.8</td><td class="n">9.9</td><td class="n">11.4</td></tr>
+<tr><td>LocateAnything-3B</td><td class="n">52.4</td><td class="n">88.7</td><td class="n">82.8</td><td class="n">22.8</td><td class="n">23.9</td><td class="n">18.5</td><td class="n">22.4</td><td class="n">12.5</td><td class="n">15.2</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">47.9</td><td class="n">90.9</td><td class="n">88.1</td><td class="n">27.5</td><td class="n">26.9</td><td class="n">29.5</td><td class="n">32.4</td><td class="n">30.1</td><td class="n">32.2</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">57.1</td><td class="n">93.7</td><td class="n">89.6</td><td class="n">28.2</td><td class="n">28.3</td><td class="n">37.7</td><td class="n">40.1</td><td class="n">42.0</td><td class="n">40.4</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-4"><span class="no">5.1.4</span>目标指点</h4>
+<p><b>基准。</b>两个专门的指点基准 <a class="ds" href="https://pointarena.github.io/">PointBench</a>（PointArena 的一部分，<a href="https://arxiv.org/abs/2505.09990">论文</a>）和 <a class="ds" href="https://huggingface.co/datasets/allenai/pixmo-points">PixMo-Points</a>（<a href="https://arxiv.org/abs/2409.17146">论文</a>），另按 Rex-Omni 的协议在 COCO、LVIS、Dense200、VisDrone 上测指点。<b>指标。</b>点落在对应真值掩码里（没有掩码时用框）算对；每个目标最多一个真阳性，重复点降低精度，漏掉降低召回；报 F1@Point。检测集先按类别平均精度和召回。</p>
+<p><b>结果。</b>PointBench 和 PixMo-Points 都是最好；在检测集上也很强，但不是每列第一：Dense200 上 LocateAnything 87.6 略高于 4B 的 87.0，COCO 上 2B 的 85.8 高于 4B 的 85.4。</p>
+<p class="tcap" id="t5">表 5 · 指点 F1@Point（%）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>方法</th><th>PointBench</th><th>PixMo-Points</th><th>COCO</th><th>LVIS</th><th>Dense200</th><th>VisDrone</th></tr></thead><tbody>
+<tr><td>Qwen3-VL-2B</td><td class="n">61.2</td><td class="n">62.1</td><td class="n">72.7</td><td class="n">61.9</td><td class="n">29.5</td><td class="n">35.7</td></tr>
+<tr><td>Qwen3-VL-4B</td><td class="n">57.1</td><td class="n">71.3</td><td class="n">74.5</td><td class="n">65.8</td><td class="n">37.7</td><td class="n">45.6</td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">62.5</td><td class="n">72.2</td><td class="n">77.5</td><td class="n">67.7</td><td class="n">42.2</td><td class="n">46.4</td></tr>
+<tr><td>Qwen3.5-4B</td><td class="n">61.5</td><td class="n">59.2</td><td class="n">72.7</td><td class="n">62.4</td><td class="n">7.4</td><td class="n">38.3</td></tr>
+<tr><td>Qwen3.5-9B</td><td class="n">66.4</td><td class="n">62.6</td><td class="n">74.4</td><td class="n">64.8</td><td class="n">10.5</td><td class="n">40.6</td></tr>
+<tr><td>Rex-Omni-3B</td><td class="n">69.9</td><td class="n">72.9</td><td class="n">80.5</td><td class="n">70.8</td><td class="n">82.5</td><td class="n">58.9</td></tr>
+<tr><td>LocateAnything-3B</td><td class="n">56.9</td><td class="n">68.6</td><td class="n">83.9</td><td class="n">76.6</td><td class="n">87.6</td><td class="n">60.4</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">62.9</td><td class="n">73.2</td><td class="n">85.8</td><td class="n">78.9</td><td class="n">83.2</td><td class="n">62.4</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">71.9</td><td class="n">74.7</td><td class="n">85.4</td><td class="n">79.5</td><td class="n">87.0</td><td class="n">64.4</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-5"><span class="no">5.1.5</span>OCR</h4>
+<p><b>基准。</b><a class="ds" href="https://github.com/google-research-datasets/hiertext">HierText</a>（<a href="https://arxiv.org/abs/2203.15143">论文</a>，密集文档文本）、<a class="ds" href="https://rrc.cvc.uab.es/?ch=4">ICDAR2015</a>（偶发场景文本）、<a class="ds" href="https://github.com/cs-chan/Total-Text-Dataset">TotalText</a>（<a href="https://arxiv.org/abs/1710.10400">论文</a>，弯曲文本）、<a class="ds" href="https://rrc.cvc.uab.es/?ch=13">SROIE</a>（<a href="https://arxiv.org/abs/2103.10213">论文</a>，结构化小票）。<b>指标。</b>OCR 当作定位任务，识别出的文字就是类别标签：文字完全一致且框满足 IoU 阈值才算对，然后和检测一样算精度、召回、F1，报 0.5、0.95 和平均。</p>
+<p><b>结果。</b>4B 在四个集的 Mean 上都超过专用 OCR 系统 PP-OCRv5 和通用 VLM。2B 在 HierText Mean 上和 PP-OCRv5 打平（30.5），TotalText Mean 略低于 LocateAnything。</p>
+<p class="tcap" id="t6">表 6 · OCR（文字定位加识别）F1（%）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="3">HierText</th><th colspan="3">ICDAR2015</th><th colspan="3">TotalText</th><th colspan="3">SROIE</th></tr><tr><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th><th>0.5</th><th>0.95</th><th>Mean</th></tr></thead><tbody>
+<tr><td>PP-OCRv5（专用）</td><td class="n">45.2</td><td class="n">3.4</td><td class="n">30.5</td><td class="n">38.2</td><td class="n">1.2</td><td class="n">25.6</td><td class="n">40.2</td><td class="n">0.7</td><td class="n">25.7</td><td class="n">77.7</td><td class="n">5.6</td><td class="n">58.6</td></tr>
+<tr><td>Qwen3-VL-2B</td><td class="n">21.4</td><td class="n">0.3</td><td class="n">11.0</td><td class="n">15.7</td><td class="n">0.0</td><td class="n">8.5</td><td class="n">32.6</td><td class="n">1.1</td><td class="n">20.5</td><td class="n">40.2</td><td class="n">0.2</td><td class="n">18.6</td></tr>
+<tr><td>Qwen3-VL-4B</td><td class="n">39.9</td><td class="n">0.9</td><td class="n">22.7</td><td class="n">52.0</td><td class="n">0.8</td><td class="n">30.0</td><td class="n">48.3</td><td class="n">3.3</td><td class="n">33.0</td><td class="n">69.0</td><td class="n">1.0</td><td class="n">40.4</td></tr>
+<tr><td>Qwen3-VL-8B</td><td class="n">45.3</td><td class="n">0.9</td><td class="n">25.7</td><td class="n">45.8</td><td class="n">0.3</td><td class="n">27.1</td><td class="n">53.2</td><td class="n">3.2</td><td class="n">35.4</td><td class="n">75.8</td><td class="n">1.1</td><td class="n">43.3</td></tr>
+<tr><td>Qwen3.5-4B</td><td class="n">14.4</td><td class="n">0.4</td><td class="n">8.0</td><td class="n">17.4</td><td class="n">0.1</td><td class="n">7.8</td><td class="n">28.8</td><td class="n">0.6</td><td class="n">16.6</td><td class="n">14.7</td><td class="n">0.0</td><td class="n">7.1</td></tr>
+<tr><td>Qwen3.5-9B</td><td class="n">17.5</td><td class="n">0.5</td><td class="n">10.0</td><td class="n">28.1</td><td class="n">0.0</td><td class="n">13.4</td><td class="n">49.9</td><td class="n">1.6</td><td class="n">30.8</td><td class="n">31.8</td><td class="n">0.4</td><td class="n">16.7</td></tr>
+<tr><td>Rex-Omni-3B</td><td class="n">45.9</td><td class="n">1.4</td><td class="n">28.0</td><td class="n">45.2</td><td class="n">0.3</td><td class="n">28.1</td><td class="n">56.6</td><td class="n">3.9</td><td class="n">40.6</td><td class="n">72.0</td><td class="n">1.5</td><td class="n">44.8</td></tr>
+<tr><td>LocateAnything-3B</td><td class="n">39.2</td><td class="n">4.1</td><td class="n">29.4</td><td class="n">37.8</td><td class="n">0.3</td><td class="n">24.1</td><td class="n">58.9</td><td class="n">5.1</td><td class="n">43.3</td><td class="n">52.8</td><td class="n">3.4</td><td class="n">40.3</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">44.3</td><td class="n">2.5</td><td class="n">30.5</td><td class="n">65.3</td><td class="n">2.0</td><td class="n">42.6</td><td class="n">61.5</td><td class="n">2.7</td><td class="n">42.5</td><td class="n">85.3</td><td class="n">4.4</td><td class="n">62.1</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">51.6</td><td class="n">5.3</td><td class="n">39.0</td><td class="n">69.1</td><td class="n">2.3</td><td class="n">47.8</td><td class="n">70.1</td><td class="n">6.9</td><td class="n">52.0</td><td class="n">87.4</td><td class="n">7.3</td><td class="n">68.1</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-6"><span class="no">5.1.6</span>指代分割</h4>
+<p>给定图像和一句表达，预测被描述物体的二值掩码。<b>基准。</b><a class="ds" href="https://github.com/lichengunc/refer">RefCOCO / RefCOCO+</a>（<a href="https://arxiv.org/abs/1608.00272">论文</a>）、RefCOCOg、<a class="ds" href="https://github.com/dvlab-research/LISA">ReasonSeg</a>（LISA 提出，<a href="https://arxiv.org/abs/2308.00692">论文</a>，隐式查询，要推理和常识）、<a class="ds" href="https://github.com/toggle1995/RIS-DMMI">Ref-ZOM</a>（<a href="https://arxiv.org/abs/2308.13853">论文</a>，表达可指零个、一个或多个目标）。<b>指标。</b>RefCOCO 系列和 Ref-ZOM 报累计 IoU（cIoU：全体样本的总交集除以总并集）；ReasonSeg 报 gIoU；Ref-ZOM 另报负表达的拒答率。</p>
+<p><b>结果。</b>4B 在 RefCOCO 系列每个划分上都超过所有基线；不带显式思维链也在 ReasonSeg 上明显领先（val 71.2 对 LISA 的 65.0）。Ref-ZOM 显示现有分割模型目标不存在时也会出掩码，UniPixel 拒答率只有 0.3%，4B 是 86.0%。注意 Ref-ZOM 的 cIoU 是 2B（73.4）高于 4B（72.2）。</p>
+<p class="tcap" id="t7">表 7 · 指代分割（RefCOCO 系列和 Ref-ZOM 是 cIoU，ReasonSeg 是 gIoU；Ref-ZOM 基线用官方检查点自测；“-”是没报）</p>
+<div class="tablewrap"><table class="t-xw"><thead><tr><th rowspan="2">方法</th><th colspan="3">RefCOCO</th><th colspan="3">RefCOCO+</th><th colspan="2">RefCOCOg</th><th colspan="2">ReasonSeg</th><th colspan="2">Ref-ZOM</th></tr><tr><th>val</th><th>testA</th><th>testB</th><th>val</th><th>testA</th><th>testB</th><th>val</th><th>test</th><th>val</th><th>test</th><th>cIoU</th><th>Rej</th></tr></thead><tbody>
+<tr><td>LISA-13B (ft)</td><td class="n">76.0</td><td class="n">78.8</td><td class="n">72.9</td><td class="n">65.0</td><td class="n">70.2</td><td class="n">58.1</td><td class="n">69.5</td><td class="n">70.5</td><td class="n">65.0</td><td class="n">61.3</td><td class="n">-</td><td class="n">-</td></tr>
+<tr><td>GSVA-7B</td><td class="n">77.2</td><td class="n">78.9</td><td class="n">73.5</td><td class="n">65.9</td><td class="n">69.6</td><td class="n">59.8</td><td class="n">72.7</td><td class="n">73.3</td><td class="n">50.5</td><td class="n">-</td><td class="n">66.6</td><td class="n">41.9</td></tr>
+<tr><td>LaSagnA-7B</td><td class="n">76.8</td><td class="n">78.7</td><td class="n">73.8</td><td class="n">66.4</td><td class="n">70.6</td><td class="n">60.1</td><td class="n">70.6</td><td class="n">71.9</td><td class="n">-</td><td class="n">-</td><td class="n">57.4</td><td class="n">0.7</td></tr>
+<tr><td>Text4Seg-7B</td><td class="n">79.3</td><td class="n">81.9</td><td class="n">76.2</td><td class="n">72.1</td><td class="n">77.6</td><td class="n">66.1</td><td class="n">72.1</td><td class="n">73.9</td><td class="n">-</td><td class="n">-</td><td class="n">54.5</td><td class="n">25.9</td></tr>
+<tr><td>VRS-HQ-7B</td><td class="n">73.5</td><td class="n">77.5</td><td class="n">69.5</td><td class="n">61.7</td><td class="n">67.6</td><td class="n">54.3</td><td class="n">66.7</td><td class="n">67.5</td><td class="n">55.2</td><td class="n">51.7</td><td class="n">63.0</td><td class="n">13.9</td></tr>
+<tr><td>UniPixel-7B</td><td class="n">80.8</td><td class="n">83.0</td><td class="n">77.4</td><td class="n">75.3</td><td class="n">80.1</td><td class="n">70.0</td><td class="n">76.4</td><td class="n">77.1</td><td class="n">60.5</td><td class="n">-</td><td class="n">62.9</td><td class="n">0.3</td></tr>
+<tr><td>Youtu-VL-4B</td><td class="n">80.7</td><td class="n">82.0</td><td class="n">78.4</td><td class="n">76.2</td><td class="n">79.6</td><td class="n">71.4</td><td class="n">76.5</td><td class="n">76.6</td><td class="n">-</td><td class="n">-</td><td class="n">61.0</td><td class="n">1.3</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">79.7</td><td class="n">82.9</td><td class="n">78.1</td><td class="n">73.1</td><td class="n">79.0</td><td class="n">66.3</td><td class="n">74.4</td><td class="n">74.9</td><td class="n">60.9</td><td class="n">56.9</td><td class="n">73.4</td><td class="n">62.4</td></tr>
+<tr><td><b>WeVisOne-VL-4B</b></td><td class="n">81.4</td><td class="n">84.5</td><td class="n">80.1</td><td class="n">76.5</td><td class="n">81.1</td><td class="n">72.8</td><td class="n">77.7</td><td class="n">77.8</td><td class="n">71.2</td><td class="n">66.8</td><td class="n">72.2</td><td class="n">86.0</td></tr>
+</tbody></table></div>
+
+<h4 id="s5-1-7"><span class="no">5.1.7</span>可提示抠图</h4>
+<p>抠图预测连续 alpha，保留头发、毛发这类细结构和半透明。已有评测要么假设一个显著前景，要么给真值掩码指定目标；这里改用框、类别名、指代表达指定目标，更接近实际用法。<b>基准和基线。</b>框提示用 <a class="ds" href="https://github.com/JizhiziLi/P3M">P3M-500-NP</a>（<a href="https://arxiv.org/abs/2104.14222">论文</a>）、<a class="ds" href="https://github.com/JizhiziLi/GFM">AM-2K</a>（<a href="https://arxiv.org/abs/2010.16188">论文</a>）、<a class="ds" href="https://github.com/ZHKKKe/PPM">PPM-100</a>（MODNet 提出，<a href="https://arxiv.org/abs/2011.11961">论文</a>）；文字提示用自建的 WeRefMat。三个公开集上所有方法都用同一个真值框作提示，基线都用官方检查点。SAM2-Matting 有基于 SAM2.1-T、SAM2.1-B+ 和 SAM3 的三个变体，框提示时先由 SAM2.1 或 SAM3 从框出掩码再抠图；WeVisOne-VL 则用真值框构造回复前缀，让模型接着生成 <code>&lt;OBJ&gt;</code>，把它的隐状态交给像素解码器。WeRefMat 上对比 SAM3 的原生文本定位，以及“Qwen3-VL-8B-Instruct 或 Qwen3.5-9B 先定位、再把框交给 SAM2-Matting”的两种组合。<b>指标。</b>MAD、MSE、梯度误差、连通性误差、SAD，越低越好；MAD、MSE 乘 10³。</p>
+<p><b>结果。</b>框提示下全面好于 SAM2-Matting；WeRefMat 上类别和指代两种提示都很强，说明“按语言选目标”和“边界透明度估计”可以在一个模型里做好。注意 P3M-500-NP 和 PPM-100 上是 2B 好于 4B。</p>
+<p class="tcap" id="t8">表 8 · 抠图（MAD、MSE 乘 10³；都是越低越好；WeRefMat 上的 SAM2-Matting 都是 SAM3 变体）</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>数据</th><th>提示</th><th>方法</th><th>MAD</th><th>MSE</th><th>Grad</th><th>Conn</th><th>SAD</th></tr></thead><tbody>
+<tr><td rowspan="6">P3M-500-NP</td><td rowspan="6">框</td><td>Matte Anything</td><td class="n">24.4</td><td class="n">20.4</td><td class="n">20.9</td><td class="n">40.4</td><td class="n">40.9</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-T)</td><td class="n">22.7</td><td class="n">18.2</td><td class="n">20.0</td><td class="n">37.8</td><td class="n">38.1</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-B+)</td><td class="n">19.0</td><td class="n">15.0</td><td class="n">18.3</td><td class="n">31.0</td><td class="n">31.4</td></tr>
+<tr><td>SAM2-Matting (SAM3)</td><td class="n">15.4</td><td class="n">11.4</td><td class="n">17.6</td><td class="n">25.1</td><td class="n">25.8</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">6.6</td><td class="n">3.1</td><td class="n">10.7</td><td class="n">10.6</td><td class="n">11.2</td></tr>
+<tr><td>WeVisOne-VL-4B</td><td class="n">7.3</td><td class="n">3.8</td><td class="n">10.5</td><td class="n">11.7</td><td class="n">12.6</td></tr>
+<tr><td rowspan="6">AM-2K</td><td rowspan="6">框</td><td>Matte Anything</td><td class="n">13.2</td><td class="n">8.7</td><td class="n">13.9</td><td class="n">22.0</td><td class="n">23.1</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-T)</td><td class="n">11.0</td><td class="n">6.2</td><td class="n">21.7</td><td class="n">18.4</td><td class="n">18.8</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-B+)</td><td class="n">11.1</td><td class="n">6.3</td><td class="n">20.0</td><td class="n">18.8</td><td class="n">19.0</td></tr>
+<tr><td>SAM2-Matting (SAM3)</td><td class="n">12.1</td><td class="n">7.5</td><td class="n">19.1</td><td class="n">19.5</td><td class="n">20.1</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">5.7</td><td class="n">2.2</td><td class="n">8.1</td><td class="n">8.9</td><td class="n">9.7</td></tr>
+<tr><td>WeVisOne-VL-4B</td><td class="n">5.0</td><td class="n">1.6</td><td class="n">7.2</td><td class="n">7.5</td><td class="n">8.5</td></tr>
+<tr><td rowspan="6">PPM-100</td><td rowspan="6">框</td><td>Matte Anything</td><td class="n">10.5</td><td class="n">6.7</td><td class="n">66.3</td><td class="n">100.1</td><td class="n">102.4</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-T)</td><td class="n">9.7</td><td class="n">5.9</td><td class="n">68.6</td><td class="n">95.3</td><td class="n">97.1</td></tr>
+<tr><td>SAM2-Matting (SAM2.1-B+)</td><td class="n">9.3</td><td class="n">5.7</td><td class="n">64.0</td><td class="n">90.3</td><td class="n">92.9</td></tr>
+<tr><td>SAM2-Matting (SAM3)</td><td class="n">10.8</td><td class="n">6.9</td><td class="n">65.9</td><td class="n">100.6</td><td class="n">103.2</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">5.3</td><td class="n">1.8</td><td class="n">48.4</td><td class="n">45.5</td><td class="n">49.3</td></tr>
+<tr><td>WeVisOne-VL-4B</td><td class="n">6.1</td><td class="n">2.4</td><td class="n">48.5</td><td class="n">53.2</td><td class="n">57.2</td></tr>
+<tr><td rowspan="10">WeRefMat</td><td rowspan="5">类别</td><td>SAM2-Matting (SAM3)</td><td class="n">70.8</td><td class="n">64.9</td><td class="n">45.0</td><td class="n">245.6</td><td class="n">241.6</td></tr>
+<tr><td>Qwen3-VL-8B + SAM2-Matting</td><td class="n">80.7</td><td class="n">74.4</td><td class="n">53.6</td><td class="n">270.5</td><td class="n">267.1</td></tr>
+<tr><td>Qwen3.5-9B + SAM2-Matting</td><td class="n">77.8</td><td class="n">71.4</td><td class="n">51.9</td><td class="n">265.4</td><td class="n">261.8</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">17.7</td><td class="n">13.4</td><td class="n">35.6</td><td class="n">63.6</td><td class="n">65.7</td></tr>
+<tr><td>WeVisOne-VL-4B</td><td class="n">16.4</td><td class="n">12.5</td><td class="n">35.0</td><td class="n">60.3</td><td class="n">62.0</td></tr>
+<tr><td rowspan="5">指代</td><td>SAM2-Matting (SAM3)</td><td class="n">51.9</td><td class="n">50.3</td><td class="n">34.3</td><td class="n">162.1</td><td class="n">162.2</td></tr>
+<tr><td>Qwen3-VL-8B + SAM2-Matting</td><td class="n">23.0</td><td class="n">21.1</td><td class="n">22.6</td><td class="n">78.3</td><td class="n">78.1</td></tr>
+<tr><td>Qwen3.5-9B + SAM2-Matting</td><td class="n">22.4</td><td class="n">20.6</td><td class="n">22.1</td><td class="n">82.5</td><td class="n">82.3</td></tr>
+<tr><td>WeVisOne-VL-2B</td><td class="n">15.8</td><td class="n">14.2</td><td class="n">19.4</td><td class="n">65.3</td><td class="n">66.2</td></tr>
+<tr><td>WeVisOne-VL-4B</td><td class="n">9.8</td><td class="n">8.4</td><td class="n">15.9</td><td class="n">37.8</td><td class="n">39.0</td></tr>
+</tbody></table></div>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 正文的说法和表格逐条对照</span><ul>
+<li><b>表 2</b> “Mean 上一致超过同规模 VLM”：4B 四列 Mean 都最高，成立。“IoU 0.95 下也强”要打折：LVIS 0.95 上 LocateAnything 31.1 高于 4B 的 28.8，2B 在 Dense200 0.95 上 14.1 也低于 LocateAnything 的 18.5。</li>
+<li><b>表 3</b> “单目标、多目标、无目标都超过”：4B 在 11 列里都是 VLM 中最高（HumanRef 80.7 对 Rex-Omni 79.9 最接近），成立；2B 不是每列都赢（HumanRef 77.4 低于 Rex-Omni 和 LocateAnything）。</li>
+<li><b>表 4</b> “每个基准、每个划分都最高”：对 4B 成立，9 列全是第一。2B 在 CountQA 上低于 LocateAnything（47.9 对 52.4）。</li>
+<li><b>表 5</b> 文字只说两个指点基准最好，没有夸大。</li>
+<li><b>表 6</b> “四个集都超过专用 OCR 和通用 VLM”：对 4B 的 Mean 成立；2B HierText Mean 30.5 和 PP-OCRv5 打平，TotalText Mean 42.5 低于 LocateAnything 43.3。</li>
+<li><b>表 7</b> RefCOCO 系列 8 列 4B 全部最高，成立。</li>
+<li><b>表 8</b> 正文说框提示下“和专用抠图模型有竞争力，且一致好于 SAM2-Matting”，表里 2B、4B 每项都低于（好于）四个基线，成立；2B 在 P3M-500-NP 和 PPM-100 的 MAD、MSE、Conn、SAD 上好于 4B。</li></ul></div>
+
+<div class="note" id="n10"><span class="lab">读者注 10 · 哪些基准其实有对应的训练数据</span><p>表 2 只标了 COCO 和 LVIS 是零样本。对照附录表 9 的 SFT 数据：检测用了 VisDrone；OCR 用了 HierText、ICDAR2015、SROIE；计数用了 CLOC、MixCount、KubriCount、PixMo；指点用了 PixMo、CLOC；指代和分割用了 RefCOCO、RefCOCO+、RefCOCOg。这些多半是各数据集的训练划分，§2.7 也说正式基准和训练隔离，所以不算泄漏；但这几列对 WeVisOne-VL 是“域内”评测，对一部分基线未必是，论文没有区分。Dense200、HumanRef、Ref-Adv、PR-Bench、DVGBench、Ref-L4、CountQA、PointBench、TotalText、ReasonSeg、Ref-ZOM 和三个公开抠图集不在表 9、表 10 里（HumanRef 有同作者的 HumanRef-CoT 训练数据，P3M-10K 训练划分在抠图数据里）。</p></div>
+
+<h2 id="s6"><span class="no">6</span>定性分析</h2>
+<p>图 5 到图 12 按任务对比 WeVisOne-VL 和代表性基线，图 13 是带框的细粒度描述。每张图都是 GT、Rex-Omni（或 LISA / Matte Anything 等）、LocateAnything（或 UniPixel / SAM2-Matting）、WeVisOne-VL 四列并排，下面按行说。</p>
+<details class="tbl"><summary>展开 9 张定性对比图（约 2.7 MB）</summary>
+<figure class="pfig" id="fig5">
+<img src="wevisone-vl/fig5.webp" width="1600" height="1305" alt="图 5：检测对比，三行：沙尘中的大象、刀和香肠、密集水果摊" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 17 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F5">看原图 ↗</a></span><b>检测。</b>能见度差、相邻实例、密集场景。第一行两个基线只框出前景的大象，WeVisOne-VL 还找到了被沙尘遮住的远处大象。胡萝卜（香肠）和密集水果两例里，基线倾向把相邻实例合成一个粗框，WeVisOne-VL 更多保持实例级的框。</figcaption>
+</figure>
+<figure class="pfig" id="fig6">
+<img src="wevisone-vl/fig6.webp" width="1600" height="1462" alt="图 6：指代检测对比，五行：左数第三个穿白背心的人、Yann LeCun、戴红耳机的人、穿黑衣但不戴墨镜的人、穿白衬衫红短裤的人（不存在）" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 18 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F6">看原图 ↗</a></span><b>指代检测。</b>五个方面：序数位置（左数第三个）、人名（Yann LeCun）、耳机颜色、排除条件（穿黑衣但不戴墨镜）、不存在的目标。前四例 WeVisOne-VL 选对，基线选到干扰项或多框了人。最后一例要求“白衬衫加红短裤”，图里没人同时满足，两个基线都给了框，WeVisOne-VL 返回 none。</figcaption>
+</figure>
+<figure class="pfig" id="fig7">
+<img src="wevisone-vl/fig7.webp" width="1600" height="1695" alt="图 7：计数对比，四行：左边的杯子、几双鞋、绿色的球、假的绿苹果" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 19 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F7">看原图 ↗</a></span><b>计数。</b>考“数什么”。第一问只数左边的杯子；第二问数鞋要按“双”数，不按只数；后两问在干扰物中数绿球和假绿苹果。基线常数到范围外的物体，或按只数鞋；最后一例 Rex-Omni 报 537，真值 42。WeVisOne-VL 四例都对。</figcaption>
+</figure>
+<figure class="pfig" id="fig8">
+<img src="wevisone-vl/fig8.webp" width="1600" height="1617" alt="图 8：指点对比，四行：心形气球、对视的两个人、脸朝上的猪、右边的钩子" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 20 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F8">看原图 ↗</a></span><b>指点。</b>密集、关系、属性、细粒度四类。心形气球：LocateAnything 漏了大半，Rex-Omni 有的气球点了好几次。“对视的两个人”：基线都点到别人。“脸朝上的猪”：Rex-Omni 点了好几头，LocateAnything 选了干扰项。最后问弯钩，基线都点到把手上。真值区域标绿。</figcaption>
+</figure>
+<figure class="pfig" id="fig9">
+<img src="wevisone-vl/fig9.webp" width="1600" height="1532" alt="图 9：OCR 对比，三行：弯曲字母的店招、小票、小字说明书" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 21 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F9">看原图 ↗</a></span><b>OCR。</b>弯曲字母的店招上，基线认出醒目的词但漏掉弯曲的字；小票上大家都读出几行，WeVisOne-VL 覆盖更多下方文字；小字说明书上差距最大。</figcaption>
+</figure>
+<figure class="pfig" id="fig10">
+<img src="wevisone-vl/fig10.webp" width="1600" height="1640" alt="图 10：指代分割对比，五行：前面的灰发女士、耳朵耷拉的狗、木箱上的红白花瓶、左边和右数第三个遥控器、消防栓旁的鹿（不存在）" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 22 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F10">看原图 ↗</a></span><b>指代分割。</b>预测掩码保留原色，其余变暗。前三例（前面的灰发女士、耳朵耷拉的狗、木箱上的红白花瓶）LISA 和 UniPixel 选到干扰项。第四例要最左和右数第三个遥控器，WeVisOne-VL 两个都分出来，LISA 掩码碎，UniPixel 选错。最后一例“消防栓旁的鹿”在图里都不存在，两个基线仍出掩码，WeVisOne-VL 返回无目标。</figcaption>
+</figure>
+<figure class="pfig" id="fig11">
+<img src="wevisone-vl/fig11.webp" width="1600" height="1656" alt="图 11：框提示抠图对比，五行：兔子、骆驼、三个人像" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 23 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F11">看原图 ↗</a></span><b>框提示抠图。</b>兔子、骆驼和三个人。前两行 WeVisOne-VL 保住了兔子胡须和骆驼边缘的细毛；第三、五行的飘发和卷发在基线结果里更平滑；第四行 SAM2-Matting 把围裙上的标志抠成透明，留下一个洞。</figcaption>
+</figure>
+<figure class="pfig" id="fig12">
+<img src="wevisone-vl/fig12.webp" width="1600" height="1499" alt="图 12：文字提示抠图对比，四行：鸡、冰山、穿黑衣的人、印着 Daikin 的气球" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 24 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F12">看原图 ↗</a></span><b>文字提示抠图。</b>前两例是类别提示（鸡、冰山），后两例是指代提示（穿黑衣的人、印着 “Daikin” 的气球）。WeVisOne-VL 保留了可见的鸡，冰山的 alpha 更实，两个目标人都抠出来；SAM2-Matting (SAM3) 漏掉了人，气球那例还抠进了好几个干扰物。</figcaption>
+</figure>
+<figure class="pfig" id="fig13">
+<img src="wevisone-vl/fig13.webp" width="1600" height="904" alt="图 13：四段带框的细粒度图像描述：棒球场、户外餐桌两位女士、长椅上读文件的男人、一桌食物" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 25 页 · 作者 Tianming Liang 等 · CC BY 4.0 · 只做了裁切 · <a href="https://arxiv.org/html/2610.31329v2#S6.F13">看原图 ↗</a></span><b>带框的描述。</b>模型写详细描述，同时把短语和框绑定：棒球场上的击球手、球棒、捕手、手套、裁判；户外餐桌的两个人和桌上每件东西。作者认为这种描述可以当 VLM 训练数据，因为它显式连接了文字和区域。</figcaption>
+</figure>
+</details>
+
+<h2 id="s7"><span class="no">7</span>相关工作</h2>
+<p><b>视觉定位。</b>开放词表检测器把定位和类别名、指代表达对齐；之后的定位型多模态模型把空间输出放进语言接口：Kosmos-2 用位置 token 表示文字和框的连接，Florence-2 把检测、定位等写成以提示为条件的序列生成，Molmo/PixMo 说明了显式点监督对定位和计数有用。最近 Rex-Omni 用量化坐标 token 加几何感知的 RL 做检测、指代、指点、OCR；LocateAnything 并行解码整个框和点，提高速度和精度。</p>
+<p><b>指代分割。</b>SAM、SAM 2 建立了可提示的掩码预测，SAM 3 扩到概念提示的检测、分割和跟踪。LISA 把生成的分割 token 交给掩码解码器；GLaMM 交错输出文字和定位掩码；GSVA 支持多目标和显式拒答。Text4Seg 把掩码序列化成文字，UniPixel 整合掩码和像素级推理，Sa2VA 把 MLLM 接到 SAM 2，Youtu-VL 在统一自回归监督下训练视觉和语言 token。</p>
+<p><b>实例抠图。</b>MODNet、P3M 专注人像前景；Matte Anything、Matting Anything 用可提示分割引导 alpha；In-Context Matting 用参考图指定前景；SAM2-Matting 给分割跟踪器加抠图组件；MatAnyone 用首帧掩码在视频里传播，MatAnyone 2 用学习的质量评估和更多真实数据提升细节和时间一致性。这里在多物体场景里用框、类别名、指代表达指定目标，预测连续 alpha。</p>
+
+<h2 id="s8"><span class="no">8</span>局限</h2>
+<p>专注基础感知带来几个取舍：通用训练数据有限，通用能力可能比底座差；为推理效率直接输出结构化结果、不做思维链，可能限制复杂推理；只做单轮预测，接入智能体框架、多轮调用工具逐步细化是方向。更大的挑战是真实世界：基准里的提示清楚、规范、无歧义，真实用户的指令常常含糊、犹豫，语境和表达方式的变化会让“找到目标”这种简单任务变难，所以可靠的视觉系统需要强的意图推理。</p>
+
+<h2 id="s9"><span class="no">9</span>结论</h2>
+<p>WeVisOne-VL 用结构化的下一个 token 接口统一目标级和像素级任务：专用坐标 token 编码实例预测，<code>&lt;OBJ&gt;</code> 把每个定位到的实例接到轻量像素解码器上出掩码和 alpha。三阶段监督课程依次建立任务对齐、高分辨率密集感知和像素预测，之后用混合任务 RL 优化完整的定位输出。在评测的基准上，检测平均 F1 和计数准确率超过同规模 VLM，文字定位和指代定位有进步，指代分割和抠图超过评测的基线；定性例子显示它能在拥挤场景里定位单个实例、理解涉及多个物体的表达，并识别目标不存在。</p>
+
+<h2 id="apA">附录 A · 训练语料</h2>
+<p><b>A.1 SFT 数据。</b>表 9 按任务和来源（公开 / WDE）列出三个阶段的数据量。<b>A.2 分割和抠图数据。</b>表 10 列出来源；公开抠图数据集是高分辨率、高质量 alpha；抠图微调时每个 batch 里公开和 WDE 按 1:4 抽。<b>A.3 RL 数据。</b>用 SFT 检查点在 SFT 数据上做 §4 的不确定性筛选，最终 17.8 万条：检测 44.0%、密集检测 20.8%、指代 17.5%、OCR 7.9%、指代分割 5.8%、指点 4.0%。</p>
+<details class="tbl"><summary>表 9 · 三个 SFT 阶段的数据量（M）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>来源</th><th>数据集</th><th class="n">S1</th><th class="n">S2</th><th class="n">S3</th></tr></thead><tbody>
+<tr><td rowspan="2">检测</td><td>公开</td><td>Objects365、OpenImages-V6、V3Det、DeepFashion2、ODinW-35、EgoObjects、PACO、PartImageNet++、BDD100K、nuImages、VisDrone、CrowdHuman、SKU-110K、PartImageNet、MOT20Det、MOT17Det、OWDOD、FSCD-147</td><td class="n">18.4</td><td class="n">16.2</td><td class="n">8.4</td></tr>
+<tr><td>WDE</td><td>CC3M、GRIT、LAION、SA-1B</td><td class="n">42.2</td><td class="n">10.7</td><td class="n">7.2</td></tr>
+<tr><td rowspan="2">指代</td><td>公开</td><td>RefCOCO、gRefCOCO、Flickr30k、HumanRef-CoT、HumanParts、D3、OpenRef、Unsplash</td><td class="n">6.3</td><td class="n">2.1</td><td class="n">1.0</td></tr>
+<tr><td>WDE</td><td>GRIT、CC3M、LAION</td><td class="n">11.8</td><td class="n">5.5</td><td class="n">1.6</td></tr>
+<tr><td>计数</td><td>公开</td><td>CLOC、MixCount、KubriCount、PixMo、OWDOD、FSC-147、FSCD-147</td><td class="n">2.4</td><td class="n">1.2</td><td class="n">0.6</td></tr>
+<tr><td>指点</td><td>公开</td><td>PixMo、Molmo2、CLOC、FSC-147</td><td class="n">2.8</td><td class="n">0.9</td><td class="n">0.4</td></tr>
+<tr><td>OCR</td><td>公开</td><td>IDL-OCR、BLIP3-OCR、ArT、COCO-Text、LSVT、TextOCR、ReCTS、HierText、RCTW、ICDAR2015、WildReceipt、SROIE、ICDAR2013</td><td class="n">2.1</td><td class="n">0.7</td><td class="n">0.3</td></tr>
+<tr><td>描述</td><td>公开</td><td>RefSpatial、Inst-IT、VG-PhraseCut、Flickr30k、COCONut-PanCap、PixMo、LLM-Seg40K、PanCap、Rea2Seg</td><td class="n">2.7</td><td class="n">0.9</td><td class="n">0.4</td></tr>
+<tr><td rowspan="2">分割</td><td>公开</td><td>RefCOCO、RefCOCO+、RefCOCOg、ReVOS、Ref-YouTube-VOS</td><td class="n">0.9</td><td class="n">0.9</td><td class="n">1.6</td></tr>
+<tr><td>WDE</td><td>CC3M、GRIT、LAION、SA-1B</td><td class="n">0.6</td><td class="n">1.4</td><td class="n">20.3</td></tr>
+<tr><td colspan="3"><b>合计</b></td><td class="n">90.2</td><td class="n">40.5</td><td class="n">41.8</td></tr>
+</tbody></table></div></details>
+<details class="tbl"><summary>表 10 · 分割和抠图数据（M）</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>任务</th><th>来源</th><th>数据集</th><th class="n">规模</th></tr></thead><tbody>
+<tr><td rowspan="2">分割</td><td>公开</td><td>SA-1B、RefCOCO、RefCOCO+、RefCOCOg、ReVOS、Ref-YouTube-VOS</td><td class="n">171.4</td></tr>
+<tr><td>WDE</td><td>CC3M、GRIT、LAION</td><td class="n">288.4</td></tr>
+<tr><td rowspan="2">抠图</td><td>公开</td><td>AM-2K、Distinctions-646、UHRIM、HHM-50K、IHIM-50K、RefMatte、AIM-500、CelebA-Hair、Transparent-460、SIMD、P3M-10K（train）、Real-Human、RealWorldPortrait-636</td><td class="n">0.3</td></tr>
+<tr><td>WDE</td><td>CC3M、SA-1B</td><td class="n">129.8</td></tr>
+</tbody></table></div></details>
+
+<h2 id="apB">附录 B · 实现细节</h2>
+<p><b>B.1 训练超参。</b>SFT 用 128 张 GPU，RL 用 160 张。四种配置都是 AdamW（权重衰减 0.01）、梯度范数上限 1.0、BF16。SFT 用余弦衰减，RL 视配置用常数或余弦。SFT 做序列打包，batch 按每卡 token 数给。阶段 2、3 的 OCR 样本用 16–256 个视觉 token，给长转写留空间。</p>
+<details class="tbl"><summary>表 11 · SFT 和 RL 超参</summary>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>超参</th><th>SFT-S1</th><th>SFT-S2</th><th>SFT-S3</th><th>RL</th></tr></thead><tbody>
+<tr><td>可训模块</td><td>LLM</td><td>VLM</td><td>VLM + 解码器</td><td>LLM</td></tr>
+<tr><td>学习率：LLM</td><td>2×10⁻⁵</td><td>5×10⁻⁶</td><td>5×10⁻⁶</td><td>1×10⁻⁶</td></tr>
+<tr><td>学习率：视觉编码器</td><td>–</td><td>5×10⁻⁷</td><td>5×10⁻⁶</td><td>–</td></tr>
+<tr><td>学习率：投影</td><td>–</td><td>5×10⁻⁶</td><td>5×10⁻⁶</td><td>–</td></tr>
+<tr><td>学习率：像素解码器</td><td>–</td><td>–</td><td>1×10⁻⁵</td><td>–</td></tr>
+<tr><td>warmup 比例</td><td>5%</td><td>5%</td><td>3%</td><td>–</td></tr>
+<tr><td>训练步数</td><td>13,000</td><td>8,995</td><td>9,062</td><td>593</td></tr>
+<tr><td>最大序列长度</td><td>4,096</td><td>8,192</td><td>8,192</td><td>4,096 + 4,096</td></tr>
+<tr><td>每图视觉 token</td><td>16–512</td><td>64–1,960</td><td>64–1,960</td><td>64–1,960</td></tr>
+<tr><td>每卡 token 预算</td><td>28,672</td><td>24,576</td><td>24,576</td><td>24,576</td></tr>
+<tr><td>分布式</td><td>ZeRO-2</td><td>ZeRO-2</td><td>ZeRO-2</td><td>FSDP2 + vLLM</td></tr>
+</tbody></table></div>
+<p>表注：VLM 指视觉编码器、投影和 LLM。SFT-S3 的 LLM 用 LoRA（r = 128，α = 256，dropout 0.05），token 嵌入和输出头全量可训；其他模块全量可训。RL 的提示和回复最长都是 4,096 token。</p></details>
+<p><b>B.2 像素解码器训练。</b><i>warm-up：</i>阶段 2 之后，VLM 接随机初始化的解码器，用分割监督联合训 100,000 步；解码器学习率 1×10⁻⁶，1,000 步 warmup；输出 512×512 掩码。之后只保留解码器和 <code>&lt;OBJ&gt;</code> 嵌入，接回原阶段 2 检查点。<i>联合训练：</i>阶段 3 按 1:1 交替 NTP 步和分割步；VLM、解码器学习率 5×10⁻⁶、1×10⁻⁵，3% warmup；每张卡每个打包序列随机抽 24 个 <code>&lt;OBJ&gt;</code> 送解码器，文本序列完整保留给 NTP。<i>抠图微调：</i>训练全部完成后冻结 VLM，在 1024×1024 输出分辨率上微调解码器 100,000 步；解码器学习率 5×10⁻⁷，由粗到细分支 2.5×10⁻⁶，200 步 warmup，每卡最多 8 个 <code>&lt;OBJ&gt;</code>。warm-up 和抠图两段都是 AdamW、余弦衰减、权重衰减 0.05、梯度范数上限 5.0、BF16、DDP，每卡 token 预算 98,304，最大序列 8,192，每图 16–1,024 个视觉 token。</p>
+<p><b>B.3 RL 奖励。</b>检测、密集检测、指代定位用式 (13)；分割和抠图也只用框的奖励；指点通过“点在掩码内”做一对一匹配算 F1；指代分割要求每个预测框后跟 <code>&lt;OBJ&gt;</code>；OCR 用转写奖励（论文没给公式）；目标不存在时，只有不预测任何物体才得 1。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 2B、4B 的实际参数量和“扩词表”</span><p>Hugging Face API 报 <code>model.safetensors</code> 的参数：WeVisOne-VL-2B 2,441,744,384，4B 4,830,581,248（BF16）。对应的 Qwen3-VL-2B/4B-Instruct 是 2,127,532,032 和 4,437,815,808。差值正好能解释：</p><ul>
+<li>Qwen3-VL-2B/4B 的 <code>tie_word_embeddings</code> 是 true（输出头和词嵌入共用），WeVisOne-VL 的 config 是 false，多出一个独立输出头；词表也从 151,936 扩到 152,680（多 744 行）。</li>
+<li>2B：152,680 × 2048（新输出头）+ 744 × 2048（新增嵌入行）= 312,688,640 + 1,523,712 = 314,212,352，和差值 2,441,744,384 − 2,127,532,032 完全相等。</li>
+<li>4B：152,680 × 2560 + 744 × 2560 = 392,765,440，也和差值完全相等。</li></ul>
+<p>这和表 11 “token 嵌入和输出头全量可训”一致；论文没说解开了权重共享。所以“2B”实际 2.44B、“4B”实际 4.83B（不含 9.6M 解码器）。新 token 实际只有 1010 个（<a href="#n3">读者注 3</a>），词表大小 152,680 是对齐填充后的值。</p></div>
+
+<h2 id="code">代码与使用要点</h2>
+<p><b>结论先说：</b>仓库只给推理和评测：推理包 <code>wevisone_vl</code>、三本 Cookbook、评测管线、Gradio demo、检查点校验脚本和测试。训练代码（SFT、解码器 warm-up、抠图微调、RL）和数据引擎都没有公开，README 的 TODO 里 “Fine-tuning code” 未勾选。数据引擎里的抠图标注器单独放在 <code>mask2alpha</code> 分支。</p>
+<p>代码版本：<a href="https://github.com/Tencent/WeVisOne-VL/tree/9a6bcd85404505df0d05cfb5d97512ccacf35dee">9a6bcd8</a>（2026-10-25），Apache-2.0（README 说“腾讯编写的代码”按 Apache-2.0，第三方组件保留原许可）。包名 <code>wevisone-vl</code> 1.0.0，Python ≥ 3.10，固定 torch 2.11.0、transformers 5.12.1，可选 vllm 0.23.0、gradio 6.30.0。</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>部分</th><th>文件</th><th>内容</th></tr></thead><tbody>
+<tr><td>推理引擎</td><td><code>wevisone_vl/engine.py</code></td><td><code>WeVisOneVL</code>：加载 Qwen3-VL（transformers，可选 vLLM 生成）和 <code>mask_decoder.pt</code>；<code>predict()</code> 生成文本，回复里有 <code>&lt;OBJ&gt;</code> 就调 <code>decode_masks()</code></td></tr>
+<tr><td>像素解码器</td><td><code>mask_decoder.py</code>、<code>msda.py</code>、<code>config.py</code>、<code>decoder.py</code></td><td>适配器、可变形查询解码器（纯 PyTorch 的 <code>grid_sample</code> 实现，不需要 CUDA 扩展）、像素融合、动态掩码头、三级精修</td></tr>
+<tr><td>特征桥</td><td><code>feature_bridge.py</code></td><td>在 Qwen3-VL 的合并器前截 ViT 第 5/11/17/23 层，还原 patch 顺序；hook 最后一个 LLM 层取 <code>&lt;OBJ&gt;</code> 隐状态；视频输入直接报错</td></tr>
+<tr><td>提示词</td><td><code>prompts.py</code></td><td>11 个任务名：detection、referring、point、count_box、count_point、segmentation、matting、ocr、ocr_grounding、visual_prompt、freeform</td></tr>
+<tr><td>命令行 / 可视化</td><td><code>cli.py</code>（命令 <code>wevisone-vl</code>）、<code>visualization.py</code></td><td><code>save_result</code> 写 <code>response.txt</code>、<code>result.json</code>、叠加图和 <code>masks/mask_000.png</code> 等</td></tr>
+<tr><td>Cookbook</td><td><code>tutorials/01–03_*.ipynb</code></td><td>目标级（检测、指代、计数、指点）、OCR、像素级（分割、抠图）</td></tr>
+<tr><td>评测</td><td><code>evaluation/</code></td><td>vLLM 跑框和点任务，transformers + 解码器跑指代分割和抠图；指标脚本；<code>prepare/</code> 下的数据转换</td></tr>
+<tr><td>demo</td><td><code>demo/app.py</code></td><td>Gradio，本地 <code>python demo/app.py --model tencent/WeVisOne-VL-4B</code>，可选 vLLM</td></tr>
+<tr><td>发布脚本</td><td><code>scripts/verify_checkpoint.py</code>、<code>stage_release_checkpoint.py</code></td><td>校验检查点文件集合、解码器 cfg、参数个数、<code>&lt;OBJ&gt;</code> id（见<a href="#n4">读者注 4</a>）</td></tr>
+</tbody></table></div>
+<p><b>权重。</b>Hugging Face <a href="https://huggingface.co/tencent/WeVisOne-VL-2B">tencent/WeVisOne-VL-2B</a>、<a href="https://huggingface.co/tencent/WeVisOne-VL-4B">-4B</a>，Apache-2.0，不需要申请（API 的 <code>gated</code> 是 False；2026-11-17 查）。每个仓库有 <code>model.safetensors</code>（2B 4.88 GB，4B 9.66 GB，BF16）、<code>mask_decoder.pt</code>（38.1 MB / 38.5 MB，fp32）、分词器和配置。<code>WeVisOneVL("tencent/WeVisOne-VL-4B")</code> 会自动下载，也可以给本地目录。模型的 <code>generation_config.json</code> 默认 <code>do_sample: true</code>、温度 0.7，但推理包在 <code>temperature=0</code>（默认）时会关掉采样。</p>
+<p><b>输出怎么读。</b></p>
+<ul>
+<li><b>坐标</b>是相对<b>原图</b>的千分比，解析时除以 1000；框 <code>[x1,y1,x2,y2]</code>，点 <code>[x,y]</code>。目标不存在时回复里是 <code>None</code>。</li>
+<li><b>何时触发像素解码：</b><code>predict()</code> 只要在回复里搜到 <code>&lt;OBJ&gt;</code> 就解码，与任务名无关。解码时把“提示 + 已生成的回复”整段<b>再前向一遍</b>（teacher forcing），在这次前向里截 ViT 特征和 <code>&lt;OBJ&gt;</code> 隐状态；所以像素任务要跑两次 VLM。每 16 个 <code>&lt;OBJ&gt;</code> 一批送解码器（<code>decoder_batch_size</code>）。</li>
+<li><b>解码器的图像输入</b>是把原图直接拉伸到 1024×1024（不保持长宽比，和 Qwen 的 smart-resize 无关），ViT 那一路用 Qwen 自己的缩放。</li>
+<li><b>掩码和 alpha 的形状：</b><code>result.masks</code> 是列表，每个 <code>&lt;OBJ&gt;</code> 一个 <code>float32</code> 数组 <code>[H, W]</code>（原图尺寸），值是 sigmoid 后的 [0, 1]；它由 1024×1024 的 S/1 输出双线性缩放回原图。分割和抠图拿到的是同一种东西：要二值掩码就取 ≥ 0.5（评测脚本就这么做，多实例再按像素取最大）。<code>result.boxes</code> 是带 <code>&lt;OBJ&gt;</code> 的那些框（归一化 xyxy）。</li>
+<li><b>默认的视觉 token 范围</b>是 <code>min_pixels = 16×32×32</code>、<code>max_pixels = 2025×32×32</code>，即 16 到 2,025 个合并后 token；论文写的是最多 1,960（<a href="#n12">读者注 12</a>）。</li>
+<li><b>vLLM 后端</b>只用于生成文本；transformers 版的模型照样会加载（解码像素时要它），所以显存里有两份权重，这大概就是默认 <code>gpu_memory_utilization=0.45</code> 的原因（<b>我的推断</b>）。</li></ul>
+<p><b>复现论文表格。</b><code>evaluation/README.md</code> 给了数据下载和命令：COCO、LVIS、Dense200、VisDrone、RefCOCOg、HumanRef、HierText、IC15、TotalText、SROIE 直接用 <a href="https://huggingface.co/datasets/Mountchicken/Rex-Omni-EvalData">Rex-Omni-EvalData</a>；其余用 <code>prepare/</code> 下的脚本从官方来源转换。之后按任务跑 <code>eval_coco.sh</code>、<code>eval_lvis.sh</code>、<code>eval_others.sh</code>、<code>eval_refseg.sh</code>、<code>eval_matting.sh</code>，每个数据集输出 <code>answer.jsonl</code> 和 <code>eval_results.json</code>，一张卡一个副本。能复现的是 WeVisOne-VL 自己那两行：表 2、4、5、6、7 的全部列，表 3 除 WeRef-Bench 外，表 8 除 WeRefMat 外（两个自建集都“not yet released”）。基线的评测脚本没有给。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 评测代码里论文没写的协议细节</span><ul>
+<li><b>检测只问图里有的类。</b>COCO、LVIS、Dense200、VisDrone 每张图逐类单独提问，类别列表取自该图的标注；COCO/LVIS 打分前还会丢掉不在该图标注里的类别的框（<code>convert_coco_lvis_to_standard_format.py</code> 注释叫 “positive-only protocol”）。所以检测 F1 不惩罚“对不存在的类别报框”，和常规检测评测不同；评测数据和格式沿用 Rex-Omni-EvalData，基线是否同样测的论文没说。</li>
+<li><b>F1 的平均方式。</b>COCO/LVIS（<code>coco_lvis_metric.py</code>）按类别平均精度和召回时<b>跳过非正值</b>（<code>safe_mean</code> 只平均 &gt; 0 的项），会抬高分数；其他框任务（<code>other_metric.py</code>）按样本平均，不按类别。正文说“按类别计算再平均”。</li>
+<li><b>视觉 token 上限。</b>框和点任务、指代分割用 <code>max_pixels = 2025×32×32</code>（≤ 2,025 个 token），抠图用 <code>1024×1024</code>（≤ 1,024 个 token）；论文 §5 说统一 ≤ 1,960。</li>
+<li><b>“贪心”带了重复惩罚。</b>框和点任务的 vLLM 采样是温度 0、<code>repetition_penalty=1.05</code>；分割和抠图是 1.0。</li>
+<li><b>指代分割</b>用的是抠图提示词（单实例模板 “Locate a single instance that best matches … and provide the alpha mattes”，Ref-ZOM 用多实例模板），alpha 取 0.5 阈值，多实例逐像素取最大。Ref-ZOM 的 “Rej” 在代码里叫 Acc：无目标表达里预测面积为 0 的比例。</li>
+<li><b>框提示抠图</b>的框是真值 alpha &gt; 127 的外接框；写进回复前缀时四舍五入到千分比，传给解码器的却是<b>未取整</b>的框。</li>
+<li><b>计数</b>用预测框的个数，不读 “Total number: N.” 那句。</li>
+<li>评测目录里还有 HumanRef、RefCOCOg 的指点评测，表 5 没报。</li></ul></div>
+
+<h2 id="readme">README 表格核对</h2>
+<p>README 的 “Performance at a Glance” 是 4B 对“每个基准最强的公开基线”。逐项对照表 2–8：</p>
+<div class="tablewrap"><table class="t-w"><thead><tr><th>README 行</th><th>最强基线 / 4B</th><th>论文出处</th><th>结论</th></tr></thead><tbody>
+<tr><td>LVIS F1 Mean</td><td>50.7 / 55.3</td><td>表 2：LocateAnything 50.7，4B 55.3</td><td>对</td></tr>
+<tr><td>Dense200 F1 Mean</td><td>58.7 / 71.3</td><td>表 2：LocateAnything 58.7</td><td>对</td></tr>
+<tr><td>RefCOCOg test F1 Mean</td><td>77.6 / 81.8</td><td>表 3：LocateAnything 77.6</td><td>对</td></tr>
+<tr><td>WeRef-Bench 拒答率</td><td>73.0 / 96.4</td><td>表 3：LocateAnything 73.0</td><td>对</td></tr>
+<tr><td>PixMo-Count test Acc</td><td>82.8 / 89.6</td><td>表 4：LocateAnything 82.8（Qwen3.5-9B 80.4）</td><td>对</td></tr>
+<tr><td>PointBench “Acc”</td><td>69.9 / 71.9</td><td>表 5：Rex-Omni 69.9</td><td>数对；但指标是 F1@Point，不是准确率</td></tr>
+<tr><td>TotalText F1 Mean</td><td>43.3 / 52.0</td><td>表 6：LocateAnything 43.3</td><td>对</td></tr>
+<tr><td>ReasonSeg val gIoU</td><td>65.0 / 71.2</td><td>表 7：LISA-13B (ft) 65.0</td><td>对</td></tr>
+<tr><td>P3M-500-NP 框提示 MAD</td><td>15.4 / 7.3</td><td>表 8：SAM2-Matting (SAM3) 15.4</td><td>对；这一列 2B 的 6.6 更好</td></tr>
+<tr><td>WeRefMat 指代 MAD</td><td>22.4 / 9.8</td><td>表 8：Qwen3.5-9B + SAM2-Matting 22.4</td><td>对</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · README 展开表的核对结果</span><p>README 下面七张可展开的完整表（检测、指代、计数、指点、OCR、指代分割、抠图）我逐格和表 2–8 对过（前六张用脚本从 PDF 文本比对，抠图表手对），共 196 个数，<b>全部一致</b>；上面速览表的 20 个数也都对。只有两处需要注意：</p><ul>
+<li>抠图表只列了 Matte Anything、SAM2-Matting (SAM3)、Qwen3.5-9B + SAM2-Matting 三个基线。PPM-100 上最好的基线其实是没列出的 SAM2-Matting (SAM2.1-B+)，MAD 9.3（README 里最好的是 10.5）；AM-2K 上 SAM2.1-T 的 11.0 也比列出的 12.1、13.2 好。结论（WeVisOne-VL 最好）不变，但“最强基线”看低了。</li>
+<li>指点一行标 “Acc ↑”，论文指标是 F1@Point。</li></ul>
+<p>另外，README 和模型卡里的 “9.6M-parameter” 对 4B 准确，2B 是 9.5M（<a href="#n4">读者注 4</a>）。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">BiRefNet 七条准则有两条多余</a>：IoU ≥ 0.5 已推出覆盖率 ≥ 0.5 和面积比 ∈ [0.5, 2]。</li>
+<li><a href="#n2">Mask2Alpha 和 §2.6 对照</a>：冻结 SAM2.1-B+，头 3,910,851 个参数（我数的），和 15.7 MB 文件对得上；分支没有 LICENSE。</li>
+<li><a href="#n3">图 3 的提示词、词表和代码对照</a>：新 token 1010 个，含未用到的 polygon；提示词和图 3 有五处不同；OCR 例子框重复。</li>
+<li><a href="#n4">9.6M 按代码算</a>：4B 9,609,764（与 config 完全一致），2B 9,511,460；2B 模型卡写错，文件大小差 393,216 字节印证。</li>
+<li><a href="#n5">代码和式 (1)–(8) 的差异</a>：同尺度四层、框编码用 log 宽高和 32 个倍频、精修是 S/4→S/2→S/1（论文写法会到 4096）且总是开着、缩放系数 0.1。</li>
+<li><a href="#n6">数据量和步数核算</a>：表 9 各列、表 1 的 21 个百分比都对；两个环形图是池子比例，和 1:4 的抽样比不是一回事。</li>
+<li><a href="#n7">式 (12)(13) 代入</a>：重复框 0.857、漏检 0.8、IoU 0.9 → 0.729；RL 后解码器没有再适配，顺序未核实。</li>
+<li><a href="#n8">“30 多个基准”是 31 个</a>：4 + 8 + 5 + 2 + 4 + 4 + 4，其中两个自建集未公开。</li>
+<li><a href="#n9">正文说法和表格逐条对照</a>：大多成立，对 4B 而言；2B 和个别 IoU 0.95 列有例外。</li>
+<li><a href="#n10">哪些基准有对应的训练数据</a>：VisDrone、三个 OCR 集、四个计数集、RefCOCO 系列在 SFT 数据里。</li>
+<li><a href="#n11">实际参数量和扩词表</a>：2.44B、4.83B；和 Qwen3-VL 的差值正好是解开共享的输出头加 744 行嵌入。</li>
+<li><a href="#n12">评测代码里的协议细节</a>：检测只问图里有的类、跳过零值平均、token 上限 2,025 / 1,024、重复惩罚 1.05、分割用抠图提示。</li>
+<li><a href="#n13">README 展开表核对</a>：220 个数全对；抠图表漏了更强的 SAM2.1-B+ 基线；指点标成 Acc。</li>
+</ol>
+<p>论文没写、我也没找到的：OCR 转写奖励的公式；\(\mathcal L_{\rm hard}\) 的定义；GRPO 的 KL、裁剪等超参；自研 OV 检测器的结构和规模；知识图谱的规模；人工抽检的比例；抠图微调和 RL 的先后。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、模型和工具。除注明的以外，链接在 2026 年 11 月 17 日用脚本核对都返回 200，arXiv 编号核对过标题。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/Tencent/WeVisOne-VL">WeVisOne-VL</a></td><td>本文</td><td><a href="https://tencent.github.io/WeVisOne-VL">项目页</a> · <a href="https://huggingface.co/collections/tencent/wevisone-vl">HF</a></td><td><a href="https://arxiv.org/abs/2610.31329">2610.31329</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/QwenLM/Qwen3-VL">Qwen3-VL</a></td><td>底座 VLM</td><td>github.com/QwenLM/Qwen3-VL</td><td><a href="https://arxiv.org/abs/2511.21631">2511.21631</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/IDEA-Research/Rex-Omni">Rex-Omni</a></td><td>基线；坐标 token 和 Dense200 的来源</td><td>github.com/IDEA-Research/Rex-Omni</td><td><a href="https://arxiv.org/abs/2510.12798">2510.12798</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2605.27365">LocateAnything</a></td><td>基线，并行解码框</td><td>–</td><td><a href="https://arxiv.org/abs/2605.27365">2605.27365</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/IDEA-Research/GroundingDINO">Grounding DINO</a></td><td>专用检测基线</td><td>github.com/IDEA-Research/GroundingDINO</td><td><a href="https://arxiv.org/abs/2303.05499">2303.05499</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/sam3">SAM 3</a> / <a class="ds" href="https://github.com/facebookresearch/sam2">SAM 2</a> / SAM</td><td>数据引擎的候选和掩码；抠图基线的底座</td><td>github.com/facebookresearch</td><td><a href="https://arxiv.org/abs/2511.16719">2511.16719</a> · <a href="https://arxiv.org/abs/2408.00714">2408.00714</a> · <a href="https://arxiv.org/abs/2304.02643">2304.02643</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/baaivision/tokenize-anything">Tokenize Anything</a></td><td>数据引擎的类别发现</td><td>github.com/baaivision/tokenize-anything</td><td><a href="https://arxiv.org/abs/2312.09128">2312.09128</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/ZhengPeng7/BiRefNet">BiRefNet</a></td><td>抠图专家之一</td><td>github.com/ZhengPeng7/BiRefNet</td><td><a href="https://arxiv.org/abs/2401.03407">2401.03407</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/pq-yang/MatAnyone2">MatAnyone 2</a></td><td>抠图专家之二</td><td>github.com/pq-yang/MatAnyone2</td><td><a href="https://arxiv.org/abs/2512.11782">2512.11782</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2606.27339">SAM2Matting</a></td><td>抠图基线；标注器的灵感</td><td>–</td><td><a href="https://arxiv.org/abs/2606.27339">2606.27339</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/hustvl/Matte-Anything">Matte Anything</a></td><td>抠图基线</td><td>github.com/hustvl/Matte-Anything</td><td><a href="https://arxiv.org/abs/2306.04121">2306.04121</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/fundamentalvision/Deformable-DETR">Deformable DETR</a> / DINO</td><td>查询解码器 / 自研检测器的结构来源</td><td>github.com/fundamentalvision/Deformable-DETR</td><td><a href="https://arxiv.org/abs/2010.04159">2010.04159</a> · <a href="https://arxiv.org/abs/2203.03605">2203.03605</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2402.03300">GRPO</a></td><td>RL 算法（DeepSeekMath 提出）</td><td>–</td><td><a href="https://arxiv.org/abs/2402.03300">2402.03300</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/PaddlePaddle/PaddleOCR">PP-OCRv5</a></td><td>专用 OCR 基线</td><td>github.com/PaddlePaddle/PaddleOCR</td><td><a href="https://arxiv.org/abs/2507.05595">2507.05595</a></td></tr>
+<tr><td>LISA · GSVA · LaSagnA · Text4Seg · VRS-HQ · UniPixel · Youtu-VL</td><td>指代分割基线</td><td>–</td><td><a href="https://arxiv.org/abs/2308.00692">2308.00692</a> · <a href="https://arxiv.org/abs/2312.10103">2312.10103</a> · <a href="https://arxiv.org/abs/2404.08506">2404.08506</a> · <a href="https://arxiv.org/abs/2410.09855">2410.09855</a> · <a href="https://arxiv.org/abs/2501.08549">2501.08549</a> · <a href="https://arxiv.org/abs/2509.18094">2509.18094</a> · <a href="https://arxiv.org/abs/2601.19798">2601.19798</a></td></tr>
+<tr><td><a class="ds" href="https://cocodataset.org/">COCO</a> · <a class="ds" href="https://www.lvisdataset.org/">LVIS</a></td><td>检测（零样本）</td><td>cocodataset.org · lvisdataset.org</td><td><a href="https://arxiv.org/abs/1405.0312">1405.0312</a> · <a href="https://arxiv.org/abs/1908.03195">1908.03195</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/Mountchicken/Rex-Omni-EvalData">Dense200</a> · <a class="ds" href="https://github.com/VisDrone/VisDrone-Dataset">VisDrone</a></td><td>密集 / 小目标检测</td><td>Rex-Omni-EvalData · github.com/VisDrone</td><td><a href="https://arxiv.org/abs/2510.12798">2510.12798</a> · ICCVW 2019</td></tr>
+<tr><td><a class="ds" href="https://github.com/lichengunc/refer">RefCOCO / RefCOCO+ / RefCOCOg</a></td><td>指代检测和分割</td><td>github.com/lichengunc/refer</td><td><a href="https://arxiv.org/abs/1608.00272">1608.00272</a> · <a href="https://arxiv.org/abs/1511.02283">1511.02283</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2512.17495">RefCOCOg-Rej</a></td><td>无目标指代（GroundingME）</td><td>–</td><td><a href="https://arxiv.org/abs/2512.17495">2512.17495</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/IDEA-Research/RexSeek">HumanRef</a></td><td>多人指代</td><td>github.com/IDEA-Research/RexSeek</td><td><a href="https://arxiv.org/abs/2503.08507">2503.08507</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2602.23898">Ref-Adv</a> · <a class="ds" href="https://arxiv.org/abs/2607.24407">PR-Bench</a> · <a class="ds" href="https://arxiv.org/abs/2601.00998">DVGBench</a></td><td>指代（对抗、带拒答、无人机）</td><td>–</td><td><a href="https://arxiv.org/abs/2602.23898">2602.23898</a> · <a href="https://arxiv.org/abs/2607.24407">2607.24407</a> · <a href="https://arxiv.org/abs/2601.00998">2601.00998</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/JierunChen/Ref-L4">Ref-L4</a></td><td>指代</td><td>github.com/JierunChen/Ref-L4</td><td><a href="https://arxiv.org/abs/2406.16866">2406.16866</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2508.06585">CountQA</a> · <a class="ds" href="https://arxiv.org/abs/2605.30846">CLOC</a> · <a class="ds" href="https://arxiv.org/abs/2605.10887">KubriCount</a> · <a class="ds" href="https://arxiv.org/abs/2605.18063">MixCount</a></td><td>计数</td><td>–</td><td><a href="https://arxiv.org/abs/2508.06585">2508.06585</a> · <a href="https://arxiv.org/abs/2605.30846">2605.30846</a> · <a href="https://arxiv.org/abs/2605.10887">2605.10887</a> · <a href="https://arxiv.org/abs/2605.18063">2605.18063</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/allenai/pixmo-count">PixMo-Count</a> · <a class="ds" href="https://huggingface.co/datasets/allenai/pixmo-points">PixMo-Points</a></td><td>计数 / 指点</td><td>huggingface.co/datasets/allenai</td><td><a href="https://arxiv.org/abs/2409.17146">2409.17146</a></td></tr>
+<tr><td><a class="ds" href="https://pointarena.github.io/">PointBench</a></td><td>指点（PointArena）</td><td>pointarena.github.io</td><td><a href="https://arxiv.org/abs/2505.09990">2505.09990</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-research-datasets/hiertext">HierText</a> · <a class="ds" href="https://github.com/cs-chan/Total-Text-Dataset">TotalText</a></td><td>OCR</td><td>github</td><td><a href="https://arxiv.org/abs/2203.15143">2203.15143</a> · <a href="https://arxiv.org/abs/1710.10400">1710.10400</a></td></tr>
+<tr><td><a class="ds" href="https://rrc.cvc.uab.es/?ch=4">ICDAR2015</a> · <a class="ds" href="https://rrc.cvc.uab.es/?ch=13">SROIE</a></td><td>OCR</td><td>rrc.cvc.uab.es（脚本访问超时，未核对）</td><td>ICDAR 2015 · <a href="https://arxiv.org/abs/2103.10213">2103.10213</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/dvlab-research/LISA">ReasonSeg</a> · <a class="ds" href="https://github.com/toggle1995/RIS-DMMI">Ref-ZOM</a></td><td>推理分割 / 零-一-多目标分割</td><td>github</td><td><a href="https://arxiv.org/abs/2308.00692">2308.00692</a> · <a href="https://arxiv.org/abs/2308.13853">2308.13853</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/JizhiziLi/P3M">P3M-500-NP</a> · <a class="ds" href="https://github.com/JizhiziLi/GFM">AM-2K</a> · <a class="ds" href="https://github.com/ZHKKKe/PPM">PPM-100</a></td><td>框提示抠图</td><td>github</td><td><a href="https://arxiv.org/abs/2104.14222">2104.14222</a> · <a href="https://arxiv.org/abs/2010.16188">2010.16188</a> · <a href="https://arxiv.org/abs/2011.11961">2011.11961</a></td></tr>
+<tr><td>WeRef-Bench · WeRefMat</td><td>自建（2,880 条查询 / 文字提示抠图），未公开</td><td>–</td><td>本文</td></tr>
+</tbody></table></div>
+
+<h2 id="qa">读者问答</h2>
+<section id="qa-list">
+<h3 id="qa-io">问 1：这个模型的输入和输出是什么？</h3>
+<p><b>先说结论：</b>输入是<b>一张图 + 一句文字指令</b>；输出是<b>一段带坐标 token 的文字</b>。分割和抠图任务另外再给<b>每个目标一张和原图同尺寸的 0–1 浮点图</b>。出处：<a href="#s3-1">§3.1</a>、<a href="#s3-2">§3.2</a>，代码 <code>wevisone_vl/prompts.py</code>、<code>engine.py</code>、<code>visualization.py</code>。</p>
+<p><b>输入</b></p>
+<ul>
+<li><b>图片：</b>进 Qwen3-VL 视觉编码器。训练第 1 阶段每图 16–512 个视觉 token，第 2 阶段起最多 1,960 个；评测脚本的上限是检测和分割 2,025、抠图 1,024（<a href="#n12">读者注 12</a>）。</li>
+<li><b>指令：</b>代码内置 10 种模板加自由提问（<code>freeform</code>）。</li>
+</ul>
+<details><summary>代码里的指令模板（照录 <code>prompts.py</code>）</summary>
+<div class="tablewrap"><table>
+<tr><th>任务</th><th>指令</th></tr>
+<tr><td>检测</td><td><code>Locate all the instances that match the following description: person.</code></td></tr>
+<tr><td>指代定位</td><td><code>Locate the instances that match the following description: …</code></td></tr>
+<tr><td>指点</td><td><code>point to: traffic lights</code></td></tr>
+<tr><td>计数（框 / 点）</td><td><code>How many cars in the image? Please count them with boxes.</code>，或者不加后半句</td></tr>
+<tr><td>分割 / 抠图</td><td><code>Locate the instances that match the following description and provide the alpha mattes: …</code></td></tr>
+<tr><td>OCR</td><td><code>detect all the word in the box format</code></td></tr>
+<tr><td>文字定位</td><td><code>Locate the following text in the image: …</code></td></tr>
+<tr><td>视觉提示</td><td><code>Locate all similar objects in the image based on the reference boxes: </code>后接用户画的参考框（同样写成坐标 token）</td></tr>
+</table></div>
+<p class="tcap">和图 3 的例句有五处措辞不同（<a href="#n3">读者注 3</a>）。用推理包时以代码为准。</p>
+</details>
+<p><b>输出第一层：结构化文字（所有任务）</b>。坐标先归一化到 0–1000 的整数（千分比），写成专门的 token <code>&lt;0&gt;</code>…<code>&lt;1000&gt;</code>：</p>
+<div class="tablewrap"><table>
+<tr><th>类型</th><th>例子</th><th>读法</th></tr>
+<tr><td>框</td><td><code>&lt;ref&gt;person&lt;/ref&gt;&lt;box&gt;&lt;82&gt;&lt;105&gt;&lt;301&gt;&lt;947&gt;, …&lt;/box&gt;</code></td><td>每 4 个数一个框 [x0, y0, x1, y1]</td></tr>
+<tr><td>点</td><td><code>&lt;ref&gt;traffic lights&lt;/ref&gt;&lt;point&gt;&lt;191&gt;&lt;526&gt;, …&lt;/point&gt;</code></td><td>每 2 个数一个点</td></tr>
+<tr><td>计数</td><td>框列表之后加 <code>Total number: 3.</code></td><td>先列出、再报数</td></tr>
+<tr><td>OCR</td><td><code>&lt;ref&gt;Hello&lt;/ref&gt;&lt;box&gt;…&lt;/box&gt;</code></td><td>识别出的文字放在 ref 里</td></tr>
+<tr><td>目标不存在</td><td>坐标位置写 <code>None</code></td><td>拒答，不编框</td></tr>
+</table></div>
+<p>换成像素：\(x = v/1000 \times W\)，\(y = v/1000 \times H\)（<code>visualization.py:parse_predictions</code>）。</p>
+<p><b>输出第二层：像素图（只有分割 / 抠图）</b>。模型在每个框的 4 个坐标后面多生成一个 <code>&lt;OBJ&gt;</code>：</p>
+<p><code>&lt;ref&gt;dogs&lt;/ref&gt;&lt;box&gt;&lt;81&gt;&lt;327&gt;&lt;394&gt;&lt;746&gt;&lt;OBJ&gt;,&lt;552&gt;&lt;284&gt;&lt;902&gt;&lt;721&gt;&lt;OBJ&gt;&lt;/box&gt;</code></p>
+<p>回复里出现 <code>&lt;OBJ&gt;</code>，推理包会把整段回复喂回 VLM 再做一次完整前向（teacher forcing），取下面四样东西给 9.6M 参数的像素解码器：</p>
+<ol>
+<li>每个 <code>&lt;OBJ&gt;</code> 位置的最后一层隐状态：表示“是哪个目标”；</li>
+<li>它前面的预测框：位置引导；</li>
+<li>ViT 第 5、11、17、23 层的中间特征：图像上下文；</li>
+<li>原图缩放到 1024 × 1024 后经两层 CNN 的浅层特征：补颜色和边缘细节（式 (4)）。</li>
+</ol>
+<p>解码器给每个目标输出 logits，经 sigmoid 后双线性插值回原图大小：<b>一张 float32 的 [H, W] 图，值在 0–1</b>。</p>
+<p><b>分割和抠图其实是同一个输出：</b>代码里两者用同一句指令、同一个解码器（公开的是抠图微调后的那个）。要二值掩码就取 ≥ 0.5，要抠图就直接当 alpha 用（<a href="#n5">读者注 5</a>）。论文没有明说这一点。</p>
+<p><b>Python 接口：</b><code>predict()</code> 返回 <code>InferenceResult</code>，字段是 <code>response</code>（上面那段原始文字）、<code>boxes</code>（0–1 归一化的框，只取后面跟着 <code>&lt;OBJ&gt;</code> 的）、<code>masks</code>（每个 <code>&lt;OBJ&gt;</code> 一张 [H, W] 图）、<code>latency_s</code>。</p>
+</section>
+
+<footer><p>精读是我读 arXiv 2610.31329 后的整理，不是作者的官方内容。原文：Tianming Liang、Junyi Pan、Yuxi Li 等（WeChat Vision, Tencent Inc.），《WeVisOne-VL: Unified Visual Perception from Objects to Pixels》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 13 从原文 PDF 裁切，只做了裁切、缩放和格式转换；表 1 由环形图改写成表格。表格数字照录原文；读者注、核算和动画是本页所加。代码对照基于 Tencent/WeVisOne-VL 提交 9a6bcd8（Apache-2.0）和 mask2alpha 分支提交 2dfe851。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
