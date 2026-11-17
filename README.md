@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation（[NVIDIA 白皮书](https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf)，2026-11，无 arXiv） | [gr00t2 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gr00t2.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/gr00t2/index.html) | 从 Cosmos-Predict2.5-2B 出发、同时预测未来画面和动作的世界-动作模型；N1.x → 2 对照。40/71/95 口径核对（跨具身、任务经筛选）；“2B”不含文本编码器；LIBERO-PRO 引导实验与标准 LIBERO 不可比。正式代码 12 月发布，开发分支（评测许可）只引文件名和键名。 | 26 条 |
 | WeVisOne-VL: Unified Visual Perception from Objects to Pixels（[arXiv 2610.31329](https://arxiv.org/abs/2610.31329)，2026-10） | [wevisone-vl 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wevisone-vl.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wevisone-vl/index.html) | WeVisOne-VL：Qwen3-VL 加坐标 token 和 <OBJ> 像素解码器，统一目标级和像素级感知。对照代码 9a6bcd8：解码器 4B 9,609,764 参数（2B 卡片写错）；精修是 256→512→1024 且分割也走；README 表 216 个数全对。 | 13 条 |
 | Learning Heterogeneous Tactile Representation for General Dexterous Manipulation（[arXiv 2611.12806](https://arxiv.org/abs/2611.12806)，2026-11） | [lingbot-touch 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/lingbot-touch.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/lingbot-touch/index.html) | LingBot-Touch：跨压阻 / 磁 / 视触觉三类传感器的 JEPA 触觉编码器，4,983 小时预训练，冻结后接 VLA 和 RL。对照推理代码 dec8025：只公开冻结编码器；Small 的 tubelet 是 4（正文写 2）；表 2 用 4K 小时编码器，公开的是 5K。 | 18 条 |
 | Cosmos World Foundation Model Platform for Physical AI（[arXiv 2501.03575](https://arxiv.org/abs/2501.03575)，2025-01） | [cosmos 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/cosmos.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/cosmos/index.html) | 视频整理管线、因果 Tokenizer（连续 / 离散）、扩散与自回归世界基础模型、相机 / 机器人 / 驾驶后训练和护栏。代码对照 cosmos-predict1：自回归模型其实用了 GQA、z-loss 写法和系数不同；4B 到 14B 物理指标不随规模变好。 | 30 条 |
@@ -353,6 +354,7 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
+papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
 papers/lingbot-touch.html  lingbot-touch 精读（原图在 papers/lingbot-touch/，11 幕动画在 interactives/lingbot-touch/）
 papers/cosmos.html         cosmos 精读（原图在 papers/cosmos/，11 幕动画在 interactives/cosmos/）
