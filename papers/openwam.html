@@ -1011,6 +1011,7 @@ td.ok{color:#4fc98a}td.no{color:#ff7a59}td.un{color:var(--muted)}
 </tbody></table></div>
 <p>这就是 §4.1.2 能“换编码器”的原因：DiT 只认隐变量的形状。把 DINOv3（一个 ViT）的输出当成隐变量喂给 DiT，就相当于让生成模型去“生成 ViT 特征”而不是“生成 VAE 隐变量”。</p>
 <p class="tcap">数字出处：DINOv3 ViT-B/16 的配置（见 <a href="dinov3.html#openwam">DINOv3 页</a>）；Wan2.2-TI2V-5B 的 HF <code>config.json</code> 和 Wan 代码（见 <a href="wan.html#wan22">Wan 页</a>，3D RoPE 拆分和共享调制见该页读者注 5、13）。</p>
+<p>DiT 和 LLM 的结构区别、WAM 和 VLA 的区别，见 <a href="gr00t2.html#qa-dit-llm">GR00T 2 页问 6</a> 和 <a href="gr00t2.html#qa-wam-vla">问 5</a>。</p>
 
 <h3 id="qa-t4">问 6：“首帧单独，之后每 4 帧学成 1 个隐帧”到底是什么意思？</h3>
 <p><b>先说结论：</b>Wan2.2-VAE 把一段视频在时间上压缩 4 倍，但<b>第 1 帧不参与压缩、单独变成第 1 个隐帧</b>，后面的帧每 4 帧合成 1 个隐帧。所以输入 \(1+4k\) 帧，输出 \(1+k\) 个隐帧。OpenWAM 的 9 帧观测正好是 \(k=2\)：</p>
