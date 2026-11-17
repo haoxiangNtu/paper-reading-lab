@@ -32,9 +32,127 @@ body.embed .ctl{top:118px;font-size:12px;max-width:96%}
 <div class="intro">
 <p class="eyebrow">交互图解 · arXiv 2611.12806 · LingBot-Touch</p>
 <h1>三种触觉传感器，怎样喂进同一个编码器</h1>
-<p class="lead">一共 11 幕。第 1 幕总览；第 2、3 幕是数据和标准指尖空间；第 4、5 幕是 token 的地址和内容；<b>第 6 幕当场算掩码 warm-up 的概率</b>；第 7 幕是 Tactile-JEPA 训练回路；第 8 幕是布局增广；第 9、10 幕是冻结编码器的两种用法；第 11 幕是结果。</p>
+<p class="lead">先读下面的“核心思想”，再看动画。一共 11 幕。第 1 幕总览；第 2、3 幕是数据和标准指尖空间；第 4、5 幕是 token 的地址和内容；<b>第 6 幕当场算掩码 warm-up 的概率</b>；第 7 幕是 Tactile-JEPA 训练回路；第 8 幕是布局增广；第 9、10 幕是冻结编码器的两种用法；第 11 幕是结果。</p>
 <p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。网络尺寸来自 Hugging Face 上两个模型的 config.json 和官方代码（提交 dec8025）；柱子是原文图表的数字。指尖的触点布局、信号曲线是示意，没有任何 LingBot-Touch 网络在这里运行。</p>
 </div>
+
+<style>
+.core{max-width:1320px;margin:6px 0 22px;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:16px 20px}
+.core h2{margin:0 0 8px;font-size:20px}
+.core .one{font-size:16px;line-height:1.75;max-width:90ch}
+.core-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}
+@media (max-width:760px){.core-grid{grid-template-columns:1fr}}
+.core-card{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--panel)}
+.core-card h3,.core-h{font-size:16px;margin:4px 0 6px}
+.core p,.core li{font-size:14.5px;line-height:1.7}
+.core-fig{margin:10px 0}
+.core-fig svg{width:100%;max-width:860px;height:auto;display:block}
+.core-fig figcaption{font-size:12.5px;color:var(--muted)}
+.core-fig text{font-size:13px;fill:var(--fg);text-anchor:middle}
+.core-fig text.h{font-size:15px;font-weight:600}
+.core-fig text.m{fill:var(--muted);font-size:12.5px}
+.core-fig rect{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+.core-fig rect.hl{stroke:var(--accent);stroke-width:2}
+.core-fig path{fill:none;stroke:var(--muted);stroke-width:1.4}
+.core-fig .sep{stroke:var(--line);stroke-dasharray:4 4}
+.core-t td{vertical-align:top;font-size:14px;line-height:1.6}
+.core-t td:first-child{white-space:nowrap;font-weight:600}
+.core .tablewrap{overflow-x:auto}
+.core-d{margin:10px 0}
+.core-next{color:var(--muted)}
+body.embed .core{display:none}
+@media (max-width:760px){.core{padding:12px 12px}.core-fig{overflow-x:auto}.core-fig svg{min-width:620px}
+.core-t,.core-t tbody,.core-t tr,.core-t td{display:block;width:auto}.core-t tr:first-child{display:none}
+.core-t tr{border-top:1px solid var(--line);padding:6px 0}.core-t td{border:0;padding:3px 0}
+.core-t td:nth-child(3)::before{content:"解决什么：";color:var(--muted)}.core-t td:nth-child(4)::before{content:"证据：";color:var(--muted)}}
+</style>
+<section class="core" id="core">
+<h2>先看核心思想</h2>
+<p class="one"><b>一句话：</b>触觉数据之所以没法合在一起用，是因为它们<b>绑定了传感器的物理原理</b>；但“接触”这件事本身不绑定。LingBot-Touch 在输入端把传感器的差异抹掉，让<b>一个编码器</b>去学“接触本身”，学出来的触觉 token 谁都能接。</p>
+
+<div class="core-grid">
+<div class="core-card">
+<h3>问题：触觉没有“公共格式”</h3>
+<p>图像不管用哪台相机拍，都是一张像素网格，所以几十亿张图能合起来训练一个模型。触觉不是这样：</p>
+<ul>
+<li><b>视触觉</b>（Sharpa Wave）：凝胶背后的摄像头，看到的是形变；</li>
+<li><b>磁式</b>（XHand1）：每个触点测三轴磁场；</li>
+<li><b>压阻</b>（手套）：每个触点一个压力值。</li>
+</ul>
+<p>触点数量、排布、通道、采样率全都不同。一个模型学到“第 37 号通道变大”，换一种传感器就毫无意义。于是：数据不能合并 → 每种传感器的数据都很少 → 学不出通用表征。</p>
+</div>
+<div class="core-card">
+<h3>出发点：同一次接触，三种记录</h3>
+<p>指尖压在桌沿上：</p>
+<ul>
+<li>视触觉看到一条亮线；</li>
+<li>磁式传感器的一排触点磁场变化；</li>
+<li>压阻手套的一排触点读数升高。</li>
+</ul>
+<p>三份数据长得完全不同，描述的却是<b>同一件事</b>：指尖的某个位置、受了某个方向的力、持续了一段时间。只要把“在指尖哪个位置”和“受了多大力”用统一的方式写出来，三份数据就能放进同一个模型。</p>
+</div>
+</div>
+
+<figure class="core-fig">
+<svg viewBox="0 0 860 300" role="img" aria-label="左：以前每种传感器一个模型；右：LingBot-Touch 三种传感器进入同一指尖空间和同一个编码器">
+<g class="t">
+<text x="190" y="22" class="h">以前：一种传感器一套模型</text>
+<text x="640" y="22" class="h">LingBot-Touch：一个编码器</text>
+</g>
+<g class="old">
+<rect x="20" y="45" width="120" height="44" rx="8"/><text x="80" y="72">视触觉数据</text>
+<rect x="20" y="125" width="120" height="44" rx="8"/><text x="80" y="152">磁式数据</text>
+<rect x="20" y="205" width="120" height="44" rx="8"/><text x="80" y="232">压阻数据</text>
+<path d="M140 67h70M140 147h70M140 227h70"/>
+<rect x="215" y="45" width="130" height="44" rx="8"/><text x="280" y="72">模型 A</text>
+<rect x="215" y="125" width="130" height="44" rx="8"/><text x="280" y="152">模型 B</text>
+<rect x="215" y="205" width="130" height="44" rx="8"/><text x="280" y="232">模型 C</text>
+<text x="190" y="285" class="m">数据各自很少；换新传感器要重训</text>
+</g>
+<line x1="430" y1="40" x2="430" y2="290" class="sep"/>
+<g class="new">
+<rect x="455" y="45" width="100" height="44" rx="8"/><text x="505" y="72">视触觉</text>
+<rect x="455" y="125" width="100" height="44" rx="8"/><text x="505" y="152">磁式</text>
+<rect x="455" y="205" width="100" height="44" rx="8"/><text x="505" y="232">压阻</text>
+<path d="M555 67L590 130M555 147h35M555 227L590 164"/>
+<rect x="590" y="105" width="96" height="84" rx="10" class="hl"/><text x="638" y="138">标准指尖</text><text x="638" y="158">坐标 + 数值</text><text x="638" y="178" class="m">①</text>
+<path d="M686 147h22"/>
+<rect x="708" y="105" width="64" height="84" rx="10" class="hl"/><text x="740" y="143">共享</text><text x="740" y="163">编码器</text><text x="740" y="181" class="m">②</text>
+<path d="M772 147h18"/>
+<text x="822" y="128">触觉</text><text x="822" y="146">token</text>
+<text x="822" y="176" class="m">→ VLA</text><text x="822" y="192" class="m">→ RL</text>
+<text x="640" y="250" class="m">③ 4,983 小时数据合在一起训练</text>
+<text x="640" y="285" class="m">新传感器只要给出触点坐标，就能直接用</text>
+</g>
+</svg>
+<figcaption>自己画的示意图。① ② ③ 对应下面三步。</figcaption>
+</figure>
+
+<h3 class="core-h">三步怎么做到（点链接跳到对应那一幕）</h3>
+<div class="tablewrap"><table class="core-t">
+<tr><th>步骤</th><th>做法</th><th>解决什么</th><th>证据</th></tr>
+<tr><td>① 统一输入</td><td>把每个触点的位置换算到一个<b>单位半径的参考指尖</b>上，用<b>坐标</b>标记它，而不是“第几号通道”。数值也统一缩放：法向 [0,1]、切向 [−1,1]。坐标只通过 5 维 RoPE（时间、手指、x、y、z）进入注意力。<br><a href="#" data-go="3">第 3 幕</a> · <a href="#" data-go="4">第 4 幕</a> · <a href="#" data-go="5">第 5 幕</a></td><td>不同传感器的触点布局不同；模型不再依赖固定的触点数量和顺序</td><td>XHand1 不在预训练数据里，不改任何参数，接触中心误差 0.16 mm；FTP-1 配了专用适配器也有 5.89 mm（§4.2）</td></tr>
+<tr><td>② 统一学习目标</td><td><b>Tactile-JEPA</b>：随机遮住一部分触点，让模型根据剩下的去<b>预测被遮住部分的特征</b>（在隐空间里），而不是还原原始读数。答案由一个慢速更新的 EMA 目标编码器给出。<br><a href="#" data-go="6">第 6 幕</a> · <a href="#" data-go="7">第 7 幕</a></td><td>触觉没有标签；而且很稀疏，大多数触点大部分时间读数是 0，重建原始信号时，损失会被近零的背景主导，模型学的是背景而不是接触（§3.2、§4.4）</td><td>隐空间预测明显好于 MAE、VAE 这类重建目标，VAE 甚至数据越多越差（§4.4）</td></tr>
+<tr><td>③ 统一数据</td><td>三种传感器、人戴手套和机器人手的数据<b>合成一个 4,983 小时的语料</b>。训练时还随机改变触点的采样密度和位置，防止模型记住“只有这三种布局”。<br><a href="#" data-go="2">第 2 幕</a> · <a href="#" data-go="8">第 8 幕</a></td><td>单一传感器的数据太少</td><td>别的传感器的小时数能提升力和动态方面的表现，但空间精度仍要靠本传感器的数据（§4.3）</td></tr>
+</table></div>
+
+<h3 class="core-h">训练完怎么用</h3>
+<p>把编码器<b>冻结</b>，当作一个现成的“触觉眼睛”：触觉信号进去，触觉 token 出来，接到已有的策略上，策略本身的结构不用改。Tiny 版只有 5.46M 参数，不到所接策略参数量的 0.2%。</p>
+<ul>
+<li><b>真机：</b>26 个双臂任务、四种策略（Diffusion Policy、π0.5、LingBot-VLA、T-Rex），加触觉 token 后平均成功率提高 13.9–24.8 点；直接喂原始触觉信号只提高 6.6–11.2 点（<a href="#" data-go="10">第 10 幕</a>）。</li>
+<li><b>仿真 RL：</b>12 个灵巧任务平均成功率 69.0%，任务内专门训练的 CNN 特征 45.6%，不用触觉 21.4%（<a href="#" data-go="11">第 11 幕</a>）。</li>
+</ul>
+
+<details class="core-d"><summary>它不是什么（容易误解的地方）</summary>
+<ul>
+<li><b>不是策略：</b>它不输出动作，只把触觉信号变成 token，动作由接在后面的策略决定。</li>
+<li><b>不是把触觉“翻译成图像”：</b>视触觉的原始图像也被压成每个触点的数值，和另外两种传感器同等对待。</li>
+<li><b>不是“任何传感器都零样本”：</b>论文只在一种没见过的磁式手（XHand1）上验证过不改参数直接用，而且它和训练数据里的手套属于同一类传感原理。</li>
+<li><b>公开的只是冻结编码器：</b>训练代码、预测器、掩码策略都没有发布，没法自己复现预训练。</li>
+</ul>
+</details>
+<p class="core-next">下面 11 幕把上面三步逐一拆开：第 1 幕是总览，建议先看它。</p>
+</section>
 
 <div class="lab">
   <div class="stagebox">
@@ -100,5 +218,8 @@ body.embed .ctl{top:118px;font-size:12px;max-width:96%}
 </section>
 <footer><p>图解是我读 arXiv 2611.12806 后的理解，不是作者的官方图。原图见<a href="../../papers/lingbot-touch.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
 </div>
+<script>
+document.addEventListener('click',function(e){var a=e.target.closest('a[data-go]');if(!a)return;e.preventDefault();var b=document.querySelector('#steps button[data-i="'+(+a.dataset.go-1)+'"]');if(b)b.click();var st=document.getElementById('stage');if(st)st.scrollIntoView({behavior:'smooth',block:'center'});});
+</script>
 </body>
 </html>
