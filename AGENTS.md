@@ -37,7 +37,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | SuperMimic 及其引用论文 | `supermimic`，以及它相关工作和表 1 引到的全部论文：`shac` `dreamer` `supertrack` `rwm` `deepmimic` `rwm-u` `dreamerv3` `td-mpc` `daydreamer` `controlvae` `sonic` `phc` `moconvq` `superdyno` `beyondmimic` `pulse` `latent` `npmp` `physicsvae` `maskedmimic` |
 | 视觉-语言感知（2026-11-17） | `wevisone-vl`（arXiv 2610.31329，CC BY 4.0 放原图；mask2alpha 分支无 LICENSE，只引文件名不抄代码；项目网页只链接）；读者问答在 `#qa` |
 | 触觉（2026-11-17） | `lingbot-touch`（arXiv 2611.12806，CC BY 4.0 放原图；项目网页 © All rights reserved，只链接不抓取）；页末有空的 `#qa` 节 |
-| NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`；和 OpenWAM 相关的页末有 `#openwam` 节 |
+| NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`、`gr00t2`（2026-11-17，NVIDIA 白皮书无 arXiv，全权保留，经站点作者决定放原图；正式代码未发布，开发分支 codex/n2-action-expert 为评测许可，用户决定保留“只引文件名和键名”的写法）；和 OpenWAM 相关的页末有 `#openwam` 节 |
 | WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`、`libero`（基准本身，CC BY 4.0）；上游模型 `wan`、`dinov3`、`vjepa21`、`svae`、`rae`，各页末有 `#openwam` 节。三页都有 `#repro` 节；LIBERO 环境与各家评测协议对照在 `openwam.html#qa-libero` |
 | 抓取 / 位姿架构专题 | `graspgen`（已升级为逐节精读）`foundationpose` `wapr` `tro-grasp` `tro-grasp-plus-plus`。这批大多由用户的另一个账号推送 |
 
@@ -62,7 +62,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 **例外和已有决定：**
 - **SuperMimic** 是非独占许可，但用户明确要求放原图，这只对这一篇有效。
 - **OpenWAM 上游模型批（2026-11-16）**：`wan`、`dinov3`、`vjepa21`、`svae`、`rae` 五页，用户明确要求不论许可都放原图（理由是“只有我们会读”；已告知站点是公开的）。图注写原文许可和“经站点作者决定放原图”。只对这五页有效，其他新页仍按上表。
-- **NVIDIA Cosmos / GR00T 批（2026-11-16）**：`cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t` 八页，用户同样要求都放原图，规则同上。
+- **NVIDIA Cosmos / GR00T 批（2026-11-16）**：`cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t` 八页，用户同样要求都放原图，规则同上。2026-11-17 加的 `gr00t2` 同样放原图。
 - **SONIC、GraspGen** 的 arXiv 许可是 CC BY-SA，但 PDF 页脚写着 “NVIDIA. All rights reserved”。用户决定保留原图，页面上已写明这个矛盾。
 - **MaskedMimic** 的 arXiv 许可是 CC BY-NC-SA，PDF 上有 ACM 版权声明，处理方式同上（读者注 1 里写明）。
 

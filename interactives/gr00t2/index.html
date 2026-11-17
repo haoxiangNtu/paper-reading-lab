@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GR00T 2 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="NVIDIA GR00T 2 白皮书的框架做成 11 幕 3D 动画：世界-动作模型总览（GR00T 2 / Turbo）、数据配比、视频 token 数现算、注意力掩码、三阶段预训练、联合步和缓存步去噪、x-adapt、GRPO 上下文记忆基线现算、智能体和视觉引导、Turbo + SONIC 三层栈、部署时延和 GearArena 胜率。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.ae .stagebox .cap{top:auto;bottom:54px}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="gr00t2.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/gr00t2.html">返回精读</a><a href="../../papers/gr00t2.html#s2">原文 §2</a><a href="../../papers/gr00t2.html#vs-n1">N1.x → 2</a><a href="../gr00t/index.html">N1 动画</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · NVIDIA 白皮书（2026-11）· GR00T 2</p>
+<h1>一个视频模型，怎样同时想象未来和给出动作</h1>
+<p class="lead">一共 11 幕。第 1 幕总览（可切换 GR00T 2 / Turbo）；第 2–5 幕是数据和网络：数据配比、视频 token 数、注意力掩码、三阶段预训练；第 6 幕是推理时的联合步和缓存步；第 7–9 幕是能力：x-adapt、真机 RL、智能体；第 10 幕是人形三层栈；第 11 幕是部署时延和盲测 Elo。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放。多数幕左上角有开关。数字来自白皮书；第 4 幕的掩码真值和几个键名来自公开开发分支 <code>codex/n2-action-expert</code>（7e492ad，评测许可，只引名字和真值）；标“现算”的数是页面当场算的。没有任何 GR00T 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“白皮书”和“开发分支”分开写。正式代码和权重截至 2026-11-17 未发布（项目页写 12 月）；开发分支只读了文件名、注释和配置键，未运行，未核实是否等于发布版。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>白皮书</th><th>开发分支（键名）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>人类视频</td><td>Human-1M 筛出 402,730 h、约 1,375 万回合；实验室内对齐数据 3,000 h</td><td>—</td></tr>
+<tr><td>D2</td><td>UMI-10K</td><td>10,184 h、94.2 万回合、2,897 任务</td><td>—</td></tr>
+<tr><td>D3</td><td>遥操作</td><td>23,508 h；份额 YAM 51.2、ABC 10.4、Sharpa 20.6、Wuji 14.0、G1 1.3、DROID 2.5（%）</td><td>—</td></tr>
+<tr><td>D4</td><td>存储</td><td>LanceDS（Lance 列式）、钉住快照、离线质检视图</td><td><code>groot/core/data/packds/</code></td></tr>
+<tr class="grp"><td colspan="4">模型</td></tr>
+<tr><td>M1</td><td>骨干</td><td>Cosmos-Predict2.5-2B 初始化，2B</td><td><code>GrootN2</code>，<code>model_size</code> “2B”，<code>transformer_cosmos.py</code></td></tr>
+<tr><td>M2</td><td>视频</td><td>冻结 Wan 2.1 VAE，280 token / 隐帧 / 路；Turbo 用 Wan 2.2，70</td><td><code>vae_type</code> 缺省 wan21；<code>wan22_video_vae.py</code></td></tr>
+<tr><td>M3</td><td>语言</td><td>冻结 Cosmos-Reason1，交叉注意力</td><td>文本编码器文档写 Cosmos Reason 1.1 7B</td></tr>
+<tr><td>M4</td><td>状态 / 动作</td><td>每具身 MLP 编解码，DiT 共享</td><td><code>apply_sincos_state_encoding</code> 缺省开，<code>action_horizon</code> 缺省 48</td></tr>
+<tr><td>M5</td><td>注意力</td><td>视频互相看，动作看全部视频（含未来帧）</td><td>缺省 <code>disjoint_video_action</code>（动作不看去噪视频）；可选 joint / bidirectional_full / full</td></tr>
+<tr><td>M6</td><td>输入</td><td>最多 4 路相机 × 5 帧（0.8 秒 @ 5 fps），224 × 320</td><td><code>max_n_cameras</code> 缺省 3；<code>image_crop_fraction</code> 0.95</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>目标</td><td>流匹配，视频和动作各一个损失</td><td><code>video_loss_scale</code>、<code>action_loss_scale</code></td></tr>
+<tr><td>T2</td><td>动作时间分布</td><td>未给</td><td><code>noise_beta_alpha</code> 1.5、<code>noise_s</code> 0.999（注释“N1.7-style”）</td></tr>
+<tr><td>T3</td><td>预训练</td><td>三阶段；1,024 块 GB300、ZeRO-2、每卡 batch 16；步数和配比未给</td><td>—</td></tr>
+<tr><td>T4</td><td>少样本</td><td>rank-32 LoRA、所有线性层、30 分钟 RTX 5090</td><td><code>lora_rank</code> 缺省 4</td></tr>
+<tr><td>T5</td><td>RL</td><td>CPS 探索 + GRPO（上下文记忆基线，h = 2，EMA 0.25）+ 自模仿；残差 RL（SAC）</td><td><code>skills/autoresearch/</code></td></tr>
+<tr><td>T6</td><td>RTC</td><td>带噪前缀，σ = 0.1，5k 步</td><td><code>training_rtc.py</code>，<code>use_training_rtc</code></td></tr>
+<tr class="grp"><td colspan="4">推理和部署</td></tr>
+<tr><td>I1</td><td>去噪</td><td>Dexter 2v2a、YAM 2v4a、G1 Turbo 1v2a；动作步复用视频 KV</td><td><code>kv_cache.py</code>，<code>n2_acceleration.py</code></td></tr>
+<tr><td>I2</td><td>时延</td><td>Dexter / 5090 152.78 ms；G1 Turbo / Thor 123.97 ms；加速 2.94–7.15×</td><td><code>groot/deployment/n2_trt/</code></td></tr>
+<tr><td>I3</td><td>人形</td><td>Turbo 1 Hz 出 80 个 SONIC token（1.6 秒），SONIC 50 Hz，PD 1000 Hz</td><td>—</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕的 token 方块。</b>每路相机每个隐帧只画 12 个（Turbo 3 个）小块代表 280（70）个 token，数量比例对，绝对数量不对；动作曲线是玩具。</li>
+<li><b>第 3 幕的“5 帧 → 2 隐帧”。</b>按 Wan VAE 的 1 + 4k 结构推的，白皮书没直接写。</li>
+<li><b>第 4 幕。</b>4 × 4 真值来自开发分支，发布版用哪一种未核实。</li>
+<li><b>第 5 幕的配比柱宽。</b>全是我画的，白皮书没给任何阶段配比。</li>
+<li><b>第 6 幕的方块长短和曲线。</b>只示意缓存步更便宜；每种步的耗时白皮书没给。</li>
+<li><b>第 8 幕的 N = 8 和三种场景。</b>是代入式 (12) 的例子，白皮书没给 N。</li>
+<li><b>第 10 幕的人形动作。</b>玩具；三层脉冲的频率按比例放慢显示。</li>
+</ul>
+</section>
+<footer><p>图解是我读 NVIDIA GR00T 2 白皮书（2026-11）后的理解，不是作者的官方图。原图见<a href="../../papers/gr00t2.html">精读页</a>（PDF 全权保留，经站点作者决定放裁切原图）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
