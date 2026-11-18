@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1111,6 +1111,24 @@ td.best{font-weight:700}
 <tr><td>MLP 的角色</td><td colspan="2">都是每具身一套的进出投影，不负责生成</td></tr>
 </tbody></table></div>
 <p>GR00T N1 的动作编码器、解码器和 DiT 的参数量见 <a href="gr00t.html">GR00T N1 页</a>读者注 2。</p>
+<h3 id="qa-stack">问 9：智能体、GR00T 2、Turbo、SONIC 四者到底是什么关系？谁负责什么？</h3>
+<p><b>关键：它们不是一条链上的四个环节，而是两套机器人上的两套栈。</b>GR00T 2 和 Turbo 是同一个模型的两个版本，在不同的栈里占同一个位置 S1；智能体都在 S2；只有人形机器人才需要 SONIC（S0）。</p>
+<div class="tablewrap"><table><thead><tr><th>层</th><th>桌面机械臂栈（YAM、Dexter；§3.4、附录 G）</th><th>人形栈（G1；§3.5、附录 H）</th><th>负责</th></tr></thead><tbody>
+<tr><td>S2 大脑</td><td>智能体：G.2 用 GPT-6 Astra；G.1 是没点名的前沿编程智能体</td><td>“可选的推理模型”，负责选任务和提示词。白皮书没说 G1 实验里具体是谁</td><td>做什么：拆步骤、选任务、检查成没成、出错怎么办；每一步结束才想一次</td></tr>
+<tr><td>S1 小脑</td><td><b>GR00T 2</b>（工作站 GPU，每次约 0.15–0.6 秒）</td><td><b>GR00T 2 Turbo</b>（机载 Jetson Thor，约 1 Hz）</td><td>怎么做：看相机，出一段 1.6 秒的动作</td></tr>
+<tr><td>S0 脊髓</td><td>没有：机械臂底座固定，不会摔倒</td><td><b>SONIC</b>（机载 Jetson Orin NX，50 Hz）</td><td>站稳地做出来：把运动 token 变成全身关节目标，保持平衡</td></tr>
+<tr><td>底层</td><td>关节 PD 控制器</td><td>关节 PD 控制器（1000 Hz）</td><td>让电机到达目标角度</td></tr>
+<tr><td>S1 的“动作”是什么</td><td>机械臂关节 / 末端位姿 + 夹爪或五指手</td><td>80 个 SONIC 运动 token + 夹爪宽度</td><td></td></tr>
+<tr><td>S2 能不能直接动机器人</td><td>能：G.1 里叫停 GR00T 2，用 CaP 技能（逆运动学 + 运动规划）亲自救场</td><td>白皮书没写</td><td></td></tr>
+</tbody></table></div>
+<p><b>为什么桌面用 GR00T 2，人形用 Turbo。</b>桌面栈的模型跑在旁边的工作站上，慢一点没关系，所以用效果更好的完整版。人形要背着计算机走路，只能用机载的 Jetson Thor，完整版太慢，所以用视频 token 少 4 倍的 Turbo（问 2）。</p>
+<p><b>为什么人形多了一层 SONIC。</b>机械臂摆在桌上，GR00T 2 出的关节目标直接交给 PD 控制器就行。人形每 20 ms 都要根据当前姿态调整全身来保持平衡，1 秒想一次的 Turbo 做不到，所以中间要垫一个 50 Hz 的 SONIC。</p>
+<p><b>白皮书里实际做过的组合：</b></p>
+<ul>
+<li>智能体 + GR00T 2：做过，YAM 和 Dexter 上的装配、插网线、垃圾分类（问 4）。</li>
+<li>Turbo + SONIC：做过，G1 上的爆米花、清桌面、地面拾取、擦地（表 25）。</li>
+<li>智能体 + Turbo + SONIC 三层全开：图 9 画了这个结构，S2 标为“可选”，但白皮书没有报告用 LLM 智能体当 S2 的人形实验。</li>
+</ul>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
