@@ -41,7 +41,7 @@ details.tbl[open] summary{margin-bottom:6px}
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a><a href="#qa-ctx">问 2 上下文编码器与掩码</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a><a href="#qa-ctx">问 2 上下文编码器与掩码</a><a href="#qa-core">问 3 核心与仿真</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -994,6 +994,31 @@ root.querySelectorAll('.ctx-btns button').forEach(function(b){b.addEventListener
 draw(0);
 })();
 </script>
+<h3 id="qa-core">问 3：核心是不是训练一个统一的触觉编码器？如果仿真器本身就支持触觉，这一套还有什么用？</h3>
+<p><b>第一问：对。</b>LingBot-Touch 就是触觉版的“预训练视觉编码器”（类比 DINO、V-JEPA）。它在 5,000 小时、三种原理（压阻、磁、视触觉）的真实触觉数据上做自监督预训练，然后冻结，给下游策略提供触觉 token。“统一”体现在两点：不同传感器先放进同一个标准指尖空间，再共用一个 HaT 主干；没见过的传感器（XHand1 磁式手）也不用重训。</p>
+<p><b>第二问的关键：仿真器支持触觉，给的是原始信号；LingBot-Touch 是把原始信号变成好用特征的编码器。两者不在同一层，不能互相替代。</b></p>
+<div class="tablewrap"><table><thead><tr><th></th><th>视觉</th><th>触觉</th></tr></thead><tbody>
+<tr><td>产生原始信号</td><td>相机，或仿真里的渲染器</td><td>真实触觉传感器，或仿真里的触觉模型（本文用 Isaac Sim + TacMap 的穿透深度法）</td></tr>
+<tr><td>原始信号 → 特征</td><td>DINO、SigLIP 等预训练编码器</td><td><b>LingBot-Touch</b></td></tr>
+<tr><td>特征 → 动作</td><td colspan="2">策略（Diffusion Policy、VLA、RL 策略……）</td></tr>
+</tbody></table></div>
+<p>仿真器能渲染图像，并不代表视觉编码器没用了；同样，仿真器能算触觉，也不代表触觉编码器没用了。</p>
+<p><b>论文正好做了这个实验</b>（§5.3、附录 C）：触觉全部由仿真器生成，12 个灵巧任务，同一套 RL 设置，只换“触觉怎样交给策略”：</p>
+<div class="tablewrap"><table><thead><tr><th>触觉怎样给策略</th><th>平均成功率</th></tr></thead><tbody>
+<tr><td>不给触觉</td><td>21.4%</td></tr>
+<tr><td>只给“碰没碰到”（二值）</td><td>30.3%</td></tr>
+<tr><td>直接给仿真器的原始形变序列</td><td>38.5%</td></tr>
+<tr><td>和策略一起从头训一个 CNN 编码器</td><td>45.6%</td></tr>
+<tr><td><b>冻结的 LingBot-Touch 特征</b></td><td><b>69.0%</b></td></tr>
+</tbody></table></div>
+<p>可见仿真器给的触觉再“完美”，原始信号也不好用：每根手指几十到上百个点、堆 8 帧，大部分时候是 0，RL 要自己从里面摸出“按多重、在哪、是不是在滑”，探索负担很大。预训练特征已经把这些整理好，所以成功率高，种子之间也稳定（标准差最大 9.2，别的配置在转笔上能到 55）。</p>
+<p><b>而且仿真不是这套方法的主战场。</b></p>
+<ul>
+<li><b>仿真触觉和真实传感器差很多。</b>附录 C.1 里，同一个编码器在仿真数据上力的绝对误差偏大（3.264 N），论文自己归因于 Isaac Sim 的形变式触觉和真实传感器的响应机制不同。目前触觉的仿真到真实差距比视觉还大。</li>
+<li><b>真机上一样有用。</b>26 个真机双臂任务，四种策略加上 LingBot-Touch token 后平均成功率提高 13.9–24.8 个点；直接加原始触觉信号只提高 6.6–11.2 个点。</li>
+<li><b>数据主要来自人。</b>三分之二是人戴触觉手套采的，这部分根本没有仿真器可言；编码器的意义之一就是把这些人类数据变成机器人能用的触觉知识。</li>
+</ul>
+<p><b>论文没证明的：</b>“仿真里用编码器特征训练的策略能直接迁移到真机”没有做实验。仿真里也只是把标量形变放进第三个输入通道（前两个置零），走哪个 tokenizer 分支没写清（读者注 16）。</p>
 </section>
 <style>
 .ema-tool{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px;margin:14px 0}
