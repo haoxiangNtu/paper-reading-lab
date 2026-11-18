@@ -1034,7 +1034,7 @@ draw(0);
 <div class="tablewrap"><table><thead><tr><th></th><th>真机：模仿学习和 VLA</th><th>仿真：强化学习</th></tr></thead><tbody>
 <tr><td>输入窗口</td><td>每只活动的手，最近 16 帧（30 Hz，约 0.53 秒）</td><td>最近 8 帧</td></tr>
 <tr><td>编码器</td><td colspan="2">冻结的 Tiny（5.46M），输出每个 token 768 维</td></tr>
-<tr><td>读出（可训练）</td><td>交叉注意力读出，把几百个触觉 token 压成<b>每只手 40 个 token</b>，再线性投影到策略的条件维度</td><td>可训练读出压成一个特征向量</td></tr>
+<tr><td>读出（可训练）</td><td>交叉注意力读出，把编码器输出的大量触觉 token（每个触点每 τ 帧一个）压成<b>每只手 40 个 token</b>，再线性投影到策略的条件维度</td><td>可训练读出压成一个特征向量</td></tr>
 <tr><td>怎么进策略</td><td>作为视觉和本体之外的<b>额外条件 token</b>，和图像 token、本体状态一起给策略</td><td>和本体等非触觉观测<b>拼接成一个向量</b>，给 PPO 策略网络</td></tr>
 <tr><td>什么时候加</td><td>只在后训练（每任务 200 条示教，双手任务 500 条）加；VLA 预训练时没有触觉</td><td>RL 训练全程</td></tr>
 <tr><td>训练哪些</td><td colspan="2">编码器不动；读出、投影和策略本身一起训练</td></tr>
