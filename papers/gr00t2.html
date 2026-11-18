@@ -1118,7 +1118,7 @@ td.best{font-weight:700}
 <tr><td>S1 小脑</td><td><b>GR00T 2</b>（工作站 GPU，每次约 0.15–0.6 秒）</td><td><b>GR00T 2 Turbo</b>（机载 Jetson Thor，约 1 Hz）</td><td>怎么做：看相机，出一段 1.6 秒的动作</td></tr>
 <tr><td>S0 脊髓</td><td>没有：机械臂底座固定，不会摔倒</td><td><b>SONIC</b>（机载 Jetson Orin NX，50 Hz）</td><td>站稳地做出来：把运动 token 变成全身关节目标，保持平衡</td></tr>
 <tr><td>底层</td><td>关节 PD 控制器</td><td>关节 PD 控制器（1000 Hz）</td><td>让电机到达目标角度</td></tr>
-<tr><td>S1 的“动作”是什么</td><td>机械臂关节 / 末端位姿 + 夹爪或五指手</td><td>80 个 SONIC 运动 token + 夹爪宽度</td><td></td></tr>
+<tr><td>S1 的“动作”是什么</td><td>机械臂和夹爪 / 五指手的动作（每具身自己的动作空间，如 Dexter 62 维）</td><td>80 个 SONIC 运动 token + 夹爪宽度</td><td></td></tr>
 <tr><td>S2 能不能直接动机器人</td><td>能：G.1 里叫停 GR00T 2，用 CaP 技能（逆运动学 + 运动规划）亲自救场</td><td>白皮书没写</td><td></td></tr>
 </tbody></table></div>
 <p><b>为什么桌面用 GR00T 2，人形用 Turbo。</b>桌面栈的模型跑在旁边的工作站上，慢一点没关系，所以用效果更好的完整版。人形要背着计算机走路，只能用机载的 Jetson Thor，完整版太慢，所以用视频 token 少 4 倍的 Turbo（问 2）。</p>
