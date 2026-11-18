@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#qa-fast">问 11 DCT 与 BPE</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1152,6 +1152,20 @@ td.best{font-weight:700}
 <p><b>采样时怎么用。</b>推理时从噪声（\(t=1\)）出发，往 \(t=0\) 走，方向和加噪相反，所以每一步减去速度：\(x\leftarrow x-\Delta\cdot v\)。</p>
 <p><b>为什么要走好几步。</b>同一个 \(x_t\) 可能由很多对（数据，噪声）混出来，网络只能输出它们速度的<b>平均值</b>。例子：数据一半是 +2、一半是 −2。在 \(t=0.5\)、\(x_t=0\) 这一点，(+2, −2) 这一对的速度是 −4，(−2, +2) 这一对是 +4，网络只能输出平均值 0。如果从纯噪声一步跳到 \(t=0\)，就会落在两个数据的平均处，哪个都不像。多走几步时，越接近数据，经过同一点的组合越少，平均的方向越接近真实方向，结果就清楚了。这也是动作要走 2–4 步、而不是 1 步的原因。</p>
 <p><b>符号约定会变。</b>有的论文把 \(t=0\) 定为噪声、\(t=1\) 定为数据，那时速度写成“数据 − 噪声”，采样时改成加速度。GR00T N1 论文的式 (1) 和代码就用了相反的符号（<a href="gr00t.html">GR00T N1 页</a>读者注 4）。读的时候先看清哪一端是数据。</p>
+<h3 id="qa-fast">问 11：问 8 里 π0-FAST 的“DCT 变换再 BPE 压缩”是什么意思？</h3>
+<p>这是 FAST 动作分词器（Pertsch 等，<a href="https://arxiv.org/abs/2501.09747">arXiv 2501.09747</a>）的做法。它要解决的问题是：怎样把一段连续的动作变成 LLM 能逐个输出的“词”。</p>
+<p><b>直接切档为什么不好。</b>OpenVLA 的做法是每个时刻、每个维度切成 256 档，一档一个 token。控制频率高时，相邻时刻的动作几乎一样，下一个 token 基本等于上一个。模型只要学会“抄上一个”，损失就很低，却学不到真正的动作。</p>
+<p><b>第 1 步 DCT（离散余弦变换）：把“每一时刻的值”换成“各种频率的成分”。</b>任何一条曲线都可以拆成不同频率的余弦波叠加，DCT 算出每种频率占多少，这就是 JPEG 压缩图片用的方法。机器人动作通常是平滑的，能量几乎都集中在最低的几个频率上，高频系数接近 0。例子：一个关节 8 个时刻的位置</p>
+<div class="tablewrap"><table><tbody>
+<tr><th>原始 8 个值</th><td>0.00, 0.10, 0.25, 0.42, 0.58, 0.72, 0.82, 0.88</td></tr>
+<tr><th>DCT 后 8 个系数（从低频到高频）</th><td>1.333, −0.877, −0.065, −0.021, −0.004, −0.004, 0.000, −0.003</td></tr>
+<tr><th>乘 10 后四舍五入</th><td><b>13, −9, −1, 0, 0, 0, 0, 0</b></td></tr>
+<tr><th>用这 8 个整数反变换回去</th><td>−0.03, 0.07, 0.23, 0.42, 0.59, 0.73, 0.82, 0.86（误差在 0.03 以内）</td></tr>
+</tbody></table></div>
+<p>只有 3 个数不是 0，其余全是 0。这一步本身有损（四舍五入），乘的系数越大越精确，0 越少。FAST 对每个动作维度分别做 DCT，然后先排所有维度的最低频系数，再排次低频，依此类推，拼成一串整数。</p>
+<p><b>第 2 步 BPE（字节对编码）：把常见的组合合并成一个 token。</b>这就是 GPT 等 LLM 分词器用的算法。在大量数据上统计，反复把最常一起出现的相邻两个符号合并成一个新符号，直到词表达到设定大小。上面那串结尾大量的“0, 0, 0, …”以及常见的系数组合，就会各自被合并成一个 token。最后一整段动作只要很少几个 token。</p>
+<p><b>第 3 步：自回归生成。</b>VLA 像说话一样逐个输出这些 token，最后反过来做：BPE 解码 → 整数 → 除以系数 → 反 DCT，得到一整段动作。和 OpenVLA 相比，每个 token 都带有不少信息（先是整体趋势，后是细节），不再是“抄上一个”。</p>
+<p>和本页的关系：GR00T 2 不走这条路，它的动作是连续向量，直接用流匹配去噪生成（问 7、问 10）。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
