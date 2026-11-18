@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#qa-fast">问 11 DCT 与 BPE</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#qa-fast">问 11 DCT 与 BPE</a><a href="#qa-flora">问 12 Flora</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -508,7 +508,7 @@ td.best{font-weight:700}
 <tr><td><b>合计</b></td><td></td><td class="n">1.16M</td><td class="n">23.5k</td><td class="n">100%</td></tr>
 </tbody></table></div>
 <div class="note" id="n11"><span class="lab">读者注 11 · 表 11 的合计和“64% / 51%”</span><p>小时：15,146 + 3,591 + 2,890 + 1,256 + 275 + 350 = 23,508；回合：610.7 + 130.7 + 202.6 + 80.9 + 57.7 + 76 = 1,158.6k；份额加起来 100.0%。都对。正文说“YAM 占机器人小时的 64%、样本的 51%”：15,146 / 23,508 = 64.4%，份额 51.2%，这里的 YAM 不含 ABC-130k；如果算上同为 YAM 平台的 ABC-130k，是 79.7% 的小时、61.6% 的样本。灵巧手（Sharpa + Wuji）4,146 / 23,508 = 17.6% 的小时拿到 34.6% 的样本，被加重约 2 倍。§4.2.3 的列表把 ABC-130k 并进 YAM 的 1.87 万小时（15,146 + 3,591 = 18,737），附录说“六个来源”，两处计法不同但数对得上。人类视频、UMI 和遥操作三大类之间的采样比例，白皮书没给。</p></div>
-<p><b>C.4 数据标注。</b>Flora 三个模型：Flora-TempSeg 在重叠窗口上预测动作起止（带“延续到窗口外”标志），拼成回合级区间，两只手同时做不同事时保留为两个区间；Flora-Captioner 逐个区间写说明，能看到前后相邻动作的帧来确定物体和意图，但只描述目标区间，多路相机每个时间步拼成一张图；每条说明是自足的祈使句，写明动作、物体、每只手的角色和空间关系，失败的尝试按意图描述、不暗示成功；Flora-Rewarder 出结果、密集和基于细则的奖励。前两个先在人工标注上微调，再用 GRPO 在可验证奖励上训练（时间 F1 和边界精度；对照参考的覆盖率并惩罚事实错误）。WGO-Bench 时间分割 F1 50.3（GPT-6 Astra 46.0）；内部 300 回合的说明基准上，人类回合第一、机器人回合仅次于 Astra。白皮书说“按上面的产出速率”重标 GR00T 2 用的约 40 万小时 Human-1M 要两天左右，但前文并没有给出这个速率。</p>
+<p><b>C.4 数据标注。</b>Flora 三个模型：Flora-TempSeg 在重叠窗口上预测动作起止（带“延续到窗口外”标志），拼成回合级区间，两只手同时做不同事时保留为两个区间；Flora-Captioner 逐个区间写说明，能看到前后相邻动作的帧来确定物体和意图，但只描述目标区间，多路相机每个时间步拼成一张图；每条说明是自足的祈使句，写明动作、物体、每只手的角色和空间关系，失败的尝试按意图描述、不暗示成功；Flora-Rewarder 出结果、密集和基于细则的奖励。前两个先在人工标注上微调，再用 GRPO 在可验证奖励上训练（时间 F1 和边界精度；对照参考的覆盖率并惩罚事实错误）。WGO-Bench 时间分割 F1 50.3（GPT-6 Astra 46.0）；内部 300 回合的说明基准上，人类回合第一、机器人回合仅次于 Astra。白皮书说“按上面的产出速率”重标 GR00T 2 用的约 40 万小时 Human-1M 要两天左右，但白皮书前文并没有给出这个速率；它在 Flora 自己的论文里：512 块 GB300 每天最多标 20 万小时，40 万 ÷ 20 万 = 2 天，对得上（见问 12）。</p>
 
 <h3 id="appD"><span class="no">D</span>用 GearArena 做真机评测</h3>
 <p><b>D.1 为什么汇总、为什么 A/B。</b>真机评测贵但可累积；绝对分数随工作站（标定、相机、光照、磨损）、操作员（怎么摆场景、边界情况怎么判）和日期漂移，不同场次的两个检查点的差别分不清是技能还是漂移。GearArena 也能用 45 天内同一任务的两次独立评测构造“派生比较”，但因为跨场次，权重最多是盲测比较的四分之一，默认排行榜不用。盲测 A/B 让 2–4 个检查点在同一场景、同一工作站、同一操作员、几分钟内随机顺序跑，操作员不知道谁是谁，漂移在比较里抵消，再像 Chatbot Arena 那样把两两结果联合拟合到一个尺度上。和 Chatbot Arena 的三点不同：机器人检查点是冻结的，可以一次性批量拟合全部历史；同一试验的比较共享场景、互相相关，不确定度要按场景估；每个检查点只有几十到几百次比较。</p>
@@ -1166,6 +1166,29 @@ td.best{font-weight:700}
 <p><b>第 2 步 BPE（字节对编码）：把常见的组合合并成一个 token。</b>这就是 GPT 等 LLM 分词器用的算法。在大量数据上统计，反复把最常一起出现的相邻两个符号合并成一个新符号，直到词表达到设定大小。上面那串结尾大量的“0, 0, 0, …”以及常见的系数组合，就会各自被合并成一个 token。最后一整段动作只要很少几个 token。</p>
 <p><b>第 3 步：自回归生成。</b>VLA 像说话一样逐个输出这些 token，最后反过来做：BPE 解码 → 整数 → 除以系数 → 反 DCT，得到一整段动作。和 OpenVLA 相比，每个 token 都带有不少信息（先是整体趋势，后是细节），不再是“抄上一个”。</p>
 <p>和本页的关系：GR00T 2 不走这条路，它的动作是连续向量，直接用流匹配去噪生成（问 7、问 10）。</p>
+<h3 id="qa-flora">问 12：§4.2.4“用 Flora 标注数据”，Flora 是什么？</h3>
+<p><b>Flora 是 NVIDIA GEAR 自己做的数据标注引擎</b>，有单独的论文（Leng 等，<a href="https://arxiv.org/abs/2610.31779">arXiv 2610.31779</a>，CC BY 4.0，和 GR00T 2 同一个团队）。它不是机器人模型，而是一组“看视频、写标签”的视觉语言模型，专门给 GR00T 2 的训练数据打标签。</p>
+<p><b>为什么需要它。</b>GR00T 2 预训练用了约 40 万小时人类第一视角视频，加上几万小时机器人数据。这些原始录像只是一长段视频，训练时却需要：</p>
+<ul>
+<li>“第几秒到第几秒在做什么”的指令，用来给模型做语言条件，也用来筛选、调配数据；</li>
+<li>每一步做得好不好的过程奖励，给 RL 后训练用；</li>
+<li>最后成没成功的结果标签，给评测和部署监控用。</li>
+</ul>
+<p>这个量人工标太慢，调用 GPT-6 Astra 这类商业 API 又太贵，所以自己训了一套。</p>
+<div class="tablewrap"><table><thead><tr><th>模型</th><th>做什么</th><th>从哪个模型微调（Flora 论文 §4.3）</th></tr></thead><tbody>
+<tr><td>Flora-TempSeg（分段）</td><td>找出每个动作的起止时间。在重叠的时间窗上预测，再拼成整段；两只手同时做不同的事就记两个区间</td><td>Qwen3.5-9B（LoRA，视觉编码器冻结）</td></tr>
+<tr><td>Flora-Captioner（写说明）</td><td>给每个区间写一句独立的祈使句，写明动作、物体、每只手的分工和空间关系，例如 “hold tea leaves with right hand, pass tea leaves to left hand”；失败的尝试只写意图，不暗示成功</td><td>Qwen3.5-27B</td></tr>
+<tr><td>Flora-Rewarder（打分）</td><td>给结果奖励、逐步的过程奖励，以及按用户给的评分细则打分</td><td>Qwen3.5-27B（公开版只做了 SFT）</td></tr>
+</tbody></table></div>
+<p><b>怎么训的。</b>先用人工标注（详细的标注规范，带时间戳的说明和动作质量标签）做监督微调，分段和写说明两个模型再用 GRPO 在可验证的奖励上继续训：分段看时间 F1 和边界准不准，写说明看是否覆盖参考答案里的要点，写错事实要扣分（白皮书附录 C.4）。</p>
+<p><b>效果和成本。</b></p>
+<ul>
+<li>WGO-Bench 时间分段 F1：Flora 50.3，第二名 GPT-6 Astra 46.0。</li>
+<li>内部 300 回合的说明基准：人类视频上第一，机器人视频上仅次于 GPT-6 Astra。</li>
+<li>Flora 论文说成本约为 GPT-6 Astra 的 1/125；生产中 512 块 GB300 每天最多标 20 万小时，所以 40 万小时的 Human-1M 两天能重标一遍。</li>
+</ul>
+<p><b>能不能拿来用。</b>Flora 论文说开源了模型，放在 Hugging Face 的 <a href="https://huggingface.co/collections/nvidia/flora">nvidia/flora</a> 合集里，博客在 <a href="https://research.nvidia.com/labs/gear/flora/">research.nvidia.com/labs/gear/flora</a>。论文没链接训练代码，权重的许可本页没有核实。</p>
+<p><b>和问 4 的区别：</b>Flora 在训练之前给数据打标签，GPT-6 Astra 那类智能体在部署时指挥机器人，两者是不同阶段的工具。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
