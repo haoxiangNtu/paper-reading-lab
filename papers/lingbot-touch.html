@@ -41,7 +41,7 @@ details.tbl[open] summary{margin-bottom:6px}
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a><a href="#qa-ctx">问 2 上下文编码器与掩码</a><a href="#qa-core">问 3 核心与仿真</a><a href="#qa-use">问 4 HaT、JEPA 与下游接入</a><a href="#qa-sim">问 5 仿真任务与转圆柱</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 LingBot-Touch</a><a href="#fig3r">图 3 重画</a><a href="#s3-1">3.1 语料</a><a href="#s3-2">3.2 Tactile-JEPA</a><a href="#i3d">3D 框架动画</a><a href="#s3-3">3.3 布局增广</a><a href="#s4">4 探针实验</a><a href="#s4-2">4.2 接触物理</a><a href="#s4-3">4.3 扩展</a><a href="#s4-4">4.4 隐空间预测 vs 重建</a><a href="#s4-5">4.5 消融</a><a href="#s4-6">4.6 隐空间</a><a href="#s5">5 机器人实验</a><a href="#s5-2">5.2 真机</a><a href="#s5-3">5.3 仿真 RL</a><a href="#s5-4">5.4 哪种表征有用</a><a href="#s6">6 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码与使用要点</a><a href="#press">新闻稿数字核对</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a><a href="#qa">读者问答</a><a href="#qa-ema">问 1 EMA 目标编码器</a><a href="#qa-ctx">问 2 上下文编码器与掩码</a><a href="#qa-core">问 3 核心与仿真</a><a href="#qa-use">问 4 HaT、JEPA 与下游接入</a><a href="#qa-sim">问 5 仿真任务与转圆柱</a><a href="#qa-train">问 6 训练细节</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1066,6 +1066,39 @@ draw(0);
 </ol>
 <p>论文没给的：读出层结构和特征维数、PPO 超参、奖励、是否也用了老师-学生蒸馏、XHand1 走哪个 tokenizer 分支（读者注 16）。</p>
 <p><b>如果想自己做一个近似实验</b>，可以这样拼：拿 sharpa-rl-lab 的转圆柱环境；用 sharpa-tacmap 的传感器替换它的 5 维接触力，得到每指的形变图并取成 96 点；按上面第 2–4 步接冻结的 LingBot-Touch（推理代码里有 Sharpa 输入的接口）；然后和“原始形变”“只有接触力”“不用触觉”几种设置在同一套 PPO 下对比。这样得到的是你自己的结果，不能当成论文表 3 的复现：任务定义、奖励、读出层都和论文不一样。</p>
+<h3 id="qa-train">问 6：Tactile-JEPA 这个训练方法的细节是什么？一次训练迭代具体怎么走？</h3>
+<p><b>一句话：</b>把一段触觉录像藏掉 80% 的触点，让网络根据剩下 20% 猜出“被藏的地方在特征空间里应该是什么样”；“标准答案”由同一个网络的慢速副本看完整录像给出。整个过程不需要任何人工标签（§3.2）。</p>
+<p>下面用 Tiny 走一遍一次迭代。为了算得出形状，假设片段 16 帧、一只 Sharpa 手五指各 96 个触点；论文没写预训练最终用的片段长度（读者注 10），所以 16 帧只是举例。</p>
+<div class="tablewrap"><table><thead><tr><th>步骤</th><th>做什么</th><th>形状（举例）</th><th>出处</th></tr></thead><tbody>
+<tr><td>① 抽数据</td><td>压阻、磁、视触觉三类来源<b>等概率</b>抽一类，再抽一个片段。坐标换到标准指尖空间，幅值按传感器量程归一化（法向 [0, 1]、切向 [−1, 1]）</td><td>X：16 帧 × 480 触点 × 3 通道</td><td>§3.1、式 (1)</td></tr>
+<tr><td>② 布局增广</td><td>随机换一种采样密度（磁式每指 24–96 点，视触觉 32/96/200 点），再把每个触点位置随机挪一点，最多挪到和邻居距离的一半</td><td>点数随抽到的密度变</td><td>§3.3、式 (5)</td></tr>
+<tr><td>③ 切 token</td><td>按传感器类型选对应的两层 MLP，每个触点每 2 帧（2 × 3 = 6 个数）变成一个 192 维 token；位置不加进向量，只记 5 维地址（时间、手指、xyz）</td><td>480 × 8 = 3,840 个 token</td><td>§3.2、式 (2)</td></tr>
+<tr><td>④ 掩码</td><td>随机选 80% 的触点，<b>整段时间都藏</b>，避免网络从相邻时刻直接抄。训练前 300 步从 40% 线性升到 80%</td><td>藏 384 个触点 → 3,072 个 token；可见 768 个</td><td>§3.2、图 4</td></tr>
+<tr><td>⑤ 上下文编码器</td><td>只把 768 个可见 token 送进 HaT（12 层、宽 192、3 头，5 维 RoPE）。取第 3/6/9/12 层输出，各自 LayerNorm 后拼接</td><td>768 × 768</td><td>式 (3)、读者注 5</td></tr>
+<tr><td>⑥ 预测器</td><td>在 3,072 个被藏位置放上同一个<b>可学习的掩码 token</b>，和可见 token 的特征一起，用同样的 5 维地址，过一个共享的预测 Transformer（外面包着按传感器分组的输入、输出投影）。<b>每个位置</b>都输出一个预测</td><td>3,840 × 768</td><td>式 (3)</td></tr>
+<tr><td>⑦ 目标编码器</td><td>完整的 3,840 个 token 过 EMA 副本（tokenizer + HaT），同样取 4 层拼接，作为答案；不接梯度</td><td>3,840 × 768</td><td>式 (3)</td></tr>
+<tr><td>⑧ 损失</td><td>逐元素 L1 距离：被藏位置取平均、权重 1；可见位置取平均、权重 λ = 0.5</td><td>一个标量</td><td>式 (4)</td></tr>
+<tr><td>⑨ 反向传播</td><td>只更新在线部分：tokenizer、HaT、预测器、掩码 token</td><td>—</td><td>§3.2</td></tr>
+<tr><td>⑩ EMA 更新</td><td>目标端每个参数 ← m × 自己 + (1 − m) × 在线对应参数；m 在训练中从 0.999 升到 1.0</td><td>—</td><td>表 1、问 1</td></tr>
+</tbody></table></div>
+<p>总共 200,000 次这样的更新。训完扔掉在线编码器和预测器，<b>冻结目标端</b>拿去下游（问 4）。</p>
+<p><b>写损失式子：</b></p>
+<div class="eq"><div class="m">\[ \mathcal L=\underbrace{\frac{1}{|\mathcal M|D}\sum_{i\in\mathcal M}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1}_{\text{被藏位置：猜出没看到的}}+0.5\cdot\underbrace{\frac{1}{|\mathcal C|D}\sum_{i\in\mathcal C}\big\|\hat{\mathbf z}_i-\mathrm{sg}(\bar{\mathbf z}_i)\big\|_1}_{\text{可见位置：别丢掉看到的}} \]</div><span class="no">(4)</span></div>
+<p>\(\hat{\mathbf z}\) 是预测器的输出，\(\bar{\mathbf z}\) 是目标编码器的输出，\(D=768\)，sg 表示不往目标端传梯度。</p>
+<p><b>每个设计为什么这样选</b>（表 1 消融：Tiny、1K 小时、100 轮，只在 Sharpa Wave 上测）：</p>
+<div class="tablewrap"><table><thead><tr><th>设计</th><th>不这样会怎样</th></tr></thead><tbody>
+<tr><td>猜特征，不还原原始读数</td><td>触觉片段大部分是 0，还原读数的损失会被背景主导；§4.4 里重建式目标（VAE）数据越多反而越差</td></tr>
+<tr><td>掩码 80%</td><td>90% 时力误差 2.28 N、检索 14.4%；80% 时 1.69 N、35.4%。藏太多，上下文里经常一点接触都不剩</td></tr>
+<tr><td>整段时间都藏</td><td>只藏部分时刻，网络能从相邻时刻抄，五项指标里四项变差</td></tr>
+<tr><td>掩码 warm-up</td><td>一开始就藏 80%，很多片段的可见部分完全没有接触，而答案有接触，论文观察到梯度爆炸</td></tr>
+<tr><td>EMA 0.999 → 1.0</td><td>从 0.998 起步会塌缩（力误差 7.2 N、检索 1.4%）；固定 0.99925 五项都更差</td></tr>
+<tr><td>每类传感器一个 tokenizer、预测器按组分投影</td><td>全部共享时接触中心误差 2.32 mm，分组后 0.70 mm</td></tr>
+<tr><td>可见位置也算损失（λ = 0.5）</td><td>影响很小：三项略好、两项略差</td></tr>
+<tr><td>布局增广</td><td>不做时检索 25.6%，数值加位置增广后 37.1%；对没见过的手也更稳</td></tr>
+<tr><td>每 token 2 或 4 帧、片段 32 帧</td><td>1 帧或 8 帧一个 token 明显变差；片段 4 或 8 帧太短</td></tr>
+</tbody></table></div>
+<p><b>论文和代码都没给的：</b>预训练用的优化器、学习率、batch 大小和 GPU 数；预测器的层数和宽度；最终片段长度；EMA 动量从 0.999 到 1.0 的变化曲线是线性还是余弦；消融里的“数值增广”具体怎么做。公开仓库只有推理代码，没有训练代码，所以这些现在都没法核实。</p>
+<p>和 V-JEPA 的关系：整体框架来自 I-JEPA / V-JEPA，“取多层特征拼接当目标、可见位置也监督”来自 V-JEPA 2.1（本站有 <a href="vjepa21.html">V-JEPA 2.1 精读</a>）。触觉特有的改动是：5 维地址代替固定的 patch 网格、分传感器的 tokenizer、整段时间掩码、掩码 warm-up 和布局增广。</p>
 </section>
 <style>
 .ema-tool{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px;margin:14px 0}
