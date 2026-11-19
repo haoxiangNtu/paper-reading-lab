@@ -50,7 +50,7 @@ td.best{font-weight:700}
 <div class="note" id="n1"><span class="lab">读者注 1 · 许可和来源</span><p>白皮书 PDF（23,457,173 字节，135 页，PDF 元数据创建时间 2026-11-09）每页页脚是“© 2026 NVIDIA. All rights reserved.”，没有 CC 许可，也没有 arXiv 登记。和本站 <a href="sonic.html">SONIC</a>、<a href="gr00t.html">GR00T N1</a> 不同，这里连“arXiv 登记 CC BY、页脚另印版权”的矛盾都没有，就是全权保留。放原图是站点作者对 NVIDIA Cosmos / GR00T 这一批页面的决定（见仓库 AGENTS.md），不是许可允许的。项目页页脚“Copyright © 2026 NVIDIA Corporation”，并链接 NVIDIA 的 Terms of Service；我只打开过一次看它写了什么，没有抓取其中的视频、图片或数据，本页只链接它。</p></div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#qa-fast">问 11 DCT 与 BPE</a><a href="#qa-flora">问 12 Flora</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 总览</a><a href="#vs-n1">N1.x → 2</a><a href="#i3d">3D 动画</a><a href="#s3">3 能力</a><a href="#s3-1">3.1</a><a href="#s3-2">3.2</a><a href="#s3-3">3.3</a><a href="#s3-4">3.4</a><a href="#s3-5">3.5</a><a href="#s4">4 怎么做的</a><a href="#s4-1">4.1</a><a href="#s4-2">4.2</a><a href="#s4-3">4.3</a><a href="#s4-4">4.4</a><a href="#s4-5">4.5</a><a href="#s4-6">4.6</a><a href="#s4-7">4.7</a><a href="#s5">5 结论</a><a href="#appA">附录 A</a><a href="#appB">B</a><a href="#appC">C</a><a href="#appD">D</a><a href="#appE">E</a><a href="#appF">F</a><a href="#appG">G</a><a href="#libero">LIBERO-PRO</a><a href="#appH">H</a><a href="#appI">I</a><a href="#appJ">J</a><a href="#appK">K</a><a href="#code">代码与使用要点</a><a href="#qa">读者问答</a><a href="#qa-2v4a">问 1 2v4a</a><a href="#qa-turbo">问 2 Turbo</a><a href="#qa-sonic">问 3 SONIC</a><a href="#qa-agent">问 4 智能体</a><a href="#qa-wam-vla">问 5 WAM 与 VLA</a><a href="#qa-dit-llm">问 6 DiT 与 LLM</a><a href="#qa-fm">问 7 流匹配与扩散</a><a href="#qa-vla-head">问 8 VLA 动作头</a><a href="#qa-stack">问 9 四者关系</a><a href="#qa-vel">问 10 速度</a><a href="#qa-fast">问 11 DCT 与 BPE</a><a href="#qa-flora">问 12 Flora</a><a href="#qa-loco">问 13 人形移动操作</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -1189,6 +1189,42 @@ td.best{font-weight:700}
 </ul>
 <p><b>能不能拿来用。</b>Flora 论文说开源了模型，放在 Hugging Face 的 <a href="https://huggingface.co/collections/nvidia/flora">nvidia/flora</a> 合集里，博客在 <a href="https://research.nvidia.com/labs/gear/flora/">research.nvidia.com/labs/gear/flora</a>。论文没链接训练代码，权重的许可本页没有核实。</p>
 <p><b>和问 4 的区别：</b>Flora 在训练之前给数据打标签，GPT-6 Astra 那类智能体在部署时指挥机器人，两者是不同阶段的工具。</p>
+<h3 id="qa-loco">问 13：人形 locomotion（走路、移动操作）的任务细节是什么？走路是谁学的、怎么学的？</h3>
+<p><b>先说结论：</b>GR00T 2 本身<b>没有学走路</b>。“怎么走、怎么不摔”是 SONIC 事先用强化学习学好的；Turbo 只学“什么时候往哪走、手做什么”，它输出的是 SONIC 的全身运动 token，腿的动作也编码在 token 里。白皮书里的 locomotion 指的是 <a href="#s3-5">§3.5</a> 和 <a href="#appH">附录 H</a> 的 Unitree G1 <b>全身移动操作</b>：边走边拿东西、弯腰下蹲、用脚擦地。没有单独的“行走”任务。</p>
+
+<p><b>两层分别学什么：</b></p>
+<div class="tablewrap"><table><thead><tr><th></th><th>SONIC（S0，50 Hz）</th><th>GR00T 2 Turbo（S1，约 1 Hz）</th></tr></thead><tbody>
+<tr><td>学什么</td><td>给定一段目标全身动作，让机器人照着做、不摔倒（动作跟踪）</td><td>根据相机和本体感知，决定接下来 1.6 秒全身做什么动作</td></tr>
+<tr><td>怎么学</td><td>Isaac Lab 里 PPO；非对称演员-评论家（评论家看基座线速度、全身部件位姿等特权量）；动作命令域随机化</td><td>模仿学习：在 SONIC token 空间里录的遥操作示范上后训练（流匹配，视频和动作联合去噪）</td></tr>
+<tr><td>数据</td><td>约 700 小时动捕，重定向到 G1 后 611 小时；含走、跑、转身、下蹲等</td><td>每个任务几百到几千个真机遥操作回合（下表），外加仿真生成的示范</td></tr>
+<tr><td>输入 → 输出</td><td>当前 token + 机器人状态 → 关节位置目标</td><td>头部和双腕 RGB + 本体感知 + 指令 → 80 个 token（每 20 ms 一个）+ 夹爪宽度</td></tr>
+<tr><td>跑在哪</td><td>Jetson Orin NX</td><td>Jetson AGX Thor（120 W）</td></tr>
+</tbody></table></div>
+<p>SONIC 训练的细节（奖励、终止条件、FSQ、放大实验）见本站 <a href="sonic.html">SONIC 精读</a>。</p>
+
+<p><b>示范是怎么采的：</b>遥操作时，操作者的全身动作被编码成同一种 SONIC token，再由 SONIC 在真机上执行。所以录下来的示范直接就是 Turbo 的动作空间，不需要重定向。白皮书没写这里具体用的是 VR 头手追踪还是全身动捕；SONIC 两种编码器都有。</p>
+
+<p><b>四个真机任务</b>（附录 H.2，图 57）：</p>
+<div class="tablewrap"><table><thead><tr><th>任务</th><th>动作链</th><th>数据</th><th>评测</th><th>Turbo</th><th>最好的基线</th></tr></thead><tbody>
+<tr><td>爆米花服务（单任务策略）</td><td>取杯、一手拿杯一手舀、装满、移动、放下</td><td>1,500 回合，17 小时</td><td>48 次，每次装满并放好两杯</td><td>100%（约 41 秒两杯）</td><td>GR00T 1.7 83.3%（约 48 秒）</td></tr>
+<tr><td>清理桌面（多任务抓放策略）</td><td>走近桌子、抓、转身、走到垃圾桶、放进去，反复 6 件</td><td>抓放类合计：清理 3,995 回合，地面拾取 3,402，桌面拾取 3,292</td><td>30 次，6 件全部进桶才算成功</td><td>93.3%</td><td>GR00T 1.7 73.3%</td></tr>
+<tr><td>地面拾取（同一多任务策略）</td><td>走到物体、下蹲抓、起身、搬走</td><td>（同上）</td><td>30 次，30 件家用物品（25 硬 5 软）</td><td>83.3%</td><td>GR00T 1.7 50.0%</td></tr>
+<tr><td>擦洒出物（单任务策略）</td><td>抓毛巾、放地上、用脚擦、捡回、扔进垃圾桶</td><td>292 回合，3 小时</td><td>30 次完整流程</td><td>46.7%</td><td>GR00T 1.7 43.3%</td></tr>
+</tbody></table></div>
+<p>对照的 DP、π0.5、GR00T 1.7 用相同示范、相同 token 动作空间、相同相机后训练，平均 18.5 / 7.5 / 62.5%，Turbo 80.8%（表 25）。多任务抓放策略用十字准星标目标：每段由 VLM 标一次，再用点跟踪器在视频里传播。失败多是餐巾、薯片袋这类扁平物体夹空，或物体被碰出够不着的范围。</p>
+
+<p><b>仿真数据怎么补</b>（附录 H.3，以动作为中心的 real-to-sim）：</p>
+<ol>
+<li>拿一条真机遥操作回合，只保留全身动作。</li>
+<li>在 MuJoCo 或 Isaac Lab 里用同一个 SONIC 重放这条动作；动作不变，反过来用 CMA-ES 优化场景（每代 48 个候选）：先拟合桌子位置、高度、偏航，再拟合物体种类、位置、朝向，让这条动作恰好完成抓取。</li>
+<li>验收：两指夹住、举起，扛住一个等于物体自重的 30 帧扰动力，再保持 100 帧。</li>
+<li>把通过的轨迹渲染到程序生成、光照和相机随机的房间里，按真机格式记录 token 和图像。共 25 万回合、1,000 小时。</li>
+</ol>
+<p>效果（表 26，G1 桌面抓放，各 30 次）：分布外只用真机数据时 Turbo 和 GR00T 1.7 都是 6.7%；加仿真联合训练后 Turbo 63.3%，GR00T 1.7 40.0%。差别只是提示性的（读者注 17，p ≈ 0.12）。</p>
+
+<p><b>仿真基准 G1 Factory 是另一种接口</b>（附录 J.3）：九个 Unitree G1 移动操作任务（搬箱上架、取电钻转移、按按钮、推货架车），43 自由度。策略只控制手臂、手和腰，加上“底座高度和导航指令”，腿由一个下肢控制器执行，不走 SONIC token。每任务 100 条示范训练、100 回合评测，GR00T 2 84.7%，GR00T 1.7 69.4%。</p>
+
+<p><b>白皮书没给的：</b>Turbo 在人形上的后训练超参；遥操作的具体设备；SONIC 是用公开检查点还是重新训练的；有没有在线 RL（§4.5 的 RL 后训练实验在桌面机械臂上，人形没有报告）。代码要等 12 月发布才能核对。</p>
 </section>
 
 <h2 id="notes">读者注汇总</h2>
