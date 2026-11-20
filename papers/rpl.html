@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RPL 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2602.03002 RPL（CoRL 2026，Amazon FAR）的中文精读：按原文逐节整理，含全部编号公式、结果表、图的文字描述、官方代码 amazon-far/RPL 与 holosoma 子模块逐项对照、从矢量图读出的梯度与地形等级曲线、复现要点、与 PHP 跑酷的蒸馏对照、10 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-cap{min-width:720px}.t-r2{min-width:720px}.t-r3{min-width:620px}.t-r4{min-width:420px}.t-r5{min-width:520px}
+.t-dr{min-width:640px}.t-code{min-width:760px}.t-cmp{min-width:720px}.t-links{min-width:620px}.t-rep{min-width:640px}.t-ver{min-width:600px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:2px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-tip[hidden]{display:none}
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;font:12.5px/1.55 var(--font-mono);max-width:100%;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/rpl/index.html">3D 框架动画</a><a href="php-parkour.html">PHP 跑酷</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2602.03002 · cs.RO · v3 2026 年 10 月 4 日 · CoRL 2026 · 中文精读</p>
+<h1>RPL：先按地形训专家，再蒸馏成看多路深度的一个人形行走策略</h1>
+<p class="orig">RPL: Learning Robust Humanoid Perceptive Locomotion on Challenging Terrains</p>
+<p>作者 Yuanhang Zhang（Amazon FAR，CMU）、Younggyo Seo、Juyue Chen、Yifu Yuan（CMU）、Koushil Sreenath（Amazon FAR，UC Berkeley）、Pieter Abbeel、Carmelo Sferrazza、Karen Liu、Rocky Duan、Guanya Shi（后五位是 Amazon FAR 联合负责人）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2602.03002">arXiv 原文</a><a href="https://arxiv.org/html/2602.03002">网页版</a><a href="https://arxiv.org/pdf/2602.03002">PDF</a><a href="https://rpl-humanoid.github.io/">项目主页</a><a href="https://github.com/amazon-far/RPL">代码 amazon-far/RPL</a><a href="https://github.com/amazon-far/holosoma">holosoma</a><span>正文 11 页，参考文献到第 14 页，附录第 15 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的非独占分发许可（arXiv.org perpetual non-exclusive license），没有授权翻译或转载。所以这里不做逐字翻译，不放任何原图，本地也没有存裁切图。内容用自己的话按原文顺序覆盖第 1 到 6 节和附录 A。每张图用文字说明画了什么，“看原图”打开 arXiv 网页版的对应位置。标“重画”的两张图不是原图，是我从 PDF 第 9 页的矢量路径读出点后画的。</p>
+<p>读的是最新的 v3（2026-10-04）。arXiv 上还有 v1（2026-02-03，IEEE 双栏格式）和 v2（2026-08-21，CoRL 格式）。v1 到 v2 改动大：加了第 4.5 节梯度分析、表 4 整场成功率、表 5 真机统计和失败模式分析，专家训练时间从“全部专家 24 小时”改成“每个专家 12 小时”。v2 到 v3 只加了表 1（能力对比）、表 2 里 IsaacLab Warp 2.3.2 一行和与 Hiking-in-the-Wild 的仿真单次对比。细节见<a href="#n1">读者注 1</a>。</p>
+<p>官方代码 <a href="https://github.com/amazon-far/RPL/tree/1ca0250ba3745381cfbfb2b72ebcf55e995076da">amazon-far/RPL</a> 提交 1ca0250（2026-10-20，Apache-2.0，自称 research release），核心算法在子模块 <a href="https://github.com/amazon-far/holosoma/tree/91647eed1ba82db3b242cd1057035ab76b63c5c0">amazon-far/holosoma</a> 提交 91647ee（2026-10-13，分支 zyuanhan/rpl-release-port，Apache-2.0）。我只读没跑。代码注释反复写“复现 FAR-FALCON-Terrains”，也就是说发布版是把作者内部基于 FALCON 的实现移植到 holosoma。下文“代码”指这两个提交；行号按这两个提交。页面只引文件名、行号、配置键和命令，代码片段尽量短。论文和代码不一致的地方两边都写。</p>
+<p>标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-1">3.1 专家</a><a href="#s3-2">3.2 蒸馏</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 实验</a><a href="#s4-5">4.5 梯度分析</a><a href="#s4-6">4.6 真机</a><a href="#s5">5 结论</a><a href="#s6">6 局限</a><a href="#apA">附录 A</a><a href="#code">代码对照</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>人形机器人的感知行走已经能上楼梯、走梅花桩，但大多只用一个朝前的相机，只会往前走，而且假设上身不动。RPL 想解决的是：多个方向走（至少前进和后退），上身在干活、手上挂着东西，仍然能过复杂地形。</p>
+<ul>
+<li><b>两段训练。</b>第一段按地形各训一个专家（坡、上楼梯、下楼梯、梅花桩），专家看仿真里的特权高度图，用 PPO 训，手上加随机向下的力。第二段把专家蒸馏成一个学生，学生只看前后两路（仿真里最多四路）深度图，网络是“每路一个 CNN + Transformer”。</li>
+<li><b>两个蒸馏技巧。</b>DFSV：按速度命令给每路相机的特征乘一个 0 到 1 的系数，朝运动方向的相机权重大。RSM：训练时随机把深度图左右两侧盖掉，填随机深度，模拟更窄的地形。</li>
+<li><b>一个渲染器。</b>用 <a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a> 写的批量光线投射，同时打机器人自身的网格（自遮挡）和地形网格，整条流水线录成 CUDA graph。1024 个环境、4 路相机时一次迭代 1.9 秒，论文称比最快的基线快 5 倍。</li>
+<li><b>结果。</b>仿真整场 10 次往返，完整方法前进、后退都是 10/10；去掉 DFSV 或 RSM 掉到 0 到 2 次。真机 <a class="ds" href="https://www.unitree.com/g1">Unitree G1</a> 整场往返 10 次成功 6 次（不带负载 3/5，带 2 kg 负载 3/5）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，蒸馏只用 DAgger，不加 RL；这和同一团队的 <a href="php-parkour.html">PHP 跑酷</a>的结论正好相反，两篇的任务差别可以解释一部分（<a href="#rel">下一节</a>）。第二，论文写的 DFSV 公式和代码的阈值符号相反，静止时两路相机的权重一个是 0.31，一个是 0.69（<a href="#n9">读者注 9</a>）。第三，“四个地形专家”在发布的权重里实际是三个：上楼梯和下楼梯是同一个文件（<a href="#n21">读者注 21</a>）。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 三个版本的差别</span><p>我对照了 arXiv 的三个 HTML 版本（v1、v2、v3），只看实质内容：</p>
+<div class="tablewrap"><table class="t-ver"><thead><tr><th>版本</th><th>日期</th><th>主要变化</th></tr></thead><tbody>
+<tr><td>v1</td><td>2026-02-03</td><td>IEEE 双栏格式，罗马数字章节。实验只有渲染速度（表 I）、相机数（表 II）、网络和 DFSV/RSM 的消融（损失曲线和图 11 的可视化），没有整场成功率表、没有真机统计。专家训练写“4 块 L40S 训全部专家 24 小时”</td></tr>
+<tr><td>v2</td><td>2026-08-21</td><td>改成 CoRL 格式。新增：第 4.5 节梯度分析（式 (2) 到 (4)，图 11 到 13）、表 4 整场成功率（含去力扰动和三种结构）、表 5 真机 10 次和第 4.7 节失败分析。专家训练改为“每个专家 12 小时”。DFSV 和 RSM 的消融从第 IV-D 节挪到第 4.3 节</td></tr>
+<tr><td>v3</td><td>2026-10-04</td><td>新增表 1 能力对比；表 2 加 IsaacLab Warp 2.3.2 一行和对应的 5.1/5.7/7.7 倍说明；第 4.2 节末加和 Hiking-in-the-Wild 的仿真单次对比。其余文字基本不变</td></tr>
+</tbody></table></div>
+<p>v1 的“全部专家 24 小时”和 v2 起的“每个专家 12 小时”在总量上不一样（3 个专家就是 36 小时），哪个准确无法核实。</p></div>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p>同一批读了三篇 Amazon FAR 的人形论文，都建在 <a class="ds" href="https://github.com/amazon-far/holosoma">holosoma</a> 框架上。</p>
+<ul>
+<li><a href="holosoma-15min.html">holosoma-15min</a>（arXiv 2512.01996）：用 FastSAC 在 15 分钟内训出行走策略，是 holosoma 框架本身的论文之一。RPL 用的是同一框架里的另一套：多智能体 PPO（PPO-MA）训专家，DAgger-MA 蒸馏，训练后端是 IsaacGym 而不是 holosoma 主线默认的 IsaacSim（README 的原因是 IsaacSim 的 API 还没实现力扰动）。</li>
+<li><a href="php-parkour.html">php-parkour</a>（arXiv 2602.15827，PHP）：同样是“特权专家 → 深度学生”，同样用 Warp 渲染深度。RPL 第 4.5 节对比的“Hybrid DAgger + RL”就是引用 PHP 提出的做法（RPL PDF 参考文献 [44]）。代码上两者也连着：RPL 固定的 holosoma 提交 91647ee 在 <code>git describe</code> 里是 <code>php-parkour-v1.0-6-g91647eed</code>，即 PHP 发布标签之后的 6 个“RPL release port”提交。</li>
+</ul>
+<p>下表是我对照两篇原文逐项整理的。PHP 读的是 v2（2026-05-06）。“代码”一栏只对 RPL 写，PHP 的代码由那一页处理。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>RPL（本文）</th><th>PHP（2602.15827 v2）</th></tr></thead><tbody>
+<tr><td>任务</td><td>速度命令下的多地形行走（坡、楼梯、梅花桩），同时上身遥操作、可带负载</td><td>速度命令下的跑酷：爬墙、跨越、跳下等高动态技能，动作来自人类片段的运动匹配</td></tr>
+<tr><td>专家按什么分</td><td>按地形：坡、上楼梯、下楼梯、梅花桩（发布权重实际 3 个，<a href="#n21">读者注 21</a>）</td><td>按技能：每个技能一个运动跟踪专家（表 III 列了 13 段技能片段）</td></tr>
+<tr><td>专家训练方式</td><td>FALCON 的双智能体 PPO（下身行走、上身操作各一个策略），速度跟踪奖励</td><td>BeyondMimic / OmniRetarget 式运动跟踪，DeepMimic 式跟踪奖励，自适应采样</td></tr>
+<tr><td>专家的特权信息</td><td>1.6 m × 1.0 m 高度图，0.1 m 分辨率（代码 16 × 10 点）；评论家另有根速度和末端力</td><td>0.7 m × 0.7 m 高度扫描，加骨盆全局位置和速度（用来学恢复）</td></tr>
+<tr><td>学生的视觉输入</td><td>前后两路深度（仿真可到四路），每路 48 × 27，代码里叠 2 帧，10 Hz 更新</td><td>单路深度，58 × 87，机载相机 30 Hz</td></tr>
+<tr><td>学生网络</td><td>每路一个 CNN 分词器 + 4 层 Transformer（代码 64 维 4 头），取最后一个状态 token 接 MLP</td><td>3 层 CNN + 全局平均池化，32 维视觉特征，接 MLP [2048, 1024, 512, 256, 128]</td></tr>
+<tr><td>蒸馏目标</td><td>只用 DAgger 的动作回归，式 (1)；代码 <code>use_critic=False</code></td><td>DAgger + PPO，式 (3)：\(\lambda_{\mathrm{PPO}}+\lambda_{\mathrm D}=1\)，\(\lambda_{\mathrm D}\) 前半程线性降到 0.1</td></tr>
+<tr><td>对“加 RL”的结论</td><td>加 RL 后各地形梯度互相正交，地形等级更低（第 4.5 节，图 11 到 13）</td><td>只用 DAgger 学不出瞬间大力矩，成功率大跌（表 II：76 cm 障碍 0.03 对 0.95）</td></tr>
+<tr><td>蒸馏阶段的特殊处理</td><td>DFSV、RSM；老师按地形编号路由（MoE）</td><td>放宽终止阈值（0.5 m → 1 m），超出专家终止条件的步不计 DAgger 损失，关掉自适应采样，各技能均匀采样</td></tr>
+<tr><td>深度噪声与延迟</td><td>外参 ±2.5 cm，旋转 ±2.5° / ±3.0° / ±2.5°，乘性噪声 10%，丢点 5%；代码另有 2 帧延迟</td><td>外参 ±2.5 cm、±2.5°，深度偏移 ±3 cm，高斯噪声 3 cm，延迟 60 到 80 ms，不加模糊</td></tr>
+<tr><td>深度渲染</td><td>自写 Warp 内核，含机器人动态网格（算法 1）</td><td>Warp 渲染（论文没展开）</td></tr>
+<tr><td>规模</td><td>专家 4096 × 4 环境，蒸馏 1024 × 8 环境，代码蒸馏 20000 次迭代</td><td>16384 环境，专家和学生各 20000 次迭代</td></tr>
+</tbody></table></div>
+<p><b>两篇对 RL 的结论为什么相反。</b>以下是我的理解，不是任一篇的原话。PHP 的论点是：爬墙、跨越靠几步之内的大力矩爆发，逐步模仿对“稍微低估”几乎不罚，必须靠回合成败的信号把学生推过去。RPL 的任务是稳态行走，专家本身已经很好，四个地形的动作分布差别大，PPO 的价值驱动会让每个地形的梯度各往各的方向走。两篇的度量也不同：PHP 看单障碍成功率，RPL 看地形等级和梯度余弦。另外，RPL 的 hybrid 设定只在第 4.5 节一句话带过（余弦退火、下限 0.1），发布代码里也没有这条路径（<a href="#n17">读者注 17</a>），所以没法确认它和 PHP 的实现是否等价。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>人形机器人相对轮式移动操作平台的长处是能用腿过地形，同时还要能干活，比如搬东西。已有的人形感知行走大多依赖一个朝前的相机，并假设上身处于理想状态，遇到多方向行走或上身动作造成的自遮挡就变脆。基于建图的方法能双向走，但依赖带噪的状态估计，系统层面难调。不同相机看到不同地形（作者称“非对称多视角输入”）时的端到端感知控制，研究得很少。</p>
+<p>RPL 的做法分两段：先在末端力扰动下，用特权高度图按地形训专家，学到解耦的行走和操作；再蒸馏成一个吃多视角深度的 Transformer 策略。为了蒸馏能扩展，作者写了一个多深度渲染系统，在大规模并行环境里同时对动态机器人网格和静态地形网格做光线投射，并模拟延迟、噪声、丢点。蒸馏时加两个技巧：DFSV 按速度命令调制感知特征，RSM 随机遮挡深度图两侧。</p>
+<p>贡献列了四条：两段式框架；多深度渲染系统（比现有仿真器快 5 倍）；DFSV 和 RSM；真机上全身动作和负载扰动下的长时程双向行走验证。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 1 页 · <a href="https://arxiv.org/html/2602.03002#S0.F1">看原图 ↗</a></span><p>四张真机照片拼成的大图。(a)(b)(c) 是同一个室内地形场：坡、台阶、木台和梅花桩，G1 沿虚线来回走，青色箭头表示前进，黄色表示后退；(b) 里手上挂着红色负载。(d) 是一栋楼里的弧形长楼梯，机器人手提负载往上走。右下角图例：2 kg 负载、前进、后退。图注列出地形：20° 坡，三种台阶踏面长度（22、25、30 cm），25 cm × 25 cm、间隔 60 cm 的梅花桩。</p></div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1">2.1 腿式机器人的感知行走</h3>
+<p>四足有时靠盲走就能上台阶，支撑多边形天然稳定；人形需要精确落脚，对感知误差敏感得多。两条主线：一是激光雷达建高程图，依赖标定和状态估计，会带来仿真到真机的漂移；二是端到端吃深度图出动作，省掉显式估计。</p>
+<p>深度方法大多只有一个朝前相机，只展示前进。一篇用单个朝下相机做到全向，但在梅花桩这类稀疏落脚点上吃力；另一篇加了多相机扩大视野，但只在楼梯上测，没碰“不同相机看到不同地形”的一般情况。深度渲染也贵：近来基于 Warp 的流水线要么不支持动态网格，要么扩展不到多相机。现有策略也很少评估没见过的地形宽度和搬运负载这类操作扰动。</p>
+<p>表 1（第 3 页，<a href="https://arxiv.org/html/2602.03002#S2.T1">看原表 ↗</a>）是 v3 新加的能力对比，照录：</p>
+<div class="tablewrap"><table class="t-cap"><thead><tr><th>方法</th><th>上下楼梯</th><th>梅花桩</th><th>多视角覆盖</th><th>真机双向</th><th>操作 / 主动负载</th><th>仿真通过 坡/楼梯/桩</th></tr></thead><tbody>
+<tr><td><b>RPL（本文）</b></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓/✓/✓</td></tr>
+<tr><td>Hiking-in-the-Wild</td><td>✓</td><td>×</td><td>×</td><td>×</td><td>✓</td><td>✓/∼/×</td></tr>
+<tr><td>DPL</td><td>✓</td><td>×</td><td>×</td><td>×</td><td>✓</td><td>N/A</td></tr>
+<tr><td>Gait-adaptive</td><td>✓</td><td>×</td><td>✓</td><td>✓</td><td>✓</td><td>N/A</td></tr>
+<tr><td>No More Blind Spots</td><td>✓</td><td>×</td><td>✓</td><td>✓</td><td>×</td><td>N/A</td></tr>
+<tr><td>BeamDojo</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>×</td><td>N/A</td></tr>
+<tr><td>Humanoid Parkour</td><td>✓</td><td>×</td><td>×</td><td>×</td><td>✓</td><td>N/A</td></tr>
+</tbody></table></div>
+<p>表注：∼ 表示部分（只有单方向）；多视角指 360° 激光雷达或多相机；仿真通过是每种地形单次试验的结果；N/A 表示没有公开代码。正文一句话总结：RPL 同时具备机载多视角深度、真机双向通过和遥操作下的主动搬运。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 表 1 的“仿真通过”只是单次</span><p>表 1 最后一列只有 RPL 和 Hiking-in-the-Wild 两行有数据，其余因为没有公开代码写 N/A。第 4.2 节末尾作者自己说明这是“每种地形一次”的结果，不是成功率估计。所以这一列只能读作“能不能走过去一次”。前五列是功能有无的勾叉，不是实验测量。</p></div>
+
+<h2 id="s3"><span class="no">3</span>RPL：两段，从多个专家到一个通用视觉策略</h2>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 3 页 · <a href="https://arxiv.org/html/2602.03002#S2.F2">看原图 ↗</a></span><p>框架总图，上下两栏，中间一条虚线标“Supervise”。上栏（阶段 1）：左边四张地形缩略图（坡、台阶、梅花桩等）；中间一个机器人站在楼梯上，脚下一片黄色点阵表示高度图 \(\mathbf H_t\)；高度图进 CNN，再和本体感觉 \(\mathbf s^p_t\)、行走目标 \(\mathbf G^l_t\) 一起进 MLP，输出专家动作 \(\pi^{exp}_t\)。下栏（阶段 2）：左边“多深度输入 \(\mathbf D_t\)”是四张深度小图（前、后、左、右），经过 Mask 进入 \(N_{\mathrm{cam}}\) 个 CNN；输出的特征各乘一个由速度决定的系数 \(\delta_i\) 后拼接，进入 Embeddings，再连同带噪本体感觉 \(\hat{\mathbf s}^p_t\) 和行走目标 \(\mathbf G^l_t(\mathbf v^{lin}_t)\) 一起送进 Transformer（画了 Q、K、V），输出学生动作 \(\pi^{vis}_t\)。</p></div>
+<p>RPL 是两段式框架。阶段 1 在坡、上楼梯、下楼梯、梅花桩上，用特权高度图训地形专家；阶段 2 把它们蒸馏成一个吃前后深度图的视觉策略，用于双向行走。整体建立在 FALCON 的双智能体表述上：全身控制拆成下身行走策略和上身操作策略，两者共享本体感觉历史。作者说这比单智能体全身控制更好。</p>
+<p>两个智能体都观测本体感觉历史</p>
+<div class="eq"><div class="m">\[\mathbf s^p_t=\big[\mathbf q_{t-4:t},\ \dot{\mathbf q}_{t-4:t},\ \boldsymbol\omega^{\mathrm{root}}_{t-4:t},\ \mathbf g_{t-4:t},\ \mathbf a_{t-5:t-1}\big],\]</div></div>
+<p>即最近 5 帧的关节位置、关节速度、根角速度、重力方向和上 5 帧的动作。下身策略的目标是 \(\mathbf G^l_t=[\mathbf v^{\mathrm{lin}}_t,\mathbf w^{\mathrm{yaw}}_t,\boldsymbol\phi^{\mathrm{stance}}_t,\mathbf h^{\mathrm{root}}_t,\mathbf o^{\mathrm{torso}}_t]\)：线速度、偏航角速度、站立/行走模式、根高度、躯干朝向；根高度和躯干朝向只在站立模式下跟踪。上身策略的目标是上身关节目标 \(\mathbf G^u_t=\mathbf q_{\mathrm{upper},t}\)。</p>
+<p>感知观测在阶段 1 是特权高度图 \(\mathbf H_t\)，在阶段 2 是多视角深度 \(\mathbf D_t=\{\mathbf d^{(i)}_t\}_{i=1}^{N_{\mathrm{cam}}}\)，只给下身策略，理由是地形感知主要影响腿。两个策略写成 \(\boldsymbol\pi_l:(\mathbf s^p_t,\mathbf G^l_t,\mathbf H_t\ \text{或}\ \mathbf D_t)\to\mathbf a^l_t\) 和 \(\boldsymbol\pi_u:(\mathbf s^p_t,\mathbf G^u_t)\to\mathbf a^u_t\)，动作拼成 \(\mathbf a_t=[\mathbf a^l_t;\mathbf a^u_t]\)，交给底层 PD 控制器。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码里两个策略看到的东西比论文多</span><p>代码的 <code>actor_state_obs</code>（<code>rpl_training/config_values/observation.py</code> 第 15 到 78 行）同时进下身和上身两个策略，每帧 115 维：动作 29、角速度 3、角速度命令 1、根高度命令 1、线速度命令 2、站立标志 1、腰部命令 3、关节位置 29、关节速度 29、重力 3、上身参考关节 14（维数见 <code>rpl_sim2sim/inference_presets.py</code> 第 62 到 75 行，加起来正好 115），历史 5 帧，共 575 维。所以上身策略也看得到行走命令，下身策略也看得到上身参考关节，不是论文写的“下身只拿 \(\mathbf G^l\)、上身只拿 \(\mathbf G^u\)”。论文里的 \(\mathbf o^{\mathrm{torso}}\) 在代码里对应三个腰关节命令 <code>command_waist_dofs</code>。</p></div>
+
+<h3 id="s3-1">3.1 阶段 1：用高度图训多个地形专家</h3>
+<p>为了给蒸馏提供高质量的老师动作，每个地形族训一个专家。特权高度图是机器人周围 1.6 m × 1.0 m、分辨率 0.1 m 的局部网格。双智能体策略用各自的奖励联合训练，优化器是 PPO。采用 FALCON 的力课程，方向比 \(\boldsymbol\gamma=[\gamma_x,\gamma_y,\gamma_z]=[0,0,1]\)，专门针对末端负载。评论家是非对称的，能看到根线速度和末端力 \(\boldsymbol F^{ee}_t\)。对 \(\mathbf s^p_t\)、\(\mathbf G^l_t\)、\(\mathbf G^u_t\)、\(\mathbf H^l_t\) 做左右对称数据增强，鼓励对称步态。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 力扰动有多大</span><p>论文只给了方向比。代码（<code>rpl_training/config_values/command.py</code> 第 102 到 112、129、149 行）：每只手的力在世界 z 方向，专家阶段 \(F_z\sim U(-60,5)\) N，蒸馏阶段 \(U(-100,5)\) N；<code>zero_force_prob=(1.0, 1.0, 0.25)</code> 让 x、y 方向恒为零，z 方向有 25% 的环境不加力。力的作用点在“手到手臂伸展方向”的线段上随机取（<code>apply_force_pos_mode="hand_to_extend"</code>）。幅度再乘课程系数 <code>apply_force_scale</code>，从 0.1 起，平均回合长度超过 210 步时加 0.02（蒸馏 0.05），见 <code>config_values/curriculum.py</code> 第 86 到 120、139 到 141 行。作为对照，2 kg 负载的重力是 19.6 N，2.5 kg 是 24.5 N，都在训练范围内。实际施加的力还受关节力矩预算的限制（<code>envs/loco_manip_force_manager.py</code> 第 270 行起），我没有逐项推算这个上限。</p></div>
+
+<h4 id="s3-1-1">3.1.1 地形设置</h4>
+<p>四个地形族（图 2 左上）：</p>
+<ul>
+<li><b>坡：</b>金字塔形，倾角最大 37°。</li>
+<li><b>上/下楼梯：</b>踏面长 0.25 到 0.30 m，台阶高 0.05 到 0.27 m。</li>
+<li><b>梅花桩：</b>柱状离散落脚点，直径 0.25 到 0.40 m，间隙 0.05 到 0.70 m，高度起伏最多 0.05 m。</li>
+</ul>
+<p>楼梯和梅花桩特别难：G1 的脚长 0.21 m，最小支撑面 0.25 m，落脚误差的余量很小。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 地形范围的上限在课程里取不到</span><p>代码的课程地形是 10 行 × 20 列，每行难度 \(d=\text{row}/10\)，所以最难一行 \(d=0.9\)，不是 1（holosoma <code>simulator/shared/terrain.py</code> 第 300 到 329 行）。按各地形函数算：</p>
+<ul>
+<li><b>坡</b>：<code>max_slope=0.75</code> 是正切，\(\arctan 0.75=36.9°\)，对应论文的 37°；但最难一行是 \(0.9\times0.75=0.675\)，即 34.0°（<code>terrain.py</code> 第 519 到 537 行）。</li>
+<li><b>楼梯</b>：台阶高 \(0.01+0.25d\)，再加 \(U(-0.01,0.03)\) 的逐级扰动（第 599 到 624 行；配置 <code>stairs_offset</code>、<code>stairs_ratio</code>、<code>random_step_height_range</code> 在 <code>rpl_training/config_values/terrain.py</code> 第 173 到 175 行）。最难一行 0.235 到 0.265 m，和论文的 0.27 m 差不多；最容易一行是 0 到 0.04 m，论文写的下限 0.05 m 对不上。</li>
+<li><b>梅花桩</b>：间隙 \(0.05+0.65d\)，石头边长 \(0.40-0.15d\)（第 760 到 804 行）。最难一行间隙 0.635 m、石头 0.265 m；论文的 0.70 m 是配置 <code>stone_distance_col_range=[0.05, 0.7]</code> 的端点，课程里到不了。代码的 <code>stepping_stones_columns_terrain</code> 注释说明这是石头之间的空隙，不是中心距。</li>
+</ul></div>
+
+<h4 id="s3-1-2">3.1.2 奖励设计</h4>
+<p>沿用 FALCON 的双智能体奖励，再加三项：</p>
+<ul>
+<li><b>脚边缘惩罚</b>（来自 Extreme Parkour）：预先算好膨胀后的地形边缘掩码，脚在边缘接触就罚（图 3）。</li>
+<li><b>落脚点惩罚</b>（来自 BeamDojo）：在脚底采一片网格点，罚落在空处的比例（图 4）。</li>
+<li><b>躯干朝向跟踪</b>（来自 AMO）：\(r_{torso}=\exp(-\|\mathbf g_{\mathrm{proj}}-\mathbf g_{\mathrm{ref}}\|^2/\sigma)\)，让腰和髋协同，扩大站立模式下能跟踪的朝向范围。</li>
+</ul>
+<p>分工：楼梯用落脚点惩罚，因为 0.25 m 的踏面对 0.21 m 的脚来说，边缘膨胀太保守；梅花桩用脚边缘惩罚，因为孤立的小支撑面对落脚误差几乎没有容忍度。</p>
+<div class="fig" id="fig3"><span class="lab">图 3、图 4 · 第 4 页 · <a href="https://arxiv.org/html/2602.03002#S3.F4">看原图 ↗</a></span><p>两组左右对比的仿真截图。图 3 是梅花桩：左边没有脚边缘惩罚，黄色虚线圈出脚踩在石头边上；右边加了惩罚，绿色圈出脚踩在石头中间。图 4 是楼梯：左边没有落脚点惩罚，脚掌一部分悬在台阶外；右边加了之后整只脚落在踏面上。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 代码里两种惩罚的分工和论文说的不完全一样</span><p>专家奖励（<code>rpl_training/config_values/reward.py</code> 第 387 到 388、462 到 470 行）：落脚点惩罚权重 −10，掩码 <code>_FALCON_FOOTHOLD_MASK</code> 包括梅花桩、坡和上下楼梯，所以梅花桩专家也受落脚点惩罚，不只是楼梯。脚边缘惩罚基础权重 0，只有梅花桩专家改成 −5（第 493 到 503 行），和论文一致。躯干朝向跟踪分站立和踏步两项，σ 都是 0.05，权重 4 和 1（第 47 到 58 行）。论文只列了新增的三项；代码里下身一共约 40 项奖励（含终止 −250、地形进度 +2 等），全部继承自 FALCON。</p></div>
+
+<h3 id="s3-2">3.2 阶段 2：蒸馏成统一的视觉运动策略</h3>
+<p>所有高度图专家训好以后，把它们蒸馏成一个统一的视觉运动策略，用于多方向感知行走。</p>
+<h4 id="s3-2-1">3.2.1 蒸馏的形式</h4>
+<p>用 DAgger 风格的模仿学习训学生。学生下身策略 \(\boldsymbol\pi^{\mathrm{vis}}_l\) 吃带噪本体感觉 \(\hat{\mathbf s}^p_t\) 和多视角深度 \(\mathbf D_t\)；专家 \(\boldsymbol\pi^{\mathrm{exp}}_{l,k}\) 吃无噪本体感觉 \(\mathbf s^p_t\) 和特权高度图 \(\mathbf H_t\)。损失是动作回归：</p>
+<div class="eq" id="eq1"><div class="m">\[\mathcal L_{\mathrm{distill}}=\mathbb E_{k,t}\Big[\big\|\boldsymbol\pi^{\mathrm{vis}}_l(\mathbf s^p_t,\mathbf G^l_t,\mathbf D_t)-\boldsymbol\pi^{\mathrm{exp}}_{l,k}(\mathbf s^p_t,\mathbf G^l_t,\mathbf H_t)\big\|_2^2\Big].\]</div><span class="no">(1)</span></div>
+<p>部署时的控制器是蒸馏出的视觉下身策略加上“盲”的上身策略 \(\boldsymbol\pi_u\)。作者选“只用 DAgger”而不是“DAgger + RL 混合”，理由是前者保持各地形之间的梯度对齐，在每个地形族上都达到更高的地形等级（原文写“见附录 4.5”，实际是正文第 4.5 节）。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 式 (1) 的学生输入、谁在环境里行动、上身也被蒸馏</span><p><b>噪声。</b>正文说学生吃带噪的 \(\hat{\mathbf s}^p_t\)，式 (1) 里学生那一项写的却是无噪的 \(\mathbf s^p_t\)，应是笔误。代码一致于正文：学生的 <code>actor_state_obs</code> 开噪声（关节位置 ±0.01，关节速度 ±0.1，均匀），老师的 <code>actor_teacher_state_obs</code> 关噪声（<code>observation.py</code> 第 62 到 71、198 到 203、289 到 293 行）。不过老师的高度图在蒸馏时加了 ±0.01 m 的噪声（第 261 到 263、299 到 304 行），不是完全无噪。</p>
+<p><b>谁行动。</b>代码里环境由学生的动作推动，老师只出标签，学生和老师都取分布均值、不采样（holosoma <code>agents/dagger/dagger_ma.py</code> 第 600 到 640 行，<code>agents/modules/student_teacher_modules.py</code> 第 493 到 500 行）。这是纯 DAgger（不混入老师动作），论文没说这么细。</p>
+<p><b>上身。</b>论文说部署时配“盲”的上身策略 \(\boldsymbol\pi_u\)。代码里上身也被蒸馏：上身学生是 MLP，老师是按地形路由的 MoE MLP（<code>rpl_training/config_values/algo.py</code> 第 173 到 201、324 到 334 行），蒸馏后导出的 ONNX 同时包含上下身（<code>dagger_ma.py</code> 第 851 到 870 行）。所以部署的上身是“从四个专家的上身蒸馏出来的一个 MLP”，不是某一个专家的上身。</p>
+<p><b>\(\mathbb E_k\) 的实现。</b>每个并行环境属于一个地形，老师按观测里的地形编号 <code>terrain_idx_obs</code> 选对应专家（<code>algo.py</code> 第 165 行 <code>route_obs_name</code>，holosoma <code>agents/dagger/dagger_ma_moe.py</code>）。损失类型是普通 <code>mse</code>，不是按地形分组平衡的 <code>mse_domain</code>。所以式 (1) 对地形的期望按蒸馏时的地形比例加权：梅花桩 0.35、坡 0.15、上下楼梯各 0.25（<code>rpl_training/config_values/terrain.py</code> 第 218 到 223 行）。</p></div>
+
+<h4 id="s3-2-2">3.2.2 高效的多深度系统仿真</h4>
+<p>用 NVIDIA Warp 实现 GPU 上的多深度相机仿真：对动态机器人网格和一张共享的静态地形网格做大规模并行光线投射（算法 1）。对环境 \(e\)、相机 \(c\)、像素 \((x,y)\)，用内参 \(\mathbf K_e\) 得相机系光线 \(\mathbf r_c=\mathbf K_e^{-1}[x,y,1]^\top\)，按相机朝向 \(\mathbf q^{e,c}_c\) 旋转，从原点 \(\mathbf o=\mathbf p^{e,c}_c\) 沿方向 \(\mathbf d\) 射出。深度是最近交点的距离，超过远平面 \(d_{\max}\) 的截断。</p>
+<p>为了避免每帧重建网格的加速结构，每个机器人部件的网格 \(\mathcal M_b\) 保持在自己的局部坐标系里，改为变换光线：\(\mathbf o_b=\mathbf R_b^\top(\mathbf o-\mathbf t_b)\)，\(\mathbf d_b=\mathbf R_b^\top\mathbf d\)，\((\mathbf t_b,\mathbf R_b)\) 是部件位姿。每条光线先查所有机器人部件，记下最近交点 \(z^\star\) 作为提前终止的上界，再在世界系里查地形，更近就更新。所有查询在一个融合的 Warp 内核里完成，按环境、相机、像素并行；整条流水线录成 CUDA graph 重放；每个环境的内参可以不同，用批量的 \(\{\mathbf K_e^{-1}\}\) 支持。</p>
+<div class="fig" id="alg1"><span class="lab">算法 1 · 第 5 页 · <a href="https://arxiv.org/html/2602.03002#algorithm1">看原文 ↗</a></span><p>输入：静态地形网格、\(B\) 个机器人部件网格、相机位姿、部件位姿、批量逆内参、远平面 \(d_{\max}\)、主点 \((c_x,c_y)\)。输出 \(\mathbf D\in\mathbb R^{N\times C\times H\times W}\)。对每个 \((e,c,x,y)\)：建光线得 \((\mathbf o,\mathbf d,m)\)；\(z^\star\leftarrow d_{\max}\)，\(d_{\mathrm{bound}}\leftarrow d_{\max}\)。第一步对 \(b=1..B\)：把光线变到部件系，若在 \(d_{\mathrm{bound}}/m\) 内击中得参数 \(t\)，则 \(z^\star\leftarrow\min(z^\star,mt)\)，\(d_{\mathrm{bound}}\leftarrow z^\star\)（提前终止）。第二步查地形，在 \(d_{\mathrm{bound}}/m\) 内击中则 \(z^\star\leftarrow mt\)。最后写 \(\mathbf D[e,c,y,x]\leftarrow z^\star\)。这里 \(m\) 是光线方向和主光轴的夹角余弦，用来把沿光线的距离换算成沿光轴的深度。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 算法 1 和代码一致，远平面多了 0.5 m</span><p>holosoma <code>managers/camera/terms/warp_kernels.py</code> 第 196 到 270 行的 <code>depth_range_dynamic_per_env_fov_kernel</code> 就是算法 1：<code>wp.quat_rotate_inv</code> 把光线转到部件系，<code>wp.mesh_query_ray</code> 的最大距离是 <code>far_bound_world / mul</code>，先部件后地形。<code>warp_depth.py</code> 第 742 到 750 行录 CUDA graph，失败时退回普通启动。参与遮挡的机器人网格是 22 个部件（下身 10 个、上身 12 个，<code>rpl_training/config_values/camera.py</code> 第 7 到 36 行）。光线的远平面是 2.5 m，而送进网络前深度被截到 [0.1, 2.0] m（第 54 到 69、91 行，注释说沿用 FALCON 的“far_clip + 0.5”）。</p></div>
+
+<h4 id="s3-2-3">3.2.3 按速度命令缩放深度特征（DFSV）</h4>
+<p>机器人装着朝不同方向的相机时，哪路相机有用取决于往哪走。设 \(\hat{\boldsymbol n}_i\in\mathbb R^2\) 是相机 \(i\) 在机体系里的单位视线方向，平面速度命令 \(\mathbf v^{lin}_l=[v_x,v_y]^\top\)，每路相机的系数</p>
+<div class="eq"><div class="m">\[\delta_i=1-\sigma\!\big(-k(\langle\mathbf v^{lin}_l,\hat{\boldsymbol n}_i\rangle-v_{\mathrm{th}})\big),\qquad i=1,\dots,N_{\mathrm{cam}},\]</div></div>
+<p>\(k\) 控制过渡的陡度，\(v_{\mathrm{th}}\) 是速度阈值。朝运动方向的相机 \(\delta_i\approx1\)，背向的 \(\delta_i\approx0\)。系数逐元素乘到各路 CNN 特征 \(\mathbf f_i\) 上再拼接：\(\mathbf f_{\mathrm{fused}}=\bigoplus_{i=1}^{N_{\mathrm{cam}}}\delta_i\cdot\mathbf f_i\)。不引入可学参数。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 5 页 · <a href="https://arxiv.org/html/2602.03002#S3.F5">看原图 ↗</a></span><p>(a) DFSV：中间一个站在条纹地面上的机器人，两侧各四块小热图（前、后、左、右四路相机的 CNN 特征图）。左边命令为 \(v_x=0,v_y=0\)，四块颜色接近；右边 \(v_x=0.5,v_y=0.5\)，标“前↑、左↑”的两块变亮，“后↓、右↓”的两块变暗。(b) RSM：上面一张仿真截图，红点标出前相机的位置；下面三张深度小图分别是 large（左右两大条被盖住）、small（两侧窄条被盖住）、none（不遮挡）。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · DFSV 的阈值在代码里符号相反</span><p>论文的式子化简后是 \(\delta_i=\sigma\big(k(\langle\mathbf v,\hat{\boldsymbol n}_i\rangle-v_{\mathrm{th}})\big)\)。代码（holosoma <code>agents/modules/modules.py</code> 第 96 到 98 行）对前相机是 <code>1 - sigmoid(k*(-v_x - v_th))</code>，化简是 \(\sigma\big(k(v_x+v_{\mathrm{th}})\big)\)，后相机同理。也就是代码的阈值是 \(-v_{\mathrm{th}}\)，论文是 \(+v_{\mathrm{th}}\)，曲线整体平移了 \(2v_{\mathrm{th}}\)。论文没给 \(k\) 和 \(v_{\mathrm{th}}\)；代码 <code>vision_mask_k=4.0</code>、<code>vision_mask_v_th=0.2</code>，另有论文没提的硬截断 <code>vision_mask_hard_cutoff=0.1</code>：系数低于 0.1 直接置 0（<code>algo.py</code> 第 249 到 254 行，<code>modules.py</code> 第 100 到 102 行）。按 \(k=4\)、\(v_{\mathrm{th}}=0.2\) 算：</p>
+<div class="tablewrap"><table class="t-r4"><thead><tr><th>\(v_x\)（m/s）</th><th class="n">论文 前 / 后</th><th class="n">代码 前 / 后</th></tr></thead><tbody>
+<tr><td>0</td><td class="n">0.310 / 0.310</td><td class="n">0.690 / 0.690</td></tr>
+<tr><td>0.2</td><td class="n">0.500 / 0.168</td><td class="n">0.832 / 0.500</td></tr>
+<tr><td>0.5</td><td class="n">0.769 / 0.057</td><td class="n">0.943 / 0.231</td></tr>
+<tr><td>1.0</td><td class="n">0.961 / 0.008</td><td class="n">0.992 / 0.039 → 0</td></tr>
+</tbody></table></div>
+<p>代码的版本更“宽容”：低速时两路相机都保留大部分权重，背向相机要到约 0.75 m/s 以上才被截断（\(1-\sigma(4(v_x-0.2))<0.1\Rightarrow v_x>0.749\)）。发布的学生和教师都是按代码训的，所以代码这条曲线才是实际生效的。四路相机时代码分别用 \(v_x\) 管前后、\(v_y\) 管左右，等价于论文的点积写法。动画<a href="../interactives/rpl/index.html?scene=8&amp;p=0.6">第 8 幕</a>把两条曲线画在一起。</p></div>
+
+<h4 id="s3-2-4">3.2.4 随机侧面遮挡（RSM），应对没见过的地形宽度</h4>
+<p>真实地形常比训练时窄。RSM 在训练时随机把深度图两侧换成随机噪声，逼策略依赖中间的可见区域。每个环境按 \(\mathrm{mode}\sim\mathrm{Categorical}(\mathbf p_k)\) 在 {none, small, large} 里抽，\(\mathbf p_k\) 取决于地形 \(k\)，遮得越多相当于地形越窄。被遮的像素填 \([d_{\mathrm{near}},d_{\mathrm{far}}]\) 内的均匀随机值，防止策略利用边界伪影。连续地形（楼梯、坡）用更大的遮挡，因为能不能走主要看前方局部几何；梅花桩用更小的遮挡，因为可用落脚点可能只出现在视野边上。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · RSM 在代码里的具体几何</span><p>参数在 <code>rpl_training/config_values/camera.py</code> 第 38 到 48、115 到 119 行，实现在 holosoma <code>managers/camera/terms/warp_depth.py</code> 第 764 到 852 行。</p>
+<ul>
+<li><b>遮哪里。</b><code>box=[90, 50, 0, 0]</code> 是 240 × 135 原始分辨率下左、右、上、下各遮多少像素。large 遮左 90、右 50 列，剩中间 100 列（41.7%）；small 每边少遮 <code>diff=30</code>，即左 60、右 20，剩 160 列（66.7%）。上下不遮。左右不对称，论文和代码都没解释原因。</li>
+<li><b>概率。</b>基础 (none, small, large) = (0.1, 0.45, 0.45)，再按 <code>terrain_bias=0.15</code> 偏移：坡和楼梯 (0.1, 0.30, 0.60)，梅花桩 (0.1, 0.60, 0.30)。所以梅花桩也会被遮，只是偏小遮挡，这和论文描述一致。</li>
+<li><b>多久重抽一次。</b>代码每次渲染（10 Hz）都重新抽 mode，不是每个回合固定一次；两路相机共用同一张随机填充图（<code>share_across_cameras=True</code>）。论文说“对每个环境采样”，没说频率。</li>
+<li><b>填充值。</b>\([0.1, 2.0]\) m 的均匀随机数，即近、远截断面。</li>
+</ul></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 10 幕</p>
+<p>从地形课程、特权高度图专家、力扰动，到双相机光线投射、噪声和 RSM、学生网络、DFSV 曲线、DAgger 流程，最后是 sim2sim 和真机部署。第 4 幕的深度图是页面当场对玩具地形做光线投射算出来的；第 8 幕当场算论文和代码两条 DFSV 曲线；第 9 幕的曲线是从图 13 矢量读出的。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/rpl/index.html?embed=1" title="RPL 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/rpl/index.html">新窗口打开，看结构表和“哪些是示意” ↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>四个问题：Q1 多深度渲染能不能比现有仿真方法更好地扩展？Q2 DFSV 和 RSM 能否提高对非对称视觉输入和未见地形宽度的鲁棒性？Q3 网络结构是否优于其他选择？Q4 真机上能否长时程地在多种难地形上双向行走？</p>
+<h3 id="s4-1">4.1 实验设置</h3>
+<p><b>训练配置。</b>机器人是 29 自由度的 Unitree G1，全部在 <a class="ds" href="https://developer.nvidia.com/isaac-gym">NVIDIA IsaacGym</a> 里训。阶段 1 每个专家用 4 块 NVIDIA L40S、4096 × 4 个并行环境、12 小时；阶段 2 用 8 块 GPU、1024 × 8 个环境、12 小时。</p>
+<p><b>真机地形。</b>一个自建的地形场和一段弧形长楼梯。地形场包括 20° 坡、1.2 m 宽的楼梯（台阶高 20 cm，踏面长 22 cm 和 25 cm 两种）、梅花桩（边长 25 cm，间隙 60 cm）。弧形楼梯台阶高 20 cm、踏面 30 cm，还需要非零的转向角速度。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 6 页 · <a href="https://arxiv.org/html/2602.03002#S4.F6">看原图 ↗</a></span><p>(a) 真机地形场全景，白字标出尺寸：坡角 20°，台阶 20 cm 高、22 cm 和 25 cm 踏面，梅花桩 25 cm 和 60 cm，楼梯宽 120 cm。(b) 机器人装置：G1 站在楼梯上，胸前和背后各一个相机，黄色和青色框分别放大显示后、前相机看到的深度图。</p></div>
+<p><b>感知设置。</b>蒸馏时深度以 10 Hz 渲染，视场 101° × 69°，原始 240 × 135，降采样到 48 × 27。仿真里最多支持 4 路（前后左右）用于全向行走。G1 只在前后有安装孔，为了少改硬件，真机只装前后 2 路，足够双向行走。相机是 <a class="ds" href="https://www.stereolabs.com/products/zed-2i">ZED 2i</a>，15 Hz，neural_light 深度模式，同样降到 48 × 27。深度随机化（处理延迟、噪声、丢点）见附录 A.2。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 感知设置在代码里的样子</span><p><code>rpl_training/config_values/camera.py</code> 第 54 到 69 行：水平视场 101.41°，垂直视场 69.00°（注释说光线投射不用这个值，由水平视场和宽高比推出：\(2\arctan(\tan(50.7°)\times135/240)=69.0°\)，自洽）；双三次插值降采样并开抗锯齿。前后相机挂在 <code>torso_link</code>，偏移 (0.135, 0.06, 0.02) 和 (−0.125, −0.06, 0.02) m，俯仰 75°，后相机再转 180°（第 76 到 87 行）。sim2sim 的相机写的是 (0.15, 0.06, 0.02) 和 (−0.13, −0.06, 0.02)（<code>rpl_sim2sim/inference_presets.py</code> 第 112 到 119 行），和训练差 1.5 cm 和 0.5 cm，在 ±2.5 cm 的随机化范围内。</p>
+<p>10 Hz 的实现：仿真 200 Hz、控制抽取 4，策略 50 Hz；相机管理器按 <code>round(1/(10 × 0.02))=5</code> 步拍一帧（holosoma <code>managers/camera/manager.py</code> 第 70 到 78 行）。学生的深度输入是最近 2 帧，每 5 步推进一次（<code>observation.py</code> 第 204 到 217、294 到 298 行）。</p></div>
+
+<h3 id="s4-2">4.2 多深度渲染的扩展性</h3>
+<p>对比的基线：IsaacGym PhysX 相机、<a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a> RTX（TiledCamera）、Isaac Sim Warp（RayCasterCamera），v3 又加了 <a class="ds" href="https://github.com/isaac-sim/IsaacLab">Isaac Lab</a> 2.3.2 支持动态网格的 MultiMeshRayCasterCamera。单块 L40S，所有地形，240 × 135 分辨率，1024 个环境。“Iter.”包括物理、渲染和推理。表 2（第 7 页，<a href="https://arxiv.org/html/2602.03002#S4.T2">看原表 ↗</a>）：</p>
+<div class="tablewrap"><table class="t-r2"><thead><tr><th rowspan="2">方法</th><th rowspan="2">动态网格</th><th class="n" colspan="2">\(N_{\mathrm{cam}}=1\)</th><th class="n" colspan="2">\(N_{\mathrm{cam}}=2\)</th><th class="n" colspan="2">\(N_{\mathrm{cam}}=4\)</th></tr>
+<tr class="grp"><th class="n">显存 GB↓</th><th class="n">迭代 s↓</th><th class="n">显存 GB↓</th><th class="n">迭代 s↓</th><th class="n">显存 GB↓</th><th class="n">迭代 s↓</th></tr></thead><tbody>
+<tr><td>IsaacGym PhysX</td><td>✓</td><td class="n">16.8</td><td class="n">35.6 ± 4.1</td><td class="n">22.5</td><td class="n">70.1 ± 8.3</td><td class="n">33.9</td><td class="n">146.5 ± 16.1</td></tr>
+<tr><td>IsaacSim RTX</td><td>✓</td><td class="n">17.5</td><td class="n">5.3 ± 0.1</td><td class="n">23.2</td><td class="n">7.6 ± 0.1</td><td class="n">34.4</td><td class="n">12.6 ± 0.1</td></tr>
+<tr><td>IsaacSim Warp</td><td>×</td><td class="n">12.8</td><td class="n">3.5 ± 0.1</td><td class="n">15.1</td><td class="n">5.9 ± 0.1</td><td class="n">20.7</td><td class="n">9.1 ± 0.1</td></tr>
+<tr><td>IsaacLab Warp 2.3.2</td><td>✓</td><td class="n">15.0</td><td class="n">6.6 ± 0.1</td><td class="n">17.8</td><td class="n">8.5 ± 0.1</td><td class="n">23.5</td><td class="n">14.7 ± 0.1</td></tr>
+<tr><td><b>Ours（算法 1）</b></td><td>✓</td><td class="n">13.3</td><td class="n">1.3 ± 0.0</td><td class="n">14.6</td><td class="n">1.5 ± 0.1</td><td class="n">17.3</td><td class="n">1.9 ± 0.1</td></tr>
+</tbody></table></div>
+<p>作者的结论：RPL 同时支持动态和静态网格，比最快的基线 IsaacSim Warp（不支持动态网格）快 5 倍；IsaacLab 的动态网格相机在 1、2、4 路时分别慢 5.1、5.7、7.7 倍。两者都在部件局部系里查询，差别在于 RPL 用 CUDA graph 重放和预分配缓冲，避免了基线的逐相机启动、阻塞同步和每步分配。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · “5 倍”只在 4 路相机时接近</span><p>按表 2 的迭代时间算：对 IsaacSim Warp，1、2、4 路分别是 3.5/1.3 = 2.7、5.9/1.5 = 3.9、9.1/1.9 = 4.8 倍。对 IsaacLab：6.6/1.3 = 5.08、8.5/1.5 = 5.67、14.7/1.9 = 7.74，和正文的 5.1/5.7/7.7 吻合。对 IsaacSim RTX：4.1、5.1、6.6 倍；对 IsaacGym PhysX：27、47、77 倍。所以摘要的“5×”是 4 路相机下对最快基线的数（4.8 取整），1 路时只有 2.7 倍。另外迭代时间里包含物理和推理，纯渲染的加速比应该更大，论文没有单列渲染时间。显存在 4 路时最省（17.3 对 20.7 GB），1 路时比 IsaacSim Warp 多 0.5 GB。</p></div>
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 7 页 · <a href="https://arxiv.org/html/2602.03002#S4.F7">看原图 ↗</a></span><p>三张机器人躯干特写，绿色小方块标出相机：\(N_{\mathrm{cam}}=1\) 时一个朝下的相机；2 时前后各一；4 时前后左右各一。</p></div>
+<p>为了说明需要多相机，比较 \(N_{\mathrm{cam}}=1,2,4\) 在双向和全向行走下达到的地形等级。表 3（第 7 页，<a href="https://arxiv.org/html/2602.03002#S4.T3">看原表 ↗</a>）：</p>
+<div class="tablewrap"><table class="t-r3"><thead><tr><th>任务</th><th>\(N_{\mathrm{cam}}\)（配置）</th><th class="n">坡</th><th class="n">上楼梯</th><th class="n">下楼梯</th><th class="n">梅花桩</th></tr></thead><tbody>
+<tr class="grp"><th rowspan="4">双向</th><th><i>专家水平</i></th><th class="n">6.0</th><th class="n">6.0</th><th class="n">6.0</th><th class="n">6.0</th></tr>
+<tr><td>1（朝下）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">5.9 ± 0.1</td><td class="n">5.1 ± 0.1</td></tr>
+<tr><td>2（前 + 后）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td></tr>
+<tr><td>4（前后左右）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td></tr>
+<tr class="grp"><th rowspan="4">全向</th><th><i>专家水平</i></th><th class="n">6.0</th><th class="n">6.0</th><th class="n">6.0</th><th class="n">5.6</th></tr>
+<tr><td>1（朝下）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">5.9 ± 0.1</td><td class="n">3.0 ± 0.2</td></tr>
+<tr><td>2（前 + 后）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.0</td><td class="n">5.9 ± 0.1</td><td class="n">4.5 ± 0.1</td></tr>
+<tr><td>4（前后左右）</td><td class="n">6.0 ± 0.0</td><td class="n">6.0 ± 0.1</td><td class="n">6.0 ± 0.0</td><td class="n">4.6 ± 0.0</td></tr>
+</tbody></table></div>
+<p>相机少时梅花桩掉得最厉害：70 cm 的间隙要求宽视场且朝向行走方向。作者的结论是可靠的多方向行走需要每个行走方向至少有一路相机覆盖。另外 v3 补了一句：在每种地形单次的仿真测试里，Hiking-in-the-Wild 双向过坡、只能单向上楼梯、过不了梅花桩，RPL 三种都能过；这不是成功率估计。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · “地形等级 6.0”是饱和值，表 3 只在梅花桩上有区分度</span><p>论文没定义地形等级怎么统计。代码的课程是 10 行（等级 0 到 9），走过 2.5 m（地形块长 8 m × 0.3125）且到时间就升一级，到顶后随机重新分配到 0 到 9 之间（<code>rpl_training/terms/curriculum.py</code> 第 193 到 256 行）。所以所有环境都“通关”时，平均等级会停在某个低于 9 的平衡值。图 13 里所有地形的曲线都停在 5.7 到 6.0 附近，和表 3 的 6.0 对得上。我的推断是 6.0 就是这个饱和值，表 3 里 24 格有 20 格等于或接近它（5.9 到 6.0），真正有区分度的只有梅花桩一列。</p>
+<p>另一个小出入：这里说梅花桩“70 cm 间隙”，第 4.1 节的真机是 60 cm，第 3.1.1 节训练范围写到 0.70 m，而课程最难一行实际是 0.635 m（<a href="#n5">读者注 5</a>）。</p></div>
+
+<h3 id="s4-3">4.3 对非对称深度输入、未见地形宽度和负载的鲁棒性</h3>
+<p>Q2 的消融有四个变体：完整 RPL、去 RSM、去 DFSV、两个都去。四者的最终蒸馏损失差不多（图 8(b)），说明遮挡后的输入仍保留了足够的监督信息；但部署表现差很多。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 第 8 页 · <a href="https://arxiv.org/html/2602.03002#S4.F8">看原图 ↗</a></span><p>两张对数纵轴的蒸馏损失曲线（横轴到约 18k 迭代，纵轴标 0.01 和 0.1），各带一个放大末段的插图。(a) 四种网络：CNN+Transformer、U-Net+Transformer、CNN+MLP、CNN+RNN；末段 CNN+Transformer 最低。(b) RPL 及其三种消融；末段四条线缠在一起。这张图是位图，没法读数，所以没有重画。</p></div>
+<p>仿真到仿真的可视化在 <a class="ds" href="https://mujoco.org/">MuJoCo</a> 里做，地形场是 25° 坡、1.2 m 宽楼梯（台阶 20 cm 高、25 cm 踏面）、梅花桩（25 cm 边长、60 cm 间隙）。为对应图 1(b) 的真机搬运设定，假手的质量改成 2.5 kg。</p>
+<div class="fig" id="fig9"><span class="lab">图 9、图 10 · 第 8 页 · <a href="https://arxiv.org/html/2602.03002#S4.F9">看原图 ↗</a></span><p>图 9 是四组截图，每组是机器人和两侧的前后深度图。上排后退下楼梯：(a) 去 RSM 的策略在没见过的窄楼梯上一脚踩空（橙色圈），(b) RPL 稳住（绿色圈）。下排前进下楼梯：前相机看到楼梯，后相机还看到梅花桩；(c) 去 DFSV 的策略被后视图干扰摔倒，(d) RPL 正常。深度图里红框标出被遮挡的侧边。图 10 是仿真地形场的全景：楼梯、平台和梅花桩排成一列。</p></div>
+<p>整场通过率（表 4，第 8 页，<a href="https://arxiv.org/html/2602.03002#S4.T4">看原表 ↗</a>）。下半部分的网络结构对比也放在这里；所有行都带力扰动，适用时带 DFSV 和 RSM：</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th>方法</th><th class="n">前进</th><th class="n">后退</th></tr></thead><tbody>
+<tr><td><b>RPL（CNN+Transformer）</b></td><td class="n">10/10</td><td class="n">10/10</td></tr>
+<tr><td>去 DFSV</td><td class="n">0/10</td><td class="n">2/10</td></tr>
+<tr><td>去 RSM</td><td class="n">2/10</td><td class="n">0/10</td></tr>
+<tr><td>去 DFSV 和 RSM</td><td class="n">0/10</td><td class="n">0/10</td></tr>
+<tr><td>去力扰动</td><td class="n">3/10</td><td class="n">3/10</td></tr>
+<tr class="grp"><th>CNN+MLP</th><th class="n">6/10</th><th class="n">7/10</th></tr>
+<tr><td>CNN+RNN</td><td class="n">5/10</td><td class="n">5/10</td></tr>
+<tr><td>U-Net+Transformer</td><td class="n">1/10</td><td class="n">0/10</td></tr>
+</tbody></table></div>
+<p>结论：去掉 DFSV、RSM 或两者，成功率从 10/10 掉到最低 0/10；去掉阶段 1 的力扰动，在 2.5 kg 负载下掉到 3/10。作者认为三者共同带来对分布外几何、非对称感知和末端负载的鲁棒性。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 每格 10 次，置信区间很宽</span><p>按 Wilson 95% 区间：10/10 是 [0.72, 1.00]，6/10 是 [0.31, 0.83]，3/10 是 [0.11, 0.60]，2/10 是 [0.06, 0.51]。所以 RPL 和去掉某一项的差别是显著的（区间不重叠），但 CNN+MLP（6、7）和 CNN+RNN（5、5）之间、去力扰动（3、3）和去 DFSV（0、2）之间，靠 10 次试验分不开。前进和后退合起来看，RPL 是 20/20，区间 [0.84, 1.00]。论文没说 10 次试验之间改变了什么（初始位置、随机种子还是地形随机化）。</p></div>
+
+<h3 id="s4-4">4.4 网络结构与蒸馏的消融</h3>
+<p>Q3 比较四种蒸馏骨干（图 8(a)）：CNN+MLP、CNN+RNN、CNN+Transformer（本文）、U-Net+Transformer。最后一种还要从深度重建高度图，\(\mathcal L_{\mathrm{rec}}=\mathbb E_t[\|f_{\mathrm{rec}}(\mathbf D_t)-\mathbf H_t\|_2^2]\)，和式 (1) 一起训。CNN+Transformer 的蒸馏损失最低、部署成功率最高，作者归因于基于注意力的多视角融合。上一节说过损失相近不代表鲁棒性相近；但在都用 DFSV 和 RSM 的前提下，损失更高确实对应部署更差，所以损失仍可作为粗筛信号。U-Net 的逐像素重建和 RSM 不兼容，限制了部分可见时的鲁棒性。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 论文没给学生网络的尺寸，代码里是这样</span><p>来自 <code>rpl_training/config_values/algo.py</code> 第 233 到 264、351 到 378 行和 holosoma <code>agents/modules/vision_transformer.py</code>、<code>modules.py</code> 第 124 到 250 行：</p>
+<ul>
+<li><b>CNN 分词器。</b>每路相机一个独立初始化的 CNN（<code>independent_camera_init=True</code>）：输入 2 帧 × 27 × 48，三层卷积通道 (16, 32, 32)，核 4、步长 2、填充 1，ReLU。空间尺寸 27 × 48 → 13 × 24 → 6 × 12 → 3 × 6，每通道 18 格。</li>
+<li><b>按通道成 token。</b><code>vision_tokens="channel"</code>：每个输出通道是一个 token，两路相机的 18 格拼起来是 36 维，所以视觉 token 是 32 个、每个 36 维（注释写“32 tokens x 18 cells * 2 cameras”）。DFSV 的系数在拼接前乘在各相机的特征上。</li>
+<li><b>状态 token。</b>5 帧本体感觉各自线性投影成一个 token（115 → 64）。</li>
+<li><b>Transformer。</b>32 + 5 = 37 个 token 一起做自注意力，64 维、4 头、4 层，前置 LayerNorm，FFN 256 维，有可学位置编码。取最后一个 token（当前帧状态）作为输出，<code>aggregation_method="last"</code>。</li>
+<li><b>动作头。</b>MLP [512, 256, 256, 128]，ELU，输出下身动作。</li>
+</ul>
+<p>老师的高度图编码器是两层卷积 (16, 16)，输入 16 × 10（对应 1.6 m × 1.0 m、0.1 m 分辨率），后接同样的 MLP（第 268 到 281 行）。蒸馏用 Adam，学习率 1e-3，100 步预热后余弦退火 10000 次迭代到 1e-6，共 20000 次迭代，每次每环境 24 步、5 个 epoch、4 个小批（第 136 到 165、283 到 293 行，<code>experiment.py</code> 第 147 到 156 行）。代码里也有可选的“编码器蒸馏”损失（学生 CNN 特征对齐老师高度图编码），默认关闭。</p></div>
+
+<h3 id="s4-5">4.5 多地形梯度分析：只用 DAgger 对比 DAgger + RL 混合</h3>
+<p>比较两种蒸馏目标：(i) 只用 DAgger，即式 (1) 的动作回归；(ii) PHP 提出的混合目标，加一项 PPO 式的策略梯度，让学生既模仿专家又用任务奖励自我改进：</p>
+<div class="eq" id="eq2"><div class="m">\[\mathcal L_{\mathrm{hybrid}}=\lambda_{\mathrm{PPO}}\,\mathcal L_{\mathrm{PPO}}+\lambda_{\mathrm D}\,\mathcal L_{\mathrm{distill}},\qquad \lambda_{\mathrm{PPO}}+\lambda_{\mathrm D}=1,\]</div><span class="no">(2)</span></div>
+<p>\(\mathcal L_{\mathrm{PPO}}\) 是标准的 PPO 演员目标。\(\lambda_{\mathrm D}\) 按余弦曲线逐渐调低，下限 0.1。混合目标的吸引力在于：换成只看深度后，高度图专家可能在某些区域不再最优，策略梯度项可以让学生在那里自己变好。</p>
+<p><b>地形等级更高。</b>每个地形族上，只用 DAgger 都达到明显更高的地形等级，收敛也更快（图 13）。</p>
+<p><b>梯度对齐更好。</b>设 \(\mathcal B_k\) 是一个共享小批里属于地形 \(k\in\{1,\dots,K\}\) 的子集（这里 \(K=4\)），对每个地形算演员梯度</p>
+<div class="eq" id="eq3"><div class="m">\[\mathbf g_k=\nabla_\theta\,\mathcal L_k(\mathcal B_k),\qquad \mathcal L_k=\begin{cases}\mathcal L^{(k)}_{\mathrm{distill}} & \text{（只用 DAgger）}\\[2pt] \lambda_{\mathrm{PPO}}\,\mathcal L^{(k)}_{\mathrm{PPO}}+\lambda_{\mathrm D}\,\mathcal L^{(k)}_{\mathrm{distill}} & \text{（混合）}\end{cases}\]</div><span class="no">(3)</span></div>
+<p>以及任意两个地形之间的余弦</p>
+<div class="eq" id="eq4"><div class="m">\[\rho_{ij}=\frac{\langle\mathbf g_i,\mathbf g_j\rangle}{\|\mathbf g_i\|\,\|\mathbf g_j\|}.\]</div><span class="no">(4)</span></div>
+<p>\(\rho_{ij}\) 接近 1 表示降低地形 \(i\) 的损失也会降低地形 \(j\) 的，一步更新能同时改善多个地形；接近 0 表示两者正交，每步只改善一个。只用 DAgger 时，训练早期 \(\rho_{ij}\) 明显大于 0，策略很快学到共同的行走基础（平衡、步态节奏、深度和本体感觉的融合）。混合目标在最初几千次迭代内就把 \(\rho_{ij}\) 推到 0（图 12 显示梯度范数并不为零，所以只是互相正交）：四个地形争夺容量，每步对每个地形的进展更小，收敛更慢，最终等级更低。作者说这不是混合目标本身的缺陷：即使四个地形的奖励大部分共享，RL 目标由价值驱动，会把策略推向每个地形上的局部最优，这是多任务 RL 的梯度干扰现象。解决要靠梯度手术或进一步的奖励协同设计；既然只用 DAgger 已经很强，RPL 就没有在这上面投入。</p>
+<div class="fig" id="fig11"><span class="lab">图 11、12、13 · 第 9 页 · <a href="https://arxiv.org/html/2602.03002#S4.F11">看原图 ↗</a></span><p>图 11：六个小图，每对地形一个，纵轴 \(\rho_{ij}\)（0 到 1），横轴训练迭代到 20000；橙线只用 DAgger，红线混合。图 12：四个小图，每个地形的梯度范数 \(\|\mathbf g_k\|\)；红线在 5 到 9 附近，橙线贴近 0。图 13：四个小图，每个地形的地形等级曲线，纵轴 0 到 6。下面两张重画来自这一页的矢量路径（图 12 没有重画，数值在读者注里）。</p></div>
+<div class="viz" id="c-fig13"><p class="cap">重画 · 图 13 · 纵轴是地形等级，横轴是训练迭代。从 PDF 第 9 页矢量路径读出（pdftocairo -svg，按刻度标签标定），每 100 次迭代取最近的一个原始点，不做平均。读数误差约 ±0.05。可悬停看数值。</p></div>
+<div class="viz" id="c-fig11"><p class="cap">重画 · 图 11 · 同上。纵轴是两地形之间的梯度余弦 ρ_ij，横轴是训练迭代。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 从矢量数据读出来的三件事</span><p><b>“几百”还是“几千”。</b>图 11 图注说混合的余弦“在最初几百次迭代内”塌到 0，正文说“最初几千次”。我按“第一次低于 0.2”的迭代数读：坡–上楼梯 121、坡–下楼梯 191、坡–梅花桩 391、上楼梯–梅花桩 341、下楼梯–梅花桩 351，上楼梯–下楼梯 1191。六对里五对在 400 次以内，图注的“几百”更准。混合在 200 到 500 次迭代之间，坡和两种楼梯的余弦是负的（平均约 −0.2 到 −0.47），不只是正交。</p>
+<p><b>只用 DAgger 也会降到 0。</b>橙线在 10000 次以后同样降到 0 附近（15000 到 20000 次的平均在 −0.10 到 0.05）。同时图 12 里橙线的梯度范数在 2000 次以后已经接近 0，也就是蒸馏损失基本收敛，后期的余弦是噪声主导的。所以“throughout”只在前一半成立，后一半的比较没有意义。</p>
+<p><b>混合目标早期并不慢。</b>200 到 500 次迭代之间，混合在坡上的平均等级是 4.79，只用 DAgger 是 3.14；上楼梯 1000 到 2000 次之间混合 6.20 对 5.84。混合真正落后的是梅花桩（全程更低）和后期的退化：最后 5000 次的平均，坡 4.57 对 5.98，上楼梯 5.22 对 5.78，下楼梯 3.33 对 5.71，梅花桩 4.38 对 5.73。所以“收敛更慢”只对梅花桩成立；其余三个地形是先追上再掉下来。</p></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 发布代码里没有混合目标</span><p>蒸馏用 <code>DAggerMultiActorMoE</code>，配置 <code>use_critic=False</code>（<code>algo.py</code> 第 156 行）。holosoma <code>agents/dagger/dagger_ma.py</code> 第 725 到 783 行的 <code>_update_dagger</code> 只有 BC 损失、可选的编码器损失和（<code>use_critic</code> 打开时的）价值损失，没有 PPO 的策略比值或优势项；整个 <code>agents/dagger/</code> 目录里也搜不到 surrogate 或 \(\lambda_{\mathrm{PPO}}\) 的调度。所以第 4.5 节的混合实验、图 11 和图 12 的逐地形梯度统计，用发布代码无法直接复现。论文说的“余弦调度、下限 0.1”和 PHP 式 (3) 的“前半程线性降到 0.1”不同，具体实现未知。</p></div>
+
+<h3 id="s4-6">4.6 真机上的鲁棒双向行走</h3>
+<p>在 29 自由度的 G1 上，沿 50 m 的地形场和一段弯曲的楼梯来回走。Transformer 策略在机载 Jetson Orin NX 16GB 上以 50 Hz 运行；深度采集、策略推理和 Apple Vision Pro 遥操作之间用共享内存通信，降低系统延迟。整场双向通过跑 10 次（5 次不带负载，5 次带 2 kg 负载），任何一段踩错就算失败。表 5（第 10 页，<a href="https://arxiv.org/html/2602.03002#S4.T5">看原表 ↗</a>）：</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th rowspan="2">设定</th><th class="n" rowspan="2">成功</th><th class="n" colspan="3">失败</th></tr><tr class="grp"><th class="n">(a) 梅花桩</th><th class="n">(b) 楼梯</th><th class="n">(c) 负载</th></tr></thead><tbody>
+<tr><td>不带负载</td><td class="n">3/5</td><td class="n">1</td><td class="n">1</td><td class="n">—</td></tr>
+<tr><td>带 2 kg 负载</td><td class="n">3/5</td><td class="n">1</td><td class="n">0</td><td class="n">1</td></tr>
+<tr><td>合计</td><td class="n">6/10</td><td class="n">2</td><td class="n">1</td><td class="n">1</td></tr>
+</tbody></table></div>
+<p>每次成功都依次通过 20° 坡、两种踏面（22、25 cm）的楼梯、25 cm 梅花桩（60 cm 间隙），前进或后退，约 200 m、约 2 分钟连续行走。机器人还会弯腰捡起 2 kg 负载提着走完全场，并零样本走上一段没见过曲率和光照的楼宇弧形楼梯（30 cm 踏面）。失败集中在三类：梅花桩上和楼梯侧边的脚边缘接触，以及负载摆动。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 真机数字的几处疑问</span><p><b>速度。</b>“约 200 m、约 2 分钟”意味着平均 1.67 m/s。但代码训练时线速度命令范围是 ±1.0 m/s（<code>command.py</code> 第 19 行），G1 在台阶和梅花桩上也不太可能跑到这么快。另外地形场是“50 m”，往返一次是 100 m。我的推断：200 m 和 2 分钟至少有一个是粗略值，或者“一次试验”包含两次往返。原文没有给出可以核对的细节。</p>
+<p><b>样本量。</b>6/10 的 Wilson 95% 区间是 [0.31, 0.83]。每个失败类别只有 1 到 2 次。</p>
+<p><b>仿真和真机的整场成功率不能直接比。</b>表 4 的 10/10 是 MuJoCo 里的地形场，表 5 是真机，两者的地形参数也不同（下一条注）。</p></div>
+
+<h3 id="s4-7">4.7 真机研究与失败模式</h3>
+<div class="fig" id="fig14"><span class="lab">图 14 · 第 11 页 · <a href="https://arxiv.org/html/2602.03002#S4.F14">看原图 ↗</a></span><p>三张真机失败瞬间的照片：(a) 脚落在梅花桩边缘附近；(b) 脚落在楼梯侧边（楼梯宽度方向的边）附近；(c) 钩子式的末端挂件让负载晃动。</p></div>
+<p>10 次里失败的 4 次分三类。(a)(b) 落脚靠近地形边缘：21 cm 的脚对 25 cm 的石头和 1.2 m 宽的楼梯余量都很小，少量噪声或漂移就把脚推到边上。阶段 1 的脚边缘惩罚能缓解，不能根除；作者认为更严格的避边奖励会有帮助。(c) 负载摆动：被动的钩子让负载晃动，重心偏移超出阶段 1 力课程的范围，带负载试验里唯一一次这类失败就是它。缓解办法是换夹爪，或者加末端稳定项。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · sim2sim 场景和第 4.3 节写的不一样</span><p>代码自带的 MuJoCo 地形场 <code>rpl_sim2sim/assets/scene_g1_29dof_terrains_freebase_real.xml</code>（第 25 到 56 行）：楼梯 5 级，每级高 0.15 m、踏面 0.25 m、宽 1.5 m；坡的四元数 (0.9848, 0, −0.17365, 0) 对应 20.0°；梅花桩边长 0.25 m，沿行走方向的中心距 0.60 m，所以边到边的空隙是 0.35 m。第 4.3 节写的是 25° 坡、20 cm 台阶、1.2 m 宽、60 cm 间隙。可能论文用的是另一个场景文件，也可能“60 cm 间隙”指的是中心距（这是我的推断，图 6(a) 的标注也看不出 60 cm 量的是哪一段）。如果是中心距，真机的梅花桩间隙也应读作约 35 cm。</p></div>
+
+<h2 id="s5"><span class="no">5</span>结论</h2>
+<p>RPL 是两段式学习框架，用于复杂地形上的多方向人形感知行走，并对负载保持鲁棒：先用特权高度图训地形专家，学到解耦的行走和操作；再蒸馏成一个融合多视角深度的 Transformer 策略。并行深度渲染器同时对动态机器人网格和静态地形网格做光线投射，模拟延迟、噪声和丢点，比现有仿真渲染器快 5 倍。DFSV 和 RSM 提升了对非对称多视角观测和未见地形宽度的鲁棒性。仿真和 G1 真机实验展示了长时程、来回的复杂地形行走。</p>
+<h2 id="s6"><span class="no">6</span>局限</h2>
+<p>两点。第一，没有展示真机横向行走：在梅花桩这类离散地形上横着走，对专家训练和蒸馏都不容易。第二，DFSV 对固定相机有效，但没有学主动选视角，遇到严重遮挡或含糊的移动操作场景时帮助有限。</p>
+
+<h2 id="apA"><span class="no">A</span>附录</h2>
+<h3 id="apA1">A.1 符号表</h3>
+<p>表 6（第 15 页，<a href="https://arxiv.org/html/2602.03002#A1.T6">看原表 ↗</a>）列出正文用到的符号，分三组。本体感觉：\(\mathbf s^p_t\) 及其组成 \(\mathbf q_{t-4:t}\)、\(\dot{\mathbf q}_{t-4:t}\)、\(\boldsymbol\omega^{\mathrm{root}}_{t-4:t}\)、\(\mathbf g_{t-4:t}\)、\(\mathbf a_{t-5:t-1}\)。目标：\(\mathbf G^l_t\) 及 \(\mathbf v^{\mathrm{lin}}_t\)、\(\mathbf w^{\mathrm{yaw}}_t\)、\(\boldsymbol\phi^{\mathrm{stance}}_t\)、\(\mathbf h^{\mathrm{root}}_t\)、\(\mathbf o^{\mathrm{torso}}_t\)；\(\mathbf G^u_t\) 即 \(\mathbf q_{\mathrm{upper},t}\)。感知：\(\mathbf H_t\)、\(\mathbf D_t\)、\(\mathbf d^{(i)}_t\)、\(N_{\mathrm{cam}}\)。含义和正文第 3 节一致，这里不重复。</p>
+<h3 id="apA2">A.2 域随机化</h3>
+<p>表 7（第 15 页，<a href="https://arxiv.org/html/2602.03002#A1.T7">看原表 ↗</a>）是蒸馏阶段的随机化。前两列照录，第三列是我对照的代码值。</p>
+<div class="tablewrap"><table class="t-dr"><thead><tr><th>项</th><th>论文（表 7）</th><th>代码（蒸馏预设）</th></tr></thead><tbody>
+<tr class="grp"><th colspan="3">动力学</th></tr>
+<tr><td>摩擦</td><td>U(0.5, 1.25)</td><td><b>U(−0.1, 1.0)</b>（<code>randomization.py</code> 第 326 到 328 行，注释说 FALCON 把负值原样传给物理引擎）</td></tr>
+<tr><td>连杆质量</td><td>U(0.9, 1.2) × 默认</td><td>同（第 238 到 246 行）</td></tr>
+<tr><td>基座加质量</td><td>U(−1.0, 3.0) kg</td><td>同，加在 pelvis（第 325 行）</td></tr>
+<tr><td>基座质心</td><td>x U(−0.025, 0.025)，y、z U(−0.05, 0.05) m</td><td>同，加在 torso_link（第 329 到 333 行）</td></tr>
+<tr><td>控制延迟</td><td>U(0, 20) ms</td><td>0 到 1 个控制步（20 ms），<b>只加在上身</b>（第 318 到 324 行）</td></tr>
+<tr class="grp"><th colspan="3">深度相机</th></tr>
+<tr><td>平移</td><td>x、y、z 各 U(−0.025, 0.025) m</td><td>同（<code>camera.py</code> 第 98 到 104 行）</td></tr>
+<tr><td>旋转（欧拉角）</td><td>φ U(−2.5, 2.5)°，θ U(−3.0, 3.0)°，ψ U(−2.5, 2.5)°</td><td>同</td></tr>
+<tr><td>视场</td><td>ΔFOV U(−2.0, 2.0)°</td><td><b>±5.0°</b>（第 105 到 109 行）</td></tr>
+<tr><td>丢点</td><td>p = 0.05</td><td>同，丢点值 −2.5，之后被截到近平面 0.1 m（第 92 到 97 行）</td></tr>
+<tr><td>深度噪声</td><td>σ = 0.1 × 深度</td><td>同，高斯（<code>warp_depth.py</code> 第 752 到 762 行）</td></tr>
+<tr><td>深度延迟</td><td>表里没有（正文说表 7 包含“处理延迟”）</td><td><code>depth_delay=2</code>，范围 [2, 2]，即固定读 2 帧前的图；按 10 Hz 是 200 ms（我的推算，<code>camera.py</code> 第 66 到 68 行，<code>warp_depth.py</code> 第 220 到 240、624 到 635 行）</td></tr>
+</tbody></table></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 表 7 和代码的三处出入</span><p>上表加粗的三处：摩擦范围、视场范围、延迟只加上身。另外表 7 漏了深度延迟。按代码，学生看到的深度图比当前时刻旧 2 个渲染周期（约 200 ms），加上 10 Hz 本身最多 100 ms 的保持，相对真机 ZED 2i 15 Hz 的情形是偏保守的设定。代码里专家阶段的摩擦又不同：梅花桩和楼梯专家 U(−0.6, 1.0)，坡专家 U(−0.1, 1.0)（第 379 到 381 行）。负摩擦在 PhysX 里的效果我没有核实。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>RPL 指 <a href="https://github.com/amazon-far/RPL/tree/1ca0250ba3745381cfbfb2b72ebcf55e995076da">amazon-far/RPL 1ca0250</a>，hs 指子模块 <a href="https://github.com/amazon-far/holosoma/tree/91647eed1ba82db3b242cd1057035ab76b63c5c0">amazon-far/holosoma 91647ee</a>（路径前缀 <code>src/holosoma/holosoma/</code> 省略）。只读未跑。动画按代码画，和论文不同的地方在动画里两个都标了。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码</th><th>出处</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">地形与课程</th></tr>
+<tr><td>地形网格</td><td>没写</td><td>10 行 × 20 列，每块 8 m × 8 m，高度场 0.05 m；难度 = 行号/10</td><td>RPL <code>config_values/terrain.py</code> 140–201；hs <code>simulator/shared/terrain.py</code> 300–329</td></tr>
+<tr><td>地形比例（蒸馏）</td><td>没写</td><td>梅花桩 0.35、坡 0.15、上楼梯 0.25、下楼梯 0.25</td><td><code>terrain.py</code> 218–223</td></tr>
+<tr><td>坡 / 楼梯 / 梅花桩范围</td><td>37°；0.05–0.27 m；间隙 0.05–0.70 m</td><td>课程最难一行 34.0°；0.235–0.265 m；0.635 m（<a href="#n5">注 5</a>）</td><td>hs <code>terrain.py</code> 519–537、599–624、760–804</td></tr>
+<tr><td>升降级</td><td>没写</td><td>走过 2.5 m 且到时升级；没走到命令速度 × 剩余时间 × 0.5 降级；到顶随机重置</td><td>RPL <code>terms/curriculum.py</code> 193–256</td></tr>
+<tr class="grp"><th colspan="4">专家（阶段 1）</th></tr>
+<tr><td>专家个数</td><td>4 个地形族</td><td>3 个预设（stones、stairs、slopes）；发布权重 4 个目录，上下楼梯是同一文件</td><td><code>experiment.py</code> 212–237；<code>data/models/</code>（<a href="#n21">注 21</a>）</td></tr>
+<tr><td>算法</td><td>PPO，双智能体，非对称评论家，对称增强</td><td>PPO-MA，4 个网络（上下身各演员、评论家），<code>use_symmetry=True</code>，镜像损失系数 1.0</td><td><code>config_values/algo.py</code> 19–76、105–133；<code>experiment.py</code> 178–204</td></tr>
+<tr><td>高度图编码</td><td>1.6 × 1.0 m，0.1 m</td><td>CNN 输入 16 × 10，通道 (16, 16)，后接 MLP [512, 256, 256, 128]</td><td><code>algo.py</code> 85–98</td></tr>
+<tr><td>PPO 超参</td><td>没写</td><td>γ 0.99，λ 0.95，裁剪 0.2，熵 0.01，5 epoch，4 小批，24 步/环境，AdamW，自适应学习率（KL 0.01），50000 次迭代</td><td><code>algo.py</code> 19–48；<code>experiment.py</code> 187–196</td></tr>
+<tr><td>力扰动</td><td>γ = [0, 0, 1]</td><td>专家 Fz U(−60, 5) N，蒸馏 U(−100, 5) N，课程 0.1 起</td><td><code>command.py</code> 102–153（<a href="#n4">注 4</a>）</td></tr>
+<tr><td>新增奖励</td><td>脚边缘（梅花桩）、落脚点（楼梯）、躯干朝向</td><td>落脚点 −10 用于除平地外所有地形；脚边缘 −5 只在梅花桩专家</td><td><code>reward.py</code> 267–284、462–470、493–503（<a href="#n6">注 6</a>）</td></tr>
+<tr class="grp"><th colspan="4">深度渲染</th></tr>
+<tr><td>光线投射</td><td>算法 1</td><td>一致；22 个部件网格；远平面 2.5 m，截断 [0.1, 2.0] m</td><td>hs <code>managers/camera/terms/warp_kernels.py</code> 196–270（<a href="#n8">注 8</a>）</td></tr>
+<tr><td>分辨率与频率</td><td>240 × 135 → 48 × 27，10 Hz，101° × 69°</td><td>同；双三次 + 抗锯齿；每 5 个控制步拍一次</td><td>RPL <code>config_values/camera.py</code> 54–69</td></tr>
+<tr><td>噪声 / 丢点 / 外参</td><td>表 7</td><td>同，视场 ±5° 而不是 ±2°</td><td><code>camera.py</code> 92–109</td></tr>
+<tr><td>延迟</td><td>“处理延迟”，表里没有</td><td>固定 2 帧</td><td><code>camera.py</code> 66–68</td></tr>
+<tr><td>RSM</td><td>none / small / large，按地形</td><td>左 90 / 右 50 像素（small 60 / 20），概率按地形偏 0.15，每帧重抽</td><td><code>camera.py</code> 38–48；hs <code>warp_depth.py</code> 764–852（<a href="#n10">注 10</a>）</td></tr>
+<tr class="grp"><th colspan="4">学生与蒸馏（阶段 2）</th></tr>
+<tr><td>学生网络</td><td>CNN + Transformer</td><td>每相机 CNN (16, 32, 32) → 32 个通道 token + 5 个状态 token → 4 层自注意力 64 维 → MLP</td><td><code>algo.py</code> 233–264、351–378；hs <code>agents/modules/vision_transformer.py</code>（<a href="#n15">注 15</a>）</td></tr>
+<tr><td>DFSV</td><td>\(\sigma(k(\langle v,n\rangle-v_{th}))\)，k、v_th 未给</td><td>\(\sigma(k(\langle v,n\rangle+v_{th}))\)，k = 4，v_th = 0.2，低于 0.1 置零</td><td>hs <code>agents/modules/modules.py</code> 52–121（<a href="#n9">注 9</a>）</td></tr>
+<tr><td>蒸馏目标</td><td>式 (1)，只用 DAgger</td><td>MSE，学生行动，老师按地形路由（MoE），<code>use_critic=False</code>；上身也蒸馏</td><td>hs <code>agents/dagger/dagger_ma.py</code> 600–640、725–783；<code>dagger_ma_moe.py</code>（<a href="#n7">注 7</a>）</td></tr>
+<tr><td>混合 DAgger + RL</td><td>式 (2)，余弦调度，下限 0.1</td><td>未找到</td><td>（<a href="#n17">注 17</a>）</td></tr>
+<tr><td>蒸馏超参</td><td>1024 × 8 环境，12 h</td><td>8192 环境，20000 次迭代，Adam 1e-3，余弦 10000 次</td><td><code>experiment.py</code> 129–164；<code>algo.py</code> 283–293</td></tr>
+<tr><td>观测</td><td>\(\mathbf s^p_t\) 5 帧</td><td>每帧 115 维（含所有命令），5 帧；深度 2 帧；另有命令线速度给 DFSV、地形编号给路由</td><td><code>observation.py</code> 195–312（<a href="#n3">注 3</a>）</td></tr>
+<tr class="grp"><th colspan="4">随机化与部署</th></tr>
+<tr><td>动力学随机化</td><td>表 7</td><td>摩擦 U(−0.1, 1.0)；延迟只加上身；推力关闭</td><td><code>randomization.py</code> 190–335（<a href="#n20">注 20</a>）</td></tr>
+<tr><td>sim2sim</td><td>MuJoCo 地形场，25°、20 cm、1.2 m</td><td>两个进程（MuJoCo 仿真 / holosoma_inference 策略），DDS 通信，深度走共享内存；场景 20°、15 cm、1.5 m</td><td><code>rpl_sim2sim/</code>（<a href="#n19">注 19</a>）</td></tr>
+<tr><td>部署参数</td><td>50 Hz</td><td><code>rl_rate=50</code>，动作缩放 0.25，PD 增益和站姿来自 FALCON</td><td><code>rpl_sim2sim/inference_presets.py</code> 28–41、94–108</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 发布的四个老师里，上下楼梯是同一个文件</span><p><code>rpl_training/data/models/</code> 下有 slopes、stairs_up、stairs_down、stepping_stones_columns 四个目录，各一个 <code>model_74998.pt</code>（27,588,500 字节）。用 GitHub 的 git tree 查 blob 哈希：stairs_up 和 stairs_down 都是 a51a7d1，连所在目录的 tree 哈希都一样（d40e6f9）；另外两个分别是 4db0f9e 和 0f627e2。训练脚本也只有三个专家预设，楼梯预设同时训上下楼梯各 50%（<code>config_values/terrain.py</code> 第 278 到 280 行）。所以论文的“每个地形族一个专家”在发布版里是三个专家、四个路由槽位。论文第 3.1.1 节把“上/下楼梯”列成一个族，这和代码一致；但第 3 节开头和第 4.5 节的 \(K=4\) 把它们当作四个地形。</p>
+<p>还有一处对不上：专家预设是 50000 次迭代（<code>experiment.py</code> 第 191 行），发布的检查点是第 74998 次。注释说这些是“FALCON 最终阶段”的权重，即在内部经过多段训练，所以发布脚本从头训一次得不到同一个检查点。论文“每个专家 12 小时”无法对照。</p></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>下面按 RPL 的 README 和脚本整理，没有实际运行过。需要的东西：Linux、NVIDIA GPU、conda。</p>
+<h3 id="repro-env">两套环境</h3>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>用途</th><th>脚本</th><th>建出的 conda 环境</th><th>说明</th></tr></thead><tbody>
+<tr><td>sim2sim 演示</td><td><code>bash rpl_sim2sim/setup_env.sh</code></td><td><code>rplmujoco</code>（仿真侧）、<code>rplinference</code>（策略侧），都是 Python 3.10，放在 <code>~/.holosoma_deps/miniconda3</code></td><td>需要先有 conda（没有就先跑 <code>thirdparty/holosoma/scripts/setup_mujoco.sh</code>）。仿真侧装 MuJoCo、pygame（手柄）、cyclonedds 0.10.2，并 clone unitree_sdk2_python 固定到 432dd06；策略侧装 <code>holosoma_inference[unitree,booster]</code>、pinocchio、casadi</td></tr>
+<tr><td>训练</td><td><code>bash rpl_training/training_runs/setup_env.sh</code></td><td><code>hsgym</code>，Python 3.8</td><td>调用 holosoma 的 <code>scripts/setup_isaacgym.sh</code>：自动从 NVIDIA 下载 IsaacGym Preview 4 并 pip 安装，再装 holosoma 和本仓库。也可 <code>SIM=isaacsim</code>，但 README 说 IsaacSim 没实现力扰动，所以论文结果要用 IsaacGym</td></tr>
+</tbody></table></div>
+<h3 id="repro-cmd">命令</h3>
+<pre class="cmd">git clone --recurse-submodules https://github.com/amazon-far/RPL.git
+# 专家（建议 4 卡）
+NGPUS=4 EXPERT=stones bash rpl_training/training_runs/run_expert.sh --training.name stones-expert
+NGPUS=4 EXPERT=stairs bash rpl_training/training_runs/run_expert.sh --training.name stairs-expert
+NGPUS=4 EXPERT=slopes bash rpl_training/training_runs/run_expert.sh --training.name slopes-expert
+# 蒸馏（建议 8 卡），默认读 rpl_training/data/models 里的四个老师
+NGPUS=8 bash rpl_training/training_runs/run_distill.sh --training.name rpl-student
+# 自己的老师：目录结构同 data/models，或按地形给 W&amp;B 检查点
+#   --algo.config.ckpt-teacher DIR
+#   --algo.config.ckpt-teacher-wandb.slopes wandb://ENTITY/PROJECT/RUN_ID/model_XXXXX.pt
+# sim2sim：两个终端
+bash rpl_sim2sim/run_sim.sh        # 先开仿真
+bash rpl_sim2sim/run_policy.sh     # 再开策略；--task.model-path 换自己的 onnx</pre>
+<ul>
+<li><b>日志。</b>默认写 W&amp;B；<code>LOGGER=disabled</code> 只写本地 <code>logs/</code>。<code>NGPUS&gt;1</code> 时用 <code>torchrun --standalone</code>。<code>--training.num-envs</code> 是所有卡的总数，按卡均分（<code>training_runs/setup_env.sh</code> 第 44 到 51 行）。</li>
+<li><b>冒烟测试。</b><code>bash rpl_training/training_runs/smoke_test.sh</code>：先跑 <code>rpl_training/tests</code> 下和 FALCON 对齐的单元测试，再各跑 20 次迭代的专家和蒸馏。</li>
+<li><b>发布的东西。</b><code>rpl_training/data/models/</code>：四个老师目录（实际三个不同的权重，<a href="#n21">读者注 21</a>）；<code>rpl_training/data/motions/g1/falcon_accad_all/</code>：上身参考动作，来自 <a class="ds" href="https://accad.osu.edu/research/motion-lab/mocap-system-and-data">ACCAD</a> 动捕（经 PHC 重定向，由 <code>scripts/convert_falcon_motion_pkl.py</code> 转换），训练时上身目标从这些片段里采；<code>rpl_sim2sim/models/</code>：两个学生 ONNX，默认用 <code>rpl_holosoma_model_19999.onnx</code>，另一个 <code>rpl_original_model_19999.onnx</code> 在 <code>inference_presets.py</code> 第 25 到 26 行被注释掉。我的推断是后者是原 FALCON 代码训的学生，前者是移植到 holosoma 后重训的，README 没说明。</li>
+<li><b>sim2sim 怎么跑。</b>MuJoCo 窗口里按 9 放开弹性绳，马上在手柄按 start（键盘 <code>]</code>）启动策略，R2（<code>=</code>）切到行走，摇杆或 w/s/a/d、q/e 控制。仿真和策略是两个进程，用 Unitree <code>sdk2py</code>（DDS）通信，深度图走共享内存。README 强烈建议用 Xbox 手柄。</li>
+</ul>
+<h3 id="repro-hw">硬件和时间预期</h3>
+<ul>
+<li>论文：每个专家 4 × L40S、12 小时；蒸馏 8 × L40S、12 小时。按三个专家算，阶段 1 共约 36 小时（4 卡），阶段 2 再 12 小时（8 卡）。这是我按论文数字的推算；v1 写的是“全部专家 24 小时”。</li>
+<li>代码注释：坡专家原本是 1 卡 4096 环境（约 28k 帧/秒，对比 4 卡约 112k），所以 <code>EXPERT=slopes</code> 的预设总环境数是 4096 而不是 16384（<code>experiment.py</code> 第 229 到 237 行）。</li>
+<li>蒸馏要同时跑物理、2 路深度渲染、学生和 MoE 老师。按表 2，1024 环境 2 路相机一次迭代约 1.5 秒，20000 次迭代约 8.3 小时（我的推算，只算单卡的迭代时间）。显存约 15 GB/卡。</li>
+<li>只想看效果：sim2sim 只需要一块能跑 MuJoCo 和 ONNX 推理的机器，不需要 IsaacGym。</li>
+</ul>
+<h3 id="repro-own">论文没写、需要自己决定的</h3>
+<ul>
+<li><b>混合 DAgger + RL。</b>要复现第 4.5 节得自己实现 PPO 项和 \(\lambda\) 调度（<a href="#n17">读者注 17</a>）。逐地形梯度余弦的统计代码也没有。</li>
+<li><b>四路相机和全向。</b>预设只有前后两路（<code>warp_dual_depth_cameras_falcon</code>），表 3 的 1 路朝下和 4 路配置要自己写相机位姿；DFSV 代码支持 1、2、4 路。</li>
+<li><b>消融。</b>去 DFSV：<code>use_vision_mask=False</code>；去 RSM：<code>random_depth_occlusion.enable=False</code>；CNN+MLP / RNN / U-Net 结构没有现成预设。</li>
+<li><b>真机部署。</b>仓库没有真机脚本。ZED 2i 的深度怎么裁切、缩放，相机支架、外参标定都没公开，issue #1（2026-10-30，未回复）问的正是这几件事：1280 × 720 是否直接缩到 48 × 27、支架 CAD、外参如何对齐、能否换 Orbbec。</li>
+<li><b>真机评测协议。</b>10 次试验的初始条件、命令速度、遥操作者怎么给上身目标，论文都没写。</li>
+</ul>
+<h3 id="repro-pit">已知坑</h3>
+<ul>
+<li><b>老师目录要 4 个。</b>自己训的楼梯专家要同时放进 <code>stairs_up/</code> 和 <code>stairs_down/</code>，目录结构是 <code>&lt;dir&gt;/&lt;地形&gt;/&lt;run&gt;/model_*.pt</code>（hs <code>agents/dagger/dagger_ma_moe.py</code> 第 401 行）。地形顺序必须和 MoE 的专家顺序一致：梅花桩、坡、上楼梯、下楼梯（<code>config_values/terrain.py</code> 第 215 到 217 行的注释）。</li>
+<li><b>和 holosoma 主线不通用。</b>README 说 RPL 的功能并入 holosoma 主线是另一件事，不会反映在这个仓库；子模块固定在分支 zyuanhan/rpl-release-port。不要随手把子模块升级到主线。</li>
+<li><b>IsaacGym 只支持 Python 3.8。</b>训练环境和 sim2sim 环境的 Python 版本不同，不能合成一个环境。</li>
+<li><b>负摩擦。</b>蒸馏和专家的摩擦范围下限是负数（<a href="#n20">读者注 20</a>），换仿真器时要注意它的语义。</li>
+<li><b>GitHub issues。</b>截至 2026-11-20 只有 issue #1（真机部署设置，open，无回复）。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">版本差异</a>：v1 → v2 加了 4.5 节、表 4、表 5，专家时长改写；v2 → v3 加表 1 和一行基线。</li>
+<li><a href="#n2">表 1 的“仿真通过”只是单次</a>。</li>
+<li><a href="#n3">两个策略看到的东西比论文多</a>：每帧 115 维含全部命令。</li>
+<li><a href="#n4">力扰动有多大</a>：专家 −60 N，蒸馏 −100 N。</li>
+<li><a href="#n5">地形范围的上限在课程里取不到</a>：34.0°、0.265 m、0.635 m。</li>
+<li><a href="#n6">两种惩罚的分工</a>：落脚点惩罚也用在梅花桩。</li>
+<li><a href="#n7">式 (1) 的细节</a>：学生带噪、学生行动、上身也蒸馏、按地形比例加权。</li>
+<li><a href="#n8">算法 1 和代码一致</a>：远平面 2.5 m，截断 2.0 m。</li>
+<li><a href="#n9">DFSV 阈值符号相反</a>：静止时论文 0.31，代码 0.69；还有硬截断 0.1。</li>
+<li><a href="#n10">RSM 的具体几何</a>：左右不对称，每帧重抽。</li>
+<li><a href="#n11">感知设置在代码里的样子</a>：相机位姿、10 Hz 的实现。</li>
+<li><a href="#n12">“5 倍”只在 4 路相机时接近</a>：1 路时 2.7 倍。</li>
+<li><a href="#n13">地形等级 6.0 是饱和值</a>：表 3 只有梅花桩一列有区分度（推断）。</li>
+<li><a href="#n14">每格 10 次，置信区间很宽</a>：6/10 是 [0.31, 0.83]。</li>
+<li><a href="#n15">学生网络的具体尺寸</a>：32 个通道 token + 5 个状态 token，4 层 64 维。</li>
+<li><a href="#n16">从矢量数据读出来的三件事</a>：图注“几百”对；DAgger 后期也到 0；混合早期不慢。</li>
+<li><a href="#n17">发布代码里没有混合目标</a>：第 4.5 节无法直接复现。</li>
+<li><a href="#n18">真机数字的几处疑问</a>：200 m / 2 min 意味着 1.67 m/s。</li>
+<li><a href="#n19">sim2sim 场景和正文不一样</a>：20°、15 cm、1.5 m；“60 cm”可能是中心距。</li>
+<li><a href="#n20">表 7 和代码的出入</a>：摩擦、视场、上身延迟，缺深度延迟。</li>
+<li><a href="#n21">上下楼梯是同一个老师文件</a>：实际三个专家；检查点 74998 次迭代对不上预设的 50000。</li>
+</ol>
+
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 20 日用脚本核对过，都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://rpl-humanoid.github.io/">RPL</a></td><td>本文</td><td><a href="https://github.com/amazon-far/RPL">amazon-far/RPL</a> · <a href="https://youtu.be/HLWY-KYt4gk">视频</a></td><td><a href="https://arxiv.org/abs/2602.03002">2602.03002</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/amazon-far/holosoma">holosoma</a></td><td>训练框架（子模块）</td><td>github.com/amazon-far/holosoma</td><td><a href="holosoma-15min.html">本站 holosoma-15min</a> · <a href="https://arxiv.org/abs/2512.01996">2512.01996</a></td></tr>
+<tr><td><a class="ds" href="https://php-parkour.github.io/">PHP</a></td><td>混合 DAgger + RL 的出处</td><td>php-parkour.github.io</td><td><a href="php-parkour.html">本站精读</a> · <a href="https://arxiv.org/abs/2602.15827">2602.15827</a></td></tr>
+<tr><td><a class="ds" href="https://lecar-lab.github.io/falcon-humanoid/">FALCON</a></td><td>双智能体框架和力课程的来源</td><td>lecar-lab.github.io/falcon-humanoid</td><td><a href="https://arxiv.org/abs/2505.06776">2505.06776</a></td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac-gym">IsaacGym</a></td><td>训练仿真器（Preview 4）</td><td>developer.nvidia.com/isaac-gym</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a></td><td>深度光线投射</td><td>github.com/NVIDIA/warp</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a></td><td>渲染基线</td><td>developer.nvidia.com/isaac/sim</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/isaac-sim/IsaacLab">Isaac Lab</a></td><td>渲染基线（2.3.2）</td><td>github.com/isaac-sim/IsaacLab</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td><td>sim2sim</td><td>mujoco.org</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://accad.osu.edu/research/motion-lab/mocap-system-and-data">ACCAD</a></td><td>上身参考动作的动捕来源</td><td>accad.osu.edu</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>机器人</td><td><a href="https://github.com/unitreerobotics/unitree_sdk2_python">unitree_sdk2_python</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.stereolabs.com/products/zed-2i">ZED 2i</a></td><td>真机深度相机</td><td>stereolabs.com</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2602.03002（v3）和官方代码后的整理，不是作者的官方内容。原文和原图版权归 Yuanhang Zhang 等作者所有，arXiv 许可为非独占分发，这里没有复制原图，也没有逐字翻译。“重画”的图只用了从原文矢量数据读出的数值。代码 amazon-far/RPL 和 holosoma 为 Apache-2.0，这里只引用了文件名、行号和配置键。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="rpl/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

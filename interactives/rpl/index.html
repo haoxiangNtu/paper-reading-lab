@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RPL 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2602.03002 RPL（人形多地形感知行走）的框架做成 10 幕 3D 动画：两段总览、地形课程、特权高度图专家、手上的力扰动、双相机光线投射（当场算深度图）、噪声和随机侧面遮挡、学生网络、DFSV 曲线（论文和代码两条）、DAgger 蒸馏与图 13、sim2sim 和真机部署。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="rpl.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/rpl.html">返回精读</a><a href="../../papers/rpl.html#s3">原文 §3</a><a href="../../papers/rpl.html#code">代码对照</a><a href="https://arxiv.org/abs/2602.03002">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2602.03002 · RPL · 人形多地形感知行走</p>
+<h1>从四个地形专家到一个看前后深度的学生：RPL 一步步拆开看</h1>
+<p class="lead">一共 10 幕。第 1 幕是总览；第 2 到 4 幕是阶段 1（地形课程、特权高度图专家、手上的力）；第 5、6 幕是深度渲染（光线投射、噪声和随机侧面遮挡）；第 7、8 幕是学生网络和 DFSV；第 9 幕是 DAgger 蒸馏；第 10 幕是 sim2sim 和真机。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。第 5、6 幕的深度图是页面当场对一个玩具地形做光线投射算的；第 8 幕当场算两条 DFSV 曲线；第 9 幕的曲线来自原文图 13 的矢量读数；柱子是原文表格数字。小人是手工做的示意，没有任何 RPL 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">10 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 amazon-far/RPL 提交 1ca0250（2026-10-20）和子模块 amazon-far/holosoma 提交 91647ee（2026-10-13），都是 Apache-2.0，只读未运行。行号见精读页的代码对照表。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（1ca0250 / 91647ee）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">阶段 1：地形专家</td></tr>
+<tr><td>T1</td><td>地形</td><td>坡 ≤ 37°；楼梯踏面 0.25–0.30 m、高 0.05–0.27 m；梅花桩 0.25–0.40 m、间隙 0.05–0.70 m</td><td>10 行课程，难度 = 行/10 ≤ 0.9：最难 34.0°、0.235–0.265 m、间隙 0.635 m</td></tr>
+<tr><td>T2</td><td>专家个数</td><td>每个地形族一个（4 个地形）</td><td>3 个预设；发布 4 个目录，上下楼梯同一文件</td></tr>
+<tr><td>T3</td><td>特权高度图</td><td>1.6 m × 1.0 m，0.1 m</td><td>16 × 10 点 → CNN (16, 16) → MLP [512, 256, 256, 128]</td></tr>
+<tr><td>T4</td><td>算法</td><td>双智能体 PPO，非对称评论家，对称增强</td><td>PPO-MA，γ 0.99，λ 0.95，50000 次迭代（发布权重是第 74998 次）</td></tr>
+<tr><td>T5</td><td>力扰动</td><td>方向比 [0, 0, 1]</td><td>专家 Fz U(−60, 5) N，蒸馏 U(−100, 5) N，课程从 0.1 起</td></tr>
+<tr class="grp"><td colspan="4">深度渲染</td></tr>
+<tr><td>R1</td><td>光线投射</td><td>算法 1：部件局部系 + 地形，提前终止，CUDA graph</td><td>warp_kernels.py 一致；22 个部件网格</td></tr>
+<tr><td>R2</td><td>相机</td><td>前后 2 路（仿真可 4 路），101° × 69°，240 × 135 → 48 × 27，10 Hz</td><td>torso_link 上 (0.135, 0.06, 0.02) / (−0.125, −0.06, 0.02) m，camera_rotation 俯仰 75°</td></tr>
+<tr><td>R3</td><td>噪声</td><td>σ = 0.1 × 深度，丢点 5%，外参和视场随机化</td><td>同；视场 ±5°（论文 ±2°）；固定 2 帧延迟</td></tr>
+<tr><td>R4</td><td>RSM</td><td>none / small / large，按地形</td><td>左 90 / 右 50 像素（small 60 / 20），每帧重抽</td></tr>
+<tr class="grp"><td colspan="4">阶段 2：学生与蒸馏</td></tr>
+<tr><td>S1</td><td>CNN 分词器</td><td>每路一个 CNN</td><td>2 × 27 × 48 → (16, 32, 32) → 32 × 3 × 6，每路独立初始化</td></tr>
+<tr><td>S2</td><td>DFSV</td><td>δ = σ(k(⟨v, n⟩ − v_th))</td><td>δ = σ(k(⟨v, n⟩ + v_th))，k 4，v_th 0.2，&lt; 0.1 置零</td></tr>
+<tr><td>S3</td><td>Transformer</td><td>注意力融合多视角</td><td>32 个通道 token（36 维）+ 5 个状态 token（115 维）→ 64 维，4 头，4 层，取最后一个 token</td></tr>
+<tr><td>S4</td><td>蒸馏</td><td>式 (1)，只用 DAgger</td><td>学生行动、老师按地形路由（MoE），MSE，Adam 1e-3，20000 次迭代；上身也蒸馏</td></tr>
+<tr><td>S5</td><td>混合 DAgger + RL</td><td>式 (2)，余弦调度，下限 0.1</td><td>发布代码里没有</td></tr>
+<tr class="grp"><td colspan="4">部署</td></tr>
+<tr><td>D1</td><td>sim2sim</td><td>MuJoCo 地形场 25°、20 cm、1.2 m</td><td>仿真 / 策略两个进程，DDS + 共享内存；场景 20°、15 cm、1.5 m</td></tr>
+<tr><td>D2</td><td>真机</td><td>G1 + 2 × ZED 2i（15 Hz），Jetson Orin NX，50 Hz；整场 6/10</td><td>仓库没有真机脚本</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，步态是手写的，只为看出阶段。不是 G1 的模型，不是策略输出。</li>
+<li><b>第 2 幕的地形块。</b>每块的参数按代码公式当场算（难度 = 行/10），但地形块缩小画了，真实是 8 m × 8 m。</li>
+<li><b>第 3 幕的高度点。</b>16 × 10 个点、0.1 m 间距是真的；楼梯是玩具几何。</li>
+<li><b>第 4 幕的力。</b>每 1/6 段时间按固定种子抽一次 Fz，范围是代码的；不模拟力矩预算。</li>
+<li><b>第 5、6 幕的深度图。</b>玩具地形（前面 6 级 0.15 m 台阶，后面三排梅花桩）加两条腿的方块，按 101.41° 水平视场、48 × 27 像素当场光线投射。相机高 0.95 m、俯 75° 是按配置值画的，配置里旋转的坐标约定我没有核实。噪声和遮挡按代码参数、固定种子生成。</li>
+<li><b>第 7 幕的网络。</b>尺寸来自代码；方块大小只表示相对量级。</li>
+<li><b>第 9 幕的曲线。</b>来自原文图 13 的矢量读数，每 100 次迭代一个点，读数误差约 ±0.05。</li>
+<li><b>第 10 幕的柱子。</b>表 4、表 5 的原数字。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2602.03002 后的理解，不是作者的官方图。原文许可是 arXiv 非独占分发，这里没有用任何原图。逐节内容和核算在<a href="../../papers/rpl.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

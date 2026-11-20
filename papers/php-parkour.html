@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHP 感知人形跑酷 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2602.15827v2 Perceptive Humanoid Parkour（PHP，RSS 2026）的中文精读：motion matching 拼接人类跑酷技能、特权专家跟踪、DAgger + PPO 蒸馏成深度学生；含全部编号公式、结果表、裁切原图、官方代码逐项对照、复现要点、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r1{min-width:640px}.t-r2{min-width:660px}.t-r3{min-width:360px}.t-r4{min-width:680px}.t-r5{min-width:600px}.t-r6{min-width:560px}.t-links{min-width:640px}.t-cmp{min-width:640px}.t-code{min-width:820px}.t-data{min-width:520px}
+.t-r1 td,.t-r1 th,.t-r2 td,.t-r2 th{white-space:nowrap}
+.t-code td:nth-child(3){font-size:13px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+pre.cmd{font-family:var(--font-mono);font-size:13px;line-height:1.55;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;max-width:100%;margin:10px 0}
+.notes li{max-width:74ch}
+td.hl{font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/php-parkour/index.html">3D 框架动画</a><a href="beyondmimic.html">BeyondMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2602.15827v2 · cs.RO · v1 2026 年 2 月 17 日，v2 2026 年 5 月 6 日 · RSS 2026 · 中文精读</p>
+<h1>PHP：用 motion matching 把人类跑酷技能串起来，再蒸馏成只看深度图的人形策略</h1>
+<p class="orig">Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching</p>
+<p>作者 Zhen Wu、Xiaoyu Huang、Lujie Yang（三人同等贡献）、Yuanhang Zhang、Xi Chen、Pieter Abbeel、Rocky Duan、Angjoo Kanazawa、Carmelo Sferrazza、Guanya Shi、C. Karen Liu，来自 Amazon FAR、UC Berkeley、CMU 和 Stanford。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2602.15827">arXiv 原文</a><a href="https://arxiv.org/pdf/2602.15827v2">PDF（v2）</a><a href="https://arxiv.org/html/2602.15827v2">HTML 版</a><a href="https://php-parkour.github.io/">项目主页</a><a href="https://github.com/amazon-far/php_parkour">官方代码</a><a href="https://youtu.be/IjeBnbm9sto">视频</a><span>正文 8 页，参考文献第 9–10 页，附录第 11–12 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>读的是 arXiv 最新版 v2（2026-05-06）。论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。我用 <code>pdftotext</code> 全文检索了 copyright、©、rights reserved、permission，PDF 页脚和正文都没有与之矛盾的版权声明；v2 PDF 里也没有 RSS 的会议版权页。“RSS 2026”这个会议信息不在 PDF 里，来自项目主页和代码 README 的标题。v1 与 v2 的区别见<a href="#n1">读者注 1</a>。</p>
+<p>图 1 到图 5 从 arXiv PDF 裁切，只做了裁切、缩放和格式转换，没有改内容，版权归作者，按 CC BY 4.0 署名使用。表格不是图片，照录原文数字。图下文字和“读者注”是我写的，不属于论文内容，页尾有汇总。项目主页没有标明许可（页脚只说模板借自 Nerfies、OmniRetarget、BeyondMimic），所以本页只链接它，不抓取上面的视频和图。</p>
+<p><b>代码。</b>官方代码 <a class="ds" href="https://github.com/amazon-far/php_parkour">amazon-far/php_parkour</a>，Apache-2.0。我读的是提交 <a href="https://github.com/amazon-far/php_parkour/tree/c7c9ce3fc75a8754a7e403c58de3b6933254d01b">c7c9ce3</a>（2026-10-12 23:16 −0700），连同它固定的子模块 <a href="https://github.com/amazon-far/holosoma/tree/4a0bf04cde5930af5ed59da797568d32be972525">holosoma 4a0bf04</a>（标签 php-parkour-v1.0，2026-10-09，同为 Apache-2.0）。只读，没有运行；另外下载了作者发布的学生 ONNX，只解析了权重形状（<a href="#n22">读者注 22</a>）。代码比 v2 晚五个月，默认配置不一定是论文实验所用；不一致的地方两边都写，对照表在 <a href="#code">代码对照</a>，复现步骤在 <a href="#repro">代码与复现要点</a>。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · v1 和 v2</span><p>arXiv 摘要页的元数据里，v1（2026-02-17）作者有 12 位，第五位是 Koushil Sreenath；v2（2026-05-06）只剩 11 位，他被去掉了。项目主页的 BibTeX 和 Sreenath 的主页链接仍保留，代码 README 的作者表则和 v2 一致。我只读了 v2 全文，没有逐页比对 v1 的正文改动。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">I 引言</a><a href="#s2">II 相关工作</a><a href="#s3">III 方法</a><a href="#s3b">III-B motion matching</a><a href="#i3d">3D 框架动画</a><a href="#s3c">III-C 视觉运动策略</a><a href="#s4">IV 实验</a><a href="#s4a">IV-A 真机</a><a href="#s4b">IV-B 仿真定量</a><a href="#s5">V 结论</a><a href="#apA">附录 A</a><a href="#apB">附录 B</a><a href="#apC">附录 C</a><a href="#code">代码对照</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>人形机器人在各种地形上稳稳走路已经不难，难的是像人一样敏捷：翻越、攀爬、从高台跳下，而且要连成长串，还要靠自己看路来决定下一步做什么。PHP（Perceptive Humanoid Parkour）是一个分三步的框架：</p>
+<ol>
+<li><b>拼动作。</b>人类跑酷动捕先用 <a class="ds" href="https://omniretarget.github.io/">OmniRetarget</a> 重定向到 <a class="ds" href="https://www.unitree.com/g1">Unitree G1</a>，得到一批几秒长的“原子技能”。再用游戏业的 motion matching（在特征空间里做最近邻检索）把它们和走跑片段拼成长时域的参考轨迹，每条轨迹配一个对应的障碍地形。</li>
+<li><b>训专家。</b>每个技能训练一个 RL 动作跟踪专家，照搬 <a href="beyondmimic.html">BeyondMimic</a> 的跟踪配方，另外给它特权信息：全局位置速度和一块高度扫描。</li>
+<li><b>蒸馏学生。</b>把多个专家蒸馏进一个只看本体感觉、深度图和离散速度命令的学生策略。蒸馏不是纯 DAgger，而是 DAgger 和 PPO 加权混合，PPO 的权重随训练逐渐升高。</li>
+</ol>
+<p>真机上，学生策略零样本迁移到 G1（身高 1.3 m），能翻上 1.25 m 的墙（身高的 96%），约 3 m/s 的速度做猫跳、冲刺跳、速度跳，并在 48 到 60 秒的连续跑酷里自己选技能，对临时挪动约 0.5 m 的障碍做出调整。仿真里单障碍任务的成功率：</p>
+<ul>
+<li><b>表 I：</b>PHP 在 36、58、76 cm 三种高度上为 1.00、0.99、0.95，而纯奖励塑形的速度跟踪基线只过得了 36 cm，端到端深度 RL 在 58 cm 以上只有 0.07 到 0.19。</li>
+<li><b>表 II：</b>去掉 RL 只做 DAgger，成功率掉到 0.03 到 0.63；只给一个存活奖励的 RL 就能拿回大部分。</li>
+</ul>
+<p>读完我认为最值得记住的三点：</p>
+<ul>
+<li>motion matching 在这里是<b>离线数据增广器</b>，不是在线控制器。它把每个技能只有一两段的稀缺数据，扩成入口距离、步态相位、转向各不相同的大量“走跑 → 技能 → 走跑”样本（图 3）。表 II 说明入口距离的密度直接影响成功率。</li>
+<li>蒸馏里加 PPO 的理由很具体：攀爬的关键是几步之内的大力矩爆发，逐步模仿的均方损失对“略小一点”的动作几乎不罚，而 RL 看的是结果。代码在这个基础上又加了一个论文没写的按相位门控（<a href="#n10">读者注 10</a>）。</li>
+<li>复现时最需要注意的是规模。论文写 16,384 个并行环境，代码默认 4096（教师）和 2048（学生），而作者在 issue #5 里说他们一直用 32,768。表 II 里 1/4 环境数（正好是 4096）在 1.0 m/s、76 cm 上的成功率是 0.00（<a href="#n18">读者注 18</a>）。</li>
+</ul>
+
+<figure class="pfig" id="fig1">
+<img src="php-parkour/fig1.webp" width="1600" height="687" alt="图 1：四张真机跑酷照片：(a) 猫跳加冲刺跳，(b) 爬上 1.25 m 高墙再滚下，(c) 约 3 m/s 的速度跳，(d) 60 秒连续跑酷路线" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · 从 PDF 裁切，只做了裁切和缩放 · CC BY 4.0，作者 Wu 等 · <a href="https://arxiv.org/html/2602.15827v2#S0.F1">看原图 ↗</a></span>四张叠了多帧的真机照片。(a) 约 3 m/s 先猫跳过一个矮箱，再冲刺跳过一个高箱；(b) 爬上标注 1.25 m 的墙，再从另一侧滚下；(c) 约 3 m/s 速度跳过一个箱子；(d) 白色虚线画出一条 60 秒的连续路线，机器人自己选择跨、爬、跳。</figcaption>
+</figure>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p><b>和 <a href="beyondmimic.html">BeyondMimic</a>：专家就是它的跟踪配方。</b>论文 III-C1 明说专家的奖励、终止和域随机化“follow BeyondMimic”，附录表 IV、表 V 照抄了那边的设定，两篇也有共同作者（Xiaoyu Huang、C. Karen Liu）。我逐项对过：表 IV 的六个跟踪项和三个正则项，与 BeyondMimic 页 <a href="beyondmimic.html#mm-track">RL 跟踪一节</a>的式 M2、M3 是同一结构；σ（0.3、0.4、1.0、3.14）和权重在代码里也一致（holosoma <code>config_values/wbt/g1/reward.py</code> 加 PHP <code>terrain.py:289-320</code> 的覆盖）。PHP 改了三处：</p>
+<ul>
+<li>动作缩放统一设为 1，不用 BeyondMimic 按“力矩上限 / 刚度”推出来的启发式（<code>experiment.py:143-153</code>）；</li>
+<li>给专家全局位置和速度，让它能自己纠漂；</li>
+<li>加一块高度扫描。</li>
+</ul>
+<p>BeyondMimic 用引导扩散在单一策略里组合技能；PHP 不在策略层面组合，而是先在运动学层面用 motion matching 拼，再靠蒸馏把多专家合成一个策略。</p>
+<p><b>和 <a href="sonic.html">SONIC</a>：两条放大路线。</b>SONIC 把动作跟踪本身放大成通用控制器，一个策略跟踪海量动作。PHP 走另一条路：每个技能单独训专家，再蒸馏成只看深度的学生，而且学生不再跟踪参考动作，只接收离散速度命令。PHP 正文没有引用 SONIC 来比较（参考文献 [24] 只出现在“用学到的运动学模型生成过渡”那一类引用里）。</p>
+<p><b>和同批两篇。</b><a href="holosoma-15min.html">holosoma-15min</a>（arXiv 2512.01996）讲的是 holosoma 框架里 FastSAC 15 分钟训出行走。PHP 的训练代码就跑在 holosoma 上：子模块 <code>thirdparty/holosoma</code> 提供环境管理器、PPO、DistillationPPO 和 Warp 深度相机；holosoma 的 G1 跟踪配置里也有 FastSAC 版本（<code>g1_29dof_wbt_fast_sac</code>），但 PHP 的预设全都基于 PPO。<a href="rpl.html">RPL</a>（arXiv 2602.03002）同样是“特权专家 → 深度学生”的蒸馏，可以对照两边怎样处理纯 DAgger 的不足。PHP 的做法是在蒸馏过程中混入 PPO；它在 §II 和 §IV-B3 特别区分了另一种做法，即先蒸出 DAgger 策略、再单独做 RL 微调（Parkour in the Wild，参考文献 [33]）。这两页正由别人同时在写，链接可能暂时打不开。</p>
+
+<h2 id="s1"><span class="no">I</span>引言</h2>
+<p><b>目标。</b>人能根据看到的地形快速选择并串联全身技能。作者想让人形也做到，并把跑酷当作一个具体、自成一体的测试场。</p>
+<p><b>跑酷的三个难点。</b></p>
+<ol>
+<li>动作高度动态、接触多，比如爬上与身高相当的墙、零点几秒内翻过障碍，要在人形巨大的动作空间里做好控制。</li>
+<li>这些技能必须和视觉等外部感知紧密耦合，才能适应环境变化、对突发扰动快速反应。</li>
+<li>要走完复杂路线，就得把很多动态技能装进一个视觉运动策略，技能越多越难。</li>
+</ol>
+<p><b>数据稀缺。</b>人体动作数据已经被用来学跳、滚、翻（BeyondMimic、OmniRetarget）。但高动态动作很难采：要专门的场地和精细整理，一个技能常常只有一两段、每段几秒。长时域任务又同时需要“同一技能内部随接近方式而变化”和“技能之间自然过渡”。</p>
+<p><b>做法。</b>用 motion matching 在设计好的特征空间里做最近邻检索，把片段拼接成长动作。关键在于它能“加密”稀疏的动作库：在保留动捕真实感的同时，产生各种接近距离、朝向和时机的过渡。视觉策略方面，常规做法是先训特权专家，再用 <a class="ds" href="https://arxiv.org/abs/1011.0686">DAgger</a> 蒸馏成视觉学生；但对人形跑酷，纯模仿损失不够，误差累积会让攀爬、翻越这类动作失败，所以给蒸馏加一个 RL 目标，提供任务层面的纠正信号。</p>
+<p><b>三项贡献。</b></p>
+<ol>
+<li>一条高效的运动学技能组合管线：用 motion matching 把重定向后的人体动作串成多样的长时域轨迹。</li>
+<li>一个可扩展的训练框架：把多个专家蒸馏成一个视觉运动策略，技能之间无缝过渡。</li>
+<li>基于深度图的策略零样本迁移到真实人形，完成高动态跑酷。</li>
+</ol>
+
+<h2 id="s2"><span class="no">II</span>相关工作</h2>
+<h3 id="s2a"><span class="no">A</span>腿式机器人的感知地形穿越</h3>
+<p>盲走在斜坡、楼梯这类中等结构化地形上已经很稳（四足上的 [19, 28, 21, 18]）。感知让机器人能过更难的地形：稀疏落脚点、沟、高障碍。四足已经能连续跳沟、爬障碍完成跑酷路线 [8, 23, 13, 33]。</p>
+<p>搬到人形上不容易。四足跑酷常能靠奖励塑形从零学，人形全身维度太高，这样做扩展不了。所以已有的人形感知行走多是低动态的：爬楼梯 [22, 45]、稀疏落脚 [37, 12, 2]、踏上矮平台 [53]。为降低探索难度，多数工作用师生管线：特权专家加 DAgger 蒸馏出视觉学生 [8, 33]。PHP 沿用这一范式，但发现纯 DAgger 对高动态人形技能不够，所以加 RL。作者强调这和 [33] 的微调阶段不同：[33] 是把已经学好的 DAgger 策略再适配到没见过的地形。</p>
+<h3 id="s2b"><span class="no">B</span>用人体数据串联人形技能</h3>
+<p>人体参考动作能减少奖励工程、得到敏捷自然的动作 [20, 43, 49, 29, 40, 7]，代价是技能更难串起来。四足靠奖励塑形时，过渡可以由单一策略隐式学到，或用共享的行走状态做专家切换或蒸馏。人体数据的风格差异大，可能落在状态空间里互不相连的区域，长时域组合是根本难题。</p>
+<ul>
+<li><b>AMP 路线</b>：用一个策略学技能分布，过渡在 RL 探索中隐式出现，奖励来自动作数据学出的风格判别器。在动画和四足上有效，但人形真机演示目前只到走、踏步、搬箱这类不太敏捷的动作。</li>
+<li><b>生成过渡路线</b>：用 MDM 之类学到的运动学模型生成中间轨迹，再交给跟踪控制器（如 <a href="deepmimic.html">DeepMimic</a>）执行，可以在测试时或训练时提供过渡参考。但在跑酷这种低数据场景里，生成质量下降明显，要么昂贵地迭代联合训练，要么做滚动重规划，而后者带着实时感知会很贵。</li>
+<li><b>PHP 的选择</b>：motion matching。它在游戏和角色动画里用得很广，简单、好控、质量高，但在机器人上此前只用于较简单的四足步态 [17]。</li>
+</ul>
+
+<h2 id="s3"><span class="no">III</span>自适应、敏捷的长时域跑酷</h2>
+<h3 id="s3a"><span class="no">A</span>概览</h3>
+<p>目标是让人形用机载感知自主完成多障碍跑酷。流程是：先用 motion matching 把走跑和原子跑酷技能组合成长时域运动学参考；再在仿真里用特权观测训练动作跟踪专家；最后用 DAgger 加 PPO 目标把专家蒸馏成基于深度图的学生，零样本部署。</p>
+<figure class="pfig" id="fig2">
+<img src="php-parkour/fig2.webp" width="1600" height="644" alt="图 2：四栏流程图：技能组合（motion matching）、教师训练（本体、高度图、参考动作）、学生训练（DAgger 加 RL，本体、深度图、速度命令）、零样本真机" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · 从 PDF 裁切，只做了裁切和缩放 · CC BY 4.0，作者 Wu 等 · <a href="https://arxiv.org/html/2602.15827v2#S2.F2">看原图 ↗</a></span>四栏从左到右。黄栏“技能组合”：上方是走跑片段和原子跑酷技能，中间示意 motion matching 在“搜索窗口”里从技能 1 的帧找最近邻跳到技能 2，下方是拼好的长轨迹。灰绿栏“教师训练”：输入本体感觉、高度图、参考动作，教师 \(\pi_i\) 在仿真里跟踪带障碍的运动学轨迹。绿栏“学生训练”：多个教师 \(\pi_0\dots\pi_n\) 经 DAgger + RL 蒸馏成学生，输入换成本体感觉、深度图、速度命令。橙栏：真机上的两张照片。</figcaption>
+</figure>
+
+<h3 id="s3b"><span class="no">B</span>用 motion matching 组合技能</h3>
+<p>motion matching [5, 9] 来自游戏业的交互角色控制：每帧或每个过渡点，从大数据库里挑一帧，它的特征既最像当前姿态、又最符合期望的未来行为，然后从这帧接着播放。PHP 把它当作<b>离线</b>合成模块，用来把稀缺的原子技能和走跑拼成长参考。</p>
+<p><b>1) 基本 motion matching。</b>动作数据库有 \(N\) 帧，每帧 \(i\) 有运动学姿态 \(\mathbf q_i\) 和由它导出的匹配特征 \(\mathbf x_i\)。按 Learned Motion Matching [14]，\(\mathbf x_i\) 拼接了（i）短时域的未来轨迹位置和朝向，（ii）局部脚部关节位置和速度，（iii）根速度，都在角色局部坐标系里（细节见<a href="#apA">附录 A</a>）。</p>
+<p>做过渡时，把期望的 2D 速度命令换成期望的未来轨迹和朝向，再和当前状态的脚位置、速度、根速度拼成查询特征 \(\hat{\mathbf x}_t\)，检索最佳匹配帧：</p>
+<div class="eq"><div class="m">\[ i^\star_t=\arg\min_{i\in\mathcal C_t}\ \big\|\hat{\mathbf x}_t-\mathbf x_i\big\|^2 \]</div><span class="no">(1)</span></div>
+<p>\(\mathcal C_t\) 是用户指定的下一个技能的搜索窗口。检索按周期做（每 \(M\) 帧一次），或在速度命令变化很大时触发。选中 \(i^\star_t\) 后，播放跳到这一帧并顺序往下放，直到下一次检索。过渡附近加一个短的混合窗口避免不连续。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 式 (1) 在代码里是加权、归一化的距离</span><p>式 (1) 写的是普通平方距离。代码 <code>core/features.py:360-364</code> 给五类特征各设一个权重：脚位置 0.75，脚速度 1.0，髋速度 1.0，轨迹位置 1.0，轨迹朝向 1.5（注释说取自 Holden 的 controller.cpp）。<code>normalize_feature_exact</code>（148-191 行）再把每类特征除以“该类各维标准差的平均 / 权重”。所以实际是加权、按类标准化后的欧氏距离。数据库检索还支持一个切换代价 <code>transition_cost</code>（<code>core/database.py:375-415</code>），论文没提。论文没给 \(M\)；代码 <code>run.py:269</code> 的 <code>search_time = 0.1</code> 秒，在 60 FPS 的数据库里就是 \(M=6\) 帧。</p></div>
+
+<p><b>2) 长时域跑酷轨迹合成。</b>走和跑是到处可用、天然可复用的连接件，所以长轨迹都写成 <code>Locomotion → Parkour Skill → Locomotion</code> 的形式。所有技能都经过共享的走跑流形，不同技能之间就能一致地过渡，不需要为每对技能专门采过渡动作，也就能扩展到长时域组合。</p>
+<p>维护（i）一个走跑数据库 \(\mathcal D_{\rm loco}=\{(\mathbf x^{\rm loco}_i,\mathbf q^{\rm loco}_i)\}\) 和（ii）每个跑酷技能 \(k\) 一个技能库 \(\mathcal D_k\)。每段技能片段配一个地形资产。对 \(\mathcal D_k\) 里每段原子技能，人工标出技能起止帧 \((s_k,e_k)\)，再定义一个长度 \(H_k\) 随技能而定的进入窗口：</p>
+<div class="eq"><div class="m">\[ \mathcal E_k:=[\,s_k-H_k,\ s_k\,] \]</div><span class="no">(2)</span></div>
+<p>它对应主要接触动作之前的接近阶段，只有在这一段里切进片段才有意义。比如翻越片段，\(\mathcal E_k\) 覆盖起跳前最后几步，不会在接近阶段之外切入。</p>
+<ul>
+<li><b>走跑模式</b>：用式 (1) 做标准 motion matching，\(\mathcal C_t=\mathcal D_{\rm loco}\)，顺序播放。</li>
+<li><b>走跑 → 技能</b>：要切进技能 \(k\) 时，把 \(\mathcal C_t\) 限制为 \(\mathcal E_k\)，用式 (1) 切到匹配的入口帧，然后顺序回放到 \(e_k\)。切换时，把参考片段在入口帧处的“地形相对根部的偏移”套到机器人当前根位姿上，放下配对的地形。技能执行期间关掉 motion matching，只推进播放下标，保留接触丰富的人体动作。</li>
+<li><b>技能 → 走跑</b>：到 \(e_k\) 后恢复 \(\mathcal C_t=\mathcal D_{\rm loco}\) 的匹配，继续顺序播放。</li>
+</ul>
+<div class="note" id="n3"><span class="lab">读者注 3 · 进入窗口在代码里是三元组</span><p>代码的技能注册表 <code>scenarios/skill_registry.py</code> 给每个技能写 <code>search_ranges</code>，每项是三个帧号，按 README 的说法是（开始搜索帧，结束搜索帧，片段终止帧），对应 \((s_k-H_k,\ s_k,\ e_k)\)。比如 <code>climb_76</code> 是 (82, 137, 645) 和它的镜像 (756, 811, 1319)，进入窗口 55 帧，60 FPS 下约 0.92 s。多数技能都有原片和镜像两段，但 <code>cat_vault</code> 只有一段 (74, 88, 149)（第 238 行），进入窗口只有 14 帧，约 0.23 s。我据此推断猫跳没有镜像版本可选，和附录 A1“所有片段都镜像”不一致（未运行核实）。</p></div>
+
+<figure class="pfig narrow" id="fig3">
+<img src="php-parkour/fig3.webp" width="1570" height="1904" alt="图 3：(a) 两条从 4.8 m 和 3.9 m 起跑的轨迹，分别以右腿和左腿领先翻越；(b) 1 m/s 直行和 2 m/s 转弯接近障碍；(c) 障碍 0° 长 0.95 m 和 20° 长 1.84 m 两种变体" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · 从 PDF 裁切，只做了裁切和缩放 · CC BY 4.0，作者 Wu 等 · <a href="https://arxiv.org/html/2602.15827v2#S3.F3">看原图 ↗</a></span>(a) 同一个翻越技能，起跑距离 4.8 m 时以右腿领先，3.9 m 时以左腿领先，右侧放大框标出领先腿。(b) 左：1 m/s 直行走上箱子；右：2 m/s 弯道跑向箱子。(c) 同一攀爬动作配两种障碍：0°、0.95 m 长，和转 20°、1.84 m 长。</figcaption>
+</figure>
+
+<p><b>数据集构建。</b>按如下方式滚动生成长参考轨迹（图 3(b)）：</p>
+<ol>
+<li>从站立开始，进入走跑阶段，2D 速度命令从两档速度（low 1 m/s，high 2 m/s）和五个转向（−90°、−45°、0°、45°、90°）里抽。</li>
+<li>切进技能 \(k\)，顺序回放片段；技能期间命令设为直行（0°），速度保持前一段走跑的档位。</li>
+<li>到达 \(e_k\) 后回到走跑，再走 2 秒停下。</li>
+</ol>
+<p>整个过程中记录每个时间步的速度命令和生成的运动学参考姿态 \(\{\mathbf q_t\}\)，成对用于后面的策略训练。</p>
+<p><b>过渡密度。</b>motion matching 允许从特征空间里相近的多种走跑状态进入同一个技能，所以天然产生很密的过渡。作者借此生成入口距离和步态相位各不相同的技能入口（比如起跳前多垫一步，或在跑步的不同相位开始翻越），让技能前的状态分布更密。图 3(a) 里，初始距离 3.9 m 和 4.8 m 迫使引擎选出不同的步幅序列，得到左腿领先和右腿领先两种入口姿态。为防止策略走非因果的捷径（例如靠经过的时间或步数判断何时起跳），技能前的走跑时长从 [0.1, 3] s 均匀采样，“平均间隔 0.3 s”。这样多样的动作-地形配对促使策略按情境反应，对“在不同距离和时机都能可靠触发正确技能”很关键。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · “[0.1, 3] s 均匀采样，平均间隔 0.3 s”和代码</span><p>[0.1, 3] 上均匀分布的均值是 1.55 s，所以“平均间隔 0.3 s”说的不是时长的均值。我猜指采样点之间的平均间距：(3 − 0.1) / 0.3 ≈ 9.7，约十个取值（我的推断）。发布的场景脚本里也不是连续均匀采样，而是固定网格。比如 <code>scenarios/builtin.py:123</code> 的 <code>low_speed_step</code> 用 <code>walk_duration_list = [0.5, 0.8, 1.2, 1.5]</code>，前面再固定直行 1 s；其他场景的网格类似（第 198、298、349、415、468、611、773 行）。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 两档速度和速度命令在代码里</span><p>论文写 low 1 m/s、high 2 m/s。代码 <code>builtin.py:25-28</code> 是 <code>WALKING_SPEED = 0.8</code>、<code>RUNNING_SPEED = 2.2</code>；<code>high_speed_dash_vault</code> 单独用 2.0（第 837 行），<code>low_speed_climb_94</code> 等场景里也有 1.5 m/s 的段。附录 B1 说走跑库覆盖 0.8 到 3.5 m/s。学生接收的速度命令是 15 维 one-hot（<code>VEL_CMD_DIM = 15</code>，第 23 行），映射表 <code>VEL_CMD_MAPPING</code> 只用到 12 个：站立、走五个方向、跑五个方向、后退。sim2sim 里的键位也是离散的（w/s 前后，a/d 45°，q/e 90°，= 切换快慢），和摘要说的“离散 2D 速度命令”一致。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 低速 step 数据为什么是 56 条</span><p>官方示例数据里 low-speed step 有 56 对动作/地形，我从脚本数出来了。<code>low_speed_step</code> 用 5 个方向 × 4 个走跑时长 × 3 种平台停留时长（0、0.5、1.0 s），共 60 种；停留时长为 0 时有一句 <code>if angular_velocity == 90.0: continue</code>（第 166 行），只跳过左转 90°，不跳过右转 90°，少 4 种，得 56，和 <code>release-assets.json</code> 的 <code>motion_count = 56</code> 一致。左右不对称看起来不是有意为之（我的推断）。</p></div>
+<p><b>地形随机化。</b>为了在不让参考失效的前提下增强对训练障碍之外的鲁棒性，在每条合成轨迹周围随机化障碍的几何和位姿：障碍宽度从参考所需的最小值到 1.5 m 之间采样，其他尺寸在 ±5 cm 内扰动，偏航在 ±45° 内随机（图 3(c)）。这让策略见到不同形状和位姿的障碍，参考仍然可行。</p>
+<p><b>干扰物。</b>在参考轨迹附近随机放一些大小、位姿随机的箱子，提高对无关物体的鲁棒性，减少在真实世界里过拟合。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 障碍随机化在代码里</span><p>宽度对得上：<code>utils/data_utils.py:200-252</code> 的 <code>randomize_box_x_numpy</code> 把箱子沿局部 x 轴左右两半各在 [原尺寸/2, 0.75] 里均匀抽，总宽最大 1.5 m，每个障碍 10 个变体（<code>metadata/constants.py:16</code>）。“±5 cm”也有：训练端 <code>wbt_training/utils/obstacle_helpers.py:256-279</code> 给高于 0.2 m 的顶点加整体 ±5 cm 和逐点 ±2 cm 的均匀噪声。偏航不一样：同一文件建网格时，对除地面以外的<b>每个箱子</b>都乘一个 U(−π, π) 的随机偏航（第 233、312 行），而不是 ±45°。这是否也作用在路径上的主障碍上，会不会让参考失效，我没运行代码，<b>未核实</b>。干扰物在 <code>random_locomotion</code> 里：每隔一条配置放 5 到 15 个离路径至少 0.35 m 的箱子（<code>builtin.py:103-116</code>）。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>PHP 的三段流程拆成 11 幕：原子技能库与重定向、motion matching 最近邻（当场检索）、按式 (5) 当场算的弹簧轨迹和长轨迹拼接、地形配对与随机化、专家跟踪的特权观测、深度相机与学生网络（当场光线投射一张 58×87 深度图）、DAgger + PPO 课程、多技能切换、真机部署管线、结果表。可以暂停、拖进度、旋转画面、切换论文/代码。</p>
+<iframe src="../interactives/php-parkour/index.html?embed=1&amp;scene=3" title="PHP 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/php-parkour/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s3c"><span class="no">C</span>学一个高动态的视觉运动策略</h3>
+<p>目标是一个能做多种长时域跑酷技能的感知策略：给它目标速度，它根据看到的障碍自主执行技能。技能动态性高，所以先为每个技能训练专家，保证动作质量，再蒸馏成一个视觉运动策略。为了可扩展，专家和蒸馏都用统一的设定，不对单个动作调参。</p>
+<p><b>1) 用动作跟踪训练专家。</b>跟踪沿用 BeyondMimic [20] 和 OmniRetarget [43]，细节请看原文献。</p>
+<ul>
+<li><b>观测</b>：参考关节位置和速度、参考骨盆位姿误差、骨盆线速度和角速度、关节位置和速度、上一步动作，再加一块 0.7 m × 0.7 m 的高度扫描，让专家适应地形随机化。</li>
+<li><b>全局跟踪</b>：和 [43] 不同，给专家特权观测（骨盆全局位置和速度），让它学会纠偏恢复。参考动作和地形紧密耦合，一点漂移或时机误差就会累积，必须纠正才能留在预定轨迹上。这些特权量在真机上没有，但学生可以从视觉输入里推断出来。</li>
+<li><b>自适应采样</b>对学难技能是必需的：优先从更常失败的区段采样起点。没有它，高墙攀爬专家收敛不到有意义的行为。</li>
+<li><b>奖励、终止和域随机化</b>按 BeyondMimic：DeepMimic 式跟踪奖励加动作变化率、关节限位、碰撞惩罚，按跟踪误差提前终止，轻量随机化（具体见附录表 IV、表 V）。</li>
+<li><b>动作</b>：关节 PD 目标，用固定缩放归一化。因为 RL 探索难，所有专家的动作缩放都设为 1，不用 [20] 的启发式。</li>
+</ul>
+<div class="note" id="n8"><span class="lab">读者注 8 · 高度扫描的范围</span><p>论文写 0.7 m × 0.7 m。代码里的高度扫描来自 holosoma 的 IsaacSim 射线传感器：<code>GridPatternCfg(resolution=0.1, size=[1.6, 1.6])</code>（<code>holosoma/simulator/isaacsim/isaacsim.py:469</code>），即 1.6 m × 1.6 m、0.1 m 间距、17 × 17 = 289 个点。<code>experiment.py:125-128</code> 的注释也说去掉高度扫描时少 289 个读数，演员输入从 449 降到 160 维。PHP 仓库里没有覆盖这个网格的地方，所以发布代码的专家看到的范围比论文大一倍多（边长 1.6 / 0.7 ≈ 2.3 倍）。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 锚点是躯干，不是骨盆</span><p>论文说参考“骨盆”位姿误差、骨盆全局位置。代码默认的锚点是 <code>torso_link</code>（holosoma <code>config_values/wbt/g1/command.py:35</code> 的 <code>body_name_ref</code>）。PHP 另有骨盆锚点的变体 <code>g1_wbt_terrain_ref_pelvis</code>（<code>experiment.py:167-173</code>），注释说“新训练用骨盆，躯干版保留是为了让已有检查点可复现”，但教师启动脚本 <code>run_terrain_teacher.sh:18</code> 用的仍是躯干版 <code>exp:g1-wbt-terrain-ref-noscale</code>。专家观测项见 <code>terrain.py:115-158</code>：<code>motion_command</code>、<code>motion_ref_pos_b</code>、<code>motion_ref_ori_b</code>、<code>base_lin_vel</code>、<code>base_ang_vel</code>、<code>dof_pos</code>、<code>dof_vel</code>、<code>actions</code>、<code>height_scan</code>。</p></div>
+
+<p><b>2) 用 DAgger 和 RL 蒸馏统一的学生策略。</b>从多个专家学统一策略，常见做法是 DAgger 式模仿 [32, 8, 52, 33, 20]。对踏步这类较容易的动作有效，但作者发现对攀爬、翻越这类高动态技能，只用 DAgger 不够。这些技能依赖短暂的大力矩爆发，而逐步模仿目标不看回合结果，不会特别偏向这种大力矩动作。比如两个动作让根部比参考高或低同样多，DAgger 损失相同，但只有更高的那条轨迹能翻过障碍。于是在 DAgger 之外加 PPO，并配一个课程：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\lambda_{\rm PPO}\,\mathcal L_{\rm PPO}+\lambda_{\rm D}\,\mathcal L_{\rm D},\qquad \lambda_{\rm PPO}+\lambda_{\rm D}=1 \]</div><span class="no">(3)</span></div>
+<p>\(\lambda_{\rm PPO},\lambda_{\rm D}\) 是课程权重。PPO 的主要作用是提供以成功为导向的信号，鼓励<b>利用</b>专家行为（比如大力矩动作），而不是探索专家技能分布以外的东西。这样的混合显著提高了统一策略在多种高动态技能上的表现。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 式 (3) 在代码里的样子</span><p>混合损失在 holosoma 的 <code>agents/distillation_ppo/distillation_ppo.py:690-695</code>，写成公式是</p>
+<p>\[ \mathcal L=c_v\mathcal L_V+\overline{g\lambda_{\rm PPO}\,(\mathcal L_{\rm surr}-c_e\mathcal H)}+\overline{(1-g\lambda_{\rm PPO})\cdot 10\cdot \mathcal L_{\rm D}} \]</p>
+<p>上划线表示对批内样本取平均，\(c_v=1\)，\(c_e=0.001\)。和论文的区别有四点：</p>
+<ul>
+<li><b>调度对得上。</b>\(\lambda_{\rm PPO}=\min(k/10000,\,0.9)\)（第 369-379 行），正好等于 \(1-\lambda_{\rm D}(k)\)，\(\lambda_{\rm D}\) 的下限 0.1 也对得上。</li>
+<li><b>值函数损失不受课程控制。</b>它从第 0 次迭代起就以全权重训练，注释说是为了让评论家和共享的深度骨干一开始就学。</li>
+<li><b>“和为 1”只对权重成立。</b>DAgger 项还乘了表 VI 的 DAgger 系数 10。</li>
+<li><b>逐样本门控 \(g\)，论文没写。</b>PHP 默认开启“按残差门控的 PPO”（<code>depth_distillation.py:216-260</code>，<code>ppo_gate_enabled: True</code>）：动作时间轴分成约 1 秒的格子，用指数滑动平均记录每格的 DAgger 残差；残差在 50% 分位以下的格子 \(g=0.5\)，95% 分位以上 \(g=1\)，中间线性过渡，再向前多涂一格。效果是模仿已经做好的相位更接近纯 DAgger，模仿做不好的相位保留全部奖励压力。注释说它替换了一个按骨盆高度阈值手写的旧规则。</li>
+</ul></div>
+
+<p><b>观测、动作和域随机化。</b>学生观测本体感觉：骨盆重力向量和角速度、关节位置和速度、上一步动作。视觉用 <a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a> 渲染的深度图，吞吐高。另外接收 §III-B2 定义的速度命令。动作空间和域随机化与专家相同。</p>
+<p><b>相机建模和深度伪影。</b>标定仿真相机的方法：在一组姿态下，比较仿真和真机里机器人自身可见部分的感兴趣区域（ROI）重叠。在标定值附近随机化外参，平移 2.5 cm、旋转 2.5° 以内，增强对视角偏移和安装差异的鲁棒性。按 [33] 注入真实感的深度噪声，但不用高斯模糊，因为高速时它会模糊掉障碍。观测延迟在 60 到 80 ms 之间随机，模拟硬件延迟波动。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 随机化数值和代码的四处差别</span><ul>
+<li><b>相机外参</b>（holosoma <code>sensors/warp/camera_config/d435i_depth_config.py:28-39</code>）：平移 ±2.5 cm 一致；旋转是 roll、yaw ±2.5°，<b>pitch ±3.0°</b>。</li>
+<li><b>深度偏置</b>：附录 B3 说“±3 cm 内的随机偏置”，代码 <code>managers/observation/terms/depth.py:120</code> 是 <code>torch.randn(...) * 0.03</code>，即标准差 3 cm 的高斯，不是 ±3 cm 的均匀分布。逐像素 3 cm 高斯噪声在第 353 行，一致；另有 Perlin 噪声打洞（<code>enable_holes: True</code>）。</li>
+<li><b>推力</b>：表 V 写“Push duration U[1.0, 3.0] s”，代码 <code>terrain.py:233</code> 的 <code>push_interval_s</code> 是 [0.5, 1.0] s；推速上限 (0.1, 0.1, 0.05, 0.1, 0.1, 0.1) 一致。</li>
+<li><b>默认关节偏置</b>：脚踝在表 V 是 ±0.03 rad，代码 <code>terrain.py:223</code> 是 ±0.05；其余关节 ±0.01 一致。</li>
+</ul><p>延迟一致：<code>depth_distillation.py:131</code> 的 <code>latency_frame = (3, 4)</code>，按 holosoma 默认 200 Hz 仿真、每 4 步控制一次（<code>config_values/simulator.py:20-21</code>）算，策略 50 Hz，3 到 4 帧就是 60 到 80 ms。</p></div>
+<p><b>课程。</b>早期 PPO 梯度很噪，会破坏蒸馏，所以用一个从 DAgger 逐渐转向 PPO 的预热课程，分三部分：</p>
+<ol>
+<li>训练前半程线性调低式 (3) 里的 \(\lambda_{\rm D}\)，下限 0.1：\(\lambda_{\rm D}(k)=\max\!\big(0.1,\ 1-\tfrac{k}{K/2}\big)\)，\(k\) 是当前迭代，\(K\) 是总迭代数。</li>
+<li>左右对称带来多模态：很多技能有两种同样有效的镜像做法（比如领先腿换一条），而参考只代表其中一种。蒸馏出的策略可能用镜像方式完成技能，跟踪误差却很大，会被错误终止。这种假的失败信号让 PPO 的回报方差很大。所以用同样的线性日程，把终止阈值从专家的 0.5 m 放宽到 1 m，不让镜像模式过早终止。</li>
+<li>只有 \(\lambda_{\rm PPO}\) 超过 0.1 时，才启用自适应学习率和基于 KL 的探索控制。</li>
+</ol>
+<div class="note" id="n12"><span class="lab">读者注 12 · “1000 次迭代”在三个地方对得上</span><p>按上式，\(\lambda_{\rm PPO}=1-\lambda_{\rm D}=k/10000\)（\(K=20000\)），超过 0.1 的时刻正是 \(k=1000\)。表 VI 写蒸馏的学习率调度是“adaptive after 1000 iterations”，和第 3 条自洽。代码里也一样：自适应学习率在 <code>ppo_coef &gt; 0.1</code> 时才启用（<code>distillation_ppo.py:636-638</code>），动作标准差的学习率在此之前置零（381-391 行）。终止放宽在 <code>depth_distillation.py:163-177</code>：<code>bad_tracking</code> 的三个阈值从第 24,000 步到第 240,000 步线性乘到 2 倍，0.5 m 变 1.0 m，和论文一致。每次迭代每个环境走 24 步，24,000 和 240,000 步就是第 1000 和第 10,000 次迭代（我的推断：这个计数按每个环境的步数算）。所以代码的放宽从第 1000 次迭代才开始，不是论文说的“同样的线性日程”从 0 开始。</p></div>
+<p><b>自适应采样</b>在学生训练时关掉。它帮专家盯住失败、学会难段，但会欠采样那些“临界”片段：仿真里不失败、却有抖动，上真机常有大的 sim-to-real 差距。为避免技能间数据不平衡，各技能等概率采样，技能内部均匀采样。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 代码里的这两条，以及专家“失效”时的屏蔽</span><p>学生关掉自适应采样：<code>depth_distillation.py:197-199</code> 设 <code>use_adaptive_timesteps_sampler=False</code>。按技能等概率：<code>motion_command.py:370-402</code> 的 <code>_sample_expert_balanced</code> 先均匀选专家，再在该专家的帧里均匀选。附录 B3 说学生越过专家原阈值、但没越过放宽后的阈值时，不再用 DAgger 损失：代码 <code>which_motion</code>（<code>motion_command.py:698-750</code>）在锚点位置误差 &gt; 0.5 m、重力方向差 &gt; 0.8，或脚踝、手腕位置误差 &gt; 0.5 m 时，把路由下标改成 −1，专家输出零动作，<code>PhpDistillationPPO._dagger_loss_per_sample</code>（<code>student_teacher.py:190-206</code>）把这些行乘 0。</p>
+<p>注意纯 DAgger 预设（<code>FINETUNE=0</code>）不做这个屏蔽，会把学生往零动作拉（<code>student_teacher.py:139-147</code> 的说明）。它的学生网络也缩小成 [512, 256, 128]，只训 10,000 次（<code>experiment.py:257-290</code>）。论文表 II 的“DAgger Only”没说换了网络，所以这个预设不一定就是论文的消融设置（未核实）。</p></div>
+
+<h2 id="s4"><span class="no">IV</span>实验</h2>
+<p>在 Unitree G1 人形（1.3 m 高，29 自由度）上做仿真和真机实验。训练用 3 层 CNN 和 5 层 MLP（隐藏层 [2048, 1024, 512, 256, 128]），16,384 个并行环境。专家和学生都训 20K 次迭代。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · “专家和学生都是 5 层 MLP”与表 VI、代码</span><p>正文这句容易读成专家也用 5 层 MLP，但表 VI 里专家（Motion Tracking）是 [512, 256, 128]，只有学生是 5 层；代码 <code>experiment.py:185-196</code> 同表 VI。迭代数：教师 20,000 一致（<code>experiment.py:89</code>），学生在代码里是 <code>num_learning_iterations=30000</code>（第 217 行），README 的手动导出示例也是 <code>model_29999.pt</code>。代码里 PPO 爬升的终点仍是第 10,000 次迭代（<code>dagger_end_epoch</code>），所以在代码里它是总长的 1/3，不是论文的一半。</p></div>
+
+<h3 id="s4a"><span class="no">A</span>真机结果</h3>
+<p>真机任务同时考察高动态单技能、长时域多技能组合和对环境变化的适应。所有技能执行都是自主的，只给简单的 2D 速度命令用来导航。</p>
+<p><b>1) 人类水平的敏捷。</b></p>
+<p><i>高墙攀爬，和人比。</i>把机器人的高墙攀爬和一位人类做同一动作的视频 [34] 对比。高墙攀爬虽是跑酷基本功，但要很强的上肢力量和精确的全身协调，没受过训练的人很难做到。机器人的速度和人相当：关键事件（蹬离 → 拉起 → 摆腿 → 站稳）的时间很接近。墙高 1.25 m（机器人身高的 96%），从蹬离算起 3.63 s 站上平台。</p>
+<figure class="pfig" id="fig4">
+<img src="php-parkour/fig4.webp" width="1588" height="752" alt="图 4：上排人类、下排机器人爬高墙的四个时刻对比，时间戳分别是 0.62、2.32、2.69、3.62 s 和 0.62、2.37、2.85、3.63 s" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 6 页 · 从 PDF 裁切，只做了裁切和缩放 · CC BY 4.0，作者 Wu 等 · <a href="https://arxiv.org/html/2602.15827v2#S4.F4">看原图 ↗</a></span>上排是人（蓝色时间标签），下排是机器人（橙色时间标签），各四个关键时刻。人：0.62、2.32、2.69、3.62 s；机器人：0.62、2.37、2.85、3.63 s。最后一格都站在墙顶。</figcaption>
+</figure>
+<p><i>更多跑酷技能。</i>这些技能要求快速切换接触、保持动量。图 5(a)：机器人从蹬离到落地 0.8 s 内越过 0.4 m 高、0.5 m 长的障碍，向前超过 2 m（身高的 154%），峰值前进速度 3.41 m/s，平均 2.53 m/s，说明动量在接触中保持得好。图 5(b)：从 1.25 m 平台跳下，落地时下肢屈曲吸收冲击、稳住姿态。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 几个比例都算得上</span><p>1.25 / 1.3 = 0.962，即 96%；2 / 1.3 = 1.54，即 154%；平均 2.53 m/s × 0.8 s = 2.02 m，与“超过 2 m”吻合。高墙攀爬机器人比人慢 0.01 s（3.63 对 3.62），中间两个时刻分别慢 0.05 s 和 0.16 s。</p></div>
+<p><b>2) 多障碍路线。</b>框架的一个关键优势是：训练数据只有单障碍穿越，策略却能泛化到复杂的多障碍路线。这来自 motion-matching 组合：它合成的长参考通过共享的走跑段明确地串联技能，并让策略见到各种接近距离和时机。结果是策略在不同障碍序列上都能可靠执行技能，不需要多障碍的显式监督。</p>
+<p><i>多种技能和对障碍变化的适应。</i>图 5(c)：机器人把踏步、低墙和高墙攀爬组合成连续通过多障碍的一段跑。视觉运动策略在线生成过渡，全程顺畅切换。为展示闭环适应，执行过程中把多个障碍随机挪动约 0.5 m；策略调整接近方式和动作时机，继续完成路线。</p>
+<figure class="pfig" id="fig5">
+<img src="php-parkour/fig5.webp" width="1600" height="926" alt="图 5：(a) 猫跳四帧，(b) 从 1.25 m 台上跳下四帧，(c) 48 秒连续路线十帧，其中 27 s 和 34 s 有人挪动障碍" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 7 页 · 从 PDF 裁切，只做了裁切和缩放 · CC BY 4.0，作者 Wu 等 · <a href="https://arxiv.org/html/2602.15827v2#S4.F5">看原图 ↗</a></span>(a) 猫跳：0.00、0.23、0.52、0.78 s 四帧，双手撑箱、身体前冲。(b) 跳下高台：0.00、0.23、0.55、0.82 s。(c) 48 秒路线，上排 4、9、11、14、27 s，下排 34、40、43、46、48 s；27 s 和 34 s 两帧里有穿反光背心的人推动箱子（黄色箭头标出移动方向），白色虚线是机器人的路线。</figcaption>
+</figure>
+
+<h3 id="s4b"><span class="no">B</span>仿真定量结果</h3>
+<p><b>1) 实验设置。</b>所有方法都用跑酷穿越任务的成功率评估。每个任务要求机器人以固定命令速度（1.0 或 2.0 m/s）前进，越过一个指定高度、带 20° 偏航随机的单个障碍。为改变接近条件，机器人初始化在障碍前的随机距离：1 m/s 任务在 1.5 到 3.0 m 均匀采样，2 m/s 任务在 3.0 到 4.5 m。每个任务评估 100 个初始距离不同的障碍实例。成功 = 越过障碍并在固定时限内再走 1.5 m 不摔。每个障碍每个任务做 5 次取平均（每个任务共 500 次）。所有变体都用完整技能集训练，细节见<a href="#apB">附录 B</a>。</p>
+<p><b>2) 基线比较。</b>考察三个关键部件：人体参考动作、基于 motion matching 的技能组合、两阶段师生训练。基线：</p>
+<ul>
+<li><b>Velocity Tracking</b>：用 <a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a> 的标准速度跟踪 RL 管线训练人形穿越地形，纯奖励塑形，不用任何人体参考动作。</li>
+<li><b>Uncomposed Motion Data</b>：去掉 motion matching，直接用未组合的走跑数据和原子技能片段训练。</li>
+<li><b>End-to-end Depth Policy</b>：去掉蒸馏，在 motion-matching 数据上端到端训练一个深度视觉策略，观测和学生相同，奖励用专家的跟踪奖励。</li>
+</ul>
+<p class="tcap" id="t1">表 I · 不同命令速度和障碍高度下的基线成功率（照录原文）</p>
+<div class="tablewrap"><table class="t-r1"><thead><tr><th rowspan="2">方法</th><th colspan="3">1.0 m/s</th><th colspan="3">2.0 m/s</th></tr><tr><th>36 cm</th><th>58 cm</th><th>76 cm</th><th>36 cm</th><th>58 cm</th><th>76 cm</th></tr></thead><tbody>
+<tr><td>Velocity Tracking</td><td class="hl">1.00</td><td>0.00</td><td>0.00</td><td class="hl">1.00</td><td>0.00</td><td>0.00</td></tr>
+<tr><td>Uncomposed Data</td><td>0.06</td><td>0.02</td><td>0.00</td><td>0.37</td><td>0.27</td><td>0.07</td></tr>
+<tr><td>End-to-end Depth</td><td>0.95</td><td>0.07</td><td>0.08</td><td>0.78</td><td>0.19</td><td>0.14</td></tr>
+<tr><td><b>Ours</b></td><td class="hl">1.00</td><td class="hl">0.99</td><td class="hl">0.95</td><td class="hl">1.00</td><td class="hl">0.99</td><td class="hl">0.95</td></tr>
+</tbody></table></div>
+<p class="tcap">加粗照原文。</p>
+<p>速度跟踪基线和以往奖励塑形工作 [53, 22] 表现相近：能过 36 cm，高一点就不行。它主要靠只用脚的跨步，没有发现用手臂撑的全身攀爬策略，说明单靠奖励塑形做高动态跑酷有局限。</p>
+<p>未组合数据基线虽然有原子技能，表现仍差，说明孤立的动作不够。常见失败是走到障碍前却爬不上去、跳不过去。没有明确的长时域组合，策略训练时既没经历过技能过渡，也没在行走阶段看到障碍来准备接下来的技能。motion matching 既生成连贯、过渡顺滑的长组合，又让策略在执行技能时见到多样的视觉情境。</p>
+<p>端到端深度训练能处理低障碍，难任务上性能下降，说明从零 RL 探索有困难。专家蒸馏管线在各个高度上都明显更好，高动态技能上尤其明显。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 表 I 和表 II 的“Ours”有两格对不上</span><p>两张表有五个共同格：1.0 m/s 的 58、76 cm 和 2.0 m/s 的 36、58、76 cm。1.0 m/s 58 cm 都是 0.99，76 cm 都是 0.95，2.0 m/s 36 cm 都是 1.00，但 2.0 m/s 的 58 cm 表 I 是 0.99、表 II 是 0.98，76 cm 表 I 是 0.95、表 II 是 0.90。另外表 I 的 Ours 在两个速度下三格完全相同（1.00、0.99、0.95），而表 II 的 2.0 m/s 是 1.00、0.98、0.90。我猜表 I 的 2.0 m/s 那一半可能是从 1.0 m/s 复制过去的（我的推断），也可能两张表来自不同的训练种子，论文没说明。</p></div>
+
+<p><b>3) 消融。</b>研究 motion-matching 参考数据的密度、训练的可扩展性，以及 RL 在蒸馏中的作用（表 II）。</p>
+<p class="tcap" id="t2">表 II · 不同 motion matching 密度和蒸馏中 RL 策略下的跑酷成功率（照录原文）</p>
+<div class="tablewrap"><table class="t-r2"><thead><tr><th rowspan="2">方法</th><th colspan="3">1.0 m/s</th><th colspan="3">2.0 m/s</th></tr><tr><th>58 cm</th><th>76 cm</th><th>94 cm</th><th>36 cm</th><th>58 cm</th><th>76 cm</th></tr></thead><tbody>
+<tr><td>Extreme Distances</td><td>0.99</td><td>0.62</td><td>0.64</td><td>0.98</td><td>0.60</td><td>0.58</td></tr>
+<tr><td>Half Density</td><td>0.95</td><td>0.32</td><td>0.57</td><td>0.99</td><td>0.85</td><td>0.81</td></tr>
+<tr><td>DAgger Only</td><td>0.16</td><td>0.03</td><td>0.12</td><td>0.63</td><td>0.09</td><td>0.10</td></tr>
+<tr><td>DAgger &amp; Alive Reward</td><td class="hl">1.00</td><td>0.90</td><td>0.96</td><td>0.94</td><td>0.91</td><td>0.84</td></tr>
+<tr><td>DAgger &amp; Root Tracking</td><td class="hl">1.00</td><td>0.79</td><td>0.75</td><td class="hl">1.00</td><td>0.92</td><td>0.87</td></tr>
+<tr><td>1/4 Training Envs</td><td>0.97</td><td>0.00</td><td>0.59</td><td>0.94</td><td>0.65</td><td>0.58</td></tr>
+<tr><td>1/2 Training Envs</td><td>0.94</td><td>0.60</td><td>0.68</td><td>0.97</td><td>0.79</td><td>0.75</td></tr>
+<tr><td>3-layer MLP</td><td>0.99</td><td>0.02</td><td>0.00</td><td>0.98</td><td>0.89</td><td>0.81</td></tr>
+<tr><td>4-layer MLP</td><td class="hl">1.00</td><td>0.94</td><td>0.08</td><td>1.00</td><td>0.94</td><td>0.88</td></tr>
+<tr><td><b>Ours</b></td><td>0.99</td><td class="hl">0.95</td><td class="hl">1.00</td><td class="hl">1.00</td><td class="hl">0.98</td><td class="hl">0.90</td></tr>
+</tbody></table></div>
+<p class="tcap">加粗照原文。原文 4-layer MLP 在 2.0 m/s 36 cm 的 1.00 没加粗，DAgger &amp; Root Tracking 的同一格加粗了。注意表 II 的 1.0 m/s 列是 58、76、94 cm，和表 I 不同。</p>
+<p><b>motion matching 密度。</b>假设 motion-matching 数据的多样性，尤其是接近距离的多样性，对准确的时机和任务成功很关键。为此削减参考数据集里接近距离的覆盖：</p>
+<ul>
+<li><b>Extreme Distances</b>：只保留最小和最大接近距离。</li>
+<li><b>Half Density</b>：随机保留一半的 motion-matching 数据。</li>
+</ul>
+<p>只用极端距离的数据，所有任务成功率都降，因为策略泛化不到接触时机很关键的中间距离。用一半数据，难技能上的成功率普遍更低，尤其当剩下的样本偏向距离范围一端时：比如 1.0 m/s 下爬 76 cm 和 94 cm，局部密度降低导致手的放置时机不可靠。完整数据集密集覆盖接近条件，在不同距离下都能稳定执行。</p>
+<p><b>训练的可扩展性。</b>削减并行环境数和模型容量：</p>
+<ul>
+<li><b>1/4 Training Envs</b>、<b>1/2 Training Envs</b>：只用 1/4 或 1/2 的训练环境。</li>
+<li><b>3-Layer MLP</b>：隐藏层 [512, 256, 128]。<b>4-Layer MLP</b>：[1024, 512, 256, 128]。</li>
+</ul>
+<p>从零训练时，更多 rollout 常因探索受限而收益递减。蒸馏框架则随模型容量和 rollout 吞吐量扩展得好：更多并行环境或更深的网络一般会提高成功率，难任务上尤其明显。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 II 里 94 cm 常常比 76 cm 好</span><p>1.0 m/s 的 76 cm 和 94 cm 是两个不同的攀爬技能片段（表 III 里分别 8.8 s 和 10.3 s），难度不只取决于高度。十行里有七行 94 cm 的成功率不低于 76 cm：</p>
+<ul>
+<li>Ours 1.00 对 0.95；</li>
+<li>Half Density 0.57 对 0.32；</li>
+<li>1/4 Training Envs 0.59 对 0.00；</li>
+<li>Extreme Distances、DAgger Only、DAgger &amp; Alive Reward、1/2 Training Envs 这四行也是 94 cm 不低于 76 cm。</li>
+</ul>
+<p>反过来的三行是 DAgger &amp; Root Tracking（0.75 对 0.79）、3-layer MLP（0.00 对 0.02）和 4-layer MLP（0.08 对 0.94），最后一行差得最多。所以“更深一般更好”在单格上并不单调：4 层在 76 cm 上接近完整模型，在 94 cm 上几乎全败。正文说 Half Density 在 76、94 cm 上手的放置时机不可靠，这和表里一致（0.32、0.57）。</p></div>
+<p><b>蒸馏中的 RL。</b>消融 RL 目标及其奖励设计：</p>
+<ul>
+<li><b>DAgger Only</b>：去掉蒸馏中的 RL 损失。</li>
+<li><b>DAgger + RL Alive Reward</b>：只用存活/前进奖励，不用动作跟踪项。</li>
+<li><b>DAgger + RL Root Tracking Reward</b>：用根部跟踪奖励代替全身跟踪。</li>
+</ul>
+<p>RL 对有效蒸馏是关键。只用 DAgger 的学生明显掉点，说明即使专家很强，DAgger 本身也抓不住高动态技能。比如 76 cm 障碍上，DAgger 学生总卡在拉起阶段：手放得准，却产生不了抬起躯干所需的短暂大力矩。如 §III-C2 所述，这可能是因为决定性的力矩爆发只占几步，逐步模仿损失对略微偏小的动作几乎不罚。RL 看回合成功，鼓励更可能完成拉起的力矩爆发，带来更高回报，也降低了 DAgger 损失。</p>
+<p>再看 DAgger+RL 对奖励设计有多敏感。有意思的是，用根部跟踪甚至只用存活奖励，在难技能上的成功率也和全身跟踪相当。这说明和 DAgger 一起训练时，RL 对奖励选择相对鲁棒，主要充当以成功为导向的利用信号，弥补 DAgger 的低估，而不依赖精细的任务塑形。所以本文虽用全身跟踪，扩展到更多技能时一个简单的存活奖励可能就够。</p>
+<p>和先训强 DAgger 策略、再单独 RL 微调的做法 [33] 不同，这里在蒸馏中用 RL 纠正模仿带来的保守，提升技能学习。作者还发现 DAgger 项必须全程保留：课程结束后去掉 DAgger 只做纯 RL，策略常出现抖动、不自然的行为，说明在高维动作空间里，行为克隆目标为 RL 提供了关键的正则。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 并行环境数：论文、代码、issue 三个数</span><ul>
+<li><b>论文</b>：§IV 写 16,384 个并行环境。</li>
+<li><b>代码默认</b>：教师 4096（<code>experiment.py:57</code>），学生 2048（第 244 行，注释说深度渲染每个环境约贵一倍）。</li>
+<li><b>README</b>：教师和单教师学生的示例命令写 <code>--training.num-envs 4096</code>，多教师示例写 32768（八卡）。</li>
+<li><b>issue</b>：作者在 <a href="https://github.com/amazon-far/php_parkour/issues/5">issue #5</a> 里说“实践中 32768 个环境应能训出全部 5 个技能”，“我们一直用这个设置”。</li>
+</ul><p>按论文的 16,384 算，4096 正是表 II 的“1/4 Training Envs”，那一行在 1.0 m/s、76 cm 上是 0.00。照 README 的单卡示例复现，大概率落在这个区间。issue #5 的提问者用 2048 和 4096 都没训好难技能，和这一点吻合。</p></div>
+
+<h2 id="s5"><span class="no">V</span>结论</h2>
+<p>PHP 是一个模块化框架，让人形用机载感知自主完成长时域、高动态的跑酷。motion matching 组合技能加上师生 RL 管线，既保留了人体动作的敏捷，又能按感知适应各种障碍。作者的结论：密集的 motion matching 提供连贯的长参考，并让策略见到广泛的接近条件；在蒸馏中加 RL，能高效地把单技能特权专家的能力转给多技能深度学生。</p>
+<p><b>局限。</b></p>
+<ul>
+<li>缺少语义场景理解；加入语言等更丰富的条件，可以更细地控制多样性和风格。</li>
+<li>真机能力受感知和硬件限制：相机视距短、视场窄，高速奔跑时障碍可能来不及看清，机器人被迫在感知模糊时做决定。</li>
+<li>硬件缺少足够强的手或夹爪，无法测试和边沿、横杆的交互，做不了超过身高的攀爬或悬挂动作。</li>
+</ul>
+
+<h2 id="apA"><span class="no">A</span>附录 A：motion matching 实现细节</h2>
+<p><b>1) 动作数据库和特征预计算。</b>所有片段先用 OmniRetarget 重定向到 29 自由度的 G1，表示成帧序列。每帧存机器人构型 \(\mathbf q_i=(\mathbf p_i,\mathbf r_i,\boldsymbol\theta_i)\)：根平移 \(\mathbf p_i\in\mathbb R^3\)、根四元数 \(\mathbf r_i\in\mathbb R^4\)、关节角 \(\boldsymbol\theta_i\in\mathbb R^{29}\)。再预计算匹配特征 \(\mathbf x_i\in\mathbb R^{27}\)，在角色局部坐标系里，包括：</p>
+<ul>
+<li>未来根轨迹 \(\mathbf t_i\in\mathbb R^{12}\)：0.33 s、0.67 s、1 s 后的平面根位置和朝向；</li>
+<li>局部脚状态 \(\mathbf f_i\in\mathbb R^{12}\)：左右脚在根坐标系里的位置和线速度；</li>
+<li>根速度 \(\mathbf h_i\in\mathbb R^3\)：根线速度。</li>
+</ul>
+<p>为提高数据覆盖，把所有片段做镜像扩充。跑酷片段还人工拟合一个和动作对齐的箱形地形。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 27 维的拆法</span><p>论文：\(12+12+3=27\)。12 维未来轨迹 = 3 个时刻 ×（2 维位置 + 2 维朝向）；12 维脚 = 2 只脚 ×（3 维位置 + 3 维速度）。代码 <code>features.py:366</code> 的注释写 “3+3+3+3+3+6+6 = 27”：左脚位置、右脚位置、左脚速度、右脚速度、髋速度各 3 维，轨迹位置 6 维、朝向 6 维，合计相同。三个时刻在代码里是 60 FPS 下往后 20、40、60 帧（第 276-278 行），正好是 0.33、0.67、1.0 s。</p></div>
+<p><b>2) 查询特征的构造。</b>运行时，查询 \(\hat{\mathbf x}_t\) 由当前构型 \(\mathbf q_t\) 和一个 2D 速度命令构成。从 \(\mathbf q_t\) 取出姿态部分：局部脚状态 \(\hat{\mathbf f}_t\) 和根速度 \(\hat{\mathbf h}_t\)；再从速度命令算出短时域的未来根轨迹，作为命令部分 \(\hat{\mathbf t}_t\)。</p>
+<p>按 [14]，用临界阻尼弹簧模型把 2D 速度命令换成未来根轨迹。弹簧作用在（i）2D 根速度和（ii）根朝向上。目标 2D 速度设为命令 \(\mathbf u^{\rm cmd}_t\in\mathbb R^2\)，目标朝向 \(\psi^{\rm cmd}_t={\rm atan2}(u^{\rm cmd}_{t,y},u^{\rm cmd}_{t,x})\)。</p>
+<p><i>临界阻尼弹簧的闭式解。</i>记弹簧位置 \(s\)、速度 \(\dot s\)、目标 \(s_{\rm goal}\)、阻尼参数 \(y&gt;0\)。令 \(j_0=s_0-s_{\rm goal}\)，\(j_1=\dot s_0+y\,j_0\)，则任意未来时刻</p>
+<div class="eq"><div class="m">\[ s(\tau)=e^{-y\tau}\big(j_0+\tau j_1\big)+s_{\rm goal} \]</div><span class="no">(4)</span></div>
+<p><i>由目标速度得到平面位置。</i>平面根平移用速度空间里的弹簧：弹簧的“位置”是平面速度（导数是加速度）。把闭式速度积分得到未来根位置，逐分量作用于平面：</p>
+<div class="eq"><div class="m">\[ \mathbf p(\tau)=\mathbf p_0-\frac{j_1}{y^2}e^{-y\tau}+\frac{-j_0-\tau j_1}{y}e^{-y\tau}+\frac{j_1}{y^2}+\frac{j_0}{y}+\mathbf u^{\rm cmd}_t\,\tau \]</div><span class="no">(5)</span></div>
+<p><i>由目标朝向得到朝向。</i>旋转直接把弹簧作用在朝向角 \(\psi\) 上，目标 \(\psi^{\rm cmd}_t\)，在同样的时刻用式 (4) 求 \(\psi(\tau)\)，不需要积分。</p>
+<p>在 \(\tau\in\{0.33,0.67,1.0\}\) s 处求值，把未来位置 \(\mathbf p(\tau)\) 和朝向转到角色局部坐标系，得到未来轨迹特征 \(\hat{\mathbf t}_t\)。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 式 (5) 我推了一遍，代码也一样</span><p>速度弹簧 \(v(\tau)=e^{-y\tau}(j_0+j_1\tau)+u\)，其中 \(j_0=v_0-u\)，\(j_1=a_0+y j_0\)。从 0 积到 \(\tau\)：\(\int_0^\tau e^{-ys}ds=(1-e^{-y\tau})/y\)，\(\int_0^\tau s e^{-ys}ds=\big(1-e^{-y\tau}(1+y\tau)\big)/y^2\)。合起来</p>
+<p>\[ p(\tau)=p_0+\frac{j_0}{y}+\frac{j_1}{y^2}-e^{-y\tau}\Big(\frac{j_0}{y}+\frac{j_1}{y^2}+\frac{j_1\tau}{y}\Big)+u\tau, \]</p>
+<p>逐项展开就是式 (5)。代码 <code>utils/animation_state.py:487-514</code> 的 <code>simulation_positions_update</code> 是同一个式子。论文没给 \(y\)：代码用半衰期换算，\(y=\tfrac12\cdot\tfrac{4\ln2}{h}=\tfrac{2\ln2}{h}\)（<code>math_utils.py:125-128</code>），速度和朝向的半衰期都是 \(h=0.27\) s（<code>run.py:289-290</code>），所以 \(y\approx5.13\ {\rm s}^{-1}\)。3D 动画第 4 幕按这个值当场算轨迹。</p></div>
+<p><b>3) 用惯性化（inertialization）平滑过渡。</b>为了在播放下标跳到新检索的帧时保持平滑，采用 inertialization [4]：在过渡瞬间算出当前播放动作和目标动作之间的偏移，切换后把它加上，使输出连续，再把偏移逐渐衰减到零。衰减用和式 (4) 相同的临界阻尼弹簧，目标设为零。代码里这个半衰期是 0.1 s（<code>run.py:228</code>）。</p>
+
+<h2 id="apB"><span class="no">B</span>附录 B：技能清单和训练实现细节</h2>
+<p><b>1) 技能清单。</b>动作库包括走跑和一组原子跑酷技能。走跑提供共享的过渡流形，包括站、走、跑，覆盖命令速度 0.8 到 3.5 m/s。多数跑酷技能有 1.0 m/s 和 2.0 m/s 两版；另外有一段 3.0 m/s 的猫跳，覆盖极高速的翻越。表 III 列出全部技能和每类片段的总时长。</p>
+<p class="tcap" id="t3">表 III · 动作库里的片段（照录原文）</p>
+<div class="tablewrap"><table class="t-r3"><thead><tr><th>技能</th><th>时长（s）</th></tr></thead><tbody>
+<tr><td colspan="2"><b>Locomotion</b></td></tr>
+<tr><td>Locomotion</td><td>495.5</td></tr>
+<tr><td colspan="2"><b>Parkour skills @ 1.0 m/s</b></td></tr>
+<tr><td>Step (36 cm)</td><td>2.2</td></tr>
+<tr><td>Climb (58 cm)</td><td>12.1</td></tr>
+<tr><td>Climb (76 cm)</td><td>8.8</td></tr>
+<tr><td>Climb (94 cm)</td><td>10.3</td></tr>
+<tr><td colspan="2"><b>Parkour skills @ 2.0 m/s</b></td></tr>
+<tr><td>Step (36 cm)</td><td>1.6</td></tr>
+<tr><td>Climb (58 cm)</td><td>6.1</td></tr>
+<tr><td>Climb (76 cm)</td><td>4.4</td></tr>
+<tr><td>Climb (94 cm)</td><td>5.2</td></tr>
+<tr><td>Climb (125 cm)</td><td>5.9</td></tr>
+<tr><td>Dash Vault</td><td>5.0</td></tr>
+<tr><td>Speed Vault</td><td>3.1</td></tr>
+<tr><td colspan="2"><b>Parkour skills @ 3.0 m/s</b></td></tr>
+<tr><td>Cat Vault</td><td>1.5</td></tr>
+</tbody></table></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 表 III 合计，以及表里没有的技能</span><p>1.0 m/s 四项 2.2 + 12.1 + 8.8 + 10.3 = 33.4 s；2.0 m/s 七项 1.6 + 6.1 + 4.4 + 5.2 + 5.9 + 5.0 + 3.1 = 31.3 s；加猫跳 1.5 s，跑酷片段共 66.2 s，平均每项 5.5 s，和引言说的“每个技能只有一两段、每段几秒”一致。加上走跑 495.5 s，动作库合计 561.7 s，约 9.4 分钟。</p>
+<p>摘要说机器人会“roll off”障碍，图 1(b) 是爬上 1.25 m 墙后滚下，图 5(b) 是从 1.25 m 平台跳下，但表 III 没有翻滚和跳下的技能。代码的技能注册表里有：<code>roll_78</code>、<code>roll_90</code>、<code>roll_136</code>、<code>drop_92</code>、<code>hurdle</code>、<code>jump_35</code>，还有 <code>climb_134_up</code>（<code>skill_registry.py:30</code> 的 <code>CLIMB_134_TOP = 1.34</code>）。表 III 写的是 Climb (125 cm)，代码里对应的箱顶高是 1.34 m，真机墙标的是 1.25 m。仿真箱高为什么不同，论文和代码都没说（<b>未核实</b>）。</p></div>
+<p><b>2) 动作跟踪细节。</b>专家训练里来自 [20] 的奖励公式和域随机化设置汇总在表 IV、表 V，供参考。</p>
+<p class="tcap" id="t4">表 IV · 用高斯形跟踪分数的奖励公式（照录原文）</p>
+<div class="tablewrap"><table class="t-r4"><thead><tr><th>奖励项</th><th>公式</th><th>权重</th></tr></thead><tbody>
+<tr><td colspan="3"><i>Task (Tracking)</i></td></tr>
+<tr><td>Body Position</td><td>\(\exp\!\big(-\frac{1}{|\mathcal B_{\rm target}|}\sum_{b\in\mathcal B_{\rm target}}\|\mathbf p^{\rm des}_b-\mathbf p_b\|^2/0.3^2\big)\)</td><td>1.0</td></tr>
+<tr><td>Body Orientation</td><td>\(\exp\!\big(-\frac{1}{|\mathcal B_{\rm target}|}\sum_{b}\|\log(R^{\rm des}_bR_b^\top)\|^2/0.4^2\big)\)</td><td>1.0</td></tr>
+<tr><td>Body Linear velocity</td><td>\(\exp\!\big(-\frac{1}{|\mathcal B_{\rm target}|}\sum_{b}\|\mathbf v^{\rm des}_b-\mathbf v_b\|^2/1.0^2\big)\)</td><td>1.0</td></tr>
+<tr><td>Body Angular velocity</td><td>\(\exp\!\big(-\frac{1}{|\mathcal B_{\rm target}|}\sum_{b}\|\boldsymbol\omega^{\rm des}_b-\boldsymbol\omega_b\|^2/3.14^2\big)\)</td><td>1.0</td></tr>
+<tr><td>Anchor Position</td><td>\(\exp\!\big(-\|\mathbf p^{\rm des}_{\rm anchor}-\mathbf p_{\rm anchor}\|^2/0.3^2\big)\)</td><td>1.0</td></tr>
+<tr><td>Anchor Orientation</td><td>\(\exp\!\big(-\|\log(R^{\rm des}_{\rm anchor}R^\top_{\rm anchor})\|^2/0.4^2\big)\)</td><td>1.0</td></tr>
+<tr><td colspan="3"><i>Regularization</i></td></tr>
+<tr><td>Action smoothness</td><td>\(\|\mathbf a_t-\mathbf a_{t-1}\|^2\)</td><td>−0.1</td></tr>
+<tr><td>Joint position limit</td><td>\(\sum_{j=1}^{N}\big[\max(l_j-\theta_j,0)+\max(\theta_j-u_j,0)\big]\)</td><td>−10.0</td></tr>
+<tr><td>Undesired self-contacts</td><td>\(\sum_{b\notin\mathcal B_{ee}}\mathbf 1\big[\|f^{\rm self}_b\|&gt;1\,{\rm N}\big]\)</td><td>−0.5</td></tr>
+</tbody></table></div>
+<p class="tcap">代码对照：六个跟踪项和 σ、权重都对得上（holosoma <code>config_values/wbt/g1/reward.py</code>，锚点两项由 PHP <code>terrain.py:292-301</code> 从 0.5 改成 1.0）。<code>limits_dof_pos</code> 用 0.9 倍软限位（第 304 行）。<code>undesired_contacts</code> 的阈值 1.0、权重 −0.5（第 307-318 行），排除的是左右脚接触点、踝关节和腕关节连杆。</p>
+
+<p class="tcap" id="t5">表 V · 域随机化参数（U[·]：均匀分布，照录原文）</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th>域随机化</th><th>采样分布</th></tr></thead><tbody>
+<tr><td colspan="2"><i>Physical parameters</i></td></tr>
+<tr><td>Static friction coefficients</td><td>\(\mu_{\rm static}\sim\mathcal U[0.4,1.3]\)</td></tr>
+<tr><td>Dynamic friction coefficients</td><td>\(\mu_{\rm dynamic}\sim\mathcal U[0.4,1.1]\)</td></tr>
+<tr><td>Restitution coefficient</td><td>\(e_{\rm rest}\sim\mathcal U[0,0.5]\)</td></tr>
+<tr><td>Default joint positions (except ankle) [rad]</td><td>\(\Delta\theta^0_j\sim\mathcal U[-0.01,0.01]\)</td></tr>
+<tr><td>Default ankle joint positions [rad]</td><td>\(\Delta\theta^0_j\sim\mathcal U[-0.03,0.03]\)</td></tr>
+<tr><td>Torso COM offset [m]</td><td>\(\Delta x\sim\mathcal U[-0.025,0.025],\ \Delta y,\Delta z\sim\mathcal U[-0.05,0.05]\)</td></tr>
+<tr><td colspan="2"><i>Root velocity perturbations</i></td></tr>
+<tr><td>Root linear vel [m/s]</td><td>\(v_x,v_y\sim\mathcal U[-0.1,0.1],\ v_z\sim\mathcal U[-0.05,0.05]\)</td></tr>
+<tr><td>Push duration [s]</td><td>\(\Delta t\sim\mathcal U[1.0,3.0]\)</td></tr>
+<tr><td>Root angular vel [rad/s]</td><td>\(\omega_x,\omega_y,\omega_z\sim\mathcal U[-0.1,0.1]\)</td></tr>
+</tbody></table></div>
+<p class="tcap">代码对照：摩擦、恢复系数、质心偏移、推速都对得上（<code>terrain.py:199-237</code>）；脚踝偏置和推力时间不同，见<a href="#n11">读者注 11</a>。</p>
+
+<p><b>3) 蒸馏细节。</b>学生训练时，相对专家放宽终止条件，避免有效但镜像的执行被过早终止。这提高了 PPO 的稳定性，但学生可能到达对专家来说分布外的状态；专家在原阈值下训练，在这些状态里可能给不出有意义的动作。具体地，当学生违反了专家原来的终止条件、但还在放宽后的条件之内时，查询专家会得到不可靠的监督。为避免错误的 DAgger 信号，这些时间步上关掉 DAgger 损失，只靠 PPO 目标（代码见<a href="#n13">读者注 13</a>）。</p>
+<p>深度方面，除前述相机噪声，训练时还加 ±3 cm 内的随机深度偏置，以及标准差 3 cm 的独立同分布高斯噪声。机载深度相机工作在 30 Hz。</p>
+<p><b>4) 训练超参数。</b>两阶段训练的全部超参数见表 VI。</p>
+<p class="tcap" id="t6">表 VI · 训练超参数（照录原文）</p>
+<div class="tablewrap"><table class="t-r6"><thead><tr><th>超参数</th><th>Motion Tracking</th><th>Distillation</th></tr></thead><tbody>
+<tr><td colspan="3"><i>Architecture</i></td></tr>
+<tr><td>Actor / Student MLP hidden dims</td><td>[512, 256, 128]</td><td>[2048, 1024, 512, 256, 128]</td></tr>
+<tr><td>Critic MLP hidden dims</td><td>[512, 256, 128]</td><td>[512, 256, 128]</td></tr>
+<tr><td>Activation function</td><td>ELU</td><td>ELU</td></tr>
+<tr><td>Init noise std</td><td>1.0</td><td>0.01</td></tr>
+<tr><td>Depth backbone</td><td>–</td><td>3-layer CNN + GAP</td></tr>
+<tr><td>Depth input resolution</td><td>–</td><td>58 × 87</td></tr>
+<tr><td>Depth output dim</td><td>–</td><td>32</td></tr>
+<tr><td colspan="3"><i>Training</i></td></tr>
+<tr><td>Steps per environment</td><td>24</td><td>24</td></tr>
+<tr><td>Max iterations</td><td>20,000</td><td>20,000</td></tr>
+<tr><td>Learning rate</td><td>1 × 10⁻³</td><td>3 × 10⁻⁴</td></tr>
+<tr><td>Schedule</td><td>adaptive</td><td>adaptive after 1000 iterations</td></tr>
+<tr><td>Clip parameter</td><td>0.2</td><td>0.2</td></tr>
+<tr><td>Entropy coefficient</td><td>0.005</td><td>0.001</td></tr>
+<tr><td>Discount factor (γ)</td><td>0.99</td><td>0.99</td></tr>
+<tr><td>GAE λ</td><td>0.95</td><td>0.95</td></tr>
+<tr><td>Desired KL</td><td>0.01</td><td>0.01</td></tr>
+<tr><td>Learning epochs</td><td>5</td><td>2</td></tr>
+<tr><td>Mini-batches</td><td>4</td><td>96</td></tr>
+<tr><td>Max grad norm</td><td>1.0</td><td>1.0</td></tr>
+<tr><td colspan="3"><i>Distillation-Specific</i></td></tr>
+<tr><td>Curriculum end epoch</td><td>–</td><td>10,000</td></tr>
+<tr><td>Distill loss type</td><td>–</td><td>mse</td></tr>
+<tr><td>DAgger loss coefficient</td><td>–</td><td>10.0</td></tr>
+</tbody></table></div>
+<p class="tcap">代码对照：蒸馏列除 Max iterations（代码 30,000）外全部一致（<code>experiment.py:185-225</code>）；教师列的学习率、epoch、熵、初始噪声、迭代数在 <code>experiment.py:82-98</code>，其余是 holosoma 的 PPO 默认值（<code>config_types/algo.py:117-165</code>：mini-batch 4、clip 0.2、λ 0.95、KL 0.01、每环境 24 步）。</p>
+<div class="note" id="n22"><span class="lab">读者注 22 · 用作者发布的 ONNX 核对网络</span><p>我下载了 <code>student-assets-v1</code> 里的两个 ONNX，只解析权重形状，没有运行。</p>
+<ul>
+<li><b>depth_backbone.onnx</b>：输入 1 × 58 × 87，三层卷积 16（5×5，步长 2）、32（3×3，步长 2）、64（3×3，步长 2），全局平均池化，再线性到 32 维。参数 \(416+4640+18496+2080=25{,}632\)，和 holosoma <code>depth_backbone.py:50-80</code> 的 <code>DepthOnlyFCBackbone58x87Small</code> 一致，就是表 VI 的“3-layer CNN + GAP”。</li>
+<li><b>student.onnx</b>：输入 140 维，层宽 2048、1024、512、256、128，输出 29，参数 3,079,709。140 维正好是深度潜变量 32 加上学生本体观测：重力 3、角速度 3、关节位置 29、关节速度 29、上一步动作 29、速度 one-hot 15，合计 \(32+108\)（<code>depth_distillation.py:50-84</code>）。</li>
+</ul>
+<p>sim2sim 日志里的共享内存大小 20,184 字节也对得上：58 × 87 × 4 字节（float32）= 20,184。</p></div>
+
+<h2 id="apC"><span class="no">C</span>附录 C：基线细节</h2>
+<p><b>1) 速度跟踪基线。</b>为说明人体参考动作的重要性，加入一个标准的奖励塑形速度跟踪基线：纯手工奖励加地形课程，没有任何动作模仿或人体参考。沿用 Isaac Lab 标准的崎岖地形速度跟踪配方，用它的 Unitree G1 rough-terrain 配置（<code>rough_env_cfg.py</code>），这个配置广泛用于人形行走和地形穿越，和最先进的奖励塑形设定基本一致 [13]。和 [53, 13] 一样用地形课程：难度从 0.3 m 到 1.0 m 分 10 级（2 m 助跑），在当前级成功足够多就升级，表现下降就降级。和依赖机载深度相机的学生不同，这个基线直接拿到局部地形高度图（仿真里的特权高度观测），这在以往跑酷系统里被证明非常有效 [13, 33]。</p>
+<p><b>2) AMP 基线。</b><a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a> 是用人体数据串联技能的常用算法，所以作者照 AMP 原作者发布的 <a class="ds" href="https://github.com/xbpeng/MimicKit">MimicKit</a> 实现了一个基线。它能稳定行走、跟踪速度命令，但障碍穿越表现差，多数任务失败，难任务尤甚，这和“AMP 难以扩展到敏捷动作”的已有报告 [50] 一致。作者也承认 AMP 的表现可能很依赖实现细节和仔细调参 [38]，他们没有精力充分探索，所以没把 AMP 放进正式比较，只作为背景说明。</p>
+
+<h2 id="code">代码对照</h2>
+<p>官方代码 c7c9ce3 加 holosoma 4a0bf04，只读未运行。文件路径相对仓库根；holosoma 的路径相对 <code>thirdparty/holosoma/src/holosoma/holosoma/</code>。“一致”只表示数值或结构对得上，不保证论文实验就用这套配置。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码（文件:行，配置键）</th><th>判断</th></tr></thead><tbody>
+<tr><td>匹配特征</td><td>27 维：轨迹 12、脚 12、根速度 3</td><td><code>motion_matching/.../core/features.py:339-366</code>；权重 0.75/1.0/1.0/1.0/1.5（360-364）</td><td>维度一致；代码多了特征权重</td></tr>
+<tr><td>未来时刻</td><td>0.33、0.67、1.0 s</td><td><code>features.py:276-278</code>，60 FPS 下 20/40/60 帧</td><td>一致</td></tr>
+<tr><td>检索周期 \(M\)</td><td>未给</td><td><code>run.py:269</code> <code>search_time = 0.1</code> s</td><td>论文没写</td></tr>
+<tr><td>弹簧 \(y\)</td><td>式 (4)(5)，未给数值</td><td><code>run.py:289-290</code> 半衰期 0.27 s；<code>animation_state.py:487-514</code></td><td>公式一致，\(y\approx5.13\)</td></tr>
+<tr><td>过渡平滑</td><td>inertialization</td><td><code>run.py:228</code> 半衰期 0.1 s</td><td>一致</td></tr>
+<tr><td>进入窗口 \(\mathcal E_k\)</td><td>人工标注 \((s_k,e_k)\)、\(H_k\)</td><td><code>scenarios/skill_registry.py</code> 的 <code>search_ranges</code> 三元组</td><td>一致；见读者注 3</td></tr>
+<tr><td>镜像</td><td>所有片段</td><td><code>generate_database.py:172-200</code>；<code>cat_vault</code> 只有一段（registry 238 行）</td><td>猫跳可能例外</td></tr>
+<tr><td>速度档</td><td>1 / 2 m/s，五方向</td><td><code>builtin.py:25-28</code> 0.8 / 2.2；15 维 one-hot（第 23 行）</td><td>数值不同</td></tr>
+<tr><td>技能前时长</td><td>U[0.1, 3] s</td><td><code>builtin.py:123</code> 等，固定网格 [0.5, 0.8, 1.2, 1.5]</td><td>不同</td></tr>
+<tr><td>障碍宽度</td><td>最小值到 1.5 m</td><td><code>utils/data_utils.py:200-252</code>，每侧 ≤ 0.75</td><td>一致</td></tr>
+<tr><td>其他尺寸</td><td>±5 cm</td><td><code>wbt_training/utils/obstacle_helpers.py:256-279</code> ±5 cm + 逐点 ±2 cm</td><td>基本一致</td></tr>
+<tr><td>障碍偏航</td><td>±45°</td><td><code>obstacle_helpers.py:233, 312</code> U(−π, π)</td><td>不同（未核实影响）</td></tr>
+<tr><td>干扰物</td><td>随机箱子</td><td><code>builtin.py:103-116</code> 5–15 个，离路径 ≥ 0.35 m</td><td>一致</td></tr>
+<tr><td>专家观测</td><td>参考关节、骨盆误差、速度、关节、动作、0.7 m 高度扫描</td><td><code>terrain.py:115-158</code>；扫描 1.6 m、289 点（holosoma <code>simulator/isaacsim/isaacsim.py:469</code>）</td><td>扫描范围不同；锚点是躯干</td></tr>
+<tr><td>专家奖励</td><td>表 IV</td><td>holosoma <code>config_values/wbt/g1/reward.py</code> + <code>terrain.py:289-320</code></td><td>一致</td></tr>
+<tr><td>专家终止</td><td>0.5 m</td><td><code>terrain.py:332-337</code>：位置 0.5、朝向 0.8、踝腕 0.5</td><td>一致，代码多两个条件</td></tr>
+<tr><td>动作缩放</td><td>1</td><td><code>experiment.py:143-153</code> <code>action_scale=1.0</code>；<code>run_terrain_teacher.sh:18</code></td><td>一致</td></tr>
+<tr><td>自适应采样</td><td>专家开、学生关</td><td><code>terrain.py:57-64</code>（核 3、λ 0.8、α 0.001）；<code>depth_distillation.py:197-199</code></td><td>一致</td></tr>
+<tr><td>技能均衡采样</td><td>各技能等概率</td><td><code>motion_command.py:370-402</code></td><td>一致</td></tr>
+<tr><td>障碍布局数</td><td>未写</td><td>教师 64、学生 3（<code>experiment.py:65-67, 236-238</code>）</td><td>论文没写</td></tr>
+<tr><td>学生观测</td><td>重力、角速度、关节、动作、深度、速度命令</td><td><code>depth_distillation.py:50-84</code>，108 维 + 深度 32</td><td>一致</td></tr>
+<tr><td>深度图</td><td>58 × 87，延迟 60–80 ms</td><td><code>depth_distillation.py:124-140</code>，<code>latency_frame=(3, 4)</code>，D435i 配置</td><td>一致</td></tr>
+<tr><td>相机外参随机</td><td>2.5 cm、2.5°</td><td>holosoma <code>d435i_depth_config.py:28-39</code>，pitch ±3°</td><td>基本一致</td></tr>
+<tr><td>深度噪声</td><td>±3 cm 偏置、3 cm 高斯、无模糊</td><td>holosoma <code>managers/observation/terms/depth.py:120, 353</code>，加 Perlin 打洞</td><td>偏置分布不同</td></tr>
+<tr><td>深度骨干</td><td>3 层 CNN + GAP → 32</td><td>holosoma <code>agents/modules/depth_backbone.py:50-80</code></td><td>一致</td></tr>
+<tr><td>学生 MLP</td><td>[2048, 1024, 512, 256, 128]</td><td><code>experiment.py:185-196</code>；ONNX 核对</td><td>一致</td></tr>
+<tr><td>式 (3)</td><td>\(\lambda_{\rm PPO}+\lambda_{\rm D}=1\)</td><td>holosoma <code>agents/distillation_ppo/distillation_ppo.py:369-379, 690-695</code></td><td>调度一致；值损失、系数 10、门控见读者注 10</td></tr>
+<tr><td>相位门控</td><td>无</td><td><code>depth_distillation.py:216-260</code>，<code>motion_command.py:71-260</code></td><td>代码独有</td></tr>
+<tr><td>专家失效屏蔽</td><td>附录 B3</td><td><code>motion_command.py:698-750</code>，<code>student_teacher.py:190-206</code></td><td>一致</td></tr>
+<tr><td>终止放宽</td><td>0.5 → 1 m，同一线性日程</td><td><code>depth_distillation.py:163-177</code>，第 1000 到 10,000 次迭代</td><td>起点不同</td></tr>
+<tr><td>自适应 lr 门限</td><td>\(\lambda_{\rm PPO}&gt;0.1\)</td><td><code>distillation_ppo.py:381-391, 636-638</code></td><td>一致</td></tr>
+<tr><td>迭代数</td><td>20K / 20K</td><td>教师 20000（<code>experiment.py:89</code>），学生 30000（217）</td><td>学生不同</td></tr>
+<tr><td>并行环境</td><td>16,384</td><td>默认 4096 / 2048；issue #5 说 32,768</td><td>不同</td></tr>
+<tr><td>域随机化</td><td>表 V</td><td><code>terrain.py:199-283</code></td><td>两项不同（读者注 11）</td></tr>
+<tr><td>评测协议</td><td>500 次，越过后再走 1.5 m</td><td><code>eval_student.py</code> 只回放，不统计成功率</td><td>代码没有</td></tr>
+</tbody></table></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>按 README、<code>motion_matching/README.md</code>、<code>wbt_training/README.md</code>、<code>wbt_training/DEPLOY.md</code> 整理，命令从仓库根目录运行。我没有运行，只核对了脚本里的参数。</p>
+<h3 id="repro-env">环境</h3>
+<ul>
+<li><b>取代码</b>：<code>git clone --recurse-submodules https://github.com/amazon-far/php_parkour.git</code>。子模块 <code>thirdparty/holosoma</code> 固定在 4a0bf04（来自 holosoma 的 <code>jinkunc/php-release-port</code> 分支）。我这里克隆加子模块用了二十多分钟，主要耗在 holosoma。</li>
+<li><b>motion matching 只要 Conda，不要 IsaacSim</b>：<code>bash motion_matching/setup_env.sh</code>，激活 <code>php-motion-matching</code>，再 <code>python scripts/download_assets.py databases</code>（约 40 MB，默认放 <code>~/.cache/php-parkour/databases</code>，可用 <code>PHP_MOTION_DATABASE_DIR</code> 改）。交互模式要 Tkinter。</li>
+<li><b>训练和评测要 Linux + NVIDIA + <a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a> 5.1</b>：<code>bash wbt_training/training_runs/setup_env.sh</code>，然后 <code>source scripts/source_isaacsim_setup.sh</code>，默认环境名 <code>php</code>（可用 <code>ENV_NAME</code> 改）。安装用 <code>thirdparty/holosoma/scripts/constraints/isaacsim-5.1.txt</code> 约束版本。README 说明 <code>pip check</code> 会报 <code>typing_extensions</code> 冲突，这是已知问题，不影响运行。</li>
+<li><b>日志默认走 <a class="ds" href="https://wandb.ai/site">W&amp;B</a></b>：要先 <code>wandb login</code>；只想本地记录就设 <code>LOGGER=disabled</code>。</li>
+</ul>
+<h3 id="repro-data">数据</h3>
+<p>想跳过 motion matching，可以直接下载作者准备好的五个数据包（<code>training-motion-examples-v1</code>），它们对应“当前五教师设置”：</p>
+<div class="tablewrap"><table class="t-data"><thead><tr><th>数据包（下载组件名）</th><th>动作/地形对</th><th>压缩包</th></tr></thead><tbody>
+<tr><td><code>motions-locomotion</code></td><td>100</td><td>118.3 MB</td></tr>
+<tr><td><code>motions-low-step</code></td><td>56</td><td>41.8 MB</td></tr>
+<tr><td><code>motions-high-step</code></td><td>60</td><td>44.8 MB</td></tr>
+<tr><td><code>motions-low-climb-76</code></td><td>40</td><td>57.4 MB</td></tr>
+<tr><td><code>motions-high-climb-76</code></td><td>40</td><td>44.4 MB</td></tr>
+</tbody></table></div>
+<p>下载：<code>python scripts/download_assets.py motions-locomotion</code>，会按 <code>release-assets.json</code> 的 SHA-256 校验。注意这五个只覆盖表 III 的一部分（走跑、两档踏步、两档 76 cm 攀爬），没有 58/94/125 cm 攀爬和三种翻越；要这些得自己生成。</p>
+<p>自己生成：在 <code>motion_matching/</code> 下</p>
+<pre class="cmd">python -m motion_matching.run --mode generate --scenario high_speed_climb_76
+python -m motion_matching.motion_visualizer --motion-file motion_matching_results/high_speed_climb_76</pre>
+<p>输出 50 FPS 的 <code>*_motion.npz</code>、<code>*_terrain.npy</code>、<code>*_terrain.obj</code>。场景名在 <code>scenarios/builtin.py</code>（还有 roll、hurdle、jump、drop 等表 III 没有的技能）。加自己的动作：30 FPS、<code>qpos</code> 为 (T, 36) 的 G1 片段，用 <code>python -m motion_matching.generate_database --motion-file ... --terrain-file box.obj --fps 30</code>，会重采样到 60 FPS；然后在 <code>skill_registry.py</code> 注册，在 <code>builtin.py</code> 写场景。上传到 W&amp;B 注册表用 <code>tracking_utils/upload_npz_newformat.py</code>，也可以不上传，直接用 <code>file://</code>。</p>
+<h3 id="repro-teacher">教师训练</h3>
+<pre class="cmd">REGISTRY="file://$HOME/.cache/php-parkour/motions-locomotion" NGPUS=1 \
+bash wbt_training/training_runs/run_terrain_teacher.sh \
+  --training.headless True --training.num-envs 4096 --training.name loco-teacher</pre>
+<p>每个数据包训一个教师。脚本用的预设是 <code>exp:g1-wbt-terrain-ref-noscale</code>（动作缩放 1、躯干锚点、64 种障碍布局、20,000 次迭代、每 500 次存档）。<code>--training.num-envs</code> 是<b>所有 GPU 合计</b>的环境数。示例里的 4096 只是论文 16,384 的 1/4（读者注 18）。</p>
+<h3 id="repro-student">学生蒸馏</h3>
+<pre class="cmd">TEACHER_CHECKPOINT='wandb://TEAM/php-experiments/CLIMB_ID,wandb://TEAM/php-experiments/STEP_ID' \
+REGISTRY=auto NGPUS=8 \
+bash wbt_training/training_runs/run_terrain_warp_distill.sh \
+  --training.headless True --training.num-envs 32768</pre>
+<ul>
+<li><code>FINETUNE=1</code>（默认）是 DAgger + PPO，预设 <code>exp:g1-wbt-terrain-warp-distill-finetune</code>；<code>FINETUNE=0</code> 是纯 DAgger（小网络、不屏蔽，读者注 13）。</li>
+<li><code>REGISTRY=auto</code> 只对 W&amp;B 上的教师有效，会按教师顺序找回各自的数据集；本地 <code>.pt</code> 教师要显式写一个逗号分隔的 <code>REGISTRY</code>，顺序必须和 <code>TEACHER_CHECKPOINT</code> 一致。</li>
+<li><code>WARMUP_STEPS</code> 默认 0；预热期间由教师动作驱动环境。</li>
+<li>学生默认训 30,000 次（论文 20,000），PPO 权重在第 10,000 次迭代达到 0.9。</li>
+</ul>
+<h3 id="repro-eval">评测与导出 ONNX</h3>
+<pre class="cmd">CHECKPOINT='wandb://TEAM/php-experiments/STUDENT_ID' REGISTRY=auto \
+bash wbt_training/training_runs/eval_student.sh --show-depth True</pre>
+<p>默认 1 个环境、1000 步、GPU 0（<code>NUM_ENVS</code>、<code>MAX_EVAL_STEPS</code>、<code>GPU_INDEX</code>）。教师用 <code>eval_teacher.sh</code>。评测脚本只回放和可视化，不算成功率，复现表 I/II 要自己写评测：按 §IV-B1 的协议，1 m/s 在 1.5–3.0 m、2 m/s 在 3.0–4.5 m 处初始化，障碍偏航 20°，100 个实例 × 5 次，越过后再走 1.5 m 不摔。学生每次存档会自动导出 <code>depth_backbone.onnx</code> 和 <code>student.onnx</code>；手动导出：</p>
+<pre class="cmd">python -m wbt_training.training_runs.export_distill_onnx \
+  --training.checkpoint /path/model_29999.pt --training.num-envs 1 logger:disabled</pre>
+<h3 id="repro-sim2sim">MuJoCo sim2sim 深度演示</h3>
+<p>不训练也能先跑作者的学生：<code>python scripts/download_assets.py student</code>（12.7 MB，默认放 <code>~/.cache/php-parkour/student</code>）。装 holosoma 的两个运行环境：</p>
+<pre class="cmd">git submodule update --init --recursive thirdparty/holosoma
+bash thirdparty/holosoma/scripts/setup_mujoco.sh
+bash thirdparty/holosoma/scripts/setup_inference.sh</pre>
+<p>两个终端，同一台机器，要有图形桌面（SSH 时两边都设 <code>DISPLAY</code>）：</p>
+<pre class="cmd"># 终端 1：仿真（G1 半球手模型、D435i 深度、500 Hz 物理）
+bash ./run_php_sim.sh
+# 等到 [DepthShmPlugin] created 'depth_img_shm' (20184 bytes) shape=(1, 1, 58, 87)
+# 终端 2：推理
+BACKBONE="$HOME/.cache/php-parkour/student/depth_backbone.onnx" \
+STUDENT="$HOME/.cache/php-parkour/student/student.onnx" bash ./run_php_inference.sh</pre>
+<p>操作：在 MuJoCo 窗口按 <code>8</code> 放下吊架直到脚着地，<code>9</code> 撤掉；在推理终端按 <code>]</code> 启动策略，<code>w/s</code> 前后，<code>a/d</code> 45°，<code>q/e</code> 90°，<code>=</code> 切换快慢，<code>o</code> 阻尼模式，<code>i</code> 回到初始姿态；MuJoCo 窗口 <code>Backspace</code> 重置。默认是 holosoma 自带的台阶路线，追加 <code>terrain:terrain-locomotion-plane</code> 换平地，或 <code>--terrain.terrain-term.obj-file-path</code> 指定自己的网格。仿真器用 <a class="ds" href="https://mujoco.org/">MuJoCo</a>，相机是 <a class="ds" href="https://dev.realsenseai.com/docs/depth-camera-d435i">RealSense D435i</a> 的仿真配置。</p>
+<h3 id="repro-hw">硬件和时间预期</h3>
+<ul>
+<li>论文和 README 都没写训练用的显卡型号、卡数和耗时，我也没找到公开的训练时长，下面只能列出线索。</li>
+<li>README 的多教师示例是 <code>NGPUS=8</code>、32,768 个环境。issue #5 里作者说他们一直用 32,768。</li>
+<li><a href="https://github.com/amazon-far/php_parkour/issues/4">issue #4</a> 的用户用两张 4090、每卡一个技能训教师，效果不好。作者回复说其实是评测端的 bug，训练好的策略没问题，已修复并推到主线；我没确认是哪个提交。</li>
+<li>学生要用 Warp 渲染深度，代码注释说每个环境的开销约是教师的两倍，所以默认环境数减半（<code>experiment.py:181</code>）。</li>
+</ul>
+<h3 id="repro-decide">论文没写、需要自己决定的</h3>
+<ul>
+<li><b>人体动捕来源</b>：论文没说用了哪个数据集，发布的是已经重定向好的 <code>.bin</code> 数据库和配套箱形地形。换成自己的动作要先自行重定向到 G1（OmniRetarget）。</li>
+<li><b>真机部署</b>：DEPLOY.md 只讲 MuJoCo sim2sim，用的是 holosoma 的本地仿真桥和共享内存；真机用的相机驱动、网络接口、安全流程，PHP 仓库里都没写。</li>
+<li><b>相机安装</b>：仿真配置把相机放在 <code>torso_link</code> 上偏移 (0.01, 0.01, 0.44) m、俯仰 27°（holosoma <code>d435i_depth_config.py:49-58</code>）。真机怎么装、怎么标定到这个值，论文只说按自身可见区域的 ROI 重叠标定。<a href="https://github.com/amazon-far/php_parkour/issues/6">issue #6</a> 问“相机角度怎么固定”，截至 2026-11-20 没有回复。</li>
+<li><b>控制频率和 PD 增益</b>：论文没写；代码 50 Hz，增益由 <code>robot_config.py</code> 按电机电枢和自然频率推出。</li>
+<li><b>其余技能的教师</b>：五个示例之外的技能，要自己选场景、生成数据、逐个训练教师，难技能可能要上调采样比例（issue #5 作者建议）。</li>
+<li><b>评测协议</b>：要自己实现，见上。</li>
+</ul>
+<h3 id="repro-pit">已知坑</h3>
+<ul>
+<li><a href="https://github.com/amazon-far/php_parkour/issues/5">issue #5</a>：2048 或 4096 个环境蒸馏五个教师，部分技能学不会；作者建议加到 32,768 或给难技能上采样。提问者调大 DAgger 权重后，原本好的简单技能反而退化。</li>
+<li><a href="https://github.com/amazon-far/php_parkour/issues/4">issue #4</a>：早期评测脚本有 bug，让好策略看起来很差，已修。用旧检查点评测时注意版本。</li>
+<li><a href="https://github.com/amazon-far/php_parkour/issues/2">issue #2</a>：问能否用 Isaac Sim 4.5.0，协作者回复“应该可以”，没有实测结论。官方测试的是 5.1。</li>
+<li><a href="https://github.com/amazon-far/php_parkour/issues/3">issue #3</a>：社区把 PHP 移植到了 <a class="ds" href="https://github.com/mujocolab/mjlab">mjlab</a>（<a href="https://github.com/yhx1203/parkour_mjlab">yhx1203/parkour_mjlab</a>），含训练和 sim2sim，已收进 README。不想装 Isaac Sim 可以看这个，但它不是官方代码。</li>
+<li>sim2sim：重启前要停掉旧进程，仿真脚本会删掉并重建 <code>/dev/shm/depth_img_shm</code>；没有 <code>DISPLAY</code> 时吊架键和方向键的松开检测都不可用。<code>run_php_inference.sh</code> 内置的默认 <code>STEP=model_20000</code> 不要依赖，要显式给两条 ONNX 路径。</li>
+<li>DEPLOY.md 里“For policy downloads, see Example results”指向 README 的一个不存在的小节，实际内容在 README 的 “Try the demo”。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下是整理时核算或对照发现的，不属于论文内容。</p>
+<ol class="notes">
+<li><a href="#n1">v1 和 v2</a>：v2 作者表少了 Koushil Sreenath；项目主页 BibTeX 仍有他。</li>
+<li><a href="#n2">式 (1) 在代码里是加权、归一化的距离</a>：五类特征权重 0.75 到 1.5；检索周期 0.1 s，即 6 帧。</li>
+<li><a href="#n3">进入窗口在代码里是三元组</a>：(s−H, s, e)；猫跳只有一段，可能没有镜像。</li>
+<li><a href="#n4">“[0.1, 3] s，平均 0.3 s”</a>：均匀分布均值是 1.55 s；代码用固定网格。</li>
+<li><a href="#n5">两档速度</a>：代码 0.8 / 2.2 m/s；15 维 one-hot 用 12 维。</li>
+<li><a href="#n6">低速 step 为什么是 56 条</a>：只跳过左转 90°，60 − 4 = 56。</li>
+<li><a href="#n7">障碍随机化</a>：宽度和 ±5 cm 对得上；偏航是 U(−π, π)，影响未核实。</li>
+<li><a href="#n8">高度扫描范围</a>：代码 1.6 m、289 点，论文 0.7 m。</li>
+<li><a href="#n9">锚点是躯干</a>：默认 <code>torso_link</code>，骨盆版存在但启动脚本不用。</li>
+<li><a href="#n10">式 (3) 在代码里</a>：调度一致；值损失不受课程控制；DAgger 再乘 10；多了按相位残差门控。</li>
+<li><a href="#n11">随机化四处差别</a>：相机俯仰 ±3°、深度偏置是高斯、推力间隔、脚踝偏置。</li>
+<li><a href="#n12">“1000 次迭代”</a>：\(\lambda_{\rm PPO}\) 过 0.1 正是第 1000 次；终止放宽在代码里从第 1000 次才开始。</li>
+<li><a href="#n13">学生采样和专家失效屏蔽</a>：都实现了；纯 DAgger 预设不屏蔽、网络缩小，不一定是论文的消融。</li>
+<li><a href="#n14">“都是 5 层 MLP”</a>：专家其实 3 层；学生代码训 30,000 次。</li>
+<li><a href="#n15">几个比例</a>：96%、154%、2.02 m 都算得上。</li>
+<li><a href="#n16">表 I 和表 II 的 Ours</a>：2.0 m/s 两格不同；表 I 两个速度三格完全相同。</li>
+<li><a href="#n17">94 cm 常比 76 cm 好</a>：十行里七行如此；4 层 MLP 是反例。</li>
+<li><a href="#n18">并行环境数</a>：论文 16,384，代码默认 4096 / 2048，作者实际 32,768；4096 就是表 II 的 1/4。</li>
+<li><a href="#n19">27 维的拆法</a>：12 + 12 + 3，代码 3×5 + 6 + 6，相同。</li>
+<li><a href="#n20">式 (5) 我推了一遍</a>：积分结果一致，代码同式，\(y\approx5.13\ {\rm s}^{-1}\)。</li>
+<li><a href="#n21">表 III 合计</a>：跑酷 66.2 s，总共 561.7 s；表里没有翻滚、跳下；代码 1.34 m 对论文 1.25 m。</li>
+<li><a href="#n22">ONNX 核对</a>：CNN 25,632 参数；学生输入 140 = 32 + 108，3,079,709 参数；共享内存 20,184 字节。</li>
+</ol>
+<p>论文没写、我也没核实的：</p>
+<ul>
+<li>人体动捕来源；</li>
+<li>控制频率（代码 50 Hz）；</li>
+<li>训练用的显卡和时长；</li>
+<li>表 I/II 用的是哪套检查点、几个随机种子；</li>
+<li>仿真 125 cm 攀爬箱高为什么在代码里是 1.34 m；</li>
+<li>U(−π, π) 偏航是否作用于主障碍；</li>
+<li>代码里的相位门控是否参与了论文实验（v2 早于代码发布五个月，我的推断是论文实验时还没有它，未核实）。</li>
+</ul>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、仿真器、工具和方法。除标注外，链接在 2026 年 11 月 20 日用脚本核对都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://php-parkour.github.io/">PHP</a></td><td>本文（项目页无许可声明，只链接）</td><td><a href="https://github.com/amazon-far/php_parkour">代码</a> · <a href="https://youtu.be/IjeBnbm9sto">视频</a></td><td><a href="https://arxiv.org/abs/2602.15827">2602.15827</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/amazon-far/holosoma">holosoma</a></td><td>训练与部署框架，PHP 的子模块</td><td>github.com/amazon-far/holosoma</td><td>见 <a href="holosoma-15min.html">holosoma-15min</a>（<a href="https://arxiv.org/abs/2512.01996">2512.01996</a>）</td></tr>
+<tr><td><a class="ds" href="https://omniretarget.github.io/">OmniRetarget</a></td><td>人体动作重定向到 G1</td><td>omniretarget.github.io</td><td><a href="https://arxiv.org/abs/2509.26633">2509.26633</a></td></tr>
+<tr><td><a class="ds" href="https://beyondmimic.github.io/">BeyondMimic</a></td><td>专家的跟踪配方</td><td>beyondmimic.github.io · <a href="beyondmimic.html">本站精读</a></td><td><a href="https://arxiv.org/abs/2508.08241">2508.08241</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/orangeduck/Motion-Matching">Motion Matching（Holden 实现）</a></td><td>代码注释说特征权重取自其 controller.cpp</td><td>github.com/orangeduck/Motion-Matching · <a href="https://theorangeduck.com/page/spring-roll-call">弹簧推导</a></td><td>Learned Motion Matching，TOG 2020</td></tr>
+<tr><td><a class="ds" href="https://isaac-sim.github.io/IsaacLab/">Isaac Lab</a></td><td>速度跟踪基线的配方来源</td><td><a href="https://github.com/isaac-sim/IsaacLab">代码</a></td><td>2511.04831</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac/sim">Isaac Sim</a></td><td>训练用仿真器（5.1）</td><td><a href="https://docs.isaacsim.omniverse.nvidia.com/">文档</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVIDIA/warp">NVIDIA Warp</a></td><td>训练时渲染深度图</td><td>github.com/NVIDIA/warp</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://mujoco.org/">MuJoCo</a></td><td>sim2sim 仿真器</td><td>mujoco.org</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/mujocolab/mjlab">mjlab</a></td><td>社区移植用的框架</td><td><a href="https://github.com/yhx1203/parkour_mjlab">parkour_mjlab</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.unitree.com/g1">Unitree G1</a></td><td>机器人</td><td>unitree.com/g1</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://dev.realsenseai.com/docs/depth-camera-d435i">RealSense D435i</a></td><td>机载深度相机（代码里的相机配置）。Intel 的旧产品页脚本访问超时，这里用的是 RealSense 现在的文档页</td><td>dev.realsenseai.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://wandb.ai/site">Weights &amp; Biases</a></td><td>训练日志和数据注册表</td><td>wandb.ai</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/xbpeng/MimicKit">MimicKit</a></td><td>AMP 基线的实现</td><td>github.com/xbpeng/MimicKit</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2104.02180">AMP</a></td><td>对抗动作先验</td><td>–</td><td><a href="https://arxiv.org/abs/2104.02180">2104.02180</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1011.0686">DAgger</a></td><td>数据聚合模仿学习</td><td>–</td><td><a href="https://arxiv.org/abs/1011.0686">1011.0686</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2505.11164">Parkour in the Wild</a></td><td>参考文献 [33]，DAgger 后再 RL 微调</td><td>–</td><td><a href="https://arxiv.org/abs/2505.11164">2505.11164</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2309.05665">Robot Parkour Learning</a></td><td>参考文献 [52]</td><td>–</td><td><a href="https://arxiv.org/abs/2309.05665">2309.05665</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2406.10759">Humanoid Parkour Learning</a></td><td>参考文献 [53]</td><td>–</td><td><a href="https://arxiv.org/abs/2406.10759">2406.10759</a></td></tr>
+<tr><td><a href="rpl.html">RPL</a></td><td>同批，专家 → 深度学生</td><td>本站精读（编写中）</td><td><a href="https://arxiv.org/abs/2602.03002">2602.03002</a></td></tr>
+<tr><td><a href="sonic.html">SONIC</a></td><td>放大的动作跟踪</td><td>本站精读</td><td><a href="https://arxiv.org/abs/2511.07820">2511.07820</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2602.15827（v2）和官方代码 amazon-far/php_parkour（c7c9ce3，含 holosoma 4a0bf04）后的整理，不是作者的官方内容。原文：Zhen Wu、Xiaoyu Huang、Lujie Yang、Yuanhang Zhang、Xi Chen、Pieter Abbeel、Rocky Duan、Angjoo Kanazawa、Carmelo Sferrazza、Guanya Shi、C. Karen Liu，《Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching》，RSS 2026，arXiv 版以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 5 从原文 PDF 裁切，只做了裁切、缩放和格式转换，按同一许可署名使用。表格数字照录原文；读者注和动画是本页所加。代码以 Apache-2.0 发布，本页只引用文件名、行号、配置键和命令。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
