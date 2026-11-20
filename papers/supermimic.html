@@ -54,7 +54,7 @@
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3-2">3.2 世界模型</a><a href="#s3-3">3.3 策略学习</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 对比 SONIC</a><a href="#s4-2">4.2 世界模型的性质</a><a href="#s4-3">4.3 评论家</a><a href="#s4-4">4.4 真机</a><a href="#s4-5">4.5 下游任务</a><a href="#s5">5 结论</a><a href="#s6">6 局限</a><a href="#apA">附录 A 观测与奖励</a><a href="#apB">附录 B 多接口</a><a href="#apC">附录 C 网络</a><a href="#apD">附录 D 超参数</a><a href="#apE">附录 E 数据过滤</a><a href="#apF">附录 F 评测</a><a href="#apG">附录 G 速度任务</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#i3d">3D 框架动画</a><a href="#s3-2">3.2 世界模型</a><a href="#s3-3">3.3 策略学习</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 对比 SONIC</a><a href="#s4-2">4.2 世界模型的性质</a><a href="#s4-3">4.3 评论家</a><a href="#s4-4">4.4 真机</a><a href="#s4-5">4.5 下游任务</a><a href="#s5">5 结论</a><a href="#s6">6 局限</a><a href="#apA">附录 A 观测与奖励</a><a href="#apB">附录 B 多接口</a><a href="#apC">附录 C 网络</a><a href="#apD">附录 D 超参数</a><a href="#apE">附录 E 数据过滤</a><a href="#apF">附录 F 评测</a><a href="#apG">附录 G 速度任务</a><a href="#qa">读者问答</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -383,6 +383,251 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
 <div class="note" id="n15"><span class="lab">读者注 16 · 这个对比能说明什么</span><p>15 × 15 × 3 − 3 = 672，650 + 15 + 7 = 672，都对得上：摔倒的 7 条单独算。结论方向很清楚，但每边只有一个种子。而且基线的蒸馏用的是从参考动作读的命令，动作库没有的区域它自然没见过；RL 编码器则有一半时间在整个命令范围里均匀采样。所以这个差距有一部分来自训练时覆盖的命令分布，不全来自“RL 对蒸馏”这个信号本身。论文也说这是初步研究。</p></div>
 <div class="note" id="n16"><span class="lab">读者注 17 · 对比方法的一点疑问</span><p>PPO-Sim 用的是 BeyondMimic 的超参数和每卡 8192 个环境。论文没说有没有为 40 个片段的多动作任务再调参。4 卡到 8 卡几乎不再提升，可能是因为 PPO 本身到了平台，也可能是超参数不适合，这张图分不清。作为“开箱即用的 PPO”这个对比很公平；作为“PPO 能做到的最好”就不一定了。</p></div>
 <div class="note" id="n17"><span class="lab">读者注 18 · 没有的东西</span><p>写这页时（2026 年 11 月 6 日）作者没有公开训练代码。网上已有几十个社区复现，其中几个的结果和论文接近或有差距（见读者注 10），都不是官方的，我也没有逐个核实。项目主页的网页 demo 可以在浏览器里手动试，它的许可证禁止脚本访问和推导模型，所以本页没有从中取任何东西。</p></div>
+
+<h2 id="qa">读者问答</h2>
+<section id="qa-list">
+<h3 id="qa-bptt">问 1：BPTT 是什么意思？在 SuperMimic 里是一个什么样的结构？</h3>
+<p><b>先说结论：</b>BPTT 是 backpropagation through time，“随时间反向传播”。做法是把一个<b>按时间一步步循环的计算</b>沿时间展开成一张很深的计算图，再对这张图做普通的反向传播。这个名字来自训练循环神经网络（RNN）的老方法（<a href="https://doi.org/10.1109/5.58337">Werbos 1990</a>）。</p>
+<p>在 SuperMimic 里，被展开的“循环”是<b>策略和冻结的世界模型组成的闭环</b>：</p>
+\[ a_t=\pi_\theta(\hat{\bar o}_t+\eta_t,\ g_t),\qquad \hat{\bar o}_t=g_\omega(\hat s_t,\xi),\qquad \hat s_{t+1}=f_\omega(\hat s_t,a_t,\xi),\qquad \hat r_{t+1}=r_\omega(\hat s_t,a_t,g_t) \]
+<p>从缓存里的状态 \(\hat s_0\) 出发，这个闭环走 \(H=32\) 步，把 32 个奖励和末端的评论家值加起来，就是 <a href="#s3-3">§3.3</a> 式 (2) 的 \(\hat J(\theta)\)。BPTT 就是对这一整串计算求 \(\nabla_\theta\hat J\)。</p>
+
+<div class="bptt" id="bptt">
+<p class="lab">自己画的 · 想象 32 步的展开计算图（画了 4 步，中间省略）。点按钮切换，拖动进度或点“播放”</p>
+<div class="bptt-ctl">
+<button type="button" data-m="fwd" class="on">① 前向：想象 32 步</button>
+<button type="button" data-m="bwd">② 反向：BPTT</button>
+<button type="button" data-m="ppo">对照：PPO 怎么求梯度</button>
+<button type="button" id="bptt-play" class="play">▶ 播放</button>
+<input type="range" id="bptt-p" min="0" max="1000" value="1000" aria-label="进度">
+</div>
+<div class="bptt-svgwrap"><svg id="bptt-svg" viewBox="0 0 1000 445" role="img" aria-label="SuperMimic 想象轨迹的展开计算图：状态经冻结的世界模型逐步向前，策略在每一步共用同一组参数 θ，反向时梯度从总回报沿时间往回传到每一步的动作，再汇到 θ"></svg></div>
+<p class="bptt-info" id="bptt-info"></p>
+<p class="tcap">图例：蓝圈是状态 \(\hat s_t\)；绿框是世界模型 \(f_\omega\)（❄ 冻结，只传梯度不更新）；青框是策略 \(\pi_\theta\)；黄圈是奖励 \(\hat r_{t+1}\)；紫框是评论家 \(V_\psi\)；红色虚线是梯度。结构按式 (2) 和图 2 画；状态里有什么论文没写，这里只画成一个圈。</p>
+</div>
+
+<p><b>和 RNN 对照看最直观：</b></p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th></th><th>训练 RNN 时的 BPTT</th><th>SuperMimic 的 BPTT</th></tr></thead><tbody>
+<tr><td>每一步的“单元”</td><td>\(h_{t+1}=\sigma(Wh_t+Ux_t)\)</td><td>策略 \(\pi_\theta\) 加世界模型 \(f_\omega\)</td></tr>
+<tr><td>隐藏状态</td><td>\(h_t\)，没有物理含义</td><td>\(\hat s_t\)，机器人的（预测）状态</td></tr>
+<tr><td>每步共用的参数</td><td>\(W,U\)</td><td>\(\theta\)（32 步共用同一份策略）</td></tr>
+<tr><td>展开长度</td><td>序列长度</td><td>\(H=32\) 步 = 0.64 秒（50 Hz）</td></tr>
+<tr><td>损失</td><td>每步的预测误差</td><td>负的折扣回报 \(-\hat J\)</td></tr>
+<tr><td>有没有不更新的部分</td><td>一般没有</td><td>有：\(\omega\) 冻结，梯度穿过它但不改它（算法 A.1 的 stop-gradient）</td></tr>
+</tbody></table></div>
+
+<p><b>反向时梯度怎么走。</b>记 \(\lambda_t=\partial\hat J/\partial\hat s_t\)（从 \(\hat s_t\) 往后所有东西对它的总导数）。从窗口末端往前递推：</p>
+\[ \lambda_H=\gamma^H\hat c_H\,\frac{\partial V_\psi}{\partial\hat s_H},\qquad
+\lambda_t=\underbrace{\gamma^t\hat c_t\frac{\partial\hat r_{t+1}}{\partial\hat s_t}+\lambda_{t+1}\frac{\partial f_\omega}{\partial\hat s_t}}_{\text{经状态往前传}}+\underbrace{\Bigl(\gamma^t\hat c_t\frac{\partial\hat r_{t+1}}{\partial a_t}+\lambda_{t+1}\frac{\partial f_\omega}{\partial a_t}\Bigr)}_{\partial\hat J/\partial a_t}\frac{\partial a_t}{\partial\hat s_t} \]
+\[ \nabla_\theta\hat J=\sum_{t=0}^{H-1}\frac{\partial\hat J}{\partial a_t}\,\frac{\partial\pi_\theta}{\partial\theta} \]
+<p>读这三行只要抓住两点：</p>
+<ul>
+<li><b>“随时间”：</b>\(\lambda_{t+1}\) 乘上世界模型的雅可比 \(\partial f_\omega/\partial\hat s_t\) 变成 \(\lambda_t\)，一步步往前传。第 \(t\) 步的动作因此能“知道”它对后面每一步奖励的影响，而不只是眼前这一步。</li>
+<li><b>“共用参数”：</b>每一步都得到一份 \(\partial\hat J/\partial a_t\)，乘上 \(\partial\pi_\theta/\partial\theta\) 后全部加到同一个 \(\theta\) 上，然后 Adam 走一步。</li>
+</ul>
+<p class="tcap">这三行是我按式 (2) 用链式法则写的，论文正文只有一句话（“经世界模型对 \(\hat s_t\) 和 \(a_t\) 的雅可比算一阶梯度”）。为了看清结构，这里省掉了两条支路：存活权重 \(\hat c_t\) 经终止头 \(\hat d\) 对状态的导数，以及 \(\partial a_t/\partial\hat s_t\) 要经过观测头 \(g_\omega\)。实际用自动微分框架，前向算一遍、对 \(\hat J\) 调用一次反传，这些都自动算出来。</p>
+
+<p><b>和 PPO 有什么不同</b>（上图点“对照：PPO”）：</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th></th><th>BPTT（SuperMimic）</th><th>PPO</th></tr></thead><tbody>
+<tr><td>对动力学的要求</td><td>要可微，所以学一个世界模型</td><td>当黑箱，仿真器不用可微</td></tr>
+<tr><td>梯度是什么</td><td>回报对每个动作的导数，解析的一阶梯度</td><td>\(\nabla_\theta\log\pi(a_t\mid o_t)\cdot\hat A_t\)，采样估计（似然比）</td></tr>
+<tr><td>策略</td><td>确定性，\(a_t=\pi_\theta(o_t,g_t)\)</td><td>随机，要靠采样动作来“试”</td></tr>
+<tr><td>一条轨迹带来的信息</td><td>每一维动作“往哪改、改多少”</td><td>这次的动作比平均好还是差，一个标量</td></tr>
+<tr><td>方差</td><td>短视野内低</td><td>高，要大量样本平均</td></tr>
+<tr><td>代价</td><td>每步要多做一次反传，显存随 H 增长</td><td>只前向，但要很多步</td></tr>
+</tbody></table></div>
+<p>论文的机制消融（<a href="#s4-2">§4.2</a> 图 5(b)）在同一个世界模型上比两者，BPTT 用约 1/64 的想象步数到 PPO-WM 的最好回报（读者注 8 读出约 62 倍）。3D 动画第 6 幕用一个玩具曲面演示了这个差别。</p>
+
+<p><b>为什么只展开 32 步，后面交给评论家。</b>展开越长，\(\lambda\) 要连乘越多个雅可比。连乘的结果容易指数式变大或变小（梯度爆炸、消失）；接触让动力学不光滑，雅可比会突然很大；世界模型的误差也会一步步累积，而它只在 8 步窗口上训练过（读者注 3）。所以 SuperMimic 只反传 32 步，窗口外的回报由评论家 \(V_\psi\) 估计（读者注 2：约 72.5% 的折扣回报在窗口外）。这个结构是 <a href="shac.html">SHAC</a> 的短视野演员-评论家。论文的消融（<a href="#s4-3">§4.3</a> 图 4b）：没有评论家时 H ≤ 16 训不动；带评论家时 H = 32 到目标最快，H 从 64 加到 128，时间几乎变成 3 倍，最终回报反而下降。</p>
+
+<div class="bptt jac" id="jac">
+<p class="lab">玩具 · 把每步的雅可比当成一个数 ρ，看连乘 k 步后梯度还剩多少。拖动 ρ</p>
+<label class="jac-l">ρ = <b id="jac-v">1.05</b> <input type="range" id="jac-r" min="0" max="5" step="1" value="4" aria-label="每步放大倍数 ρ"></label>
+<div class="bptt-svgwrap"><svg id="jac-svg" viewBox="0 0 640 230" role="img" aria-label="每步放大倍数 ρ 连乘 k 步的对数曲线，标出 k=8、32、128"></svg></div>
+<p class="tcap">玩具：真实的雅可比是矩阵，要看的是它的奇异值，而且每一步都不同；这里用一个数代表它，只为说明“连乘”的效果。论文没有报告梯度范数。H = 128 回报下降里，有多少来自梯度问题、多少来自模型误差累积，论文没拆开，我也不知道。</p>
+</div>
+<p>和这一点相关的还有一个细节：表 A.5 里策略的梯度裁剪最严，先按全局范数 1.0 裁，再逐元素裁到 0.1；世界模型和评论家只有全局范数 1.0。论文没解释原因，我的推断是为了防 BPTT 偶尔出现的大梯度。</p>
+
+<p><b>BPTT 为什么能绕开“仿真器不可微”。</b>梯度只穿过学到的世界模型，从来不经过 MuJoCo Warp（图 2 里仿真器只在“收集”一步出现）。所以仿真器可以有不光滑的接触、不可微的代码。代价是这个梯度是“仿真回报的代理”的梯度（§3.2），准不准取决于世界模型。动画第 5 幕是这一节的 3D 版本：<a href="../interactives/supermimic/index.html?scene=5">全屏打开第 5 幕 ↗</a>。</p>
+
+<h3 id="qa-story">问 2：这篇论文到底讲了一个什么故事？</h3>
+<p>按“问题 → 观察 → 做法 → 证据 → 意义”五步讲：</p>
+<ol>
+<li><b>问题：跟踪的动作越多，算力越贵。</b>让人形机器人学会大量人类动作，目前的主流是用 PPO 跟踪大规模动捕。动作库越大，控制器越强，但训练也越贵：SONIC 用 128 张 GPU 跑 7 天，约 2.1 万 GPU 小时（<a href="#s1">§1</a>）。</li>
+<li><b>观察：动作不同，身体是同一个。</b>跳舞、走路、摔倒爬起，背后是同一套刚体动力学。PPO 不利用这一点，每个动作都要靠大量带噪声的仿真采样，重新摸索“这个动作会带来什么后果”。所以多一倍动作，就差不多多一倍算力。</li>
+<li><b>做法：学一次物理，所有动作共用。</b>用仿真器记录的数据学一个可微的世界模型，把共享的动力学学下来；策略在模型里想象 32 步，用 BPTT 拿到解析梯度（问 1）；窗口外交给评论家。收集、拟合、改进三步在一个循环里一起转（<a href="#s3-1">§3.1</a>）。梯度不经过仿真器，所以普通的刚体仿真器就能用。</li>
+<li><b>证据：一张卡几个小时，超过集群一周。</b>
+<ul>
+<li>1 张 H100 跑 3 小时，回报超过 SONIC，GPU 小时少 1000 倍以上；129,514 个动作的基准上失败 25 个，SONIC 179 个；2 张卡 9.8 小时降到 0（<a href="#s4-1">§4.1</a>）。</li>
+<li>快的原因拆成三条（<a href="#s4-2">§4.2</a>）：数据从 1 小时加到 264 小时，模型误差基本不涨（一个模型摊销整个动作库）；想象比仿真快 10 倍以上；解析梯度比 PPO 少用约 64 倍想象步数。</li>
+<li>评论家让 32 步的短窗口够用（<a href="#s4-3">§4.3</a>）；策略迁移到 Unitree G1 真机（<a href="#s4-4">§4.4</a>）；同一个世界模型还能直接按任务奖励训练下游的速度接口（<a href="#s4-5">§4.5</a>）。</li>
+</ul></li>
+<li><b>意义：算力不再是瓶颈。</b>作者的落点是：一次实验只要一张 GPU，研究“动作跟踪的扩展规律”就负担得起了（<a href="#s5">§5</a>）。</li>
+</ol>
+<p><b>读这个故事时要记住的几点（都是本页读者注里核算过的）：</b></p>
+<ul>
+<li>“1000 倍”比的是 SONIC 训完的总开销和 SuperMimic 超过它的时刻，两边的数据量、GPU 型号也不同。受控实验（同任务、同网络的 PPO-Sim）给出的是 GPU 小时至少 121 倍（<a href="#n2">读者注 4</a>）。这仍然很大，但不是 7000 倍。</li>
+<li>三个加速来源是在不同任务上测的，不能相乘，论文也没有把总倍数拆开记账（<a href="#n7">读者注 8</a>）。</li>
+<li>世界模型 32 步的误差没有数据（<a href="#n3">读者注 3</a>）；状态里有什么、四个头哪些是学的，论文没写，作者也没有公开训练代码（<a href="#n1">读者注 1</a>、<a href="#n17">读者注 18</a>）。</li>
+</ul>
+<p>一句话概括：<b>用一个学到的可微物理模型代替“反复试错”，把几万 GPU 小时的人形动作跟踪训练压到单卡几小时，而且动作库越大，这个优势越明显。</b></p>
+</section>
+<style>
+.bptt{--c-s:#3aa8e0;--c-f:#4fc98a;--c-pi:#38d1ff;--c-r:#f2c14e;--c-v:#9d8cff;--c-g:#ff7a59;--c-n:#d45fa0;border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:10px 12px;margin:18px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .bptt{--c-s:#1f7fb8;--c-f:#1f9a5c;--c-pi:#0a86b8;--c-r:#a87800;--c-v:#6f5bd6;--c-g:#d9480f;--c-n:#b03a82} }
+:root[data-theme="light"] .bptt{--c-s:#1f7fb8;--c-f:#1f9a5c;--c-pi:#0a86b8;--c-r:#a87800;--c-v:#6f5bd6;--c-g:#d9480f;--c-n:#b03a82}
+.bptt .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.bptt-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 6px}
+.bptt-ctl button{font:13px var(--font-body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.bptt-ctl button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.bptt-ctl input[type=range]{flex:1 1 160px;min-width:120px}
+.bptt-svgwrap{overflow-x:auto}
+.bptt-svgwrap svg{display:block;width:100%;min-width:640px;height:auto}
+.jac .bptt-svgwrap svg{min-width:0}
+.bptt-info{font-size:14.5px;min-height:3.2em;margin:6px 0;max-width:none}
+.bptt .tcap{margin:4px 0 0;max-width:none}
+.jac-l{font-size:14px;display:flex;gap:8px;align-items:center}
+.bptt text{font-family:var(--font-body);fill:var(--fg)}
+.bptt .mono{font-family:var(--font-mono)}
+.bptt .mut{fill:var(--muted)}
+.bptt .el{transition:opacity .25s}
+.t-qa{min-width:600px}
+</style>
+<script>
+(function(){
+  var svg=document.getElementById('bptt-svg'); if(!svg) return;
+  var NS='http://www.w3.org/2000/svg';
+  /* four drawn steps: t = 0, 1, 2 and 31; the gap stands for steps 3..30 */
+  var ST=[{t:'0',x:55,nx:215,nl:'1'},{t:'1',x:215,nx:375,nl:'2'},{t:'2',x:375,nx:535,nl:null},{t:'31',x:625,nx:785,nl:'32'}];
+  var Y={sum:40,r:112,s:215,pi:318,th:405}, VX=910, SH=785;
+  var els=[]; /* {node, f, b, p}: order in forward / backward / ppo timelines; null = hidden in that mode */
+  function mk(tag,at,txt){var e=document.createElementNS(NS,tag);for(var k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;return e;}
+  function grp(f,b,p){var g=mk('g',{'class':'el'});svg.appendChild(g);els.push({g:g,f:f,b:b,p:p});return g;}
+  var defs=mk('defs',{});
+  [['ah','var(--muted)'],['ag','var(--c-g)']].forEach(function(m){var mm=mk('marker',{id:m[0],viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});mm.appendChild(mk('path',{d:'M0,0 L10,5 L0,10 z',style:'fill:'+m[1]}));defs.appendChild(mm);});
+  svg.appendChild(defs);
+  function arrow(g,x1,y1,x2,y2,grad,lbl,lx,ly){
+    g.appendChild(mk('line',{x1:x1,y1:y1,x2:x2,y2:y2,style:'stroke:'+(grad?'var(--c-g)':'var(--muted)')+';stroke-width:'+(grad?2.2:1.4)+(grad?';stroke-dasharray:6 4':''),'marker-end':'url(#'+(grad?'ag':'ah')+')'}));
+    if(lbl) g.appendChild(mk('text',{x:lx,y:ly,'font-size':14,'text-anchor':'middle',style:grad?'fill:var(--c-g)':'','class':grad?'mono':'mono mut'},lbl));
+  }
+  function box(g,cx,cy,w,h,col,txt,sub){
+    g.appendChild(mk('rect',{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:6,style:'fill:var(--panel);stroke:'+col+';stroke-width:1.8'}));
+    g.appendChild(mk('text',{x:cx,y:cy+(sub?-1:6),'font-size':17,'text-anchor':'middle'},txt));
+    if(sub) g.appendChild(mk('text',{x:cx,y:cy+15,'font-size':12.5,'text-anchor':'middle','class':'mut'},sub));
+  }
+  function circ(g,cx,cy,r,col,txt){
+    g.appendChild(mk('circle',{cx:cx,cy:cy,r:r,style:'fill:var(--panel);stroke:'+col+';stroke-width:1.8'}));
+    g.appendChild(mk('text',{x:cx,y:cy+6,'font-size':17,'text-anchor':'middle'},txt));
+  }
+  /* static frame: return sum bar and shared theta */
+  var g0=grp(0,0,0);
+  g0.appendChild(mk('line',{x1:55,y1:Y.sum,x2:VX-48,y2:Y.sum,style:'stroke:var(--c-r);stroke-width:2'}));
+  g0.appendChild(mk('text',{x:57,y:Y.sum-10,'font-size':14,'class':'mut'},'Ĵ = Σ γᵗ ĉₜ r̂ₜ₊₁ + γᴴ ĉᴴ V_ψ(ŝᴴ)   （式 2，H = 32）'));
+  var gth=grp(0,0,0);
+  gth.appendChild(mk('rect',{x:40,y:Y.th-16,width:780,height:32,rx:6,style:'fill:var(--panel);stroke:var(--c-pi);stroke-width:1.8'}));
+  gth.appendChild(mk('text',{x:430,y:Y.th+5,'font-size':15.5,'text-anchor':'middle'},'θ ：策略参数，32 步共用同一份（相当于 RNN 的共享权重）'));
+  var gJ=grp(14,0,0); box(gJ,VX,Y.sum,96,42,'var(--c-r)','Ĵ','总回报');
+  var gap=grp(9,null,9); gap.appendChild(mk('text',{x:580,y:Y.s+5,'font-size':18,'text-anchor':'middle','class':'mut'},'⋯')); gap.appendChild(mk('text',{x:580,y:Y.s+30,'font-size':13,'text-anchor':'middle','class':'mut'},'t = 3 … 30'));
+  ST.forEach(function(s,k){
+    var fx=(s.x+s.nx)/2, fo=k*3, bo=5-k; /* backward: step 31 first */
+    var gs=grp(fo,null,fo); circ(gs,s.x,Y.s,24,'var(--c-s)','ŝ'+sub(s.t)); gs.appendChild(mk('text',{x:s.x,y:Y.s+44,'font-size':13,'text-anchor':'middle','class':'mono mut'},'t='+s.t));
+    if(k===0) gs.appendChild(mk('text',{x:s.x,y:Y.s-34,'font-size':13,'text-anchor':'middle','class':'mut'},'起点来自缓存'));
+    var gp=grp(fo+1,null,fo+1);
+    arrow(gp,s.x+14,Y.s+20,fx-22,Y.pi-18,false,'ō̂+η',s.x+10,Y.pi-10);
+    box(gp,fx,Y.pi,70,38,'var(--c-pi)','π_θ');
+    gp.appendChild(mk('line',{x1:fx,y1:Y.pi+17,x2:fx,y2:Y.th-16,style:'stroke:var(--c-pi);stroke-width:1;opacity:.6'}));
+    var gf=grp(fo+2,null,fo+2);
+    arrow(gf,fx,Y.pi-17,fx,Y.s+19,false,'a'+sub(s.t),fx+16,Y.s+60);
+    arrow(gf,s.x+24,Y.s,fx-39,Y.s,false);
+    var fb=mk('g',{'class':'fwm'}); gf.appendChild(fb); box(fb,fx,Y.s,76,38,'var(--c-f)','f_ω ❄','');
+    var pb=mk('g',{'class':'fsim'}); gf.appendChild(pb); box(pb,fx,Y.s,76,40,'var(--muted)','仿真器','黑箱');
+    arrow(gf,fx+38,Y.s,s.nx-(s.nl?26:16),Y.s,false);
+    arrow(gf,fx,Y.s-18,fx,Y.r+17,false);
+    circ(gf,fx,Y.r,17,'var(--c-r)','r̂');
+    gf.appendChild(mk('text',{x:fx+21,y:Y.r+5,'font-size':13,'class':'mono mut'},'t+1'));
+    gf.appendChild(mk('line',{x1:fx,y1:Y.r-17,x2:fx,y2:Y.sum,style:'stroke:var(--c-r);stroke-width:1.2'}));
+    /* backward edges for this step */
+    var gb=grp(null,bo,null);
+    arrow(gb,fx+9,Y.sum+2,fx+9,Y.r-18,true);
+    arrow(gb,fx+9,Y.r+18,fx+9,Y.s-19,true);
+    if(s.nl) arrow(gb,s.nx-24,Y.s+12,fx+39,Y.s+12,true);
+    else arrow(gb,s.nx-14,Y.s+12,fx+39,Y.s+12,true);
+    arrow(gb,fx-39,Y.s+12,s.x+25,Y.s+9,true,'∂f/∂ŝ',(s.x+fx)/2-4,Y.s+30);
+    arrow(gb,fx+10,Y.s+19,fx+10,Y.pi-18,true,'∂Ĵ/∂a',fx+44,Y.s+76);
+    arrow(gb,fx+10,Y.pi+18,fx+10,Y.th-17,true,'∂π/∂θ',fx+44,Y.th-28);
+    /* ppo edges */
+    var gq=grp(null,null,13);
+    gq.appendChild(mk('rect',{x:fx+44,y:Y.pi-15,width:40,height:30,rx:15,style:'fill:var(--panel);stroke:var(--c-g);stroke-width:1.8'}));
+    gq.appendChild(mk('text',{x:fx+64,y:Y.pi+6,'font-size':15,'text-anchor':'middle',style:'fill:var(--c-g)'},'Â'+sub(s.t)));
+    arrow(gq,fx+44,Y.pi,fx+37,Y.pi,true);
+    arrow(gq,fx+10,Y.pi+20,fx+10,Y.th-17,true,'∇log π·Â',fx+56,Y.th-28);
+  });
+  var gH=grp(12,null,12); circ(gH,SH,Y.s,24,'var(--c-s)','ŝ₃₂'); gH.appendChild(mk('text',{x:SH,y:Y.s+44,'font-size':13,'text-anchor':'middle','class':'mono mut'},'t=H=32'));
+  var gV=grp(13,null,13); arrow(gV,SH+24,Y.s,VX-49,Y.s,false); box(gV,VX,Y.s,96,46,'var(--c-v)','V_ψ','窗口外回报'); arrow(gV,VX,Y.s-20,VX,Y.sum+19,false);
+  var gVb=grp(null,1,null); arrow(gVb,VX+12,Y.sum+19,VX+12,Y.s-21,true); arrow(gVb,VX-48,Y.s+12,SH+25,Y.s+12,true,'∂V/∂ŝ',(SH+VX)/2-4,Y.s+34);
+  var gTb=grp(null,6,13); gTb.appendChild(mk('rect',{x:38,y:Y.th-18,width:784,height:36,rx:7,style:'fill:none;stroke:var(--c-g);stroke-width:2.5'}));
+  function sub(t){return String(t).replace(/[0-9]/g,function(d){return '₀₁₂₃₄₅₆₇₈₉'[+d];});}
+
+  var TOT={fwd:15,bwd:7,ppo:14};
+  var INFO={
+    fwd:[[0,'从回放缓存取一个真实状态 ŝ₀ 和它的物理参数 ξ 作为起点（Dyna 风格），世界模型 f_ω 冻结。'],
+         [1,'观测头给出干净观测 ō̂ₜ，在模型外加回传感器噪声 ηₜ，策略输出确定性动作 aₜ = π_θ(ō̂ₜ+ηₜ, gₜ)。'],
+         [2,'世界模型算下一状态 ŝₜ₊₁ = f_ω(ŝₜ, aₜ, ξ)，奖励头给 r̂ₜ₊₁，终止头给 d̂，存活权重 ĉ 连乘。然后进入下一步。'],
+         [9,'同样的“策略 → 世界模型”重复 32 次。每一步的中间结果都留在显存里，反传时要用，所以 H 越长越占显存（H = 128 是 H100 放得下的上限）。'],
+         [12,'第 32 步后不再往下滚。评论家 V_ψ 估计窗口外的回报，和 32 个奖励加起来就是 Ĵ（式 2）。'],
+         [14,'前向结束：Ĵ 是 θ 的一个可微函数，因为从 θ 到 Ĵ 的每一个环节都可微。']],
+    bwd:[[0,'对 Ĵ 求导，从最后一步往前走。'],
+         [1,'先过评论家：∂V/∂ŝ₃₂ 告诉策略，窗口末端的状态往哪个方向变，以后能拿到更多回报。'],
+         [2,'第 31 步：梯度分两路。一路经 ∂f/∂ŝ 继续往更早的状态传，这就是“随时间”；一路经 ∂f/∂a 和 ∂r̂/∂a 到动作 a₃₁，再经 ∂π/∂θ 落到 θ。'],
+         [4,'往前每一步都一样。第 t 步的动作收到的梯度，包含它对之后所有奖励和末端 V 的影响，所以不是只看眼前一步。'],
+         [6,'32 份 ∂Ĵ/∂aₜ·∂π/∂θ 加到同一个 θ 上，Adam 走一步。f_ω 只传梯度，参数不变（stop-gradient）。整个过程不碰仿真器。']],
+    ppo:[[0,'PPO 的数据来自仿真器（黑箱）。策略是随机的，动作靠采样。'],
+         [13,'PPO 不对动力学求导：每一步只算 ∇θ log π(aₜ|oₜ) 乘优势 Âₜ（Âₜ 由回报和评论家算出，是一个标量）。它只知道“这次比平均好或差”，不知道每维动作该往哪改，所以方差大，要很多样本平均。']]
+  };
+  var mode='fwd', P=1, playing=false, t0=0, raf=0;
+  var btns=[].slice.call(document.querySelectorAll('#bptt .bptt-ctl button[data-m]')), sl=document.getElementById('bptt-p'), pl=document.getElementById('bptt-play'), info=document.getElementById('bptt-info');
+  function render(){
+    var key=mode==='fwd'?'f':mode==='bwd'?'b':'p', cur=P*(TOT[mode]-1)+1e-6;
+    els.forEach(function(e){
+      var o=e[key], vis;
+      if(mode==='bwd'){ if(e.b===null) vis=(e.f===null?0:0.45); else vis=(e.b<=cur?1:(e.f===null?0:0.45)); }
+      else { vis=(o===null?0:(o<=cur?1:0.12)); }
+      e.g.style.opacity=vis;
+    });
+    svg.querySelectorAll('.fwm').forEach(function(n){n.style.display=mode==='ppo'?'none':'';});
+    svg.querySelectorAll('.fsim').forEach(function(n){n.style.display=mode==='ppo'?'':'none';});
+    var list=INFO[mode], txt=list[0][1]; list.forEach(function(r){ if(r[0]<=cur) txt=r[1]; }); info.textContent=txt;
+    sl.value=Math.round(P*1000);
+  }
+  function setMode(m){ mode=m; btns.forEach(function(b){b.classList.toggle('on',b.dataset.m===m);}); P=0; render(); play(true); }
+  function step(now){ if(!playing) return; P=Math.min(1,(now-t0)/(TOT[mode]*650)); render(); if(P>=1){playing=false; pl.textContent='▶ 播放'; return;} raf=requestAnimationFrame(step); }
+  function play(on){ playing=on; cancelAnimationFrame(raf); pl.textContent=on?'❚❚ 暂停':'▶ 播放'; if(on){ if(P>=1)P=0; t0=performance.now()-P*TOT[mode]*650; raf=requestAnimationFrame(step);} }
+  btns.forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m);});});
+  pl.addEventListener('click',function(){play(!playing);});
+  sl.addEventListener('input',function(){ play(false); P=sl.value/1000; render(); });
+  render();
+})();
+(function(){
+  var svg=document.getElementById('jac-svg'), sl=document.getElementById('jac-r'), out=document.getElementById('jac-v'); if(!svg) return;
+  var R=[0.9,0.95,0.98,1.0,1.05,1.1], K=128, lo=-6, hi=6;
+  function px(k){return 50+k*(570/K);} function py(v){return 200-(v-lo)/(hi-lo)*185;}
+  function draw(){
+    var r=R[+sl.value]; out.textContent=r.toFixed(2);
+    var d='', k; for(k=0;k<=K;k++){ var v=Math.max(lo,Math.min(hi,k*Math.log10(r))); d+=(k?'L':'M')+px(k).toFixed(1)+' '+py(v).toFixed(1); }
+    var s='';
+    [-6,-4,-2,0,2,4,6].forEach(function(v){ s+='<line x1="50" x2="620" y1="'+py(v)+'" y2="'+py(v)+'" style="stroke:var(--line)"/><text x="44" y="'+(py(v)+4)+'" font-size="11" text-anchor="end" class="mono mut">10'+(v<0?'⁻':'')+'⁰¹²³⁴⁵⁶'.charAt(Math.abs(v))+'</text>'; });
+    [[8,'拟合窗口 k=8'],[32,'想象 H=32'],[128,'H=128']].forEach(function(m){ var x=px(m[0]), v=m[0]*Math.log10(r);
+      s+='<line x1="'+x+'" x2="'+x+'" y1="15" y2="200" style="stroke:var(--muted);stroke-dasharray:4 4"/><text x="'+(x+(m[0]===128?-4:4))+'" y="26" font-size="11" text-anchor="'+(m[0]===128?'end':'start')+'" class="mut">'+m[1]+'</text>';
+      s+='<text x="'+(x+(m[0]===128?-4:4))+'" y="'+(m[0]===128?42:42)+'" font-size="11.5" text-anchor="'+(m[0]===128?'end':'start')+'" class="mono" style="fill:var(--c-g)">ρ^'+m[0]+' = '+Math.pow(r,m[0]).toPrecision(2)+'</text>'; });
+    s+='<line x1="50" x2="620" y1="200" y2="200" style="stroke:var(--muted)"/><text x="50" y="220" font-size="11" class="mut">反传步数 k = 0</text><text x="620" y="220" font-size="11" text-anchor="end" class="mut">128</text>';
+    s+='<path d="'+d+'" style="fill:none;stroke:var(--c-g);stroke-width:2.4"/>';
+    svg.innerHTML=s;
+  }
+  sl.addEventListener('input',draw); draw();
+})();
+</script>
 
 <h2 id="notes">读者注汇总</h2>
 <p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
