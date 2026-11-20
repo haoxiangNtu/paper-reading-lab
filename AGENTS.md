@@ -64,6 +64,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 - **SuperMimic** 是非独占许可，但用户明确要求放原图，这只对这一篇有效。
 - **OpenWAM 上游模型批（2026-11-16）**：`wan`、`dinov3`、`vjepa21`、`svae`、`rae` 五页，用户明确要求不论许可都放原图（理由是“只有我们会读”；已告知站点是公开的）。图注写原文许可和“经站点作者决定放原图”。只对这五页有效，其他新页仍按上表。
 - **NVIDIA Cosmos / GR00T 批（2026-11-16）**：`cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t` 八页，用户同样要求都放原图，规则同上。2026-11-17 加的 `gr00t2` 同样放原图。
+- **SHAC**（2026-11-20）：非独占许可，用户要求放原图（“只是我们自己阅读”），图 1 到 13 已裁切到 `papers/shac/`，图注写法同 OpenWAM 上游批。只对这一篇有效。
 - **SONIC、GraspGen** 的 arXiv 许可是 CC BY-SA，但 PDF 页脚写着 “NVIDIA. All rights reserved”。用户决定保留原图，页面上已写明这个矛盾。
 - **MaskedMimic** 的 arXiv 许可是 CC BY-NC-SA，PDF 上有 ACM 版权声明，处理方式同上（读者注 1 里写明）。
 
