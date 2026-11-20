@@ -8,6 +8,9 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Learning Sim-to-Real Humanoid Locomotion in 15 Minutes（[arXiv 2512.01996](https://arxiv.org/abs/2512.01996)，2025-12） | [holosoma-15min 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/holosoma-15min.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/holosoma-15min/index.html) | FastSAC / FastTD3 一张 4090 约 15 分钟训出 G1 / T1 行走。对照 holosoma 78aeb23：目标 Q 各用各的、演员 8 次只更新 2 次、AdamW；FastTD3 不在 holosoma 里。含复现要点。 | 20 条 |
+| RPL: Learning Robust Humanoid Perceptive Locomotion on Challenging Terrains（[arXiv 2602.03002](https://arxiv.org/abs/2602.03002)，v3 2026-10，CoRL 2026） | [rpl 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rpl.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rpl/index.html) | 分地形特权专家 → 多路深度学生蒸馏，Warp 光线投射渲染。“5 倍”只在 4 路相机时成立（1 路 2.7 倍）；对照 RPL 1ca0250：DFSV 阈值符号相反，混合 DAgger+RL 没有发布。非独占许可，图用文字描述。 | 21 条 |
+| Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching（[arXiv 2602.15827](https://arxiv.org/abs/2602.15827)，v2 2026-05，RSS 2026） | [php-parkour 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/php-parkour.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/php-parkour/index.html) | motion matching 拼技能 → 特权专家跟踪 → DAgger+RL 蒸馏成深度学生。对照 php_parkour c7c9ce3：高度扫描 1.6 m（论文 0.7 m）、学生 30K 次、实际 32,768 环境（issue #5）。 | 22 条 |
 | GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation（[NVIDIA 白皮书](https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf)，2026-11，无 arXiv） | [gr00t2 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gr00t2.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/gr00t2/index.html) | 从 Cosmos-Predict2.5-2B 出发、同时预测未来画面和动作的世界-动作模型；N1.x → 2 对照。40/71/95 口径核对（跨具身、任务经筛选）；“2B”不含文本编码器；LIBERO-PRO 引导实验与标准 LIBERO 不可比。正式代码 12 月发布，开发分支（评测许可）只引文件名和键名。 | 26 条 |
 | WeVisOne-VL: Unified Visual Perception from Objects to Pixels（[arXiv 2610.31329](https://arxiv.org/abs/2610.31329)，2026-10） | [wevisone-vl 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wevisone-vl.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wevisone-vl/index.html) | WeVisOne-VL：Qwen3-VL 加坐标 token 和 <OBJ> 像素解码器，统一目标级和像素级感知。对照代码 9a6bcd8：解码器 4B 9,609,764 参数（2B 卡片写错）；精修是 256→512→1024 且分割也走；README 表 216 个数全对。 | 13 条 |
 | Learning Heterogeneous Tactile Representation for General Dexterous Manipulation（[arXiv 2611.12806](https://arxiv.org/abs/2611.12806)，2026-11） | [lingbot-touch 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/lingbot-touch.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/lingbot-touch/index.html) | LingBot-Touch：跨压阻 / 磁 / 视触觉三类传感器的 JEPA 触觉编码器，4,983 小时预训练，冻结后接 VLA 和 RL。对照推理代码 dec8025：只公开冻结编码器；Small 的 tubelet 是 4（正文写 2）；表 2 用 4K 小时编码器，公开的是 5K。 | 18 条 |
@@ -69,6 +72,14 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## 人形行走三篇（2026-11-20）读后要点
+
+- 三篇都来自 Amazon FAR，都基于 holosoma，代码都是 Apache-2.0，是目前“能自己从头训”的人形行走工作里最完整的一组。
+- **15 分钟（FastSAC）**：门槛最低，一张消费级卡就能复现行走；但论文和代码有多处出入（目标 Q、演员更新频率、优化器、更新次数），FastTD3 的实现不在 holosoma 里。
+- **RPL**：分地形专家 + 多路深度蒸馏；“5×”渲染加速要看相机数；混合 DAgger+RL 的第 4.5 节用发布的代码复现不了；训练后端仍是 IsaacGym。
+- **PHP**：motion matching 生成参考轨迹是关键；论文的环境数、高度扫描范围、学生迭代数都和代码默认不同，复现时以作者在 issue 里的说明为准。
+- 三篇的训练时间都不能直接和 SuperMimic 的 GPU 小时相比：任务、硬件和成功判据都不一样。
 
 ## Mundo 读后要点
 
@@ -356,6 +367,9 @@ papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbe
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
+papers/holosoma-15min.html 15 分钟人形行走精读（原图在 papers/holosoma-15min/，11 幕动画在 interactives/holosoma-15min/）
+papers/rpl.html            RPL 精读（无原图，重画图在 papers/rpl/；10 幕动画在 interactives/rpl/）
+papers/php-parkour.html    PHP 跑酷精读（原图在 papers/php-parkour/，11 幕动画在 interactives/php-parkour/）
 papers/lingbot-touch.html  lingbot-touch 精读（原图在 papers/lingbot-touch/，11 幕动画在 interactives/lingbot-touch/）
 papers/cosmos.html         cosmos 精读（原图在 papers/cosmos/，11 幕动画在 interactives/cosmos/）
 papers/cosmos-transfer1.htmlcosmos-transfer1 精读（原图在 papers/cosmos-transfer1/，11 幕动画在 interactives/cosmos-transfer1/）

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHP 跑酷框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2602.15827 PHP（Perceptive Humanoid Parkour）的框架做成 11 幕 3D 动画：原子技能库、motion matching 最近邻、弹簧轨迹与拼接、地形配对、特权专家、深度图与学生网络、DAgger + PPO 课程、多技能切换、部署管线、结果表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch td:nth-child(3),.arch td:nth-child(4){white-space:normal}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="php-parkour.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/php-parkour.html">返回精读</a><a href="../../papers/php-parkour.html#s3b">原文 §III-B</a><a href="../../papers/php-parkour.html#code">代码对照</a><a href="https://arxiv.org/abs/2602.15827">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2602.15827v2 · RSS 2026 · PHP</p>
+<h1>人类跑酷片段怎样变成一个只看深度图的人形策略</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 5 幕是数据：技能库、<b>第 3 幕当场做最近邻检索</b>、第 4 幕按式 (5) 当场算弹簧轨迹、第 5 幕地形配对；第 6 幕是特权专家；第 7 幕当场光线投射一张 58 × 87 深度图并接上学生网络；<b>第 8 幕是 DAgger + PPO 的课程</b>；第 9 到 11 幕是多技能、部署和结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1、10 幕的方块可以点。多数幕左上角有开关。网络大小和超参数来自论文和官方代码（提交 c7c9ce3，holosoma 4a0bf04）；第 2、11 幕的柱子是原文表格数字。小人是手工做的示意，没有任何 PHP 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 amazon-far/php_parkour 提交 c7c9ce3（2026-10-12）加子模块 holosoma 4a0bf04，只读未运行；它比论文 v2 晚五个月，默认配置不一定是论文实验所用。holosoma 的路径相对 <code>src/holosoma/holosoma/</code>。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">motion matching（离线，只要 Conda）</td></tr>
+<tr><td>M1</td><td>特征 x_i</td><td>27 维：未来轨迹 12（0.33/0.67/1.0 s）、脚位置速度 12、根速度 3</td><td>features.py：3×5 + 6 + 6 = 27；权重 0.75/1.0/1.0/1.0/1.5，按类标准化</td></tr>
+<tr><td>M2</td><td>检索</td><td>式 (1)，每 M 帧或命令突变时</td><td>run.py:269 search_time 0.1 s（6 帧 @60 FPS）；可选 transition_cost</td></tr>
+<tr><td>M3</td><td>未来轨迹</td><td>临界阻尼弹簧，式 (4)(5)</td><td>animation_state.py:487-514；半衰期 0.27 s → y ≈ 5.13 s⁻¹</td></tr>
+<tr><td>M4</td><td>进入窗口</td><td>𝓔_k = [s_k − H_k, s_k]</td><td>skill_registry.py search_ranges 三元组；cat_vault 只有一段</td></tr>
+<tr><td>M5</td><td>过渡平滑</td><td>inertialization</td><td>半衰期 0.1 s（run.py:228）</td></tr>
+<tr><td>M6</td><td>速度命令</td><td>1 / 2 m/s，五个方向</td><td>0.8 / 2.2 m/s（builtin.py:25-28）；15 维 one-hot，用 12 维</td></tr>
+<tr><td>M7</td><td>地形随机化</td><td>宽 ≤ 1.5 m，±5 cm，偏航 ±45°；干扰物</td><td>每侧 ≤ 0.75 m、10 变体；±5 cm + 逐点 ±2 cm；建网格时偏航 U(−π, π)；5–15 个干扰物</td></tr>
+<tr><td>M8</td><td>输出</td><td>参考姿态 + 每步速度命令</td><td>50 FPS 的 *_motion.npz、*_terrain.npy、*_terrain.obj</td></tr>
+<tr class="grp"><td colspan="4">教师（IsaacSim 5.1，PPO）</td></tr>
+<tr><td>T1</td><td>网络</td><td>演员、评论家 [512, 256, 128]，ELU</td><td>同（holosoma g1_29dof_wbt）</td></tr>
+<tr><td>T2</td><td>观测</td><td>参考关节、骨盆误差、速度、关节、动作、0.7 m 高度扫描、全局位姿</td><td>terrain.py:115-158，449 维；扫描 1.6 m、289 点（isaacsim.py:469）；锚点 torso_link</td></tr>
+<tr><td>T3</td><td>奖励</td><td>表 IV</td><td>wbt/g1/reward.py + terrain.py:289-320，一致</td></tr>
+<tr><td>T4</td><td>终止</td><td>0.5 m</td><td>位置 0.5、朝向 0.8、踝腕 0.5（terrain.py:332-337）</td></tr>
+<tr><td>T5</td><td>超参数</td><td>lr 1e-3，5 epoch，4 mini-batch，熵 0.005，20K 次</td><td>experiment.py:82-98，一致；默认 4096 环境，64 种障碍布局</td></tr>
+<tr class="grp"><td colspan="4">学生（DAgger + PPO）</td></tr>
+<tr><td>S1</td><td>深度骨干</td><td>3 层 CNN + GAP，58 × 87 → 32</td><td>DepthOnlyFCBackbone58x87Small，25,632 参数（ONNX 核对）</td></tr>
+<tr><td>S2</td><td>学生</td><td>[2048, 1024, 512, 256, 128]</td><td>输入 140 = 32 + 108，3,079,709 参数（ONNX 核对）</td></tr>
+<tr><td>S3</td><td>损失</td><td>λ_PPO L_PPO + λ_D L_D，λ_D = max(0.1, 1 − k/(K/2))</td><td>c_v L_V + g·λ(L_surr − c_e H) + (1 − g·λ)·10·L_D；λ = min(k/10000, 0.9)；门控 g ∈ [0.5, 1]</td></tr>
+<tr><td>S4</td><td>终止放宽</td><td>0.5 → 1 m，同一线性日程</td><td>第 24k 到 240k 步（第 1000 到 10,000 次迭代）× 2</td></tr>
+<tr><td>S5</td><td>专家失效</td><td>那一步关 DAgger</td><td>which_motion = −1 → 零动作 → 掩码（PPO 版）；纯 DAgger 版不屏蔽</td></tr>
+<tr><td>S6</td><td>采样</td><td>关自适应采样，各技能等概率</td><td>use_adaptive_timesteps_sampler=False；_sample_expert_balanced</td></tr>
+<tr><td>S7</td><td>深度噪声</td><td>外参 2.5 cm / 2.5°，±3 cm 偏置，3 cm 高斯，延迟 60–80 ms，无模糊</td><td>pitch ±3°；偏置为 3 cm 标准差高斯；Perlin 打洞；latency_frame (3, 4)</td></tr>
+<tr><td>S8</td><td>规模</td><td>16,384 环境，20K 次</td><td>默认 2048 环境、30K 次；issue #5 作者用 32,768</td></tr>
+<tr class="grp"><td colspan="4">部署</td></tr>
+<tr><td>D1</td><td>sim2sim</td><td>（论文没有）</td><td>run_php_sim.sh（MuJoCo 500 Hz）+ run_php_inference.sh（两个 ONNX），共享内存 20,184 字节</td></tr>
+<tr><td>D2</td><td>真机</td><td>G1，机载深度 30 Hz，零样本</td><td>PHP 仓库没有真机部署文档</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，跑、爬、翻、跨的动作是手写的，只为看出阶段，不是 G1 模型，也不是策略输出。</li>
+<li><b>第 3 幕的特征空间。</b>27 维压成 2 维的玩具：步态环、技能片段、查询路径都是我设的（固定种子）。最近邻和代价是在这些点上当场算的。</li>
+<li><b>第 4 幕的命令序列。</b>命令和时间点是我设的；弹簧按式 (4)(5) 和代码的半衰期当场积分。</li>
+<li><b>第 5 幕的步长。</b>0.9 m 的步长和 0.5 m 的起跳距离是我设的，只为说明“起跑距离不同 → 领先腿不同”。箱子变体按论文和代码的范围用固定种子抽。</li>
+<li><b>第 6 幕的扫描间距。</b>论文没给 0.7 m 方块的间距，我按代码的 0.1 m 画成 8 × 8。</li>
+<li><b>第 7 幕的相机。</b>高度 1.24 m 是我按 torso_link 高度加偏移估的；没有模拟原始 106 × 60 的裁边和缩放；打洞形状是示意。深度图本身是当场光线投射的。</li>
+<li><b>第 8 幕的小图。</b>箱高和偏差是我设的，均方损失当场算。曲线是论文和代码的调度公式。</li>
+<li><b>第 9 幕的路线</b>是我编排的，不是图 5 的真实路线。</li>
+<li><b>第 10 幕的真机路径</b>是按 sim2sim 结构推的示意。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2602.15827 和官方代码后的理解，不是作者的官方图。原图见<a href="../../papers/php-parkour.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

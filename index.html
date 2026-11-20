@@ -20,6 +20,30 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/holosoma-15min.html">15 分钟训出能上真机的人形行走：FastSAC / FastTD3 的配方</a></p>
+<p class="en">Learning Sim-to-Real Humanoid Locomotion in 15 Minutes</p>
+<div class="meta"><span>arXiv 2512.01996</span><span>2025-12</span><span>2026-11-20 读</span></div>
+<p class="d">Amazon FAR 的 off-policy 配方：大规模并行环境 + FastSAC / FastTD3，一张 RTX 4090 约 15 分钟训出 G1 / T1 行走，奖励少于 10 项。对照 holosoma 78aeb23：目标 Q 在代码里各用各的、演员 8 次更新只更新 2 次、优化器是 AdamW；FastTD3 不在 holosoma 里，图上那几条曲线没法用这个仓库复现。含复现要点。</p>
+<div class="tags"><span class="pill">人形行走 · 可复现</span><span class="pill">off-policy RL</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">20 条读者注</span></div>
+<div class="links"><a class="go" href="papers/holosoma-15min.html">读精读 →</a><a href="interactives/holosoma-15min/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2512.01996">原文</a><a href="https://github.com/amazon-far/holosoma">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/rpl.html">RPL：分地形专家蒸馏成看多路深度的人形行走策略</a></p>
+<p class="en">RPL: Learning Robust Humanoid Perceptive Locomotion on Challenging Terrains</p>
+<div class="meta"><span>arXiv 2602.03002v3</span><span>CoRL 2026</span><span>2026-11-20 读</span></div>
+<p class="d">坡、上下楼梯、梅花桩各训一个特权专家，再用 Warp 光线投射的多路深度相机蒸馏成一个学生，带上身负载和力扰动。表 2 核算：“5 倍加速”是 4 路相机时的数，1 路只有 2.7 倍。对照 RPL 1ca0250：DFSV 阈值符号和论文相反、表 7 有三处出入、发布代码里没有混合 DAgger+RL。含复现要点。</p>
+<div class="tags"><span class="pill">人形感知行走 · 可复现</span><span class="pill">专家→学生蒸馏</span><span class="pill">arXiv 非独占 · 文字描述图</span><span class="pill rn">21 条读者注</span></div>
+<div class="links"><a class="go" href="papers/rpl.html">读精读 →</a><a href="interactives/rpl/index.html">10 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2602.03002">原文</a><a href="https://github.com/amazon-far/RPL">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/php-parkour.html">PHP：用 motion matching 串起人类跑酷技能，再蒸馏成深度图策略</a></p>
+<p class="en">Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching</p>
+<div class="meta"><span>arXiv 2602.15827v2</span><span>RSS 2026</span><span>2026-11-20 读</span></div>
+<p class="d">三阶段：motion matching 把原子技能拼成长时域轨迹和地形，特权专家跟踪，DAgger + RL 蒸馏成只看深度的多技能学生；G1 爬上 1.25 m 墙。对照 php_parkour c7c9ce3：高度扫描 1.6 m（论文 0.7 m）、学生训 30K 次、作者在 issue 里说实际用 32,768 个环境；“[0.1, 3] s 均匀、平均 0.3 s”自相矛盾。含复现要点。</p>
+<div class="tags"><span class="pill">人形跑酷 · 可复现</span><span class="pill">动作跟踪 + 蒸馏</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">22 条读者注</span></div>
+<div class="links"><a class="go" href="papers/php-parkour.html">读精读 →</a><a href="interactives/php-parkour/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2602.15827">原文</a><a href="https://github.com/amazon-far/php_parkour">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/gr00t2.html">GR00T 2：从视频模型出发的机器人基础模型</a></p>
 <p class="en">GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation</p>
 <div class="meta"><span>NVIDIA 白皮书（无 arXiv）</span><span>2026-11</span><span>2026-11-17 读</span></div>
@@ -456,6 +480,9 @@
 <thead><tr><th>路径</th><th>内容</th></tr></thead>
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
+<tr><td><code>papers/holosoma-15min.html</code></td><td>15 分钟人形行走（FastSAC）精读，原图在 <code>papers/holosoma-15min/</code>，11 幕动画在 <code>interactives/holosoma-15min/</code></td></tr>
+<tr><td><code>papers/rpl.html</code></td><td>RPL 精读（无原图，重画图在 <code>papers/rpl/</code>），10 幕动画在 <code>interactives/rpl/</code></td></tr>
+<tr><td><code>papers/php-parkour.html</code></td><td>PHP 跑酷精读，原图在 <code>papers/php-parkour/</code>，11 幕动画在 <code>interactives/php-parkour/</code></td></tr>
 <tr><td><code>papers/supermimic.html</code></td><td>SuperMimic 精读</td></tr>
 <tr><td><code>papers/{shac,dreamer,supertrack,rwm,deepmimic,rwm-u,dreamerv3,td-mpc,daydreamer,controlvae,sonic,phc,moconvq,superdyno}.html</code></td><td>SuperMimic 引用论文的精读，配套 3D 动画在 <code>interactives/</code> 同名目录；重画的图表数据在 <code>papers/</code> 同名目录</td></tr>
 <tr><td><code>papers/supermimic/charts.js</code></td><td>SuperMimic 精读页的折线图，数据点从原文矢量图读出，是重画的，不是原图</td></tr>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>15 分钟人形行走配方：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2512.01996（FastSAC / FastTD3，15 分钟训出 G1 / T1 行走策略）的配方做成 11 幕 3D 动画：并行环境和回放缓存、演员和关节限位动作界、C51 评论家、目标值三种写法、一次迭代的更新顺序、探索、奖励和惩罚课程、域随机化、训练时间对账、部署管线。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="holosoma-15min.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/holosoma-15min.html">返回精读</a><a href="../../papers/holosoma-15min.html#s2-1">原文 §2.1</a><a href="../../papers/holosoma-15min.html#code">代码对照表</a><a href="../../papers/holosoma-15min.html#repro">复现要点</a><a href="https://arxiv.org/abs/2512.01996">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2512.01996 · FastSAC / FastTD3 · 人形行走</p>
+<h1>15 分钟训出能上真机的行走策略：配方一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 幕是并行环境和回放缓存；第 3 到 7 幕是 FastSAC 本身（演员和动作界、C51 评论家、<b>第 5 幕目标值的三种写法</b>、一次迭代的更新顺序、探索）；第 8、9 幕是奖励、课程和域随机化；第 10 幕是训练时间对账；第 11 幕是部署。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。超参数、关节限位、奖励权重、随机化范围都来自 holosoma 提交 78aeb23；第 10 幕的曲线是原文图 3 的矢量读数；第 4、5、7、8 幕的数字是页面当场算的玩具。没有任何 FastSAC 网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 amazon-far/holosoma 提交 78aeb23（2026-11-17），只读未运行，Apache-2.0。路径省略前缀 src/holosoma/holosoma/。holosoma 里没有 FastTD3。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（78aeb23）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>并行环境</td><td>“数千个”；跟踪 16384（4 张 L40s）</td><td>num_envs 4096（config_types/experiment.py:73）</td></tr>
+<tr><td>D2</td><td>回放缓存</td><td>没写大小</td><td>每环境 1024 步，共 4,194,304 条（algo.py:82）</td></tr>
+<tr><td>D3</td><td>批大小</td><td>最多 8K</td><td>8192 全局；对称增广后每次 16384</td></tr>
+<tr class="grp"><td colspan="4">网络</td></tr>
+<tr><td>N1</td><td>演员</td><td>Tanh 高斯；没写大小</td><td>98 → 512 → 256 → 128 → μ、log σ（各 29），LayerNorm + SiLU</td></tr>
+<tr><td>N2</td><td>评论家</td><td>两个，C51</td><td>101 → 768 → 384 → 192 → 101 原子，[−20, 20]</td></tr>
+<tr><td>N3</td><td>动作界</td><td>限位与默认之差</td><td>max(两侧差) / 0.25，乘在 tanh 后</td></tr>
+<tr class="grp"><td colspan="4">更新</td></tr>
+<tr><td>U1</td><td>目标值</td><td>两个目标 Q 的平均</td><td>两个评论家各用各的目标网络</td></tr>
+<tr><td>U2</td><td>演员</td><td>每次内循环</td><td>8 次里 2 次（i = 1、5）</td></tr>
+<tr><td>U3</td><td>温度</td><td>初值 0.001，自动调温，目标熵 0 / −|A|/2</td><td>同；用下一状态的 log π</td></tr>
+<tr><td>U4</td><td>优化</td><td>Adam 3e-4，wd 0.001，β₂ 0.95</td><td>AdamW 3e-4，wd 0.001，betas (0.9, 0.95)</td></tr>
+<tr><td>U5</td><td>目标网络</td><td>ρ 没给</td><td>τ = 0.125（ρ = 0.875）</td></tr>
+<tr class="grp"><td colspan="4">环境</td></tr>
+<tr><td>E1</td><td>奖励</td><td>少于 10 项</td><td>10 项，7 项受惩罚课程控制</td></tr>
+<tr><td>E2</td><td>课程</td><td>随回合变长加大惩罚</td><td>比例 0.5 起，均长 &gt; 750 步时 ×1.001，上限 1</td></tr>
+<tr><td>E3</td><td>随机化</td><td>推搡、延迟、PD、质量、摩擦、质心（G1）</td><td>见第 9 幕；推搡 5–10 s，强推无预设</td></tr>
+<tr><td>E4</td><td>频率</td><td>没写</td><td>仿真 200 Hz，控制 50 Hz，回合 20 s = 1000 步</td></tr>
+<tr class="grp"><td colspan="4">部署</td></tr>
+<tr><td>R1</td><td>导出</td><td>没写</td><td>.pt 和 ONNX；eval_agent.py 可导出</td></tr>
+<tr><td>R2</td><td>sim2sim</td><td>没写</td><td>run_sim.py（MuJoCo）+ run_policy.py，回环网卡 lo</td></tr>
+<tr><td>R3</td><td>真机</td><td>G1、T1 行走；G1 跟踪</td><td>同一 run_policy.py，网卡换成连机器人的那块</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、2 幕的方块。</b>4096 个环境画成 64 × 64 个小方块，缓存只画 16 个环境、每格代表 16 步。采样位置用固定种子当场抽。</li>
+<li><b>第 3 幕。</b>29 个关节的限位、默认姿态和乘数是代码里 G1 的真实数，当场算。网络方块的高度按维数的平方根画。</li>
+<li><b>第 4 幕的分布。</b>下一状态的回报分布是我设的两峰高斯混合，r = 0.6 也是我设的；投影按 C51 的线性投影当场算，支撑点和代码一样（101 个原子，[−20, 20]）。</li>
+<li><b>第 5 幕。</b>真值 Q* = 10，两个目标网络的误差是独立的标准高斯，用固定种子抽 400 次，偏差和标准差当场算。</li>
+<li><b>第 7 幕。</b>μ = 0.3，ε 是固定种子的标准高斯；FastTD3 一段是“确定性动作加噪声再截断”的示意，不是读代码画的（holosoma 没有 FastTD3）。</li>
+<li><b>第 8 幕。</b>回合长度随迭代的曲线是我设的 S 形；假设课程每次迭代检查一次，代码里每次调用的频率我没有核实。</li>
+<li><b>第 9 幕。</b>地形块的高低和推搡时刻用固定种子当场抽；小人是示意。</li>
+<li><b>第 10 幕。</b>曲线是原文图 3 的矢量读数（重画）。右侧的迭代数和数据量按仓库 PR #303 在 RTX 5090 上的计时推算，硬件和论文不同，是估算。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2512.01996 后的理解，不是作者的官方图。原图见<a href="../../papers/holosoma-15min.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>
