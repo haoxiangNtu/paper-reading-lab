@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DiffMimic 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2304.03274 DiffMimic（ICLR 2023）的中文精读：按原文逐节整理正文和附录 A 到 L，含全部编号公式、结果表、图的文字描述、从矢量图读出的图 5、图 7、图 8 重画，官方代码 jiawei-ren/diffmimic（d0db48a）逐项对照、复现要点、和 SHAC / SuperMimic / DeepMimic 的关系，11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r1{min-width:620px}.t-r2{min-width:640px}.t-r4{min-width:760px}.t-r5{min-width:520px}.t-small{min-width:360px}
+.t-code{min-width:760px}.t-cmp{min-width:760px}.t-links{min-width:620px}.t-rep{min-width:640px}.t-hp{min-width:620px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;--series-5:#a067d8;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100;--series-5:#8a4fc4} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100;--series-5:#8a4fc4}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--fg);margin:8px 0 4px}
+.viz-legend i,.viz-tip i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.viz-box{position:relative}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-cross{stroke:var(--muted);stroke-width:1}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px;line-height:1.55;white-space:nowrap;z-index:2}
+.viz-tip[hidden]{display:none}
+.viz-table summary{cursor:pointer;font-size:13px;color:var(--muted);margin:6px 0}
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;font:12.5px/1.55 var(--font-mono);max-width:100%;margin:8px 0}
+.alg{border:1px dashed var(--line);border-radius:10px;padding:8px 14px;margin:14px 0;max-width:74ch;font-size:14.5px}
+.alg ol{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/diffmimic/index.html">3D 框架动画</a><a href="shac.html">SHAC</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2304.03274 · cs.CV · v2 2023 年 4 月 26 日 · ICLR 2023 · 中文精读</p>
+<h1>DiffMimic：穿过可微仿真器反传梯度做动作模仿，跑偏太远就换回参考状态</h1>
+<p class="orig">DiffMimic: Efficient Motion Mimicking with Differentiable Physics</p>
+<p>作者 Jiawei Ren（南洋理工 S-Lab，共同一作）、Cunjun Yu（新加坡国立大学，共同一作）、Siwei Chen（新加坡国立大学）、Xiao Ma（SEA AI Lab）、Liang Pan、Ziwei Liu（南洋理工 S-Lab）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2304.03274">arXiv 原文</a><a href="https://arxiv.org/html/2304.03274v2">网页版</a><a href="https://arxiv.org/pdf/2304.03274v2">PDF</a><a href="https://openreview.net/forum?id=06mk-epSwZ">OpenReview</a><a href="https://diffmimic.github.io/">项目主页</a><a href="https://github.com/jiawei-ren/diffmimic">代码 jiawei-ren/diffmimic</a><a href="https://youtu.be/B0unbsvGsLc">视频</a><span>PDF 共 19 页：正文 9 页，参考文献到第 12 页，附录第 13 到 19 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的非独占分发许可（arXiv.org perpetual non-exclusive license），没有授权翻译或转载。所以这里不做逐字翻译，不放任何原图，本地也没有存裁切图。内容用自己的话按原文顺序覆盖第 1 到 5 节和附录 A 到 L。每张图用文字说明画了什么，“看原图”打开 arXiv 网页版的对应位置。标“重画”的三张图（图 5、图 7、图 8）不是原图，是我从 PDF 第 7、9 页的矢量路径读出点后画的。</p>
+<p>读的是 v2（2023-04-26）。v1 是 2023-04-06，我没有逐字对照 v1 和 v2。OpenReview 上的 ICLR 定稿也没有对照。</p>
+<p>官方代码 <a href="https://github.com/jiawei-ren/diffmimic/tree/d0db48a4af12d8c73924d88973db69a4d104595c">jiawei-ren/diffmimic</a> 提交 d0db48a（2025-01-22），基于 <a class="ds" href="https://github.com/google/brax">Brax</a> 的旧接口 <code>brax.v1</code> 和 JAX。许可是 <b>S-Lab License 1.0</b>，只允许非商业使用。所以页面只引文件名、行号和配置键，不复制代码。我只读没跑。README 说早期代码大量基于同组的 ILD（Imitation Learning via Differentiable Physics）。论文“可复现声明”里写的 github.com/diffmimic/diffmimic 只有一个 README，指向 jiawei-ren/diffmimic。论文和代码不一致的地方两边都写。</p>
+<p>标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-2">3.2 可微物理</a><a href="#s3-3">3.3 示范回放</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 实验</a><a href="#s4-3">4.3 截断</a><a href="#s4-4">4.4 回放消融</a><a href="#s5">5 结论</a><a href="#apx">附录 A–L</a><a href="#code">代码对照</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>动作模仿：给一段参考动作，学一个策略，让物理仿真里的角色把它做出来。主流做法是强化学习（DeepMimic、AMP），要设计奖励，方差大，一段动作常要训几十小时到几天。</p>
+<ul>
+<li><b>核心想法。</b>如果仿真器本身可微，模仿就变成“状态匹配”：从参考的第一帧出发，让策略在可微仿真器里滚一段，把每一步和参考的距离加起来当损失，梯度沿时间一路反传到策略参数。这就是穿过仿真器的 BPTT。仿真器用 Brax，角色照 DeepMimic 的人形搭。</li>
+<li><b>难点。</b>长视野下梯度爆炸或消失；接触多，梯度噪声大；梯度只看局部，容易卡在局部极小。后空翻的例子：只用全程梯度，角色学会弯腰用手撑地，不起跳。</li>
+<li><b>Demonstration Replay（示范回放）。</b>滚动时，如果某一步的状态离参考太远（超过阈值 ε），下一步就从参考状态接着滚，而不是从跑偏的状态。另一个变体是按固定概率随机替换（类似 teacher forcing）。两者平均误差差不多，但阈值版的最差帧误差小得多。</li>
+<li><b>结果。</b>12 个动作的姿态误差（表 1）和 DeepMimic 互有胜负（6 比 6），比 AMP 好 11 个；到“连续 20 秒不摔”所需样本比 DeepMimic 少 33% 到 79%（表 2）；后空翻 10 分钟学会一次，3 小时能连续做。附录加上 RSI（从参考的随机帧起步）后，样本再少到 DeepMimic 的 6.5% 到 15.5%。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，代码里“替换”是把状态乘 0 再加参考，所以被替换的那一步之后的损失，梯度传不回替换之前：示范回放同时是一种<b>按误差自适应的截断</b>，论文的图 2 也是这样画的，但正文没有点明（<a href="#n3">读者注 3</a>）。第二，发布的代码默认带 RSI、2 秒滚动、300 个环境、1000 次迭代，对应的是附录 H 的“加 RSI”版本，不是正文算法 1；而表 2 的样本数全部是 24,000 = 200 环境 × 120 步的整数倍，对应正文说的 200 环境、4 秒（<a href="#n8">读者注 8</a>、<a href="#n7">7</a>）。第三，附录 K 的表 7 正好等于图 8 那一条 54 帧轨迹上“最差 1、3、6 帧”的平均，说明表 7 只来自一次滚动（<a href="#n20">读者注 20</a>）。</p>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p>本站有四篇和它直接相关：<a href="deepmimic.html">DeepMimic</a> 是它的主要对比基线，角色和 PD 增益也照它搭；<a href="shac.html">SHAC</a> 是同样穿过可微仿真器求策略梯度、但加了评论家和短窗口的方法，DiffMimic 第 2 节和第 4.3 节都引了它；<a href="supertrack.html">SuperTrack</a> 和 <a href="supermimic.html">SuperMimic</a> 不要可微仿真器，而是学一个可微的世界模型，再穿过它做 BPTT。下面的比较是我对照各页（各页又对照了原文）整理的，不是任何一篇作者的说法。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>DiffMimic（本文）</th><th>SHAC</th><th>SuperTrack</th><th>SuperMimic</th><th>DeepMimic</th></tr></thead><tbody>
+<tr><td>梯度从哪来</td><td>可微仿真器 Brax（解析）</td><td>可微仿真器 dFlex（解析）</td><td>学到的世界模型（只预测角色部分）</td><td>学到的世界模型，以仿真参数 ξ 为条件</td><td>PPO，似然比，采样估计</td></tr>
+<tr><td>目标</td><td>每步状态距离之和，式 (3.2)，无奖励设计</td><td>h 步奖励和 + γ<sup>h</sup> V（式 5）</td><td>32 帧跟踪损失</td><td>32 步奖励和 + γ<sup>H</sup> ĉ V</td><td>指数形式的模仿奖励</td></tr>
+<tr><td>反传多长</td><td>代码 59 步（≈ 2 s），论文 4 s 全程；示范回放在跑偏处自动断开</td><td>h = 32，窗口末端接评论家</td><td>N<sub>Π</sub> = 32 帧，无评论家</td><td>H = 32，评论家自举</td><td>不反传</td></tr>
+<tr><td>窗口之外</td><td>不管。没有评论家</td><td>评论家 V</td><td>不管</td><td>评论家 V</td><td>价值函数 + GAE</td></tr>
+<tr><td>起点</td><td>正文：参考第一帧；代码：RSI 随机帧</td><td>接上一窗口末态</td><td>回放缓存</td><td>回放缓存</td><td>RSI</td></tr>
+<tr><td>跑偏怎么办</td><td>超过阈值就把状态换成参考（示范回放）</td><td>提前终止时 V 记 0，重置</td><td>—</td><td>生存权重 ĉ<sub>t</sub> 连乘</td><td>提前终止（ET）</td></tr>
+<tr><td>规模</td><td>每个动作单独训，单卡 V100</td><td>单任务</td><td>一个策略跟踪整个数据集</td><td>一个策略，12.9 万段动作</td><td>每个技能单独训，CPU</td></tr>
+</tbody></table></div>
+<p><b>和 SHAC 的异同。</b>两者都是“穿过可微仿真器做 BPTT”。SHAC 的判断是长视野反传数值上不行，所以把轨迹切成 32 步的短窗口，窗口外的回报交给评论家。DiffMimic 第 4.3 节做了同样的切分实验（截断 10 步，不加评论家），结论是切了更差：后空翻的起跳和空翻是一个整体，硬切会让前后脱节（图 7(a)(b)）。它的替代办法是示范回放：不在固定位置切，而在“已经偏太远”的地方用参考状态重启。按代码看，这一步把替换点之前和之后的梯度断开（<a href="#n3">读者注 3</a>），所以它其实也是截断，只是截断点由误差决定，并且截断后从“正确”的状态重新开始，后半段不会因为前半段失败而白跑。DiffMimic 没有评论家，所以窗口外完全没有信号；对模仿任务这问题不大，因为每一步都有稠密的状态匹配损失，参考轨迹本身就告诉你后面该在哪里。这一段是我的理解。</p>
+<p><b>和 SuperMimic 的异同。</b>SuperMimic 页的<a href="supermimic.html#qa-bptt">问 1</a> 把 BPTT 写成“策略 + 冻结世界模型”的闭环展开，反向时 λ<sub>t</sub> 一步步乘世界模型的雅可比。DiffMimic 的结构完全相同，只是雅可比来自 Brax 的物理（式 (3.3)），不用学。代价和收益正好相反：DiffMimic 不用训练世界模型、没有模型误差，但要仿真器可微，接触处的梯度可能有噪声或错误（第 2 节引的 Suh 等 2022、Zhong 等 2022）；SuperMimic 的仿真器可以不可微，模型只需要在 32 步内准确。DiffMimic 第 2 节和第 3.2 节专门批评了学世界模型的路线（SuperTrack）：要额外训练，会积累误差，“没有揭示底层物理”。SuperMimic 页的读者注 3 说 SuperMimic 的模型只在 8 步窗口上训练过。另外两者对“窗口之外”的处理不同：SuperMimic 用评论家（SuperMimic 页读者注 2 算过：约 72.5% 的折扣回报在 32 步窗口外），DiffMimic 不要评论家，靠每步都有参考。</p>
+<p><b>和 DeepMimic、BeyondMimic。</b>DiffMimic 的角色（13 个刚体、34 自由度、PD 增益）照 DeepMimic 搭，相位变量也照搬；表 1、表 2、表 5 的 DeepMimic 列是对比基线，其中表 5 和 DeepMimic 原文表 6 逐格相同（<a href="#n18">读者注 18</a>）。附录 H 加的 RSI、Fig. 12 试的 ET 也都来自 DeepMimic。<a href="beyondmimic.html">BeyondMimic</a> 是后来真机上的 PPO 跟踪配方，和 DiffMimic 没有直接引用关系；放在一起看，DiffMimic 代表的“解析梯度”路线后来主要通过世界模型（SuperMimic）走向真机，而不是通过可微仿真器。这句是我的看法。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>动作模仿是要找一个策略，生成控制信号来复现示范的动作轨迹。它是物理角色动画的基础，也是控制风格化、技能组合等应用的前提。已有方法多用 RL：要么手工设计奖励（DeepMimic），要么学一个奖励（AMP），再交替学策略。一段动作常要几十小时甚至几天，难以扩展；效果也很依赖奖励的质量。</p>
+<p>可微物理仿真器（DPS）把物理算子当作可微的计算图，目标的梯度可以穿过环境动力学直接传到策略。这样不用交替学奖励和策略，直接优化即可。但 DPS 也容易陷入局部最优，尤其是接触多的系统，梯度又硬又不连续；长轨迹上梯度还会爆炸或消失。</p>
+<p>DiffMimic 把动作模仿改写成状态匹配：直接最小化当前策略滚出的轨迹和示范轨迹的距离，梯度穿过 DPS 动力学传到策略。但仅仅用 DPS 不保证全局最优：由于学习策略和专家策略之间的分布偏移，滚动轨迹会逐渐偏离示范，长序列上误差累积。为此提出 Demonstration Replay：把参考状态插入滚动轨迹作为锚点，引导探索。作者说这让梯度估计更平滑，训练更稳。</p>
+<p>贡献：第一个用 DPS 做动作模仿；在多种任务上比常用的 RL 方法更准、更稳、更快，单块 V100 上 10 分钟学会后空翻；发布 DiffMimic 仿真环境作为基准。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 2 页 · <a href="https://arxiv.org/html/2304.03274v2#S1.F1">看原图 ↗</a></span><p>三栏。左：两行圆圈，上行虚线圈是参考状态 \(\hat s_{t-1},\hat s_t,\hat s_{t+1}\)，下行实线圈是仿真状态 \(s_{t-1},s_t,s_{t+1}\)，下面写着损失 \(\mathcal L=\sum\|s_t-\hat s_t\|_2^2\)。中：浅蓝色人形做侧空翻的连续半透明姿态。右：标题“Humanoid (Side-Flip)”的学习曲线，横轴样本（到 1e8），纵轴姿态误差（0 到 1.0），三组曲线 DiffMimic、DeepMimic、AMP。最早（约 0.15e8 前）降到 0.2 左右的是一条紫色曲线，橙色和蓝色在 0.3e8 到 0.5e8 之间才降下来。图例的颜色在原图里很难分辨，哪条是哪个方法我读不准。图注：通常少于 \(2\times10^7\) 个样本就能得到误差小于 0.15 m 的动作。</p></div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>动作模仿。</b>从动捕学技能，让物理角色动起来（Hong 2019，DeepMimic，SFV，Lee 2019）。下游用途包括：重组原语生成新动作（MCP、CARL），完成目标（DReCon、Park 2019、AMP），作为通用运动技能的预训练（Merel 2018、CoMic、ASE、Won 2022）。像 ScaDiver 这样的流程里，模仿是关键一环，它的扩展性卡住整个流程。本文说明用可微动力学可以解决扩展性。</p>
+<p><b>加速动作模仿。</b>多数工作基于深度 RL，优化贵。有的做超参搜索（Yang &amp; Yin 2021），有的放松约束（Spacetime Bounds，Ma 2021）。另一条线学世界模型做端到端梯度优化（Won 2022、SuperTrack），但要额外训练，有误差累积风险。本文第一个用现成的 DPS 做模仿，比优化过的 DRL 更省样本，也不需要世界模型。</p>
+<p><b>可微物理。</b>DPS 最近很热（ChainQueen、DiffTaichi、PlasticineLab、Qiao 2021），用于系统辨识（gradSim）、连续控制（DiffSkill、SHAC）。SuperTrack 学一个世界模型来近似可微物理，但世界模型误差积累，策略视野受限。和用神经网络学动力学的黑箱相比，可微仿真用物理模型，梯度更可靠、可解释。但接触丰富时解析梯度会有噪声，甚至是错的（Zhong 2022、Suh 2022），处理接触的不光滑要专门技术，这些技术又引入噪声。本文从经验上说明怎样在接触多的模仿任务里处理这种噪声。</p>
+<p><b>用 DPS 做策略优化。</b>解析梯度大幅提高样本效率（Mozer 1989、PODS、SHAC），但有梯度噪声、爆炸或消失的风险（Degrave 2017），也可能卡在局部。SHAC 把轨迹截成短段防止爆炸和消失，但需要仔细设计；PODS 用二阶梯度，单调改进、收敛快，但对仿真器二阶导数的准确性敏感；ILD（Chen 2022）在 DPS 上做模仿学习，简单有效，但在高动态动作上探索困难。本文加一个回放机制来改进它。</p>
+
+<h2 id="s3"><span class="no">3</span>方法</h2>
+<h3 id="s3-1">3.1 在可微物理引擎里搭的动作模仿环境</h3>
+<p><b>环境。</b>建在 Brax 里，角色照 DeepMimic 设计：13 个刚体、34 个自由度，体重 45 kg，身高 1.62 m。所有刚体都和地面有接触。用 GPU 并行加速。物理以 480 FPS 更新。为了梯度传得更顺，关节限位放宽了。摩擦系数等系统参数和 DeepMimic 一致。</p>
+<p><b>状态和动作。</b>状态包括所有刚体在局部坐标下的位置 \(p\)、旋转 \(q\)、线速度 \(\dot p\)、角速度 \(\dot q\)，再按 DeepMimic 加一个 [0, 1] 的相位 \(\phi\) 当时间戳：\(s:=\{p,q,\dot p,\dot q,\phi\}\)。用 PD 控制器驱动，给定当前关节角 \(q\)、角速度 \(\dot q\) 和目标角 \(\tilde q\)，力矩</p>
+<div class="eq" id="eq3-1"><div class="m">\[\tau=k_p(\tilde q-q)+k_d(\dot{\tilde q}-\dot q),\]</div><span class="no">(3.1)</span></div>
+<p>其中 \(\dot{\tilde q}=0\)，\(k_p\)、\(k_d\) 是手工指定的增益，和 DeepMimic 的 PD 控制器相同。策略网络给每个关节输出 PD 目标角，控制频率 30 FPS。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 第 3.1 节的环境参数和代码对得上的、对不上的</span><p>代码是 <code>diffmimic/mimic_envs/system_configs/HUMANOID.py</code>（Brax v1 的文本配置）和 <code>pd_controller.py</code>。</p>
+<ul>
+<li><b>480 FPS / 30 FPS。</b><code>dt: 0.0333</code>、<code>substeps: 16</code>（第 761、762 行）：控制 30 Hz，每步 16 个物理子步，\(16/0.0333=480.5\) Hz，一致。积分器是 <code>dynamics_mode: "pbd"</code>（位置动力学，第 760 行），论文没提。</li>
+<li><b>自由度和动作维数。</b>12 个关节的转轴数加起来是 28（脊柱、颈、两肩、两髋、两踝各 3，两肘、两膝各 1），全部有执行器；加上根的 6 个自由度是 34，和论文一致。附录 D 的动作维数 28 也一致。</li>
+<li><b>状态维数 193。</b><code>humanoid_mimic.py</code> 第 57 到 64 行：12 个非根刚体相对根的位置 36，13 个刚体的 6D 旋转 78，线速度 39，角速度 39，相位 1，合计 193，和附录 D 一致。注意旋转和速度是世界坐标的，只有位置减了根；根的绝对位置不在观测里。论文写“局部坐标”，只对位置成立。</li>
+<li><b>关节限位。</b>除肘（−160° 到 −2°）和膝（2° 到 160°）外，其余转轴都是 ±180°，即实际上不限。</li>
+<li><b>PD 增益。</b><code>pd_controller.py</code> 第 15 到 22 行替换了 Brax 的角度执行器：\(k_p\) 取配置里的 <code>strength</code>（脊柱 1000、颈 100、肩 400、肘 300、髋 500、膝 500、踝 400，第 614 到 691 行），\(k_d=k_p/10\)。本站 DeepMimic 页记的膝 \(k_p=500\) 与此相同，其余几项我没有回 DeepMimic 仓库逐项核对。目标角是动作乘 \(1.2\pi\)（第 20 行），动作经 tanh 在 (−1, 1)，所以目标角范围约 ±216°。另外每个关节在配置里还有 <code>angular_damping</code>（脊柱 100、颈 10……正好等于 \(k_d\)），是否等于重复加了一份阻尼，我没有核实 Brax v1 的语义。</li>
+<li><b>体重 45 kg。</b>配置里 13 个刚体的质量加起来是 <b>48.89 kg</b>（骨盆 10、躯干 12.00、头 3.88、上臂 1.50 × 2、前臂 1.50 × 2、大腿 4.50 × 2、小腿 3.00 × 2、脚 1.00 × 2）。README 说这个角色是 AMP 格式的人形。本站 DeepMimic 页核过，DeepMimic 代码里人形 15 个部件合计 45 kg。所以论文的 45 kg 是 DeepMimic 的数，发布代码的角色重约 3.9 kg。身高 1.62 m 我没有核算。</li>
+<li><b>摩擦。</b><code>friction: 1.0</code>（第 755 行），和附录 J 表 6 说的“μ = 1.0 是标准设定”一致。</li>
+</ul></div>
+
+<h3 id="s3-2">3.2 用可微物理做动作模仿</h3>
+<p>动作模仿就是让策略的滚动和参考动作对上。目标看似简单，但人的动作丰富灵活，设计奖励很难：教走路和教后空翻的奖励可能不同。作者的观点是：只要能通过 DPS 得到解析梯度，模仿就出奇地简单。核心是让梯度从“参考和滚动的距离”直接穿过现成的 DPS 流回策略（图 2）。相比 RL，这是用监督式的状态匹配信号直接优化，基本省掉奖励工程，样本效率很高。之前 SuperTrack 用学到的、在潜空间描述动力学的可微世界模型求解析梯度；作者认为学到的世界模型不揭示系统的物理，削弱了有效性、通用性和可解释性，在线学习和推理也比 DPS 贵。</p>
+<div class="alg" id="alg1"><b>算法 1 · DiffMimic</b>（第 4 页，<a href="https://arxiv.org/html/2304.03274v2#alg1">看原文 ↗</a>）
+<ol>
+<li>输入：优化迭代数 \(I\)，回合长度 \(T\)，参考状态 \(\hat S=\{\hat s_1,\dots,\hat s_t\}\)（原文下标写的是 \(t\)，应为 \(T\)），误差阈值 \(\epsilon\)。输出：优化好的策略。</li>
+<li>初始化随机策略 \(\pi_\theta\)。</li>
+<li>对 \(i=1\dots I\)：用 Expert Replay 滚动轨迹：\(s_1\leftarrow\hat s_1\)；对 \(t=1\dots T-1\)：若 \(\|s_t-\hat s_t\|_2^2&lt;\epsilon\)，\(s_{t+1}=\mathcal T(s_t,a_t)\)，\(a_t\sim\pi_\theta(a\mid s_t)\)；否则 \(s_{t+1}=\mathcal T(\hat s_t,a_t)\)，\(a_t\sim\pi_\theta(a\mid\hat s_t)\)。</li>
+<li>算损失 \(\mathcal L=\sum_{t=1}^T\|s_t-\hat s_t\|_2^2\)，用解析梯度 \(\nabla_\theta\mathcal L\) 更新 \(\pi_\theta\)。</li>
+<li>返回 \(\pi_\theta\)。</li>
+</ol></div>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 3 页 · <a href="https://arxiv.org/html/2304.03274v2#S3.F2">看原图 ↗</a></span><p>计算图。上排是参考轨迹 \(\hat s_0\to\hat s_4\)，用灰色虚线箭头连；下排是学习者轨迹 \(s_0\to s_4\)，黑色实线是前向；动作方块 \(a_0,a_1,a_3\) 各指向下一个状态。橙色箭头是反向梯度：从每个 \(\hat s_t\) 指向 \(s_t\)（损失），再从 \(s_2\) 指回 \(s_1\)、从 \(s_4\) 往回指，并分出一支指向动作。中间第 3 步罩着一块米黄色底，标“Demo Replay”：这一步的学习者状态被换成参考状态 \(\hat s_3\)（灰色虚线“插入”），没有动作 \(a_2\)，也<b>没有</b>橙色箭头从 \(\hat s_3\) 指回 \(s_2\)。图注：示范状态在第 3 步替换了仿真状态。</p></div>
+<p>具体做法：每次迭代把状态初始化为参考第一帧，在一批并行环境里滚到最长回合，再按位置和旋转计算滚动轨迹和参考轨迹的逐步 L2 距离：</p>
+<div class="eq" id="eq3-2"><div class="m">\[\mathcal L=\sum_{t=1}^{T}\|s_t-\hat s_t\|_2^2,\qquad \|s_t-\hat s_t\|_2^2\triangleq\frac{1}{\|J\|}\sum_{j\in J}w_p(p^j-\hat p^j)^2+w_r(q^j-\hat q^j)^2+w_v(\dot p^j-\hat{\dot p}^j)^2+w_a(\dot q^j-\hat{\dot q}^j)^2,\]</div><span class="no">(3.2)</span></div>
+<p>\(p^j,\hat p^j\) 是第 \(j\) 个关节在滚动和参考里的全局位置，\(q^j,\hat q^j\) 是全局旋转，用 6D 表示。权重 \(w_p,w_r,w_v,w_a\) 只需粗调，让四项量级大致相当。用 6D 是因为它比四元数更适合梯度优化（Zhou 2019）。把动力学记作转移函数 \(\mathcal T\)：\(s_{t+1}=\mathcal T(s_t,a_t)\)。DiffMimic 里 DPS 就是完全可微的 \(\mathcal T\)，于是可以直接从损失求对当前动作和状态的梯度：</p>
+<div class="eq" id="eq3-3"><div class="m">\[\frac{\partial\mathcal L}{\partial a_t}=\Big(\frac{\partial\mathcal L}{\partial\mathcal T(s_t,a_t)}\Big)\Big(\frac{\partial\mathcal T(s_t,a_t)}{\partial a_t}\Big),\qquad \frac{\partial\mathcal L}{\partial s_t}=\Big(\frac{\partial\mathcal L}{\partial\mathcal T(s_t,a_t)}\Big)\Big(\frac{\partial\mathcal T(s_t,a_t)}{\partial s_t}\Big).\]</div><span class="no">(3.3)</span></div>
+<p>递归地这样做，梯度就沿整条轨迹传回去。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 式 (3.2) 在代码里是什么</span><p>每步的项在 <code>humanoid_mimic.py</code> 第 40 到 44 行，各分量在 <code>losses.py</code> 第 18 到 40 行：</p>
+<ul>
+<li>位置、6D 旋转、线速度、角速度各自先对 xyz（或 6 个分量）求平方和，再对 13 个刚体取平均（地面那一行去掉），即式中的 \(\frac1{\|J\|}\sum_j\)。</li>
+<li>权重 \(w_p=1\)、\(w_r=\) <code>rot_weight</code> 0.5、\(w_v=\) <code>vel_weight</code> 0.01、\(w_a=\) <code>ang_weight</code> 0.01，整体再乘 <code>reward_scaling</code> 0.02（所有 AMP 配置相同）。论文没给这四个数。</li>
+<li>代码把它记成负的奖励，<code>agent_diffmimic.py</code> 第 134 到 143 行的损失是 \(-\)mean(奖励)，即对时间和环境<b>取平均</b>，不是式 (3.2) 的求和。差一个常数倍，对 Adam 方向无影响，但和梯度裁剪阈值（0.4）的相对大小有关。</li>
+<li>6D 旋转在 <code>utils/rotation6d.py</code>：四元数转旋转矩阵，取前两行。</li>
+<li>位置和旋转都是世界坐标，和论文“全局”一致；观测里的位置却是相对根的（读者注 1）。</li>
+</ul>
+<p>梯度怎么来：<code>agent_diffmimic.py</code> 第 121 到 145 行用 <code>jax.lax.scan</code> 把 59 步滚动写成一个函数，对策略参数调一次 <code>jax.grad</code>，就是式 (3.3) 的递推。代码沿用 Brax 的 APG（analytic policy gradient）训练器，文件头保留了 Brax 的 Apache-2.0 声明。</p></div>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 5 页 · <a href="https://arxiv.org/html/2304.03274v2#S3.F3">看原图 ↗</a></span><p>一条水平时间轴，从右到左标 t=1 到 t=7。米色的人形从右边站立、往左逐渐后仰倒下（t=1 到 t=3）。t=4 处叠着两个人形：蓝色的是快要摔倒的滚动状态，红色的是参考状态（站着、双臂上举），图注说蓝色在下一步被红色替换。t=5 到 t=7 接着做后翻动作，落地。</p></div>
+
+<h3 id="s3-3">3.3 示范回放（Demonstration Replay）</h3>
+<p>用 DPS 做策略学习有三个公认的难题：长视野下梯度爆炸或消失；局部极小让梯度法停滞；梯度有噪声或是错的。作者观察到，动作模仿的高度非凸性对解析梯度优化挑战很大，策略容易卡在次优点：模仿后空翻时，角色学会用手臂撑住自己，而不去探索更动态的起跳（原文写“如表 6 所示”，实际指图 6）。实践中把整条轨迹切成短的子轨迹做截断 BPTT，会让问题更糟：10 步截断导致更差的局部最优（原文写“表 7 (a)-(b)”，实际指图 7(a)(b)）。</p>
+<p>Teacher forcing（Williams &amp; Zipser 1989）是序列模型里跳出局部极小的常用办法：随机把滚动里的状态换成参考状态。给定比例 \(\gamma\)：</p>
+<div class="eq" id="eq3-4"><div class="m">\[s_{t+1}=\begin{cases}\mathcal T(s_t,a_t),\ a_t\sim\pi_\theta(a\mid s_t) & \text{若 } b=0,\ b\sim\mathrm{Bernoulli}(\gamma)\\ \mathcal T(\hat s_t,a_t),\ a_t\sim\pi_\theta(a\mid\hat s_t) & \text{否则.}\end{cases}\]</div><span class="no">(3.4)</span></div>
+<p>它整体上找到更好的解，但不保证每一帧都忠实：整体轨迹对上了，个别帧姿势别扭（图 6），少数帧的误差明显大于其他帧（图 8）。</p>
+<p>作者提出示范引导的探索：当滚动状态离参考太远时，把它换成对应的示范状态。给定阈值 \(\epsilon\)：</p>
+<div class="eq" id="eq3-5"><div class="m">\[s_{t+1}=\begin{cases}\mathcal T(s_t,a_t),\ a_t\sim\pi_\theta(a\mid s_t) & \text{若 } \|s_t-\hat s_t\|_2^2&lt;\epsilon\\ \mathcal T(\hat s_t,a_t),\ a_t\sim\pi_\theta(a\mid\hat s_t) & \text{否则.}\end{cases}\]</div><span class="no">(3.5)</span></div>
+<p>替换与否取决于当前滚动的表现，所以替换频率在训练中会自动调整：策略越好，替换越少。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 代码里的替换：判据、时机，以及它顺手断开了梯度</span><p>实现在 <code>humanoid_mimic_train.py</code> 第 36 到 59 行。每走一步，先按式 (3.2) 算这一步的损失，再决定是否替换。</p>
+<ul>
+<li><b>判据。</b>阈值模式用 <code>loss_l2_pos</code>（<code>losses.py</code> 第 12 到 15 行）：13 个刚体<b>世界坐标位置</b>的欧氏距离取平均，单位是米，不平方，不含旋转和速度。式 (3.5) 写的是整个状态的平方距离。配置里的 <code>threshold</code> 0.2 或 0.4 因此读作“刚体平均偏离 0.2 m 或 0.4 m”。</li>
+<li><b>时机。</b>代码在 \(s_{t+1}=\mathcal T(s_t,a_t)\) 算完、记下损失之后检查 \(s_{t+1}\)，超阈就把 \(s_{t+1}\) 换成 \(\hat s_{t+1}\)，下一步从它出发。式 (3.5) 是检查 \(s_t\)、用 \(\hat s_t\) 出发。两种写法在“偏离那一步的损失照算，之后从参考重启”这一点上等价。</li>
+<li><b>梯度被断开。</b>替换写成 \(s\leftarrow s\cdot(1-r)+\hat s\cdot r\)，\(r\in\{0,1\}\)（第 56 行）。\(r=1\) 时新状态对旧状态的导数是 0，所以替换点之后所有损失的梯度传不回替换点之前。\(r\) 本身由比较得到，也没有导数。这和图 2 一致：第 3 步没有橙色箭头指回 \(s_2\)。所以示范回放同时是一种按误差决定位置的截断 BPTT。论文正文没有这样说；第 4.3 节说“简单截断”让结果变差，示范回放和它的差别在于截断点之后从参考状态重启，而不是从跑偏的状态继续。后半句是我的理解。</li>
+<li><b>随机模式。</b><code>demo_replay_mode: random</code> 时每步按 <code>replay_rate</code>（默认 0.05，<code>mimic.py</code> 第 48 行）抽伯努利，对应式 (3.4)。发布的配置全部用阈值模式，只有 <code>backflip_20s_vanilla.yaml</code> 是 <code>none</code>（全程梯度，而且 <code>ep_len: 32</code>）。</li>
+<li><b>策略看到的是谁。</b>替换后观测也重算（第 57 行），所以下一步策略的输入是 \(\hat s\)，和式 (3.5) 的 \(a_t\sim\pi_\theta(a\mid\hat s_t)\) 一致。</li>
+</ul></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 符号和交叉引用的几处笔误</span><ul>
+<li><b>γ、ε、λ 三套写法。</b>正文式 (3.4) 用 \(\gamma\) 表示随机替换比例，式 (3.5) 用 \(\epsilon\) 表示阈值，图 7 和图 8 的图例也是这样（γ=0.01/0.05/0.1，ε=0.1/0.2/0.4）。附录 K 和表 7 改成用 \(\lambda\) 表示随机比例、用 \(\gamma\) 表示阈值。读表 7 时要换回来：表 7 的“γ = 0.4”就是图 8 的“ε = 0.4”。</li>
+<li><b>名字。</b>算法 1 的注释和附录 C 叫它“Expert Replay”，正文叫 Demonstration Replay，第 3.3 节又叫“demonstration-guided exploration”。是同一个东西。</li>
+<li><b>表和图。</b>第 3.3 节两处“Tab. 6”指图 6（表 6 是摩擦敏感性），“Tab. 7 (a)-(b)”指图 7(a)(b)（表 7 没有子图）。</li>
+<li><b>算法 1 的下标。</b>参考状态集合写成 \(\{\hat s_1,\dots,\hat s_t\}\)，应为 \(\hat s_T\)。</li>
+<li><b>引言的描述。</b>第 1 节说回放“随机插入参考状态”，这是随机变体；论文最终推荐的是阈值变体。</li>
+</ul></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 11 幕</p>
+<p>从环境和 PD、状态匹配损失、梯度沿时间反传（当场算一维玩具的梯度爆炸和消失），到局部极小、10 步截断、随机替换和阈值替换（当场模拟替换点和被断开的梯度链），再到图 7、图 8 的矢量读数、和 DeepMimic 式 RL 的梯度方差对比、代码的训练循环。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/diffmimic/index.html?embed=1" title="DiffMimic 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/diffmimic/index.html">新窗口打开，看结构表和“哪些是示意” ↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<h3 id="s4-1">4.1 实验设置</h3>
+<p>所有实验用一块 NVIDIA Tesla V100 和一颗 Intel Xeon E5-2680。按 AMP 的做法，主要指标是平均姿态误差：长度 \(T\)、关节集合 \(J\) 的整条轨迹上，仿真角色和参考的各关节相对根关节位置之差的平均（单位米）：</p>
+<div class="eq" id="eq4-1"><div class="m">\[e=\frac1T\sum_{t\in T}\frac1{\|J\|}\sum_{j\in J}\big\|(p^j_t-p^{root}_t)-(\hat p^j_t-\hat p^{root}_t)\big\|_2,\]</div><span class="no">(4.1)</span></div>
+<p>\(p^j_t,\hat p^j_t\) 是仿真和参考在时刻 \(t\) 第 \(j\) 个关节的三维位置。主要对比 DeepMimic、Spacetime Bound（Ma 2021）和 AMP（Peng 2021）。按惯例用动态时间规整（DTW）对齐仿真动作和参考动作。</p>
+<p><b>循环动作。</b>除了单段模仿，常用的基准是循环动作（走、跑）：给一个周期的参考，角色要连续重复 20 秒。通常要设计课程，把最长滚动逐渐加到 20 秒。本文去掉这些，训练时最长滚动固定为 4 秒；虽然训练只见过 4 秒的滚动，仍能产生 20 秒的循环。动作片段直接取自 AMP，原始来源是公开动捕库、自录动捕和美术关键帧。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 代码里没有 DTW；“最终误差”是历史最好</span><p><b>指标。</b>代码的 <code>loss_l2_relpos</code>（<code>losses.py</code> 第 4 到 9 行）就是式 (4.1) 去掉 DTW：相对根的位置差取欧氏距离（不平方），对 12 个非根刚体平均（根那一项恒为 0，式 (4.1) 若除以 13 会小 1/13，属于细节）。整个仓库搜不到 DTW 或 dynamic time warping，所以代码算出来的是附录 H 表 4 的“Ours w/o DTW”那一列。</p>
+<p><b>挑检查点。</b><code>agent_diffmimic.py</code> 第 244 到 271 行：每次迭代后在 32 个环境上评估一次，记录到目前为止的最低误差 <code>best_pose_error</code>，并只在刷新最低值时存 <code>params_best.pkl</code>。所以“最终误差”如果取的是这个值，就是在评估集上挑的最好检查点。附录 G 说 360 度跳“最终误差 0.020 m”，图 11 曲线的最低点约 0.021、最后一点约 0.029（我的矢量读数），和“取最低”一致。附录 F 的 Ant 写 0.059 m，图 10 的最低点约 0.063、最后约 0.079，比所有点都低，对不上。</p>
+<p><b>评估时策略是否随机。</b><code>train()</code> 的 <code>deterministic_eval</code> 默认 False（第 70、232 行），<code>mimic.py</code> 没改它，所以评估很可能用的是带采样的策略。实际行为取决于 Brax 版本里 APG 的 <code>make_inference_fn</code>，本机没有装 Brax，我没有核实。</p></div>
+
+<h3 id="s4-2">4.2 动作模仿对比</h3>
+<p>这一节想回答两件事：效率，以及学到的策略质量。按 DeepMimic、AMP、Spacetime Bound 的惯例，统计训练到“能滚 20 秒不摔”所需的样本数；姿态误差在 20 秒上计算。</p>
+<p><b>解析梯度提高了样本效率。</b>表 2 比较 DiffMimic、DeepMimic 和 Spacetime Bound。DeepMimic 是精心设计奖励的 RL；Spacetime Bound 是给 DeepMimic 做超参搜索，进一步提效。DiffMimic 在样本效率上始终优于 DeepMimic：解析梯度只要少量样本就能算出策略梯度，RL 要大批量才能估得准。和 Spacetime Bound 比，DiffMimic 在各任务上更稳定一致；Spacetime Bound 在 Jump 这种简单任务上甚至比 DeepMimic 用更多样本。图 4 是 8 个任务的学习曲线：通常不到 \(2\times10^7\) 个样本就学到误差 &lt; 0.15 的动作，后空翻也是。墙钟上，后空翻 10 分钟学会，3 小时（\(14.88\times10^6\) 个样本）学会连续做。</p>
+<p>表 1（第 7 页，<a href="https://arxiv.org/html/2304.03274v2#S4.T1">看原表 ↗</a>）：姿态误差（米）。\(T_{cycle}\) 是参考动作一个周期的长度；误差在 32 个回合上平均，每回合最长 20 秒。</p>
+<div class="tablewrap"><table class="t-r1"><thead><tr><th>动作</th><th class="n">\(T_{cycle}\)（s）</th><th class="n">DeepMimic</th><th class="n">AMP</th><th class="n">Ours</th></tr></thead><tbody>
+<tr><td>Back-Flip</td><td class="n">1.75</td><td class="n">0.076 ± 0.021</td><td class="n">0.150 ± 0.028</td><td class="n">0.097 ± 0.001</td></tr>
+<tr><td>Cartwheel</td><td class="n">2.72</td><td class="n">0.039 ± 0.011</td><td class="n">0.067 ± 0.014</td><td class="n">0.040 ± 0.007</td></tr>
+<tr><td>Crawl</td><td class="n">2.93</td><td class="n">0.044 ± 0.001</td><td class="n">0.049 ± 0.007</td><td class="n">0.037 ± 0.001</td></tr>
+<tr><td>Dance</td><td class="n">1.62</td><td class="n">0.038 ± 0.001</td><td class="n">0.055 ± 0.015</td><td class="n">0.070 ± 0.003</td></tr>
+<tr><td>Jog</td><td class="n">0.83</td><td class="n">0.029 ± 0.001</td><td class="n">0.056 ± 0.001</td><td class="n">0.031 ± 0.002</td></tr>
+<tr><td>Jump</td><td class="n">1.77</td><td class="n">0.033 ± 0.001</td><td class="n">0.083 ± 0.022</td><td class="n">0.025 ± 0.000</td></tr>
+<tr><td>Roll</td><td class="n">2.02</td><td class="n">0.072 ± 0.018</td><td class="n">0.088 ± 0.008</td><td class="n">0.061 ± 0.007</td></tr>
+<tr><td>Run</td><td class="n">0.80</td><td class="n">0.028 ± 0.002</td><td class="n">0.075 ± 0.015</td><td class="n">0.039 ± 0.000</td></tr>
+<tr><td>Side-Flip</td><td class="n">2.44</td><td class="n">0.191 ± 0.043</td><td class="n">0.124 ± 0.012</td><td class="n">0.069 ± 0.001</td></tr>
+<tr><td>Spin-Kick</td><td class="n">1.28</td><td class="n">0.042 ± 0.001</td><td class="n">0.058 ± 0.012</td><td class="n">0.056 ± 0.000</td></tr>
+<tr><td>Walk</td><td class="n">1.30</td><td class="n">0.018 ± 0.005</td><td class="n">0.030 ± 0.001</td><td class="n">0.017 ± 0.000</td></tr>
+<tr><td>Zombie</td><td class="n">1.68</td><td class="n">0.049 ± 0.013</td><td class="n">0.058 ± 0.014</td><td class="n">0.037 ± 0.002</td></tr>
+</tbody></table></div>
+<p>表 2（第 8 页，<a href="https://arxiv.org/html/2304.03274v2#S4.T2">看原表 ↗</a>）：滚 20 秒不摔所需样本（\(10^6\)）。百分比是相对 DeepMimic 样本数的变化。</p>
+<div class="tablewrap"><table class="t-r2"><thead><tr><th>动作</th><th class="n">\(T_{cycle}\)（s）</th><th class="n">DeepMimic</th><th class="n">Spacetime Bound</th><th class="n">Ours</th></tr></thead><tbody>
+<tr><td>Back-Flip</td><td class="n">1.75</td><td class="n">31.18</td><td class="n">41.20 +32.1%</td><td class="n">14.88 −52.2%</td></tr>
+<tr><td>Cartwheel</td><td class="n">2.72</td><td class="n">30.45</td><td class="n">17.35 −43.0%</td><td class="n">13.92 −54.2%</td></tr>
+<tr><td>Walk</td><td class="n">1.25</td><td class="n">23.80</td><td class="n">4.08 −79.5%</td><td class="n">7.92 −66.7%</td></tr>
+<tr><td>Run</td><td class="n">0.80</td><td class="n">19.31</td><td class="n">4.11 −78.7%</td><td class="n">8.16 −57.7%</td></tr>
+<tr><td>Jump</td><td class="n">1.77</td><td class="n">25.65</td><td class="n">41.63 +77.8%</td><td class="n">5.28 −79.4%</td></tr>
+<tr><td>Dance</td><td class="n">1.62</td><td class="n">24.59</td><td class="n">10.00 −59.3%</td><td class="n">16.56 −32.6%</td></tr>
+</tbody></table></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 表 2 的百分比有两格算错，Walk 的周期两张表不一样</span><p>按 \((x/\text{DeepMimic}-1)\times100\%\) 逐格算：</p>
+<ul>
+<li>Ours 一列：−52.28、−54.29、−66.72、−57.74、−79.42、−32.66。论文是截断到一位小数（−52.2、−54.2、−32.6），不是四舍五入；数值都对。</li>
+<li>Spacetime Bound 一列：Back-Flip +32.14、Cartwheel −43.02、Run −78.72、Dance −59.33，对。<b>Walk</b>：4.08/23.80 − 1 = <b>−82.9%</b>，论文写 −79.5%。<b>Jump</b>：41.63/25.65 − 1 = <b>+62.3%</b>，论文写 +77.8%。两格对不上，是数还是百分比错了，看不出来。</li>
+<li><b>Walk 的周期</b>：表 1 写 1.30 s，表 2、表 3 写 1.25 s。代码 <code>walk_20s.yaml</code> 的 <code>cycle_len: 39</code> 合 1.30 s，参考文件实际重复周期 38 帧合 1.267 s（<a href="#n9">读者注 9</a>）。DeepMimic 原文表 2 是 1.26 s（本站 DeepMimic 页）。</li>
+<li><b>Jog</b>：表 1 写 0.83 s，DeepMimic 原文 0.80 s；代码参考文件的重复周期 25 帧合 0.833 s，和表 1 一致。其余 10 个动作的 \(T_{cycle}\) 和 DeepMimic 原文表 2 逐个相同。</li>
+<li><b>基线数字的来源。</b>DeepMimic 原文表 2 的样本数是“训练用的样本”（后空翻 72M），和这里的 31.18M 不是同一个口径。论文没说 DeepMimic 和 Spacetime Bound 两列是自己跑的还是引自 Spacetime Bound 论文；我没有核对 Spacetime Bound 原文。</li>
+</ul></div>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 2 的样本数是 24,000 的整数倍：对应论文的设定，不是发布的配置</span><p>Ours 一列除以 24,000：14.88M → 620，13.92M → 580，7.92M → 330，8.16M → 340，5.28M → 220，16.56M → 690，全是整数，而且都是 10 的倍数。24,000 = 200 个环境 × 120 步（4 秒 × 30 Hz），正好是附录 C 说的循环动作“200 个环境”和第 4.1 节说的“滚动固定 4 秒”。所以表 2 的意思大概是：每 10 次迭代检查一次能否滚 20 秒，后空翻第 620 次迭代达标（我的推断）。</p>
+<p>发布的配置是另一套：所有 <code>configs/AMP/*_20s.yaml</code> 都是 <code>num_envs: 300</code>、<code>max_it: 1000</code>、<code>ep_len: 60</code>。<code>mimic.py</code> 第 71 行把回合长度设成 <code>ep_len − 1</code> = 59 步，约 2 秒，每次迭代 300 × 59 = 17,700 个样本，1000 次迭代共 17.7M。附录 C 的循环动作是 5000 次迭代、200 个环境，梯度裁剪 0.3；配置是 1000 次、300 个、<code>max_grad_norm: 0.4</code>（AMASS 和 AIST 的配置是 0.3）。按配置跑，样本数和表 2 的口径不同，不能直接对照。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 发布的代码默认带 RSI，训练会看到整段 20 秒参考</span><p><code>humanoid_mimic_train.py</code> 第 24 行，训练环境重置时从 \([0,\ \text{total\_length}-\text{rollout\_length}]\) 里均匀抽起点帧，注释直接写着“random state initialization (RSI)”。<code>total_length</code> 由 <code>mimic.py</code> 第 43 行传入 <code>ep_len_eval</code>，循环动作是 600。所以：</p>
+<ul>
+<li>算法 1 第 6 行“\(s_1\leftarrow\hat s_1\)”和第 3.2 节“初始化为第一帧参考”说的是不带 RSI 的版本，对应正文表 1、表 2。发布代码训练的是附录 H 的“Ours w/ RSI”，对应表 3、表 4 最后一列。没有开关可以关掉 RSI。</li>
+<li>循环动作的参考文件是把一个周期铺满 20 秒（601 帧，<code>data/demo_humanoid/*_fps_30_20s.npy</code>，<a href="#n9">读者注 9</a>）。RSI 从其中任意位置起步，所以训练实际见过整段 20 秒参考的每一部分。第 4.2 节“只看 4 秒示范就达到 DeepMimic 20 秒的效果”的说法，对正文设定成立；对发布代码不成立。</li>
+<li>代码里还有提前终止开关 <code>early_termination</code>（默认关），对应附录 H 图 12(c) 的 RSI+ET。</li>
+</ul></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 相位的周期比参考文件的重复周期多一帧</span><p>我检查了 12 个参考文件：相对根的位置序列严格以 <code>cycle_len − 1</code> 帧重复（错开 <code>cycle_len − 1</code> 帧后平均差为 0.0000，错开 <code>cycle_len</code> 帧则不为 0）。例如后空翻 <code>cycle_len: 54</code>，实际每 53 帧重复；跑步 25 对 24。我的推断是：一个周期的片段首尾帧相同，共 <code>cycle_len</code> 帧，铺的时候去掉了重复的那一帧。</p>
+<p>但相位用的是 \(\phi=(t \bmod \text{cycle\_len})/\text{cycle\_len}\)（<code>humanoid_mimic.py</code> 第 62 行），\(t\) 是在 20 秒参考里的绝对帧号。于是每过一个周期，相位就比动作慢一帧。600 帧里后空翻铺了约 11.3 个周期，到结尾相位落后约 11 帧（约 1/5 个周期）；跑步铺了 25 个周期，落后 25 帧，正好一整个周期，也就是相位把所有偏移都扫了一遍。加上 RSI 从任意帧起步，相位对“现在在周期哪里”的提示在大部分起点上是错位的。策略还能从状态本身推断，所以影响多大我没法判断。</p></div>
+
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 6 页 · <a href="https://arxiv.org/html/2304.03274v2#S4.F4">看原图 ↗</a></span><p>2 × 4 个小图：后空翻、侧手翻、侧空翻、跑、走、僵尸走、跳、旋风踢。横轴样本（到 1e8），纵轴姿态误差（0 到 1.0）。每个小图有四组曲线：DiffMimic（20s）、DiffMimic（4s）、DeepMimic、AMP，前两者是同一个策略分别滚 20 秒和 4 秒评估。从低分辨率渲染看，多数小图里最早降到底的是 DiffMimic 的两组曲线，DeepMimic 和 AMP 晚得多；原图颜色较浅，哪条对应哪个图例我只能大致分辨。这张图是位图，我没有读数。图注说通常少于 \(3.5\times10^7\) 个样本就能生成高质量动作，和图 1 图注、第 4.2 节写的 \(2\times10^7\) 不一样（<a href="#n13">读者注 13</a>）。</p></div>
+
+<p><b>DiffMimic 能学到高质量动作。</b>表 1 是 12 个动作的平均姿态误差。作者的结论：始终优于 AMP，和 DeepMimic 相当。DiffMimic 只需看 4 秒示范，就达到 DeepMimic 用 20 秒循环滚动的水平。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 1 逐格数一下</span><ul>
+<li><b>对 DeepMimic：</b>DiffMimic 更低的是 Crawl、Jump、Roll、Side-Flip、Walk、Zombie，6 个；DeepMimic 更低的是 Back-Flip、Cartwheel、Dance、Jog、Run、Spin-Kick，6 个。12 个的平均：DeepMimic 0.0549，AMP 0.0744，Ours 0.0483；但 DeepMimic 的 Side-Flip 0.191 是个离群值，去掉这一行后 DeepMimic 0.0425 低于 Ours 0.0464。“相当”的说法成立，“更好”不成立。</li>
+<li><b>对 AMP：</b>Dance 一行 AMP 0.055 低于 Ours 0.070，其余 11 行 Ours 更低。所以“始终优于 AMP”有一个例外。</li>
+<li><b>± 是什么。</b>表注说在 32 个回合上平均，所以 ± 是同一个策略 32 次滚动之间的离散，不是多个随机种子之间。Ours 的 ± 大多是 0.000 到 0.002，说明 32 次滚动几乎一样，这符合“评估时环境和起点完全相同”的设定。</li>
+<li><b>DTW 的口径。</b>Ours 一列用了 DTW。附录 H 表 4 给了 Ours 不用 DTW 的数，平均 0.0563，比 DeepMimic 的 0.0549 还高；只在 5 个动作上低于 DeepMimic。DeepMimic 和 AMP 两列有没有用 DTW，论文没说（第 4.1 节只说“按惯例”）。</li>
+</ul></div>
+
+<p><b>解析梯度加快了学习。</b>解析梯度一般比估计的梯度计算更贵，所以要比墙钟时间。DeepMimic 的实现不用 GPU 并行，所以和 AMP 比；AMP 的实现用高度并行的 <a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a>。两者都不用手工设计奖励，都用 GPU 加速。任务是一个持剑持盾的人形做 3.2 秒的攻击动作（附录图 13）。AMP 的超参取自官方代码。图 5：DiffMimic 用 AMP 一半的训练时间达到相当的结果。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 7 页 · <a href="https://arxiv.org/html/2304.03274v2#S4.F5">看原图 ↗</a></span><p>标题“Sword and Shield”。横轴墙钟时间 0 到 10 小时，纵轴姿态误差 0 到 0.6。深色线 DiffMimic 从约 0.58 起，1 小时内降到 0.1 以下，到 3 小时结束；青色线 AMP 从约 0.46 起，在 4.4 到 4.7 小时之间陡降到 0.06 附近，一直画到约 9.6 小时。下面是从矢量路径读出的重画。</p></div>
+<div class="viz" id="c-fig5"><p class="cap">重画 · 图 5 · 从 PDF 第 7 页矢量路径读出（按原图网格线标定），保留全部原始顶点。DiffMimic 112 个点，AMP 191 个点（AMP 的点间距不均匀，可能是绘图时丢掉了共线点）。可悬停看数值。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · “一半的时间”和持剑角色的观测维数</span><p><b>时间。</b>按重画的数据：DiffMimic 第一次低于 0.1 是 0.98 小时，低于 0.06 是 1.93 小时，全程最低 0.051（2.58 小时）；AMP 第一次低于 0.2 是 4.41 小时，低于 0.06 是 4.65 小时，全程最低 0.057。按“低于 0.06”算，1.93 / 4.65 = 0.41，说“一半”是保守的。两条曲线各只有一次运行。</p>
+<p><b>观测。</b>附录 D 说持剑角色动作 31 维、状态 208 维。代码 <code>SWORDSHIELD.py</code> 的关节转轴合计 31，对；208 = 13 × 3 + 14 × 6 + 14 × 3 + 14 × 3 + 1，正是“时间戳”观测。但发布的配置 <code>configs/SWORDSHIELD/RL_Avatar_Atk_2xCombo01_Motion.yaml</code> 用 <code>obs_type: target_state</code>（当前状态 + 下一帧参考），按 <code>humanoid_mimic.py</code> 第 65 到 71 行算是 42 + 56 + 42 + 42 + 42 + 84 + 42 + 42 = 392 维，而且当前旋转用的是四元数而不是 6D。参考片段 96 帧，30 Hz 正好 3.2 秒，和正文一致。</p></div>
+
+<h3 id="s4-3">4.3 截断长度的消融</h3>
+<p>用 DPS 训策略会遇到梯度消失或爆炸和局部最优。SHAC 指出截断的学习窗口（把轨迹切成短段）可以缓解。作者验证这个思路能否直接用到 DPS 动作模仿上。截断长度指计算梯度的视野。结果见图 7(a)(b)：穿过很长的整条轨迹传梯度确实难学好；但把轨迹简单切段会让最终结果更差。作者推测：简单截断在轨迹里制造了不连续，而轨迹里的动作高度相互依赖，比如空中怎么翻和怎么起跳密切相关。这说明需要更好的策略同时处理这两个难题。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 截断在代码里怎么做；图 7 几条曲线的复用</span><p><b>代码。</b><code>agent_diffmimic.py</code> 第 127 到 130 行：配置有 <code>truncation_length</code> 时，每隔这么多步对环境状态调一次 <code>jax.lax.stop_gradient</code>。发布的配置都没设这个键，即默认不截断。</p>
+<p><b>曲线复用。</b>重画时发现，图 7(a) 的“full horizon”和图 7(c) 的“full horizon”是同一条曲线（每个点都相同，后空翻最后 10 点平均 0.147），(c) 的“γ = 0.05”和 (e) 的“γ = 0.05”也是同一条（0.088）；侧手翻同理。所以图 7 是三组比较共用基线，不是三次独立实验。</p>
+<p><b>末段数字。</b>最后 10 个点的平均（约后 3.2M 样本）：后空翻截断 10 步 0.189、全程 0.147；侧手翻截断 0.245、全程 0.152。随机替换：后空翻 γ = 0.01、0.05、0.1 分别 0.143、0.088、0.110；侧手翻 0.056、0.044、0.058。阈值替换：后空翻 ε = 0.1、0.2、0.4 分别 0.150、0.122、0.091；侧手翻 0.044、0.045、0.053。所以图 7 上 ε 和 γ 选得好时两者末段平均差不多，和正文一致；ε = 0.1 在后空翻上明显差（曲线后段抖动很大），附录 C 也只试了 0.2 和 0.4。</p></div>
+
+<h3 id="s4-4">4.4 示范回放的消融</h3>
+<p>在后空翻和侧手翻上比较三个变体：随机回放（以固定概率把某一步换成同一时刻的示范状态，类似 teacher forcing）、阈值回放（姿态误差超过阈值 \(\epsilon\) 才替换）、全程梯度（不做任何额外操作）。定量结果见图 7，定性结果见图 6。</p>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 8 页 · <a href="https://arxiv.org/html/2304.03274v2#S4.F6">看原图 ↗</a></span><p>四组米色人形的连续姿态，灰色背景。(a) 参考动作：起跳、空中后翻、落地。(b) 全程梯度：角色向后弯腰，双手撑地，没有跳起来。(c) 随机回放：完成了后翻，但中间有几帧姿态别扭。(d) 阈值回放：完成后翻，和参考接近。</p></div>
+<p><b>示范回放让训练更稳、结果更好。</b>和不带回放的全程梯度比，带回放的学习曲线平滑得多，最终误差更低（图 7(c)(d)）。图 6(b) 里全程梯度很容易卡进局部极小：弯腰用手撑地，不起跳。另外两种都学会了起跳并在空中翻过来。</p>
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 9 页 · <a href="https://arxiv.org/html/2304.03274v2#S4.F7">看原图 ↗</a></span><p>2 × 3 个小图，上排后空翻、下排侧手翻，横轴样本 0 到 0.16e8，纵轴姿态误差 0 到 0.6。(a)(b) 截断 10 步对全程；(c)(d) 随机回放 γ = 0.01、0.05、0.1 对全程；(e)(f) 阈值回放 ε = 0.1、0.2、0.4 对随机回放 γ = 0.05。每个小图有一条蓝色竖虚线，图注说是对应 10 分钟墙钟的位置。下面三组是从矢量路径读出的重画。</p></div>
+<div class="viz" id="c-fig7"><p class="cap">重画 · 图 7 · 从 PDF 第 9 页矢量路径读出，按原图网格线标定，读数误差约 ±0.003。每条曲线 50 个点，横轴均匀从 0 到 15.876M 样本。灰色虚线是原图蓝色竖虚线的位置（1.62M）。同一行左右两个小图分别是后空翻和侧手翻。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 10 分钟、3 小时、2e7 和 3.5e7</span><ul>
+<li><b>蓝色虚线。</b>六个小图里都在横轴 1.621M 处。图 7 的最后一个点在 15.876M，正好是 980 × 16,200，蓝线 1.621M ≈ 100 × 16,200。16,200 = 300 个环境 × 54 步（后空翻一个周期 54 帧）。按这个读法，曲线每 20 次迭代一个点，“10 分钟”约等于 100 次迭代，即每次迭代约 6 秒。这是我从数字凑出来的解释，侧手翻的周期是 82 帧，却用了同一条横轴，论文没说明。</li>
+<li><b>两个吞吐。</b>“10 分钟”对应约 1.62M 个样本，约 2,700 样本/秒；“3 小时学会连续后空翻”对应表 2 的 14.88M，约 1,380 样本/秒，慢一半。可能因为后者每次迭代还要做 32 × 599 步的 20 秒评估，也可能是设定不同（我的推断）。</li>
+<li><b>3 小时还是 2.5 小时。</b>摘要和第 4.2 节说 3 小时学会连续后空翻；附录 A 的演示列表写“trained for 2.5 hours”。</li>
+<li><b>2e7 还是 3.5e7。</b>图 1 图注和第 4.2 节说“通常少于 \(2\times10^7\)”，图 4 图注说“少于 \(3.5\times10^7\)”。</li>
+</ul></div>
+
+<p><b>按策略表现回放，复现得更忠实。</b>图 7(e)(f) 比较阈值回放和随机回放：超参调好时两者平均误差相近。但行为差别很大：图 6(c)(d) 两个策略都能后空翻，随机回放的那个却不能逐帧复现。图 8 是逐帧姿态误差：整条轨迹的平均误差两者相近，阈值回放的最大逐帧误差更低。这说明只最小化平均姿态误差不足以让策略紧跟示范，需要根据当前表现做更细的引导。</p>
+<div class="fig" id="fig8"><span class="lab">图 8 · 第 9 页 · <a href="https://arxiv.org/html/2304.03274v2#S4.F8">看原图 ↗</a></span><p>标题“Backflip”，横轴帧号 0 到约 53，纵轴 L2 误差 0 到 0.35。三条线：全程梯度在第 26 到 35 帧有一个高峰（最高约 0.36）；随机回放 γ = 0.05 在第 27 到 30 帧有一个约 0.2 的峰；阈值回放 ε = 0.4 最低，峰值约 0.11。图注：随机回放比全程优化降低了整体误差，但因为缺少约束，某些时间步的逐帧误差仍然很大；阈值回放缓解了这个问题。</p></div>
+<div class="viz" id="c-fig8"><p class="cap">重画 · 图 8 · 从 PDF 第 9 页矢量路径读出，54 帧，按原图网格线标定。下面的表按这三条曲线算“最差 k 帧的平均”，可以和附录 K 表 7 对照（读者注 20）。</p></div>
+
+<h2 id="s5"><span class="no">5</span>结论与今后工作</h2>
+<p>DiffMimic 用可微物理仿真器做动作模仿，在多种任务上以更高的精度、稳定性和效率超过几种常用的 RL 方法。作者希望它成为用 DPS 做模仿的起点，仿真环境也为后续研究提供机会。挑战之一是给任意示范在几分钟内完成模仿，这会大大加速下游任务；本文展示了 10 分钟学会难动作，但评测的任务较短，也没有和其他物体交互。系统里有多个物体时动力学更复杂，留作今后工作。</p>
+<p><b>伦理声明</b>：遵守 ICLR 伦理准则，只在人形角色上实验，不涉及人类受试者，所用材料都是开源并已引用。<b>可复现声明</b>：代码在 github.com/diffmimic/diffmimic，报告的结果容易用所给代码复现。<b>致谢</b>：新加坡国家研究基金会 AI Singapore 项目、南洋理工 NAP、教育部 AcRF Tier 2、RIE2020 产业对接基金及产业伙伴。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 可复现声明里的链接、演示网站、页数</span><ul>
+<li>可复现声明写的 github.com/diffmimic/diffmimic 只有一个 README，指向 jiawei-ren/diffmimic；脚注 1 写的是后者。代码在后者。</li>
+<li>演示网站：论文写 diffmimic-demo-main-g7h0i8.streamlitapp.com，README 写 diffmimic-demo-main-g7h0i8.streamlit.app。2026-11-21 我用脚本访问，前者 301 跳到后者，后者 303 跳到 Streamlit 的登录页，附录 A 列的定性结果现在不能直接打开。</li>
+<li>PDF 是 19 页：正文到第 9 页，参考文献第 10 到 12 页，附录目录和附录在第 13 到 19 页。</li>
+</ul></div>
+
+<h2 id="apx"><span class="no">A</span>附录</h2>
+<p>附录第 13 页有一张目录，列出 A 到 L 十二节。</p>
+<h3 id="apA">A · 定性结果</h3>
+<p>演示网站上有：后空翻、侧手翻、爬、舞蹈、慢跑、跳、翻滚、侧空翻、旋风踢、走、僵尸走各 20 秒的滚动（列表里没有 Run）；训练 2.5 小时的后空翻 20 秒滚动；训练 10 分钟的后空翻单周期滚动。</p>
+<h3 id="apB">B · 策略网络</h3>
+<p>MLP，两个隐藏层 512 和 256，激活函数 Swish。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · 网络尺寸对，激活函数未核实</span><p><code>mimic.py</code> 第 78 行：<code>make_apg_networks(hidden_layer_sizes=(512, 256))</code>，和论文一致。激活函数没有显式传入，用的是 Brax APG 网络的默认值。我印象中 Brax 的 APG 网络默认是 ELU、PPO 网络默认是 Swish，但本机没有装 Brax，requirements.txt 也没有固定版本，所以没有核实。策略输出经 tanh 压到 (−1, 1)，观测做运行均值方差归一化（<code>normalize_observations: True</code>，<code>agent_diffmimic.py</code> 第 107 到 109、166 到 167 行），这两点论文没写。</p></div>
+<h3 id="apC">C · 超参数</h3>
+<p>Adam，学习率 3e-4，随迭代线性下降。梯度裁剪，最大范数 0.3。批大小等于并行环境数。循环动作：最多 5000 次迭代，200 个环境。非循环动作：最多 1000 次迭代，300 个环境。Expert Replay：试 0.2 和 0.4 两个阈值，报告较好的那个。</p>
+<div class="tablewrap"><table class="t-hp"><thead><tr><th>项</th><th>论文（附录 C）</th><th>代码（<code>configs/AMP/*_20s.yaml</code>）</th></tr></thead><tbody>
+<tr><td>优化器</td><td>Adam，3e-4 线性下降</td><td>Adam，3e-4 线性降到 1e-5（<code>agent_diffmimic.py</code> 第 115 到 117 行，终值写死）</td></tr>
+<tr><td>梯度裁剪</td><td>0.3</td><td><b>0.4</b>（AMASS、AIST 示例是 0.3）</td></tr>
+<tr><td>环境数 / 迭代数</td><td>循环 200 / 5000；非循环 300 / 1000</td><td>全部 <b>300 / 1000</b></td></tr>
+<tr><td>训练滚动长度</td><td>4 秒（第 4.1 节）</td><td><code>ep_len: 60</code> → 59 步，约 <b>2 秒</b>；单周期配置 <code>backflip.yaml</code>、<code>roll.yaml</code> 是 30 → 29 步</td></tr>
+<tr><td>起点</td><td>参考第一帧（算法 1）</td><td><b>RSI</b>，随机帧（读者注 8）</td></tr>
+<tr><td>阈值</td><td>0.2 和 0.4 取较好</td><td>0.2：Crawl、Run、Walk、Zombie；0.4：其余 8 个</td></tr>
+<tr><td>评估</td><td>32 回合，20 秒</td><td><code>num_eval_envs: 32</code>，<code>ep_len_eval: 600</code> → 599 步</td></tr>
+<tr><td>批大小</td><td>等于环境数</td><td>每次迭代一个梯度，来自全部环境的平均（第 134 到 163 行）</td></tr>
+</tbody></table></div>
+<h3 id="apD">D · 状态和动作空间</h3>
+<p><b>人形。</b>状态特征里用 6D 旋转。动作 28 维，状态 193 维。<b>持剑持盾的人形。</b>按 ASE 设置，比默认人形在右手多 3 个自由度，剑装在右手，盾装在左前臂。动作 31 维，状态 208 维。维数的核对见<a href="#n1">读者注 1</a>和<a href="#n11">读者注 11</a>。</p>
+<h3 id="apE">E · 学习曲线</h3>
+<div class="fig" id="fig9"><span class="lab">图 9 · 第 15 页 · <a href="https://arxiv.org/html/2304.03274v2#A5.F9">看原图 ↗</a></span><p>和图 4 同样格式的学习曲线，覆盖更多动作（整页 3 × 4 个小图），每个小图有 DiffMimic（20s）、DiffMimic（4s）、DeepMimic、AMP 四组线。位图，没有读数。</p></div>
+<h3 id="apF">F · 新角色</h3>
+<p>加入 Ant。参考轨迹取自 ILD：一个学会尽快向前跑的 PPO 智能体的轨迹。最终姿态误差 0.059 m。图 10 是训练曲线，演示网站“New Character”标签下有定性结果。</p>
+<div class="fig" id="fig10"><span class="lab">图 10 · 第 16 页 · <a href="https://arxiv.org/html/2304.03274v2#A6.F10">看原图 ↗</a></span><p>标题“Ant”，横轴样本 0 到 0.6e8，纵轴 0.1 到 0.5。一条青色曲线从约 0.43 开始，前 0.1e8 内快速下降，之后在 0.06 到 0.1 之间抖动。矢量读数：364 个点，最低约 0.063，最后约 0.079（读者注 5）。发布的代码里没有 Ant 的配置。</p></div>
+<h3 id="apG">G · 新技能</h3>
+<p>在 <a class="ds" href="http://mocap.cs.cmu.edu/">CMU Mocap</a> 的 360 度跳（序列 CMU 075_09）上跑 DiffMimic。MoCapAct 数据集论文（Wagener 2022）报告这个技能对基于 RL 的 CoMic 很难。DiffMimic 能在空中转身，最终姿态误差 0.020 m。图 11 是训练曲线。</p>
+<div class="fig" id="fig11"><span class="lab">图 11 · 第 16 页 · <a href="https://arxiv.org/html/2304.03274v2#A7.F11">看原图 ↗</a></span><p>标题“360-degree Jump”，横轴样本 0 到 0.14e8 多一点，纵轴 0 到 0.6。一条青色曲线从约 0.53 降下来，后段在 0.02 到 0.04 之间。矢量读数：88 个点，最低约 0.021，最后约 0.029。</p></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 360 度跳在代码里用的是 SMPL 角色</span><p><code>configs/AMASS/amass_example3.yaml</code> 的参考是 <code>data/demo_amass/75_09_stageii.npy</code>，即 <a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a> 里 CMU 子集的 75_09，186 帧（30 Hz 约 6.2 秒）。角色是 <code>system_config: smpl</code>（<code>SMPL.py</code>，19 个刚体、43 个转轴），不是正文的 DeepMimic 式人形；观测是 <code>target_state</code>。附录 G 没说用的哪个角色。README 把 SMPL 角色和 <a class="ds" href="https://google.github.io/aistplusplus_dataset/">AIST++</a> 示例列为后加的功能。</p></div>
+<h3 id="apH">H · 新训练策略：RSI</h3>
+<p>在 DiffMimic 训练里加入 DeepMimic 的参考状态初始化（RSI）：滚动从随机的参考帧开始，而不是第一帧。经验上有大幅提升：所需样本始终比 DeepMimic 少约 90%（表 3），最终姿态误差也略有改善（表 4）。演示网站“New Training”标签下有定性结果。单独用 RSI，或 RSI 加提前终止（ET），都不收敛（图 12）。</p>
+<p>表 3（第 17 页，<a href="https://arxiv.org/html/2304.03274v2#A8.T3">看原表 ↗</a>）：加 RSI 后滚 20 秒不摔所需样本（\(10^6\)）。前四列和表 2 相同。</p>
+<div class="tablewrap"><table class="t-r2"><thead><tr><th>动作</th><th class="n">\(T_{cycle}\)（s）</th><th class="n">DeepMimic</th><th class="n">Spacetime Bound</th><th class="n">Ours</th><th class="n">Ours w/ RSI</th></tr></thead><tbody>
+<tr><td>Back-Flip</td><td class="n">1.75</td><td class="n">31.18</td><td class="n">41.20 +32.1%</td><td class="n">14.88 −52.2%</td><td class="n">3.82 −87.7%</td></tr>
+<tr><td>Cartwheel</td><td class="n">2.72</td><td class="n">30.45</td><td class="n">17.35 −43.0%</td><td class="n">13.92 −54.2%</td><td class="n">4.72 −84.5%</td></tr>
+<tr><td>Walk</td><td class="n">1.25</td><td class="n">23.80</td><td class="n">4.08 −79.5%</td><td class="n">7.92 −66.7%</td><td class="n">1.55 −93.5%</td></tr>
+<tr><td>Run</td><td class="n">0.80</td><td class="n">19.31</td><td class="n">4.11 −78.7%</td><td class="n">8.16 −57.7%</td><td class="n">1.41 −92.7%</td></tr>
+<tr><td>Jump</td><td class="n">1.77</td><td class="n">25.65</td><td class="n">41.63 +77.8%</td><td class="n">5.28 −79.4%</td><td class="n">2.12 −91.7%</td></tr>
+<tr><td>Dance</td><td class="n">1.62</td><td class="n">24.59</td><td class="n">10.00 −59.3%</td><td class="n">16.56 −32.6%</td><td class="n">2.19 −91.1%</td></tr>
+</tbody></table></div>
+<p>表 4（第 17 页，<a href="https://arxiv.org/html/2304.03274v2#A8.T4">看原表 ↗</a>）：姿态误差（米），32 个回合、最长 20 秒。Ours+RSI 的结果<b>不用 DTW</b>。</p>
+<div class="tablewrap"><table class="t-r4"><thead><tr><th>动作</th><th class="n">\(T_{cycle}\)</th><th class="n">DeepMimic</th><th class="n">AMP</th><th class="n">Ours</th><th class="n">Ours w/o DTW</th><th class="n">Ours w/ RSI</th></tr></thead><tbody>
+<tr><td>Back-Flip</td><td class="n">1.75</td><td class="n">0.076 ± 0.021</td><td class="n">0.150 ± 0.028</td><td class="n">0.097 ± 0.001</td><td class="n">0.105 ± 0.022</td><td class="n">0.058 ± 0.015</td></tr>
+<tr><td>Cartwheel</td><td class="n">2.72</td><td class="n">0.039 ± 0.011</td><td class="n">0.067 ± 0.014</td><td class="n">0.040 ± 0.007</td><td class="n">0.040 ± 0.007</td><td class="n">0.027 ± 0.002</td></tr>
+<tr><td>Crawl</td><td class="n">2.93</td><td class="n">0.044 ± 0.001</td><td class="n">0.049 ± 0.007</td><td class="n">0.037 ± 0.001</td><td class="n">0.037 ± 0.001</td><td class="n">0.035 ± 0.003</td></tr>
+<tr><td>Dance</td><td class="n">1.62</td><td class="n">0.038 ± 0.001</td><td class="n">0.055 ± 0.015</td><td class="n">0.070 ± 0.003</td><td class="n">0.072 ± 0.014</td><td class="n">0.042 ± 0.001</td></tr>
+<tr><td>Jog</td><td class="n">0.83</td><td class="n">0.029 ± 0.001</td><td class="n">0.056 ± 0.001</td><td class="n">0.031 ± 0.002</td><td class="n">0.031 ± 0.002</td><td class="n">0.012 ± 0.000</td></tr>
+<tr><td>Jump</td><td class="n">1.77</td><td class="n">0.033 ± 0.001</td><td class="n">0.083 ± 0.022</td><td class="n">0.025 ± 0.000</td><td class="n">0.031 ± 0.002</td><td class="n">0.015 ± 0.000</td></tr>
+<tr><td>Roll</td><td class="n">2.02</td><td class="n">0.072 ± 0.018</td><td class="n">0.088 ± 0.008</td><td class="n">0.061 ± 0.007</td><td class="n">0.083 ± 0.001</td><td class="n">0.046 ± 0.005</td></tr>
+<tr><td>Run</td><td class="n">0.80</td><td class="n">0.028 ± 0.002</td><td class="n">0.075 ± 0.015</td><td class="n">0.039 ± 0.000</td><td class="n">0.046 ± 0.000</td><td class="n">0.019 ± 0.000</td></tr>
+<tr><td>Side-Flip</td><td class="n">2.44</td><td class="n">0.191 ± 0.043</td><td class="n">0.124 ± 0.012</td><td class="n">0.069 ± 0.001</td><td class="n">0.121 ± 0.009</td><td class="n">0.035 ± 0.001</td></tr>
+<tr><td>Spin-Kick</td><td class="n">1.28</td><td class="n">0.042 ± 0.001</td><td class="n">0.058 ± 0.012</td><td class="n">0.056 ± 0.000</td><td class="n">0.056 ± 0.000</td><td class="n">0.036 ± 0.000</td></tr>
+<tr><td>Walk</td><td class="n">1.30</td><td class="n">0.018 ± 0.005</td><td class="n">0.030 ± 0.001</td><td class="n">0.017 ± 0.000</td><td class="n">0.017 ± 0.000</td><td class="n">0.012 ± 0.000</td></tr>
+<tr><td>Zombie</td><td class="n">1.68</td><td class="n">0.049 ± 0.013</td><td class="n">0.058 ± 0.014</td><td class="n">0.037 ± 0.002</td><td class="n">0.037 ± 0.002</td><td class="n">0.033 ± 0.009</td></tr>
+</tbody></table></div>
+<div class="note" id="n17"><span class="lab">读者注 17 · 表 3、表 4 和正文表的关系</span><ul>
+<li>表 3 前四列和表 2 逐格相同（包括那两格算错的百分比，<a href="#n6">读者注 6</a>）；表 4 前四列和表 1 逐格相同。</li>
+<li>RSI 一列相对 DeepMimic：−87.75、−84.50、−93.49、−92.70、−91.73、−91.09（%），即少 84.5% 到 93.5%，“约 90%”成立。按 24,000 一份算（读者注 7），RSI 一列不是整数（3.82M / 24,000 = 159.2），所以 RSI 的实验用的是另一套环境数或滚动长度，论文没写。</li>
+<li>RSI 一列不用 DTW，公平的对照是“Ours w/o DTW”。12 个动作全部是 RSI 更低。和 DeepMimic 比，RSI 只在 Dance 上更高（0.042 对 0.038）。12 个的平均：Ours w/o DTW 0.0563，Ours w/ RSI 0.0308。</li>
+<li>Ours 和 Ours w/o DTW 的差别：Side-Flip 0.069 对 0.121，Roll 0.061 对 0.083，Back-Flip 0.097 对 0.105；有 6 个动作两列完全相同。DTW 对时间上有漂移的动作帮助大，这符合预期。</li>
+</ul></div>
+<div class="fig" id="fig12"><span class="lab">图 12 · 第 17 页 · <a href="https://arxiv.org/html/2304.03274v2#A8.F12">看原图 ↗</a></span><p>三个小图，后空翻，横轴样本 0 到约 0.15e8，纵轴 0 到 0.6。(a) DiffMimic+RSI：曲线从约 0.54 降到 0.1 以下，矢量读数最低约 0.063，最后约 0.13。(b) 单独 RSI 和 (c) RSI+ET：两条线几乎是水平的，一直在 0.54 到 0.57 之间，不下降。“单独 RSI”具体指什么（是否去掉了示范回放），附录没写清楚；我的理解是“只有 RSI、没有示范回放的 DiffMimic”。</p></div>
+<h3 id="apI">I · 鲁棒性</h3>
+<p>在动作周期一半处对骨盆施加 0.2 秒的力，测前向和侧向各能承受的最大推力。DiffMimic 的鲁棒性和 DeepMimic 相当。表 5（第 18 页，<a href="https://arxiv.org/html/2304.03274v2#A9.T5">看原表 ↗</a>），单位牛顿：</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th>动作</th><th class="n">DeepMimic 前向</th><th class="n">Ours 前向</th><th class="n">DeepMimic 侧向</th><th class="n">Ours 侧向</th></tr></thead><tbody>
+<tr><td>Back-Flip</td><td class="n">440</td><td class="n">750</td><td class="n">100</td><td class="n">310</td></tr>
+<tr><td>Cartwheel</td><td class="n">200</td><td class="n">350</td><td class="n">470</td><td class="n">690</td></tr>
+<tr><td>Run</td><td class="n">720</td><td class="n">500</td><td class="n">300</td><td class="n">270</td></tr>
+<tr><td>Spin-Kick</td><td class="n">690</td><td class="n">630</td><td class="n">600</td><td class="n">730</td></tr>
+<tr><td>Walk</td><td class="n">240</td><td class="n">250</td><td class="n">300</td><td class="n">220</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · DeepMimic 两列和 DeepMimic 原文表 6 逐格相同</span><p>本站 <a href="deepmimic.html">DeepMimic 页</a>照录的原文表 6：后空翻 440 / 100，侧手翻 200 / 470，跑 720 / 300，旋风踢 690 / 600，走 240 / 300，和这里的 DeepMimic 列完全一样，所以这两列是引用原文，不是重跑的。DeepMimic 的测法是“每次加 10 N 直到摔倒”，这里没写步长。DiffMimic 在前向上 3 个更强（后空翻、侧手翻、走），侧向上 3 个更强（后空翻、侧手翻、旋风踢）；后空翻侧向 310 对 100 差别最大。每格是一个数，没有重复试验。代码里没有推力测试的脚本。</p></div>
+<h3 id="apJ">J · 敏感性</h3>
+<p>物理参数估计不准时，DiffMimic 仍能学好：摩擦系数偏离原值也可以。在受摩擦影响大的僵尸走上测，μ = 1.0 是标准设定。表 6（第 18 页，<a href="https://arxiv.org/html/2304.03274v2#A10.T6">看原表 ↗</a>）：</p>
+<div class="tablewrap"><table class="t-small"><thead><tr><th>摩擦</th><th class="n">姿态误差（m）</th></tr></thead><tbody>
+<tr><td>μ = 0.8</td><td class="n">0.047 ± 0.009</td></tr>
+<tr><td>μ = 1.0</td><td class="n">0.032 ± 0.009</td></tr>
+<tr><td>μ = 1.2</td><td class="n">0.028 ± 0.007</td></tr>
+</tbody></table></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 6 的“标准设定”和表 1 的僵尸走不是同一个数</span><p>μ = 1.0 时僵尸走 0.032 ± 0.009，表 1 的僵尸走是 0.037 ± 0.002。同一个动作、同一个摩擦，误差和离散都不同，可能是另一次训练、另一种评估（例如不用 DTW）或训练时也改了摩擦，论文没说。表 6 也没说是“训练时改摩擦”还是“训练用 1.0、测试时改”；读“估计不准”的说法，应是后者，但没写明。</p></div>
+<h3 id="apK">K · 动作质量</h3>
+<p>少数误差很大的姿态会严重影响动作质量，平均姿态误差反映不出来。作者提出“姿态荒谬度”（Pose Absurdity）指标：L2@0.01、0.05、0.1 分别是最差 1%、5%、10% 帧的平均 L2 姿态误差。比较全程梯度、随机回放（比例 λ）和阈值回放（阈值 γ），阈值回放大幅领先。表 7（第 19 页，<a href="https://arxiv.org/html/2304.03274v2#A11.T7">看原表 ↗</a>），后空翻：</p>
+<div class="tablewrap"><table class="t-r5"><thead><tr><th>方法</th><th class="n">L2@0.01</th><th class="n">L2@0.05</th><th class="n">L2@0.1</th></tr></thead><tbody>
+<tr><td>full horizon</td><td class="n">0.357</td><td class="n">0.343</td><td class="n">0.323</td></tr>
+<tr><td>λ = 0.01</td><td class="n">0.379</td><td class="n">0.341</td><td class="n">0.318</td></tr>
+<tr><td>λ = 0.05</td><td class="n">0.195</td><td class="n">0.177</td><td class="n">0.135</td></tr>
+<tr><td>λ = 0.10</td><td class="n">0.359</td><td class="n">0.332</td><td class="n">0.262</td></tr>
+<tr><td>γ = 0.1</td><td class="n">0.111</td><td class="n">0.107</td><td class="n">0.095</td></tr>
+<tr><td>γ = 0.2</td><td class="n">0.113</td><td class="n">0.107</td><td class="n">0.093</td></tr>
+<tr><td>γ = 0.4</td><td class="n">0.110</td><td class="n">0.103</td><td class="n">0.095</td></tr>
+</tbody></table></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 表 7 就是图 8 那一条轨迹上“最差 1、3、6 帧”的平均</span><p>图 8 每条曲线 54 帧。54 × 1% = 0.54，54 × 5% = 2.7，54 × 10% = 5.4，向上取整是 1、3、6 帧。我按重画的数据算（重画图下方的表）：</p>
+<div class="tablewrap"><table class="t-small"><thead><tr><th>曲线</th><th class="n">最差 1 / 3 / 6 帧（图 8 读数）</th><th class="n">表 7</th></tr></thead><tbody>
+<tr><td>full horizon</td><td class="n">0.357 / 0.343 / 0.324</td><td class="n">0.357 / 0.343 / 0.323</td></tr>
+<tr><td>随机 0.05</td><td class="n">0.195 / 0.178 / 0.135</td><td class="n">0.195 / 0.177 / 0.135</td></tr>
+<tr><td>阈值 0.4</td><td class="n">0.112 / 0.108 / 0.096</td><td class="n">0.110 / 0.103 / 0.095</td></tr>
+</tbody></table></div>
+<p>前两行在读数误差内完全吻合，第三行差 0.002 到 0.005，可能是不同的一次滚动。所以表 7 来自一个周期（54 帧）的单次滚动，不是 32 回合、20 秒的统计。表 7 的三个阈值几乎一样（0.110 到 0.113），随机回放对比例很敏感（0.05 好，0.01 和 0.10 都接近全程梯度）。另外注意表 7 里 γ 是阈值、λ 是比例，和正文相反（<a href="#n4">读者注 4</a>）。</p></div>
+<h3 id="apL">L · 持剑角色</h3>
+<div class="fig" id="fig13"><span class="lab">图 13 · 第 18 页 · <a href="https://arxiv.org/html/2304.03274v2#A12.F13">看原图 ↗</a></span><p>一排连续姿态：持剑持盾的人形做一套攻击动作，挥剑、转身、再挥。参考片段来自 <a class="ds" href="https://www.reallusion.com/">Reallusion</a>。</p></div>
+
+<h2 id="code">代码对照</h2>
+<p>代码指 <a href="https://github.com/jiawei-ren/diffmimic/tree/d0db48a4af12d8c73924d88973db69a4d104595c">jiawei-ren/diffmimic d0db48a</a>（2025-01-22），S-Lab License 1.0，只读未跑。路径前缀 <code>diffmimic/</code> 指包目录。仓库共 13 个提交：2023-04-07 首次提交，2023-04 到 05 月改 README、许可和可视化；2024-09-14 合并 PR #7（外部贡献者把 <code>import brax</code> 改成 <code>brax.v1</code>，“让它能跑”）；2025-01-22 最后一个提交加了把 Brax 状态转回 SMPL 的脚本。所以 2023 年 5 月以后训练代码本身没有改过。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码</th><th>出处</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">环境</th></tr>
+<tr><td>仿真器</td><td>Brax，480 FPS，30 FPS 控制</td><td>Brax v1 接口，<code>pbd</code> 积分，dt 0.0333 × 16 子步</td><td><code>mimic_envs/system_configs/HUMANOID.py</code> 755–762</td></tr>
+<tr><td>角色</td><td>13 刚体、34 自由度、45 kg、1.62 m</td><td>13 刚体 + 地面，28 个转轴；质量合计 48.89 kg</td><td>同上（<a href="#n1">注 1</a>）</td></tr>
+<tr><td>PD</td><td>式 (3.1)，增益同 DeepMimic</td><td>\(k_p\) = strength，\(k_d=k_p/10\)，目标角 = 动作 × 1.2π</td><td><code>mimic_envs/pd_controller.py</code> 8–29</td></tr>
+<tr><td>观测</td><td>\(\{p,q,\dot p,\dot q,\phi\}\)，193 维</td><td>相对根位置、6D 旋转、速度、角速度、相位；另有 <code>target_state</code> 观测</td><td><code>mimic_envs/humanoid_mimic.py</code> 55–74</td></tr>
+<tr><td>相位</td><td>[0, 1] 时间戳</td><td>\((t \bmod \text{cycle\_len})/\text{cycle\_len}\)，比参考周期多一帧</td><td>同上 62（<a href="#n9">注 9</a>）</td></tr>
+<tr><td>摔倒</td><td>没写</td><td>根高度 &lt; 0.2 m 或 &gt; 1.7 m 记为 fall，只做统计</td><td>同上 45–46</td></tr>
+<tr class="grp"><th colspan="4">损失与梯度</th></tr>
+<tr><td>状态匹配损失</td><td>式 (3.2)，\(w\) 粗调</td><td>1 / 0.5 / 0.01 / 0.01，× 0.02；对时间和环境取平均</td><td>同上 40–44；<code>mimic_envs/losses.py</code>（<a href="#n2">注 2</a>）</td></tr>
+<tr><td>BPTT</td><td>式 (3.3)</td><td><code>jax.lax.scan</code> 59 步 + 一次 <code>jax.grad</code></td><td><code>brax_lib/agent_diffmimic.py</code> 121–145</td></tr>
+<tr><td>截断</td><td>第 4.3 节 trunc10</td><td><code>truncation_length</code>，每 N 步 <code>stop_gradient</code>；配置未用</td><td>同上 127–130</td></tr>
+<tr><td>梯度裁剪</td><td>0.3</td><td>按全局范数缩放，阈值 <code>max_grad_norm</code> 0.4</td><td>同上 147–158</td></tr>
+<tr><td>学习率</td><td>3e-4 线性下降</td><td>3e-4 → 1e-5</td><td>同上 115–117</td></tr>
+<tr class="grp"><th colspan="4">示范回放</th></tr>
+<tr><td>阈值</td><td>式 (3.5)，\(\|s-\hat s\|^2&lt;\epsilon\)</td><td>刚体平均位置距离（米）&gt; 阈值则替换</td><td><code>mimic_envs/humanoid_mimic_train.py</code> 44–59（<a href="#n3">注 3</a>）</td></tr>
+<tr><td>随机</td><td>式 (3.4)，Bernoulli(γ)</td><td><code>replay_rate</code> 默认 0.05</td><td>同上 50–53；<code>mimic.py</code> 48</td></tr>
+<tr><td>梯度</td><td>图 2：替换点不回传</td><td>\(s(1-r)+\hat s r\)，\(r=1\) 时导数为 0</td><td>同上 56</td></tr>
+<tr class="grp"><th colspan="4">训练与评估</th></tr>
+<tr><td>起点</td><td>第一帧（算法 1）；附录 H 加 RSI</td><td>RSI，均匀随机帧</td><td>同上 24（<a href="#n8">注 8</a>）</td></tr>
+<tr><td>规模</td><td>循环 200 环境、5000 次、4 秒</td><td>300 环境、1000 次、59 步</td><td><code>configs/AMP/*_20s.yaml</code>；<code>mimic.py</code> 33–35、71–72（<a href="#n7">注 7</a>）</td></tr>
+<tr><td>网络</td><td>MLP (512, 256)，Swish</td><td><code>make_apg_networks(hidden_layer_sizes=(512, 256))</code>，激活取 Brax 默认</td><td><code>mimic.py</code> 78（<a href="#n15">注 15</a>）</td></tr>
+<tr><td>指标</td><td>式 (4.1) + DTW</td><td><code>loss_l2_relpos</code>，没有 DTW</td><td><code>losses.py</code> 4–9（<a href="#n5">注 5</a>）</td></tr>
+<tr><td>检查点</td><td>没写</td><td>只存评估误差最低的 <code>params_best.pkl</code>；每 10 次迭代存一次评估轨迹</td><td><code>agent_diffmimic.py</code> 263–276</td></tr>
+<tr class="grp"><th colspan="4">数据与角色</th></tr>
+<tr><td>AMP 动作</td><td>12 个（表 1）</td><td>12 个，30 Hz、20 秒铺满（601 帧）</td><td><code>data/demo_humanoid/</code>；转换脚本 <code>data/tools/amp_converter.py</code></td></tr>
+<tr><td>持剑角色</td><td>31 / 208 维，3.2 秒</td><td>31 个转轴；配置用 <code>target_state</code> 观测（392 维）</td><td><code>configs/SWORDSHIELD/</code>（<a href="#n11">注 11</a>）</td></tr>
+<tr><td>新技能</td><td>CMU 075_09</td><td>AMASS 的 75_09，SMPL 角色</td><td><code>configs/AMASS/amass_example3.yaml</code>（<a href="#n16">注 16</a>）</td></tr>
+<tr><td>Ant</td><td>附录 F</td><td>没有</td><td>—</td></tr>
+</tbody></table></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>下面按 README 和代码整理，没有实际运行过。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>路径</th><th>内容</th></tr></thead><tbody>
+<tr><td><code>mimic.py</code></td><td>入口：读 YAML，建训练环境 <code>humanoid_mimic_train</code> 和评估环境 <code>humanoid_mimic</code>，调 <code>dmm.train</code>，日志写到 <code>logs/exp_&lt;各配置值拼接&gt;</code></td></tr>
+<tr><td><code>diffmimic/brax_lib/agent_diffmimic.py</code></td><td>训练器，改自 Brax 的 APG：滚动、求梯度、裁剪、Adam、每次迭代评估、存最好检查点</td></tr>
+<tr><td><code>diffmimic/brax_lib/acting.py</code></td><td>评估器，滚 <code>ep_len_eval − 1</code> 步，返回轨迹</td></tr>
+<tr><td><code>diffmimic/mimic_envs/</code></td><td>环境（<code>humanoid_mimic.py</code>）、训练环境加 RSI 和回放（<code>humanoid_mimic_train.py</code>）、损失、PD 替换、三种角色配置（HUMANOID、SWORDSHIELD、SMPL）</td></tr>
+<tr><td><code>configs/</code></td><td>AMP 15 个（12 个 <code>*_20s</code>、单周期 <code>backflip</code> 和 <code>roll</code>、无回放对照 <code>backflip_20s_vanilla</code>），AMASS 3 个，AIST 2 个，SWORDSHIELD 1 个</td></tr>
+<tr><td><code>data/</code></td><td>预处理好的参考 <code>.npy</code>（每帧每个刚体 pos 3 + rot 4 + vel 3 + ang 3），以及 AMP、AMASS、AIST++、持剑动作的转换脚本 <code>data/tools/</code></td></tr>
+<tr><td><code>visualize.py</code></td><td>Streamlit 可视化：读日志里的 <code>eval_traj_*.npy</code> 播放</td></tr>
+</tbody></table></div>
+<h3 id="repro-cmd">怎么跑（按 README）</h3>
+<pre class="cmd">conda create -n diffmimic python==3.9 -y
+conda activate diffmimic
+pip install --upgrade pip
+pip install --upgrade "jax[cuda]==0.4.2" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install -r requirements.txt          # optax chex flax brax streamlit，均未固定版本
+python mimic.py --config configs/AMP/backflip.yaml        # 单周期后空翻（README 的例子）
+python mimic.py --config configs/AMP/backflip_20s.yaml    # 20 秒循环
+streamlit run visualize.py</pre>
+<ul>
+<li><b>配置键。</b><code>num_envs</code>、<code>num_eval_envs</code>、<code>lr</code>、<code>max_it</code>、<code>max_grad_norm</code>、<code>seed</code>、<code>system_config</code>（humanoid / swordshield / smpl）、<code>demo_replay_mode</code>（threshold / random / none）、<code>threshold</code>、<code>replay_rate</code>（可选，默认 0.05）、<code>cycle_len</code>、<code>ep_len</code>、<code>ep_len_eval</code>、<code>obs_type</code>（timestamp / target_state）、<code>early_termination</code>、<code>truncation_length</code>、<code>rot_weight</code>、<code>vel_weight</code>、<code>ang_weight</code>、<code>reward_scaling</code>、<code>ref</code>。</li>
+<li><b>做论文里的消融。</b>全程梯度：<code>demo_replay_mode: none</code>（现成的 <code>backflip_20s_vanilla.yaml</code>，但 <code>ep_len</code> 是 32）；随机回放：<code>demo_replay_mode: random</code> 加 <code>replay_rate</code>；截断 10 步：加 <code>truncation_length: 10</code>。</li>
+<li><b>想按正文设定复现表 1、表 2。</b>要自己改：去掉 <code>humanoid_mimic_train.py</code> 第 24 行的随机起点（改成 0），<code>ep_len</code> 改 121（4 秒），<code>num_envs: 200</code>、<code>max_it: 5000</code>、<code>max_grad_norm: 0.3</code>，再自己写 DTW 和“每 10 次迭代测一次能否滚 20 秒不摔”的统计。这些是我按论文推出来的，没有验证能否复现表中数字。</li>
+<li><b>想复现附录 H 的 RSI。</b>直接用发布的配置即可，但指标对应表 4 的“Ours w/ RSI”（不用 DTW）。表 3 的样本数口径不明（读者注 17）。</li>
+</ul>
+<h3 id="repro-hw">硬件和时间预期</h3>
+<ul>
+<li>论文：单块 V100。后空翻 10 分钟学会单周期，3 小时（或附录 A 的 2.5 小时）学会 20 秒循环；持剑动作 DiffMimic 跑了约 3 小时（图 5）。</li>
+<li>按图 7 的数字凑出来的速度是每次迭代约 6 秒（300 环境、54 步，<a href="#n13">读者注 13</a>）。发布配置 1000 次迭代，每次还要做 32 × 599 步的评估，粗估几小时一个动作，我没有实测。</li>
+<li>显存：JAX 的 <code>scan</code> 加反向要存整条 59 步轨迹的中间量，300 个环境、16 子步的 Brax 人形。论文没给显存。</li>
+</ul>
+<h3 id="repro-pit">已知坑</h3>
+<ul>
+<li><b>版本。</b>README 固定 <code>jax[cuda]==0.4.2</code>，但 requirements.txt 里 brax 没有版本。代码 <code>import brax.v1</code>（PR #7 改的），只有带 <code>v1</code> 子包的 Brax 版本才能用；那些版本要求的 JAX 是否兼容 0.4.2，我没有核实。<code>data/tools/</code> 下的转换脚本仍然 <code>from brax import math</code>、<code>brax.physics</code>，是更早的 Brax 接口，和主程序不一致。</li>
+<li><b>Brax 内部被改写。</b><code>pd_controller.py</code> 用 monkey patch 替换了 <code>brax.v1.physics.actuators.Angle.apply_reduced</code>。换 Brax 版本时这个替换可能静默失效。</li>
+<li><b>RSI 默认开启</b>，没有开关（读者注 8）。</li>
+<li><b>相位周期</b>比参考重复周期多一帧（读者注 9）。自己做循环参考时要注意 <code>cycle_len</code> 的含义。</li>
+<li><b>没有 DTW</b>，代码里的姿态误差是“w/o DTW”口径（读者注 5）。</li>
+<li><b>演示网站</b>现在要登录（读者注 14）；离线看结果用 <code>visualize.py</code>。</li>
+<li><b>许可。</b>S-Lab License 1.0 只允许非商业使用，商业用途要联系作者。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">第 3.1 节环境参数和代码</a>：480 Hz、28 + 6 自由度、193 维都对；代码角色 48.89 kg 不是 45 kg。</li>
+<li><a href="#n2">式 (3.2) 在代码里是什么</a>：权重 1 / 0.5 / 0.01 / 0.01 × 0.02，取平均不求和。</li>
+<li><a href="#n3">代码里的替换</a>：判据是平均刚体位置距离（米）；替换把梯度断开，等于按误差截断。</li>
+<li><a href="#n4">符号和交叉引用的笔误</a>：附录 K 的 γ / λ 和正文相反；“Tab. 6/7”应为图 6/7。</li>
+<li><a href="#n5">代码里没有 DTW；“最终误差”是历史最好</a>：Ant 的 0.059 比图 10 所有点都低。</li>
+<li><a href="#n6">表 2 有两格百分比算错</a>：Walk −82.9%、Jump +62.3%；Walk 周期 1.30 / 1.25。</li>
+<li><a href="#n7">表 2 的样本数是 24,000 的整数倍</a>：对应 200 环境 × 4 秒；发布配置是 300 × 2 秒 × 1000 次。</li>
+<li><a href="#n8">发布的代码默认带 RSI</a>：对应附录 H，训练会看到整段 20 秒参考。</li>
+<li><a href="#n9">相位周期比参考多一帧</a>：后空翻 54 对 53，跑步 25 对 24。</li>
+<li><a href="#n10">表 1 逐格数</a>：对 DeepMimic 6 比 6；对 AMP 有 Dance 一个例外。</li>
+<li><a href="#n11">“一半的时间”和持剑观测</a>：低于 0.06 是 1.93 h 对 4.65 h；配置观测 392 维。</li>
+<li><a href="#n12">截断在代码里怎么做；图 7 曲线复用</a>：三组比较共用基线。</li>
+<li><a href="#n13">10 分钟、3 小时、2e7 和 3.5e7</a>：蓝线 ≈ 100 次迭代；两个吞吐差一倍；3 h 对 2.5 h。</li>
+<li><a href="#n14">可复现声明里的链接、演示网站、页数</a>：声明里的仓库只有 README；演示网站跳登录页；PDF 19 页。</li>
+<li><a href="#n15">网络尺寸对，激活函数未核实</a>：Brax APG 默认激活未核实。</li>
+<li><a href="#n16">360 度跳用的是 SMPL 角色</a>：AMASS 75_09，186 帧。</li>
+<li><a href="#n17">表 3、表 4 和正文表的关系</a>：RSI 少 84.5% 到 93.5%；该对照“w/o DTW”。</li>
+<li><a href="#n18">表 5 的 DeepMimic 列引自原文</a>：和 DeepMimic 表 6 逐格相同。</li>
+<li><a href="#n19">表 6 的标准设定和表 1 僵尸走不是同一个数</a>：0.032 对 0.037。</li>
+<li><a href="#n20">表 7 就是图 8 上最差 1、3、6 帧的平均</a>：单次 54 帧滚动。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 21 日用脚本核对过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://diffmimic.github.io/">DiffMimic</a></td><td>本文</td><td><a href="https://github.com/jiawei-ren/diffmimic">jiawei-ren/diffmimic</a> · <a href="https://youtu.be/B0unbsvGsLc">视频</a> · 演示 diffmimic-demo-main-g7h0i8.streamlit.app（跳登录页）</td><td><a href="https://arxiv.org/abs/2304.03274">2304.03274</a> · <a href="https://openreview.net/forum?id=06mk-epSwZ">OpenReview</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google/brax">Brax</a></td><td>可微物理引擎</td><td>github.com/google/brax</td><td><a href="https://arxiv.org/abs/2106.13281">2106.13281</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/sail-sg/ILD">ILD</a></td><td>早期代码基础，Ant 参考轨迹来源</td><td>github.com/sail-sg/ILD</td><td><a href="https://arxiv.org/abs/2206.04873">2206.04873</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/xbpeng/DeepMimic">DeepMimic</a></td><td>主要基线；角色和 PD 增益</td><td>github.com/xbpeng/DeepMimic</td><td><a href="deepmimic.html">本站精读</a> · <a href="https://arxiv.org/abs/1804.02717">1804.02717</a></td></tr>
+<tr><td><a class="ds" href="https://xbpeng.github.io/projects/AMP/index.html">AMP</a></td><td>基线；12 段参考动作的来源</td><td>xbpeng.github.io/projects/AMP</td><td><a href="https://arxiv.org/abs/2104.02180">2104.02180</a></td></tr>
+<tr><td><a class="ds" href="https://milkpku.github.io/project/spacetime.html">Spacetime Bounds</a></td><td>基线（表 2）</td><td>milkpku.github.io/project/spacetime.html</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/nv-tlabs/ASE">ASE</a></td><td>持剑持盾角色的设置</td><td>github.com/nv-tlabs/ASE</td><td><a href="https://arxiv.org/abs/2205.01906">2205.01906</a></td></tr>
+<tr><td><a href="shac.html">SHAC</a></td><td>短视野演员-评论家，第 4.3 节的截断来源</td><td>–</td><td><a href="shac.html">本站精读</a> · <a href="https://arxiv.org/abs/2204.07137">2204.07137</a></td></tr>
+<tr><td><a href="supertrack.html">SuperTrack</a> / <a href="supermimic.html">SuperMimic</a></td><td>学世界模型再做 BPTT</td><td>–</td><td>本站精读</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a></td><td>AMP 的仿真器（图 5 的对比）</td><td>developer.nvidia.com/isaac-gym</td><td>–</td></tr>
+<tr><td><a class="ds" href="http://mocap.cs.cmu.edu/">CMU Mocap</a></td><td>360 度跳 075_09</td><td>mocap.cs.cmu.edu</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a></td><td>代码里的 SMPL 示例</td><td>amass.is.tue.mpg.de</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://google.github.io/aistplusplus_dataset/">AIST++</a></td><td>代码里的舞蹈示例</td><td>google.github.io/aistplusplus_dataset</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://microsoft.github.io/MoCapAct/">MoCapAct</a></td><td>附录 G 引的数据集论文</td><td>microsoft.github.io/MoCapAct</td><td><a href="https://arxiv.org/abs/2208.07363">2208.07363</a></td></tr>
+<tr><td><a class="ds" href="https://www.reallusion.com/">Reallusion</a></td><td>持剑动作片段</td><td>reallusion.com</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2304.03274（v2）和官方代码后的整理，不是作者的官方内容。原文和原图版权归 Jiawei Ren、Cunjun Yu、Siwei Chen、Xiao Ma、Liang Pan、Ziwei Liu 所有，arXiv 许可为非独占分发，这里没有复制原图，也没有逐字翻译。“重画”的图只用了从原文矢量数据读出的数值。代码 jiawei-ren/diffmimic 为 S-Lab License 1.0（非商业），这里只引用了文件名、行号和配置键。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="diffmimic/charts.js" defer></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

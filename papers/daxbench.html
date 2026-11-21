@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DaXBench 可微可变形操作基准 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2210.13066《DaXBench: Benchmarking Deformable Object Manipulation with Differentiable Physics》（ICLR 2023 oral）的中文精读：逐节整理、全部结果表照录、图 3 的矢量读数、裁切的原图、和官方 JAX 代码逐项对照、复现要点、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-sim{min-width:700px}.t-m{min-width:640px}.t-res{min-width:720px}.t-rl{min-width:560px}.t-fig3{min-width:720px}.t-task{min-width:760px}.t-code{min-width:720px}.t-links{min-width:640px}.t-cmp{min-width:640px}.t-il{min-width:600px}
+.t-res td,.t-res th,.t-rl td,.t-rl th,.t-fig3 td,.t-fig3 th,.t-il td,.t-il th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;overflow-x:auto;max-width:100%;line-height:1.55}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+td.dn{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/daxbench/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2210.13066 · cs.RO · v2 2023 年 3 月 10 日 · ICLR 2023 oral · 中文精读</p>
+<h1>DaXBench：用 JAX 可微仿真给可变形物体操作做一个统一基准</h1>
+<p class="orig">DaXBench: Benchmarking Deformable Object Manipulation with Differentiable Physics</p>
+<p>作者 Siwei Chen†、Yiqing Xu†、Cunjun Yu†、Linfeng Li、Xiao Ma、Zhongwen Xu、David Hsu（† 共同一作），新加坡国立大学；Xiao Ma、Zhongwen Xu 来自 Sea AI Lab。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2210.13066">arXiv 原文</a><a href="https://arxiv.org/pdf/2210.13066v2">PDF（v2）</a><a href="https://github.com/AdaCompNUS/DaXBench">官方代码</a><a href="https://daxbench.github.io/">项目页</a><a href="https://daxbench.readthedocs.io/en/latest/">文档</a><span>正文 9 页，参考文献到第 12 页，附录第 13–16 页，PDF 共 16 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布（2026-11-21 查摘要页）。我读的是 v2（2023-03-10，页眉写“Published as a conference paper at ICLR 2023”）。PDF 每页页脚只有页码，侧边是 arXiv 编号，没有和 CC BY 矛盾的版权声明。这里按原文顺序覆盖摘要、正文五节、致谢后的伦理与可复现声明，以及附录 A 到 D；小节编号和原文一致，用自己的话整理，不是逐字翻译。<b>原文没有编号公式</b>，§4.1 的两个奖励式子我照原文写出，不编号；另有几处代码里的式子，标了“代码”。</p>
+<p>图 1 到图 6 从 arXiv PDF 裁切（pdftoppm 渲染，图 1 用 600 dpi，其余 280 dpi），只做了裁切、缩放和格式转换，没有改内容；版权归作者，裁切件按 CC BY 4.0 使用，署名 Chen 等。图下的文字是我写的。表 1 到表 5 是照录原文数字；“图 3 矢量读数”表是我从 PDF 的矢量路径读出来的（<code>pdftocairo -svg</code> 导出，按每格的刻度线标定），标了“矢量读数”，误差约 ±0.005。“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码 <a href="https://github.com/AdaCompNUS/DaXBench">AdaCompNUS/DaXBench</a>，根目录 LICENSE 是 Apache-2.0。我读的是最新提交 <a href="https://github.com/AdaCompNUS/DaXBench/tree/bc73c58134b004e5fbe9131639d06e8e052566cd">bc73c58</a>（2023-11-01），只读，没有运行。代码 2023-05-02 才首次发布（晚于论文），PPO 和 SHAC 是 2023-10-30 加的。仓库里的许可信息不统一：<span class="cv">setup.py</span> 写 BSD-2-Clause，文档 <span class="cv">conf.py</span> 写“All Rights Reserved”，SHAC 目录和 <span class="cv">core/utils/</span> 下有 6 个文件带 NVIDIA“未经许可禁止分发”的文件头（来自 DiffRL）。所以我对 Apache 文件只引很短的片段，对带 NVIDIA 文件头的文件只引文件名、行号和配置键（<a href="#n21">读者注 21</a>）。路径省略前缀 <span class="cv">daxbench/</span>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 DaXBench</a><a href="#s3-1">3.1 DaX</a><a href="#s3-2">3.2 任务</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 设置</a><a href="#s4-2">4.2 强化学习</a><a href="#s4-3">4.3 模仿学习</a><a href="#s4-4">4.4 规划</a><a href="#s4-5">4.5 仿真到真机</a><a href="#s5">5 结论</a><a href="#stmt">伦理与可复现</a><a href="#appA">附录 A</a><a href="#appB">附录 B</a><a href="#appC">附录 C</a><a href="#appD">附录 D</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>可变形物体操作（deformable object manipulation，DOM）的难点在于状态和动作的维度都很高。可微物理把物理规律写成可求导的计算图，能直接给出“回报对动作的梯度”，有望提高样本效率。但已有的可微仿真器大多只管一类物体（例如 <a class="ds" href="https://plasticinelab.csail.mit.edu/">PlasticineLab</a> 只有弹塑性体），已有的通用基准（例如 <a class="ds" href="https://sites.google.com/view/softgym">SoftGym</a>）又不可微。这篇论文给出 <a class="ds" href="https://github.com/AdaCompNUS/DaXBench">DaXBench</a>：</p>
+<ul>
+<li><b>仿真器 DaX：</b>用 <a class="ds" href="https://github.com/google/jax">JAX</a> 写成，液体和绳子用 MLS-MPM 粒子法，布料用网格上的质点-弹簧。整个计算图可微，可以 <span class="cv">vmap</span>/<span class="cv">pmap</span> 在多卡上并行。两个省内存的办法：只更新受操作影响的“活动区域”，以及反传时分段重算（检查点）。</li>
+<li><b>任务：</b>倒水、倒汤、推绳、甩绳、叠布（1 折 / 3 折）、叠 T 恤、展开布（1 折 / 3 折），共 9 个。叠、展、推用拾放或推的<b>宏动作</b>（短视野，3 到 10 步）；倒和甩没有合适的宏动作，直接给速度（70 到 100 步）。都包成 <a class="ds" href="https://github.com/openai/gym">OpenAI Gym</a> 风格的接口。</li>
+<li><b>方法：</b>8 个，分三类，每类都有“不用梯度”和“用梯度”的版本：强化学习 PPO 对 APG、SHAC；模仿学习 Transporter 对 ILD；规划 CEM-MPC 对 diff-MPC、diff-CEM-MPC。</li>
+<li><b>结论：</b>可微方法在优化地形光滑的任务上明显更好（甩绳上 APG 0.83 对 PPO 0.25）；在宏动作任务上，可微强化学习缺少探索，多数不如 PPO。用梯度的模仿学习 ILD 只用 1 条示范就超过用 10 条的 Transporter。可微规划需要好的初值：从 CEM 的结果出发再用梯度细调最好，从随机初值出发最差。推绳在 Kinova Gen3 真机上用 CEM-MPC + DaX 做了演示。</li>
+</ul>
+<p>读完我认为最值得记住的四点：</p>
+<ol>
+<li><b>表 4 不是图 3 的“最终值”。</b>附录说表 4 是学习曲线的最终表现，但按矢量读数，24 个格子里只有 6 个和曲线末端差在 0.02 以内，16 个和曲线<b>最高点</b>差在 0.02 以内（<a href="#n1">读者注 1</a>）。按曲线末端看，APG 和 SHAC 各有 5 个任务最后比初始化低 0.05 以上（<a href="#n5">读者注 5</a>）。</li>
+<li><b>“ILD 大幅超过 Transporter”只对粒子高度图版的 Transporter 成立。</b>附录 D 的 Transporter-RGB 在 6 个宏动作任务里有 5 个高于 ILD（<a href="#n6">读者注 6</a>）。</li>
+<li><b>发布的 SHAC 不是“短视野”。</b>代码把窗口长度设成任务的整个回合（<span class="cv">algorithms/shac/shac.py:70-72</span>），末端价值在最后一步又被清零，评论家实际上进不了演员的损失（<a href="#n18">读者注 18</a>）。8 个方法里只发布了 APG、SHAC、PPO 三个。</li>
+<li><b>“可微”里有不少手工处理。</b>每个 MPM 步和布料子步都对反传梯度做 NaN 清零和范数归一化（<a href="#n15">读者注 15</a>），布料没有自碰撞也没有弯曲弹簧（<a href="#n14">读者注 14</a>），倒汤的目标文件路径指向一个不存在的目录（<a href="#n20">读者注 20</a>）。这些论文都没写。</li>
+</ol>
+
+<figure class="pfig" id="fig2">
+<img src="daxbench/fig2.webp" width="1456" height="279" alt="图 2：五个任务的渲染截图：倒汤、推绳、甩绳、叠 T 恤、展开布，背景是木地板" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=4">看原图 ↗</a></span>五个任务的渲染：(a) 倒汤，左边空碗、右边盛汤的碗；(b) 推绳，白色绳子和绿色的推杆；(c) 甩绳，夹爪握住绳子一端；(d) 叠 T 恤；(e) 展开一块折过的布。原文说有一个模板可以扩展出更多类似任务。</figcaption>
+</figure>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p><b>和 <a href="shac.html">SHAC</a>。</b>DaXBench 确实把 SHAC 和 APG 当作可微强化学习的基线（§1、§4.2，表 2）。SHAC 原文的要点是“短窗口 + 末端价值”：每个窗口只反传 \(h\) 步（默认 32），窗口末端接一个评论家 \(V(s_h)\)（见 <a href="shac.html#s3-3">SHAC 页 §3.3 式 (5)</a>）。APG（analytic policy gradient）来自 <a class="ds" href="https://github.com/google/brax">Brax</a>，是整条回合直接反传。本文有两处和 SHAC 原文对不上：一是 §4.3 说“SHAC 的梯度只计当前步的奖励”，而 SHAC 式 (5) 是窗口内所有奖励加末端价值（<a href="#n8">读者注 8</a>）；二是发布的 SHAC 把窗口设成整个回合，等于没有“短视野”（<a href="#n18">读者注 18</a>）。所以本文图 3 里的“SHAC 不如 PPO”，不能直接读成“SHAC 的短视野设计在可变形物体上不行”。</p>
+<p><b>和 <a href="supermimic.html">SuperMimic</a>。</b>APG 和 SHAC 都是 BPTT（随时间反向传播），只是穿过的是真可微仿真器，不是学到的世界模型。SuperMimic 页的 <a href="supermimic.html#qa-bptt">问 1</a> 讲了 BPTT 的展开结构，<a href="supermimic.html#qa-window">问 8</a> 讲了窗口长度和评论家怎样分担折扣回报。本文的 APG 默认展开 10 步，SHAC 展开整个回合，都没有用到窗口外的评论家。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>本文的 APG（代码）</th><th>本文的 SHAC（代码）</th><th><a href="shac.html">SHAC 原文</a></th><th><a href="supermimic.html">SuperMimic</a></th></tr></thead><tbody>
+<tr><td>梯度穿过什么</td><td>DaX 可微仿真</td><td>DaX 可微仿真</td><td>dFlex 可微仿真</td><td>学到的世界模型</td></tr>
+<tr><td>展开长度</td><td><span class="cv">--ep_len</span>，默认 10</td><td>任务的 <span class="cv">max_steps</span>（整个回合）</td><td>\(h=32\)</td><td>32 步</td></tr>
+<tr><td>窗口末端</td><td>无</td><td>有评论家，但最后一步被清零</td><td>\(\gamma^h V(s_h)\)</td><td>评论家</td></tr>
+<tr><td>梯度处理</td><td>每个仿真步归一化 + 全局裁剪 0.3</td><td>同左 + 裁剪 0.3</td><td>全局裁剪 1.0</td><td>见该页</td></tr>
+</tbody></table></div>
+<p><b>和 <a href="rgbench.html">RGBench</a>。</b>RGBench 是评测<b>布料模拟器</b>的基准：把真机动作在仿真里回放，和真实点云比倒角距离；它的相关工作里也提到了 DaXBench。DaXBench 是评测<b>操作算法</b>的基准，布料模型很简单：16 × 32 个质点、每个质点连 8 个邻居，没有弯曲弹簧，也没有自碰撞（<a href="#n14">读者注 14</a>）。按 RGBench 那种标准，DaXBench 的布料保真度没有被评测过；本文只对推绳做了一次真机对照（§4.5）。</p>
+<p><b>和 <a href="phystwin.html">PhysTwin</a>。</b>两者都用质点-弹簧、都靠可微仿真求梯度。区别在用途：PhysTwin 用梯度从视频里辨识每根弹簧的刚度（系统辨识）；DaXBench 用梯度优化动作或策略。§4.5 提到 DaX 的可微性“能用于系统辨识”，但论文和代码都没有做（<span class="cv">exp/calibrate.py</span> 只是把一次推绳的仿真和真机结果画在一起，<a href="#n20">读者注 20</a>）。弹簧力的写法也不同：PhysTwin 是 \(k(\lVert d\rVert-l)\)，DaX 按应变 \(k(\lVert d\rVert-l)/l\)。</p>
+<p><b>同组作者的 <a href="diffmimic.html">DiffMimic</a>。</b>Siwei Chen 也参与了这篇同样基于可微物理的工作。具体内容见那一页。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>可变形物体操作在家庭和工业里都有用。已经有一些基于可变形物体仿真器的基准（SoftGym、PlasticineLab），但高维的状态和动作空间仍是主要困难。</p>
+<p>可微物理把物理规律实现为可微的计算图（Brax、DiffTaichi），能用解析梯度优化控制策略，提高样本效率。已有研究显示基于可微物理的 DOM 方法受益明显（PlasticineLab、DiSECt、SHAC、ILD）。为了公平比较，需要一个能容纳这些方法的通用仿真平台。</p>
+<p>本文提出 DaXBench。和单任务的基准不同，它覆盖绳子、布料、液体和弹塑性材料，任务难度不一、奖励定义清楚（倒液体、叠布、作者这里写的是“rope wiping”，见<a href="#n3">读者注 3</a>）。任务同时支持高层宏动作和低层控制，可以评测不同动作空间的方法。</p>
+<p>作者评测了 8 个方法：规划有 CEM-MPC、可微 MPC 以及两者结合；强化学习有不可微的 PPO 和用解析梯度的 SHAC、APG；模仿学习有不可微的 Transporter 和用可微物理的 ILD。每个任务都对比有梯度和没梯度的算法。</p>
+<p>仿真器 DaX 把近年的可变形物体仿真算法（SHAC、ILD 里用的）和 JAX 结合，能高效地自动求导，并在多张 GPU 上并行。所有任务都包成 OpenAI Gym 的接口。实验还表明，DaX 的动力学可以直接迁移到真机做推绳。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<h3 id="s2-1"><span class="no">2.1</span>可变形物体仿真器</h3>
+<p>SoftGym 是第一个同时建模液体、布料和弹塑性体的 DOM 基准，有一套标准任务。<a class="ds" href="https://www.threedworld.org/">ThreeDWorld</a> 支持在丰富的 3D 环境里和各种物体交互，但不可微。可微的 DOM 仿真器有 <a class="ds" href="https://github.com/yuanming-hu/ChainQueen">ChainQueen</a>、Diff-PDE、PlasticineLab、<a class="ds" href="https://github.com/NVlabs/DiSECt">DiSECt</a>、<a class="ds" href="https://github.com/YilingQiao/diffsim">DiffSim</a>，但每个只擅长一类物体、少数任务。例如 PlasticineLab 和 DiSECt 只建模弹塑性体（雕塑、擀、切）。各类物体的动力学差别很大，专门为一类写的引擎很难扩展到另一类。DaXBench 想补上这一空缺，提供一个覆盖多类物体、特别适合比较可微方法的平台。</p>
+<div class="tablewrap"><table class="t-sim"><caption class="tcap">表 1（原文第 3 页）：DOM 仿真器比较。✓ 支持，✗ 不支持</caption>
+<thead><tr><th rowspan="2">引擎</th><th colspan="4">应用</th><th rowspan="2">可微</th><th colspan="2">并行</th></tr>
+<tr><th>液体</th><th>布料</th><th>弹塑性</th><th>混合</th><th>每进程仿真数</th><th>多卡训练</th></tr></thead><tbody>
+<tr><td>PlasticineLab</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>单个</td><td>✗</td></tr>
+<tr><td>DiSECt</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>单个</td><td>✗</td></tr>
+<tr><td>DiffSim</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>单个</td><td>✗</td></tr>
+<tr><td>SoftGym</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>单个</td><td>✗</td></tr>
+<tr><td>DaXBench</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>多个</td><td>✓</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 表 1 的“弹塑性”在代码里是推绳的绳子，不是一个雕塑任务</span><p>§3.2 开头说任务包括“sculpting elastoplastic objects”，但 §3.2.1–3.2.3 只列了液体、绳子、布料三组，实验也没有雕塑任务。代码里确实有弹塑性材料：MPM 的材料编号 2 会把形变梯度的奇异值截到 [0.75, 1.45]（<span class="cv">core/engine/mpm_simulator.py:250</span>，<span class="cv">1 − 2.5e-2×10</span> 和 <span class="cv">1 + 4.5e-3×100</span>）。推绳的绳子用的就是材料 2（<span class="cv">core/envs/shape_rope_env.py:168</span>），而甩绳的绳子、汤里的豆腐和蔬菜用材料 1（纯弹性，<span class="cv">whip_rope_env.py:127</span>、<span class="cv">pour_soup_env.py:132, 137, 164</span>）。仓库里有一个 <span class="cv">shape_elasto_plastic.py</span>（0.2 × 0.06 × 0.12 的块），但类名写成了 <span class="cv">ShapeRopeEnv</span>，也没有注册进 <span class="cv">core/envs/registration.py</span>。所以表 1 “弹塑性 ✓”说的是引擎能力；“混合 ✓”对应倒汤（水 + 弹性块），这两格在代码里都能找到。表 1 里其他仿真器那几行，我没有和各自的原文核对，<b>未核实</b>。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>可变形物体操作算法</h3>
+<p>刚体操作的方法很难直接搬到 DOM 上：DOM 的方法必须处理状态空间的大量自由度和复杂动力学。按范式分三类：规划、模仿学习、强化学习。这里只讨论面向标准任务的通用方法。</p>
+<p><b>强化学习。</b>也有用可微物理的强化学习，如 SHAC 和 APG。它们用动力学的真梯度直接优化局部动作，绕开策略梯度估计所需的大量采样。</p>
+<p><b>模仿学习。</b>为了克服“历史的诅咒”，Transporter 等工作学习低维潜空间，并把动作简化成拾放。ILD 是另一条路：利用可微动力学一次匹配整条轨迹，降低了对状态覆盖的要求。</p>
+<p><b>规划。</b>一系列工作学习低维潜状态和对应的动力学模型，在潜空间里规划。成败关键取决于潜空间和动力学模型的质量，而学好它们本身就难。</p>
+<p>作者认为，一个带可微仿真器的通用框架能帮研究者看清现有 DOM 方法的进展和局限。</p>
+
+<h2 id="s3"><span class="no">3</span>DaXBench：Deformable-and-JAX 基准</h2>
+<p>DaXBench 是一个通用的可微 DOM 仿真平台。为了能评测各类方法、尤其是可微方法，作者自己写了仿真器 DaX（Deformable-and-JAX），高效且可并行。本节先简述 DaX，再介绍任务。</p>
+<h3 id="s3-1"><span class="no">3.1</span>DaX</h3>
+<p>DaX 用 JAX 实现，并行度高，自动微分直接在 GPU 内核层面优化。它能和大量用 JAX 写的学习算法无缝连接，整张计算图端到端并行。和其他仿真器的比较见表 1。</p>
+<figure class="pfig" id="fig1">
+<img src="daxbench/fig1.webp" width="496" height="426" alt="图 1：一碗汤的渲染：深色碗里有黄绿色的汤、两块白色豆腐和一块绿色蔬菜" loading="lazy" style="max-width:340px">
+<figcaption><span class="lab">图 1 · 原文第 3 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=3">看原图 ↗</a></span>一碗带豆腐和蔬菜的汤。原文说所有材料（包括汤）都由 DaX 用粒子模拟，整个仿真可微、可高度并行。代码里汤是材料 0（液体），两块豆腐各是 0.03 立方的弹性块，蔬菜是一份点云（<span class="cv">pour_soup_env.py:123-167</span>）；倒汤环境一共 7631 个粒子（由观测维数 45861 反推，<a href="#n12">读者注 12</a>）。</figcaption>
+</figure>
+<p><b>状态表示和动力学模型。</b>不同物体的形变方式不同，DaX 用不同的表示和动力学：液体和绳子形变大，用粒子表示，动力学用移动最小二乘物质点法（MLS-MPM，Hu 等 2018；Sulsky 等 1994）。布料形变有限，用网格表示，动力学用更便宜的质点-弹簧系统。这样在建模能力和计算量之间取得平衡。细节见附录 A.1。</p>
+<p><b>可定制。</b>可以在现有框架上新建任务，加入任意形状、不同硬度的物体，也可以自定义原语动作。代码示例在附录 A.2。</p>
+<p><b>省内存。</b>DaX 用两个办法降低端到端求梯度的时间和显存：<b>惰性动力学更新</b>，每步只更新受操作影响的一小块区域；<b>检查点</b>（Qiao 等 2021；Chen 等 2016；Griewank &amp; Walther 2000），前向只存少数状态，反传时从每个存下的状态出发倒序重算各段前向。细节见附录 A.4。</p>
+
+<p>代码里的两个仿真器（<span class="cv">core/engine/mpm_simulator.py</span>、<span class="cv">core/engine/cloth_simulator.py</span>）我逐行读过，写成式子是下面这样（<b>代码</b>，论文没有给公式）。MPM 每个子步：粒子到网格（P2G，二次 B 样条，每个粒子 27 个网格点）、网格上加重力和碰撞、网格到粒子（G2P）。应力用固定共旋（fixed corotated）模型（<span class="cv">mpm_simulator.py:265-267</span>）：</p>
+<div class="eq"><div class="m">\[ \boldsymbol P\boldsymbol F^\top = 2\mu\,(\boldsymbol F-\boldsymbol U\boldsymbol V^\top)\boldsymbol F^\top+\lambda J(J-1)\,\boldsymbol I,\qquad \boldsymbol F=\boldsymbol U\boldsymbol\Sigma\boldsymbol V^\top \]</div><span class="no">代码</span></div>
+<p>液体把 \(\mu\) 置 0、\(\lambda\) 置 1，只剩体积项（<span class="cv">:243-244</span>）；弹塑性体先把 \(\boldsymbol\Sigma\) 截到 [0.75, 1.45] 再重组 \(\boldsymbol F\)。布料每个质点和 8 个邻居连弹簧（上下左右 + 对角，<span class="cv">cloth_simulator.py:48</span>），弹簧力按应变算（<span class="cv">:267-268</span>）：</p>
+<div class="eq"><div class="m">\[ \boldsymbol f_{ij}=k\,\frac{\lVert\boldsymbol d_{ij}\rVert-l_{ij}}{l_{ij}}\,\frac{\boldsymbol d_{ij}}{\lVert\boldsymbol d_{ij}\rVert},\qquad \boldsymbol d_{ij}=\boldsymbol x_j-\boldsymbol x_i \]</div><span class="no">代码</span></div>
+<p>之后加重力、地面库仑摩擦，速度乘 \(e^{-c\,\Delta t}\) 阻尼，再处理夹爪，显式欧拉积分。叠布用 \(k=900\)、\(c=2\)、\(\Delta t=2\times10^{-3}\)（<span class="cv">fold_cloth3_env.py:20-28</span>）。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>基准任务</h3>
+<p>DaXBench 提供一组有代表性的 DOM 任务，包括倒液体、“rope wiping”、叠布和雕塑弹塑性体（图 2）。作者还提出几个更长视野、需要更细控制的新任务，用来测试方法的可扩展性。每个任务的视野按人类专家完成它需要的步数定。</p>
+<p><b>长视野任务。</b>基于搜索的规划方法，时间复杂度随规划视野指数增长（“历史的诅咒”），可变形物体的大状态空间让这更严重。已有 DOM 基准的视野偏短，例如 SoftGym 的叠布和展开只有 1 到 3 步。DaXBench 提供更长的任务，以便评测规划方法的可扩展性。</p>
+<p><b>没有宏动作的任务。</b>宏动作可以看成把原始动作执行多步。例如拾放或推可以定义成 6 维实向量 \((x,y,z,x',y',z')\)，表示夹爪起点和终点；原始动作是夹爪的笛卡尔速度。宏动作降低了动作维数和有效视野，所以更容易扩展。但对有些任务它太粗：比如甩绳打到目标位置，整个过程都要以较高频率调整动量。DaXBench 特意包含这类任务。</p>
+<h4 id="s3-2-1">3.2.1 液体操作</h4>
+<p><b>Pour-Water</b>（倒水）：尽快把一碗水倒进目标碗。智能体直接控制握碗夹爪的速度和转动，动作是 4 维 \(a=(v_x,v_y,v_z,w)\)：线速度加绕手腕的角速度。</p>
+<p><b>Pour-Soup</b>（倒汤）：尽快把一碗带各种固体配料的汤倒进目标碗，动作同上。比倒水难：液体和固体之间有相互作用，一块配料倒出去时，智能体要及时反应：一是夹爪负载突然变小，二是控制配料落到汤面时的动量，少溅出来。</p>
+<p>两个任务都没有合适的宏动作，视野都是 100 步。</p>
+<h4 id="s3-2-2">3.2.2 绳子操作</h4>
+<p><b>Push-Rope</b>（推绳）：尽快把绳子推成预定形状。绳子初始构型随机，单个夹爪执行推的宏动作。视野 6 步。</p>
+<p><b>Whip-Rope</b>（甩绳）：把绳子甩成目标构型。智能体握住绳子一端，控制夹爪速度，动作是 3 维 \(a=(v_x,v_y,v_z)\)。动量和形变要高频调整，宏动作做不了。视野 70 步。</p>
+<h4 id="s3-2-3">3.2.3 布料操作</h4>
+<p><b>Fold-Cloth</b>（叠布）：把一块平铺的布叠好并移到目标位置。简单版叠 1 次，难版叠 3 次。开始时布平铺在桌面任意位置，执行拾放宏动作。视野简单版 3、难版 4。</p>
+<p><b>Fold-T-shirt</b>（叠 T 恤）：把 T 恤叠到目标位置，开始时平铺在任意位置，拾放宏动作，视野 4。</p>
+<p><b>Unfold-Cloth</b>（展开布）：尽快把折起来的布在目标位置铺平。两个版本的区别是初始折了 1 次还是 3 次。动作同叠布，两个版本视野都是 10 步。</p>
+<p>所有任务的接口都类似 OpenAI Gym 的标准环境。作者提供一个通用模板来定义任务，模板里的变量和常量都有物理含义，便于理解、开发和调试。</p>
+
+<div class="tablewrap"><table class="t-task"><caption class="tcap">任务总表（本页整理）：论文 §3.2 和代码 bc73c58 并列。代码一列的出处是各 <span class="cv">core/envs/*_env.py</span></caption>
+<thead><tr><th>任务（注册名）</th><th>物体与表示（代码）</th><th>动作：论文 / 代码</th><th>视野：论文 / 代码</th><th>每步仿真</th></tr></thead><tbody>
+<tr><td>Pour-Water（<span class="cv">pour_water</span>）</td><td>MPM，水 702 粒子，网格 80³ 的活动区 26×20×26</td><td>4 维 / 6 维，第 2 维 \(v_y\) 被置 0，角速度用第 4 维</td><td>100 / 100</td><td>23 个子步 × 3e-4 s</td></tr>
+<tr><td>Pour-Soup（<span class="cv">pour_soup</span>）</td><td>MPM，水 + 2 块豆腐 + 蔬菜，7631 粒子，128 网格</td><td>同上</td><td>100 / <b>120</b></td><td>25 × 4e-4 s</td></tr>
+<tr><td>Push-Rope（<span class="cv">shape_rope</span> / <span class="cv">push_rope</span>）</td><td>MPM 弹塑性，目标 582 粒子，活动区 64×6×64</td><td>推：6 维起止点 / 同，y 固定 0.01，推距上限 0.3</td><td>6 / 6</td><td>30 段 × 133 子步 × 5e-5 s</td></tr>
+<tr><td>Whip-Rope（<span class="cv">whip_rope</span>）</td><td>MPM 弹性，67 粒子，64 网格</td><td>3 维 / 6 维，后 3 维置 0；速度 ÷ 50，位置控制</td><td>70 / 70</td><td>70 × 1e-4 s</td></tr>
+<tr><td>Fold-Cloth-1（<span class="cv">fold_cloth1</span>）</td><td>质点-弹簧 16×32 = 512 质点</td><td>拾放：6 维 / 同，y 置 0</td><td>3 / 3</td><td>40 段 × 50 子步 × 2e-3 s</td></tr>
+<tr><td>Fold-Cloth-3（<span class="cv">fold_cloth3</span>）</td><td>同上（和 1 只差目标文件）</td><td>同上</td><td>4 / 4</td><td>同上</td></tr>
+<tr><td>Fold-T-shirt（<span class="cv">fold_tshirt</span>）</td><td>按图片掩码生成，3573 质点，k = 5000</td><td>同上</td><td>4 / <b>5</b></td><td>40 × 50 × 5e-4 s</td></tr>
+<tr><td>Unfold-Cloth-1（<span class="cv">unfold_cloth1</span>）</td><td>512 质点，随机拾放 1 次作初始</td><td>同上</td><td>10 / <b>15</b></td><td>40 × 50 × 2e-3 s</td></tr>
+<tr><td>Unfold-Cloth-3（<span class="cv">unfold_cloth3</span>）</td><td>512 质点，随机拾放 3 次作初始</td><td>同上</td><td>10 / <b>15</b></td><td>同上</td></tr>
+</tbody></table></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 视野：9 个任务里 4 个和代码不一致</span><p>代码的 <span class="cv">max_steps</span>：<span class="cv">fold_cloth_tshirt_env.py:48</span> 是 5（论文 4）；<span class="cv">unfold_cloth1_env.py:44</span>、<span class="cv">unfold_cloth3_env.py:44</span> 都是 15（论文 10）；<span class="cv">pour_soup_env.py:68</span> 默认 120（论文 100）。其余 5 个一致。还有两点：Fold-Cloth-1 和 Fold-Cloth-3 的环境类除了目标文件以外完全一样（布的掩码、参数、视野之外的一切），“叠 1 次”和“叠 3 次”只由目标点云决定；推绳的注册名在代码里叫 <span class="cv">shape_rope</span>，<span class="cv">push_rope</span> 是别名。论文的视野“按人类专家的步数定”，但发布的专家示范里每条有几步，我没有加载 pickle 去数（不加载不受信的 pickle），<b>未核实</b>。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 动作空间：论文的维数是“有效维数”，代码一律 6 维</span><p>MPM 和布料环境的 <span class="cv">action_size</span> 都是 6（<span class="cv">basic/mpm_env.py:30</span>、<span class="cv">basic/cloth_env.py:39</span>）。倒水 / 倒汤：动作进 <span class="cv">get_primitive_actions</span> 后除以 500，第 2 维 \(v_y\) 被强制置 0（<span class="cv">pour_water_env.py:85-88</span>），所以碗不能上下移动；转动用第 4 维，即绕 x 轴的角速度（手工示范按 shift / tab 就是改第 4 维，<span class="cv">:159-162</span>）。论文写的 \((v_x,v_y,v_z,w)\) 里 \(v_y\) 实际不起作用。甩绳：后 3 维置 0、除以 50，并开了 <span class="cv">use_position_control</span>，夹爪附近 1.5 倍尺寸内的网格速度直接设成夹爪速度（<span class="cv">primitives.py:232-239</span>），和论文“3 维速度”一致。拾放：6 维被展开成 40 段子动作，下降 3 段、抬起 0.06 共 10 段、平移 20 段、松开 7 段（<span class="cv">cloth_env.py:145-168</span>），拾取高度被置 0。<span class="cv">cloth_env.py:51</span> 另外声明了一个 8 维的 <span class="cv">action_space</span>，没有被用到。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总览、JAX 批量与梯度、MPM 一个子步、布料质点-弹簧和拾放宏动作、省内存的两个办法、9 个任务的动作和视野、奖励怎么算、三类方法的梯度路径（APG / SHAC / ILD / 可微 MPC）、为什么可微方法会卡住（玩具）、结果表与图 3 读数、推绳的仿真到真机。可以暂停、拖进度、旋转画面、切换开关。玩具数字是当场算的，都标了“玩具”。</p>
+<iframe src="../interactives/daxbench/index.html?embed=1&amp;scene=8" title="DaXBench 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/daxbench/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s4"><span class="no">4</span>实验</h2>
+<p>本节回答两个问题：现有代表性方法能否解决 DaXBench 的任务？在每个范式里，可微仿真器有没有帮助？作者评测 8 个方法，覆盖规划、模仿学习和强化学习。各范式对输入知识的假设不同，汇总在表 2。</p>
+<div class="tablewrap"><table class="t-m"><caption class="tcap">表 2（原文第 6 页）：各方法的设置。✓ 需要 / 有，✗ 不需要 / 没有，— 不适用</caption>
+<thead><tr><th>范式</th><th colspan="3">强化学习</th><th colspan="2">模仿学习</th><th colspan="3">规划</th></tr>
+<tr><th>方法</th><th>PPO</th><th>SHAC</th><th>APG</th><th>Transporter</th><th>ILD</th><th>CEM-MPC</th><th>diff-MPC</th><th>diff-CEM-MPC</th></tr></thead><tbody>
+<tr><td>专家示范数</td><td>—</td><td>—</td><td>—</td><td>10</td><td>1</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>奖励函数</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>—</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>可微</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td></tr>
+</tbody></table></div>
+
+<h3 id="s4-1"><span class="no">4.1</span>实验设置</h3>
+<p><b>奖励函数。</b>每个任务的目标由一组粒子的期望终点位置 \(g\) 给出。奖励按当前粒子和目标粒子的接近程度定义。真实奖励：</p>
+<div class="eq"><div class="m">\[ r_{gt}(s,a)=\exp\bigl(-\lambda D(s',g)\bigr) \]</div><span class="no">（原文无编号）</span></div>
+<p>其中 \(s'\) 是在 \(s\) 执行 \(a\) 后的下一状态，\(D(s,g)\) 是物体粒子和目标粒子位置之间的非负距离。</p>
+<p>只用真实奖励学得慢：末端执行器只有接触到物体才能改变它。所以加一个鼓励接触的辅助奖励：</p>
+<div class="eq"><div class="m">\[ r_{aux}(s,a)=\exp\bigl(-L_2(s,a)\bigr) \]</div><span class="no">（原文无编号）</span></div>
+<p>\(L_2(s,a)\) 是末端执行器到物体的 L2 距离。训练时用 \(r_{gt}+r_{aux}\)，评测时只用 \(r_{gt}\)。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 奖励在代码里：λ = 10，D 是“每坐标均方根”，r_aux 用的是动作的前 3 维</span><p><b>λ。</b>论文没给，代码是 10（<span class="cv">basic/mpm_env.py:93</span>、<span class="cv">basic/cloth_env.py:223</span>）。<b>D。</b>MPM 任务用 <span class="cv">calc_l2</span>（<span class="cv">core/utils/util.py:156-159</span>）：按粒子编号一一对应，先在 xyz 三个坐标上取均方再开方，再对粒子取平均，等于平均欧氏距离除以 √3。粒子数和目标不同时，目标点被有放回地随机重采样到相同数量（<span class="cv">mpm_env.py:200-204</span>），之后的“一一对应”是随机的。布料用双向倒角距离（<span class="cv">util.py:138-153</span>），同样除了 √3。<b>r_aux。</b>代码算的是“动作的前 3 维到最近粒子的距离”（<span class="cv">mpm_env.py:131-135</span>、<span class="cv">cloth_env.py:206-209</span>），不是论文说的“末端执行器到物体”。对拾放和推，前 3 维正是拾取 / 起推点，意思一样；对倒水、倒汤、甩绳，前 3 维是<b>速度</b>，这个距离没有物理意义（我的读法）。<b>折扣。</b>布料奖励还乘了 \(0.99^{t}\)（<span class="cv">cloth_env.py:228</span>），评测时也乘，论文没写。<b>评测只用 r_gt。</b>APG 和 SHAC 的评测环境确实不带 <span class="cv">aux_reward</span>（<span class="cv">apg.py:94</span>、<span class="cv">shac.py:60-61</span>），和论文一致。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>强化学习</h3>
+<p><b>方法。</b>PPO 是广泛使用的无模型、不可微强化学习方法；SHAC 和 APG 是利用可微仿真器的两个最新方法。SHAC 的计算图见图 4a。比较三者，研究可微物理用于强化学习的好处和局限。</p>
+<figure class="pfig" id="fig3">
+<img src="daxbench/fig3.webp" width="1568" height="561" alt="图 3：8 个任务的强化学习学习曲线，横轴迭代 0 到 2000，纵轴奖励；PPO 棕、APG 蓝、SHAC 青" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 6 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=6">看原图 ↗</a></span>三种强化学习方法的学习曲线，8 格依次是 Fold-T-Shirt、Fold-Cloth-3、Unfold-Cloth-1、Unfold-Cloth-3、Shape-Rope、Pour-Soup、Pour-Water、Whip-Rope（没有 Fold-Cloth-1）。纵轴是回合奖励，缩放到 0–1，越大越接近目标；横轴是训练迭代数，到 2000。原图注：所有方法用相同数量的批量环境；报告 5 个种子的均值和方差，每个种子 20 次不同初始化的展开；数值见附录表 4。可以看到：宏动作任务（上排和推绳）PPO 都在上面；Whip-Rope 上 APG、SHAC 远高于 PPO；不少格子里蓝、青两条线最后低于自己的起点。</figcaption>
+</figure>
+<p><b>总体表现。</b>PPO 和可微强化学习的差距在高层宏动作任务和低层控制任务上方向相反。出乎作者意料，在大多数短视野的宏动作任务上，PPO 一直比可微方法好。这似乎和 SHAC 原文相反（SHAC 在自己的仿真器、一系列 MuJoCo 任务上强于 PPO）。但在长视野的低层控制任务上，可微方法，尤其是 APG，大幅超过 PPO。</p>
+<p><b>可微强化学习的主要困难：探索。</b>作者认为，在高层宏动作任务上，限制可微强化学习的主要因素是训练中缺乏探索。DOM 的大量自由度和复杂动力学放大了探索与利用之间的权衡。宏动作任务的优化地形不光滑、不连续、非凸，需要好的探索策略；而现有可微强化学习只靠仿真梯度优化策略，没有熵正则，容易很快塌到局部最优。以 Fold-Cloth-3 为例：如果随机初始化的策略从来没碰到布，局部梯度就无法引导它去碰，因为所有不接触的动作奖励都是零，梯度也是零。</p>
+<p><b>可微强化学习对优化地形敏感。</b>如果地形光滑、接近凸，可微方法能大幅提升低层控制任务。以 Whip-Rope 为例，最优的低层控制序列是一条光滑的运动轨迹，落在梯度方法容易处理的平滑区域，这解释了 APG 为什么大幅超过 PPO。</p>
+
+<div class="tablewrap"><table class="t-fig3"><caption class="tcap">图 3 矢量读数（重画，±0.005）：每条曲线的起点、2000 次迭代时的终点、整条曲线的最高点；表 4 是原文附录的数</caption>
+<thead><tr><th rowspan="2">任务</th><th colspan="4">PPO</th><th colspan="4">APG</th><th colspan="4">SHAC</th></tr>
+<tr><th>起点</th><th>终点</th><th>最高</th><th>表 4</th><th>起点</th><th>终点</th><th>最高</th><th>表 4</th><th>起点</th><th>终点</th><th>最高</th><th>表 4</th></tr></thead><tbody>
+<tr><td>Fold-T-Shirt</td><td>0.46</td><td>0.61</td><td>0.61</td><td>0.61</td><td>0.47</td><td class="dn">0.32</td><td>0.47</td><td>0.40</td><td>0.43</td><td class="dn">0.23</td><td>0.45</td><td>0.44</td></tr>
+<tr><td>Fold-Cloth-3</td><td>0.18</td><td>0.16</td><td>0.23</td><td>0.21</td><td>0.16</td><td class="dn">0.09</td><td>0.22</td><td>0.19</td><td>0.16</td><td>0.23</td><td>0.23</td><td>0.22</td></tr>
+<tr><td>Unfold-Cloth-1</td><td>0.49</td><td>0.70</td><td>0.73</td><td>0.72</td><td>0.42</td><td class="dn">0.30</td><td>0.42</td><td>0.42</td><td>0.50</td><td class="dn">0.16</td><td>0.50</td><td>0.50</td></tr>
+<tr><td>Unfold-Cloth-3</td><td>0.48</td><td>0.58</td><td>0.59</td><td>0.56</td><td>0.39</td><td class="dn">0.22</td><td>0.39</td><td>0.39</td><td>0.48</td><td class="dn">0.09</td><td>0.48</td><td>0.48</td></tr>
+<tr><td>Shape-Rope</td><td>0.72</td><td>0.75</td><td>0.75</td><td>0.75</td><td>0.71</td><td>0.70</td><td>0.71</td><td>0.72</td><td>0.73</td><td class="dn">0.59</td><td>0.73</td><td>0.75</td></tr>
+<tr><td>Pour-Soup</td><td>0.23</td><td>0.18</td><td>0.30</td><td>0.27</td><td>0.25</td><td>0.30</td><td>0.30</td><td>0.27</td><td>0.26</td><td>0.33</td><td>0.33</td><td>0.32</td></tr>
+<tr><td>Pour-Water</td><td>0.27</td><td>0.16</td><td>0.27</td><td>0.27</td><td>0.27</td><td class="dn">0.15</td><td>0.27</td><td>0.27</td><td>0.24</td><td class="dn">0.09</td><td>0.25</td><td>0.28</td></tr>
+<tr><td>Whip-Rope</td><td>0.25</td><td>0.03</td><td>0.25</td><td>0.25</td><td>0.27</td><td>0.83</td><td>0.84</td><td>0.83</td><td>0.30</td><td>0.66</td><td>0.66</td><td>0.66</td></tr>
+</tbody></table></div>
+<p>橙色是可微方法终点低于起点 0.05 以上的格子。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 表 4 更像每条曲线的最高点，不是“最终表现”</span><p>附录 C 说表 4 “报告图 3 学习曲线的最终表现”。我把 8 格 24 条曲线逐条读出（每格用自己的刻度线做线性标定，残差为 0），和表 4 比：|表 4 − 终点| ≤ 0.02 的只有 <b>6 / 24</b>（PPO 的 T 恤、推绳；APG、SHAC 的甩绳；SHAC 的 Fold-Cloth-3、倒汤）；|表 4 − 曲线最高点| ≤ 0.02 的有 <b>16 / 24</b>。差得最多的：SHAC Unfold-Cloth-3 表 4 0.48，终点 0.09（起点和最高点都是 0.48）；SHAC Unfold-Cloth-1 表 4 0.50，终点 0.16；PPO Whip-Rope 表 4 0.25，终点 0.03（0.25 是它的起点）。也有和最高点也对不上的，例如 APG T 恤表 4 0.40、最高 0.47、终点 0.32；SHAC 推绳表 4 0.75、最高 0.73。我的推断：表 4 多数格子取的是训练过程中最好的一次评测（相当于选最好的检查点），少数格子来源不明。曲线是均值并可能做过平滑，单个种子的最好值可以高于均值曲线的最高点，所以这个推断<b>未核实</b>。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 按曲线终点，可微方法在多数任务上越训越差</span><p>上表里，终点比起点低 0.05 以上的：APG 5 格（T 恤 0.47→0.32、Fold-Cloth-3 0.16→0.09、Unfold-1 0.42→0.30、Unfold-3 0.39→0.22、倒水 0.27→0.15），SHAC 5 格（T 恤 0.43→0.23、Unfold-1 0.50→0.16、Unfold-3 0.48→0.09、推绳 0.73→0.59、倒水 0.24→0.09）。SHAC 只在 Fold-Cloth-3、倒汤、甩绳上升。PPO 也在倒水（0.27→0.16）、倒汤（0.23→0.18）、甩绳（0.25→0.03）上下降。正文用“缺少探索、塌到局部最优”解释宏动作任务，但“塌到局部最优”应当是停在起点附近，不会持续变差。一个可能的原因是训练优化的是 \(r_{gt}+r_{aux}\)，评测只看 \(r_{gt}\)（§4.1）：策略可能学会了贴近物体拿 \(r_{aux}\)，却破坏了构型。另一个可能是读者注 15 的梯度归一化让更新方向失真。这两条都是<b>我的推断</b>，论文没有讨论下降。</p></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 用表 4 自己的数核对 §4.2 的两句结论</span><p><b>“大多数短视野宏动作任务上 PPO 一直更好”</b>：6 个宏动作任务里 PPO 严格领先 4 个（Fold-Cloth-1 0.40 对 0.36 / 0.34、T 恤、Unfold-1、Unfold-3）；Fold-Cloth-3 上 SHAC 0.22 高于 PPO 0.21；推绳 PPO 和 SHAC 同为 0.75。“大多数”成立，“一直”不成立。<b>“长视野低层任务上可微方法、尤其 APG 大幅超过 PPO”</b>：3 个低层任务里只有甩绳成立（0.83 对 0.25）。倒水 PPO 0.27、APG 0.27、SHAC 0.28；倒汤 PPO 0.27、APG 0.27、SHAC 0.32，APG 和 PPO 打平。按图 3 终点看，倒水上 PPO 0.16、APG 0.15、SHAC 0.09。所以这句结论实际只由甩绳一个任务支撑。</p></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 任务名在全文有四种写法，Fold-Cloth-1 没有曲线</span><p>推绳：§3.2.2 和图 2 叫 Push-Rope，图 3 叫 Shape-Rope，表 4 叫 Rope Push，代码叫 <span class="cv">shape_rope</span>。甩绳：§3.2.2 叫 Whip-Rope，表 4 写成 “Wipe Rope”，§1 和 §3.2 开头的 “rope wiping” 应该也是同一个任务（全文没有“擦”的任务；README 抄了同一句）。图 3 只有 8 格，缺 Fold-Cloth-1，但表 4 有它的数（0.40 / 0.36 / 0.34），所以这一行无法和曲线核对。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 种子和展开次数有三种说法</span><p>图 3 注：5 个种子，每个种子 20 次展开，报告均值和<b>方差</b>。表 4 注：20 个随机种子的均值和<b>标准误</b>。可复现声明（第 10 页）：模仿学习和规划是 20 次随机展开的平均，强化学习用 100 次展开。5 × 20 = 100，和可复现声明一致，表 4 的“20 个种子”和另外两处不一致。代码里 APG 评测 20 个并行环境（<span class="cv">apg.py:44</span>），SHAC 的评测环境数等于训练环境数，默认 16（<span class="cv">shac.py:60-61, 703</span>）。表 3、表 5 注都说“20 个种子的均值和标准误”；表 5 注还照抄了表 3 的“规划和模仿学习方法”，但表 5 只有模仿学习。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>模仿学习</h3>
+<p><b>方法。</b>Transporter 实现简单、表现好，是流行的 DOM 方法；ILD 是最新的基于可微物理的模仿学习方法，用仿真梯度减少所需示范并提升表现。为公平比较，Transporter 用粒子作输入（原版用 RGBD；带 RGB 通道的结果见附录 D）。Transporter 把动作抽象成拾放，所以不能用于低层控制任务。下面先比较宏动作任务，再分析 ILD 和专家的差距。</p>
+<div class="tablewrap"><table class="t-res"><caption class="tcap">表 3（原文第 7 页）：规划和模仿学习方法的任务表现，20 个种子的均值 ± 标准误</caption>
+<thead><tr><th rowspan="2">类型</th><th rowspan="2">任务</th><th colspan="2">模仿学习</th><th rowspan="2">专家</th><th colspan="3">规划</th></tr>
+<tr><th>Transporter</th><th>ILD</th><th>CEM-MPC</th><th>Diff-MPC</th><th>Diff-CEM-MPC</th></tr></thead><tbody>
+<tr class="grp"><td colspan="8">高层（宏动作）</td></tr>
+<tr><td></td><td>Fold-Cloth-1</td><td>0.19±0.04</td><td>0.76±0.04</td><td>0.91±0.00</td><td>0.74±0.07</td><td>0.29±0.07</td><td>0.80±0.04</td></tr>
+<tr><td></td><td>Fold-Cloth-3</td><td>0.40±0.05</td><td>0.82±0.05</td><td>0.89±0.00</td><td>0.62±0.08</td><td>0.14±0.02</td><td>0.66±0.07</td></tr>
+<tr><td></td><td>Fold-T-shirt</td><td>0.46±0.02</td><td>0.59±0.11</td><td>0.85±0.00</td><td>0.58±0.04</td><td>0.29±0.06</td><td>0.66±0.01</td></tr>
+<tr><td></td><td>Unfold-Cloth-1</td><td>0.48±0.01</td><td>0.64±0.03</td><td>0.87±0.00</td><td>0.57±0.04</td><td>0.30±0.05</td><td>0.67±0.02</td></tr>
+<tr><td></td><td>Unfold-Cloth-3</td><td>0.30±0.00</td><td>0.52±0.02</td><td>0.87±0.00</td><td>0.57±0.01</td><td>0.26±0.04</td><td>0.58±0.01</td></tr>
+<tr><td></td><td>Push-Rope</td><td>0.70±0.00</td><td>0.76±0.02</td><td>0.93±0.00</td><td>0.71±0.01</td><td>0.70±0.01</td><td>0.71±0.01</td></tr>
+<tr class="grp"><td colspan="8">低层</td></tr>
+<tr><td></td><td>Whip-Rope</td><td>—</td><td>0.70±0.06</td><td>1.00±0.00</td><td>0.34±0.01</td><td>0.37±0.00</td><td>0.33±0.01</td></tr>
+<tr><td></td><td>Pour-Water</td><td>—</td><td>0.32±0.03</td><td>0.91±0.06</td><td>0.58±0.01</td><td>0.30±0.00</td><td>0.58±0.01</td></tr>
+<tr><td></td><td>Pour-Soup</td><td>—</td><td>0.42±0.12</td><td>0.85±0.00</td><td>0.56±0.01</td><td>0.44±0.00</td><td>0.55±0.02</td></tr>
+</tbody></table></div>
+<p><b>总体表现。</b>在宏动作任务上，ILD 全部大幅超过 Transporter，例如 Fold-Cloth-1、Fold-Cloth-3、Unfold-Cloth-1。而且 ILD 用的示范少得多。作者把提升归功于仿真梯度提供的额外信息：ILD 能对真实动力学推理，至少在局部把轨迹拉近专家。如图 4 所示，优化每个动作的梯度来自全局最优的专家示范，既有当前步的，也有之后所有步的。相比之下，SHAC 的梯度只计当前步的奖励。可微强化学习面临梯度爆炸 / 消失和缺乏探索；可微模仿学习有逐步的、全局最优的专家指导，缓解了这些问题。</p>
+<figure class="pfig" id="fig4">
+<img src="daxbench/fig4.webp" width="1541" height="331" alt="图 4：三张计算图：(a) SHAC 的状态-动作链和末端价值 V(s_h)，(b) ILD 的专家轨迹 g 和学习者轨迹 s 对齐，(c) 可微 CEM-MPC 的动作序列和每步奖励" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 8 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=8">看原图 ↗</a></span>黑色箭头是前向，绿色箭头是反传。(a) SHAC：\(\pi_\theta\) 从 \(s_0\) 出动作，沿链走到 \(s_h\)，末端接 \(V(s_h)\)，梯度从 \(V\) 沿链流回每个动作。(b) ILD：上排是专家轨迹 \(g_0,g_1,g_2\)，下排是学习者轨迹 \(s_0,s_1,s_2\)，每个 \(g_t\) 向下连到 \(s_t\)（逐步对齐），梯度从每个 \(s_t\) 流回之前的动作。(c) 可微 CEM-MPC：动作序列 \(a_0\dots a_{h-1}\) 驱动状态链，每个状态有奖励 \(r_t\)，梯度从奖励流回动作。原图注说“用 SHAC、ILD、Diff CEM-MPC 分别代表规划、强化学习、模仿学习的可微算法”，顺序写反了（<a href="#n8">读者注 8</a>）。</figcaption>
+</figure>
+<div class="note" id="n8"><span class="lab">读者注 8 · “SHAC 只计当前步奖励”和 SHAC 原文、和本文图 4a 都不符</span><p>SHAC 的策略损失是窗口内 \(h\) 步的折扣奖励和，加上 \(\gamma^hV(s_{t_0+h})\)（<a href="shac.html#s3-3">SHAC 页式 (5)</a>）。每个动作的梯度来自它之后窗口内所有奖励和末端价值，不是“只计当前步”。本文图 4a 画的也是链 + 末端 \(V(s_h)\)，图里甚至没有画每步奖励。所以 §4.3 拿来对比 ILD 的这句话不成立；能成立的区别是：ILD 每一步都有专家状态作目标，SHAC 只有标量奖励和一个学到的价值。另外，图 4 注的顺序写反了：(a)(b)(c) 是 SHAC、ILD、Diff CEM-MPC，分别对应强化学习、模仿学习、规划，图注写成了“规划、强化学习、模仿学习”。</p></div>
+<p><b>ILD 的困难：状态表示不平衡。</b>在倒水、倒汤这类任务上 ILD 表现不好：状态里有 1000 × 3 个粒子特征，却只有 6 个夹爪状态，粒子的学习信号淹没了夹爪的信号，学不到有用策略。SoftGym 也发现降维的状态表示比全状态好。更好的状态表示留作以后研究。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · “1000 × 3 粒子 + 6 个夹爪状态”和代码的观测对不上</span><p>代码的观测维数是写死的，可以反推出来。MPM 环境的观测是“粒子位置 + 粒子速度 + 第一个夹爪在每个子步的位置”（<span class="cv">basic/mpm_env.py:65-71</span>）。倒水 <span class="cv">observation_size = 4281</span>（<span class="cv">pour_water_env.py:75</span>）= 702 × 6 + 23 × 3：水 702 个粒子（int(0.07³ × 80³ × 4) = 702，和目标文件的 702 个点一致），夹爪位置存了 23 个子步。倒汤 45861 = 7631 × 6 + 25 × 3。甩绳 612 = 67 × 6 + 70 × 3，和目标文件 67 个点一致。所以倒水是 702 × 6 个粒子特征加 69 个夹爪数，倒汤是 7631 × 6 加 75，都不是“1000 × 3 + 6”。布料的观测只有位置、没有速度：叠布 1544 = 512 × 3 + 8（两个夹爪各 4 维）；T 恤 1082 = 358 × 3 + 8，是 3573 个质点每隔 10 个取 1 个（<span class="cv">fold_cloth_tshirt_env.py:99</span>）。<span class="cv">cloth_env.py:46</span> 先按 “num_p × 6 + 8” 算了一遍，又被子类覆盖。ILD 的代码没有发布，它用的是不是这套观测，<b>未核实</b>。</p></div>
+<p>结论：只要优化地形良好，可微方法能高效地优化策略；需要大量探索或奖励稀疏的任务，梯度方法会严重受困于局部极小和梯度不稳定。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 换成 Transporter-RGB，ILD 只在 1 个任务上领先</span><p>§4.3 说 ILD 在全部宏动作任务上“大幅”超过 Transporter。和粒子版比，6 个任务确实都是 ILD 高，但推绳只高 0.06（0.76 对 0.70），Fold-T-shirt 0.59±0.11 对 0.46±0.02 也在 ILD 的误差范围附近。附录 D 的 Transporter-RGB（把粒子渲染成黑底白点图像）就不一样了：Fold-Cloth-1 0.86 对 ILD 0.76，T 恤 0.83 对 0.59，Unfold-1 0.76 对 0.64，Unfold-3 0.70 对 0.52，推绳 0.86 对 0.76，<b>5 / 6 个任务 Transporter-RGB 更高</b>；只有 Fold-Cloth-3 ILD 0.82 高于 0.56±0.25。附录 D 自己也说“显式渲染成 RGB 显著提升了 Transporter”。所以“ILD 用 1 条示范打赢 10 条示范的 Transporter”这句结论取决于 Transporter 用哪种输入；正文表 3 用的是更弱的那一种。</p></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>规划</h3>
+<p><b>方法。</b>经典的 CEM-MPC 是随机打靶方法的代表，用不需要梯度的办法优化动作序列，使最终奖励最高。为了研究可微物理的作用，作者实现了两种可微 MPC，基本计算图见图 4c：两者都用可微物理最大化每个动作的即时奖励，区别在初始动作序列。diff-MPC 用随机序列初始化，diff-CEM-MPC 用 CEM-MPC 优化过的序列初始化。</p>
+<p><b>总体表现。</b>diff-CEM-MPC 一直好于或持平 CEM-MPC；diff-MPC 在多数任务上规划不出合理的控制序列。</p>
+<p><b>仿真梯度是额外的优化信号。</b>两种可微基线差别很大，说明了可微物理怎样帮助规划：仿真梯度给出优化方向，降低采样复杂度。但和所有梯度方法一样，可微规划对非凸、不光滑的地形敏感，容易卡在局部最优；DOM 的大量自由度和复杂动力学让这更严重。</p>
+<p><b>可微规划需要好的初值。</b>diff-MPC 表现差，作者归因于随机初值：它可能离最优解太远，在不光滑、非凸的地形上，仅靠梯度回不来。diff-CEM-MPC 从 CEM-MPC 的结果出发；CEM 靠反复采样和精英选择跳出局部最优，交给梯度的序列已经足够接近全局最优，梯度再在局部细调，所以有提升。</p>
+<p>小结：可微仿真器能以很低的采样复杂度在局部继续优化接近最优的控制序列，但表现严重依赖好的初值和局部光滑的地形。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · diff-CEM-MPC 的提升全部在布料任务上</span><p>表 3 里 diff-CEM-MPC 减 CEM-MPC：Fold-Cloth-1 +0.06、Fold-Cloth-3 +0.04、T 恤 +0.08、Unfold-1 +0.10、Unfold-3 +0.01、推绳 0.00、甩绳 −0.01、倒水 0.00、倒汤 −0.01。“好于或持平”成立（三个负值都在标准误以内）。但提升只出现在 5 个布料任务，绳子和液体 4 个任务上梯度细调没有带来任何提升。这和 §4.2 的“甩绳地形光滑”放在一起看有点意外：甩绳上 APG 能学到 0.83，但从 CEM 序列出发的梯度细调还是 0.33。论文没有讨论这一点。规划代码没有发布，每步优化几次、学习率多少都不知道。另外 diff-MPC 在推绳（0.70）、甩绳（0.37，比 CEM 还高 0.03）上并不差，“多数任务上失败”主要是布料和倒水。</p></div>
+
+<h3 id="s4-5"><span class="no">4.5</span>仿真到真机的差距</h3>
+<p>DaX 的物理引擎基于先进的仿真方法，但保真度仍要验证。作者在 Kinova Gen 3 机械臂上做了推绳实验：CEM-MPC 以 DaX 作预测模型（图 5）。仿真和真机的状态轨迹相似，说明基于 DaX 的任务有保真度，方法在仿真里的表现对真机有参考价值。细节见附录 B。此外，DaX 可微，可以做系统辨识来缩小差距：比较仿真和真实观测得到误差，对仿真器参数求导，就得到调参的梯度。</p>
+<figure class="pfig" id="fig5">
+<img src="daxbench/fig5.webp" width="1525" height="501" alt="图 5：(a) 系统框图：真机状态进 CEM-MPC，CEM-MPC 用 DaX 仿真器，输出动作给真机；(b) 上排真机 6 次推之后的绳子照片，下排 DaX 对应的预测" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 9 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=9">看原图 ↗</a></span>(a) 系统结构：从点云估计当前状态，CEM-MPC 用 DaX 预测、规划最优动作，交给真机执行，得到下一状态。(b) 6 次推之后的状态：上排是真机轨迹，绳子从弯曲逐步变直；下排是“给定估计的当前状态和规划出的动作，DaX 预测的下一状态”。所以下排每一格都是从真实状态出发的<b>一步</b>预测，不是仿真自己滚 6 步。全文没有给出仿真和真机之间的定量误差。</figcaption>
+</figure>
+
+<h2 id="s5"><span class="no">5</span>结论</h2>
+<p>DaXBench 是一个通用的可微 DOM 仿真框架。据作者所知，它是第一个同时模拟液体、绳子、布料和弹塑性材料、又可微且高度并行的平台。除了常见任务，作者还提出 WhipRope、PourSoup 等新任务，用来研究长视野低层控制。任务覆盖面让它能比较各范式的方法，实验也揭示了可微物理方法在 DOM 上的好处和局限。作者希望 DaXBench 能帮助 DOM 方法、特别是基于可微物理的方法的发展。</p>
+
+<h3 id="stmt">致谢、伦理声明和可复现声明（第 10 页）</h3>
+<p>经费来自新加坡国家研究基金会 AI Singapore 计划（三个 AISG2-PhD 项目）和 A*STAR 国家机器人计划。伦理声明：作者认为没有潜在的负面社会影响；只在仿真里评测，没有收集数据，也没有人类受试者。可复现声明：模仿学习和规划实验取 20 次随机展开的平均，强化学习用 100 次展开；源码作为易安装的包放在补充材料里。</p>
+
+<h2 id="appA">附录 A：实现细节</h2>
+<h3 id="appA1">A.1 物体</h3>
+<p>DaXBench 建模不同维度的可变形物体：“0 维”的液体、1 维的绳子、2 维的布料。维度越低，系统自由度越高，建模越复杂。为了平衡建模能力和复杂度，用两种表示：水和绳子用 MPM，布料用质点-弹簧。</p>
+<p><b>用 MPM 建模水和绳子。</b>MPM 把物体表示成一组粒子，每个粒子有位置和质量等属性，按预先定义的物理规则模拟所有粒子之间的相互作用。这种粒子级表示能处理剧烈形变，所以用于会剧烈形变的水和绳子。</p>
+<p><b>用质点-弹簧建模布料。</b>布料在操作中要保持初始的标准形状，形变有限，不需要昂贵的 MPM。所以用以物理约束作先验的更简单的质点-弹簧系统。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 布料模型的几处简化：没有弯曲弹簧，没有自碰撞，夹爪是“吸附球”</span><p>读 <span class="cv">core/engine/cloth_simulator.py</span>：每个质点只连 8 个最近邻（<span class="cv">:48</span>），没有隔一个点的弯曲弹簧，所以布料几乎不抗弯。<span class="cv">ClothEnv.get_collision_func</span> 原样返回速度（<span class="cv">basic/cloth_env.py:239-243</span>），布料<b>没有自碰撞</b>，叠起来的两层可以互相穿过。地面接触只是把坐标截到 [0, 1] 并加库仑摩擦（<span class="cv">cloth_simulator.py:277-303, 323</span>）。夹爪是半径 0.01 的球（<span class="cv">:346-347</span>），球内的质点在“吸附”时跟着夹爪平移、速度清零，松开时恢复（<span class="cv">:198-226</span>）。质点间距 1/80 = 0.0125，所以一次只能抓住拾取点附近很少几个质点。这些对叠布任务的物理真实性影响不小（例如叠 3 次时层与层的接触完全没有），论文没写。和 <a href="rgbench.html">RGBench</a> 里的有限元布料比，这是最简单的那一档。</p></div>
+
+<h3 id="appA2">A.2 代码示例</h3>
+<p>列表 1 建 32 个并行的 <span class="cv">fold_cloth3</span> 环境，重置，取随机动作，调用 <span class="cv">env.step_diff</span>。列表 2 在同样的环境上用 <span class="cv">@jax.jit @jax.grad</span> 包一个函数：调用 <span class="cv">step_diff</span>，返回 <span class="cv">-reward.sum()</span>，就得到奖励对动作的梯度。</p>
+<p>和代码对照：列表里的导入路径 <span class="cv">from core.envs.registration import env_functions</span> 在发布的包里是 <span class="cv">daxbench.core.envs.registration</span>；列表 1 的 <span class="cv">env_functions["fold_cloth3"](batch_size=32, seed=1)</span> 能对上（布料环境的 <span class="cv">seed</span> 参数接收了但没用，种子取自配置的 <span class="cv">seed = 1</span>，<span class="cv">basic/cloth_env.py:40</span>）。<span class="cv">step_diff</span> 的签名是 <span class="cv">(actions, state)</span>，和列表一致。README 和文档的示例换成了 <span class="cv">ShapeRopeEnv</span>，写法相同。</p>
+
+<h3 id="appA3">A.3 用 JAX 并行</h3>
+<p>已有仿真器的一个主要局限是缺少高度并行的采样。DOM 的控制方程复杂，解析方法基本走不通；采样方法的成败取决于对状态空间的覆盖，而缺少并行采样阻碍了覆盖。DaXBench 用 JAX 实现，支持高度并行采样和自动微分。作者报告：在 4 张 2080 Ti 的服务器上，128 条、每条 80 步的展开，一次前向加反传 3 秒完成。</p>
+<p>这个速度没有说是哪个任务，我没有运行，<b>未核实</b>。代码里环境的批维用 <span class="cv">jax.vmap</span>（<span class="cv">mpm_simulator.py:62-63</span>、<span class="cv">cloth_simulator.py:69-70</span>），多卡用 <span class="cv">jax.pmap</span>（<span class="cv">apg.py:272</span>、PPO 同），和表 1 的“每进程多个仿真、多卡训练”一致。SHAC 的实现不做多卡，<span class="cv">--gpus</span> 参数没有用到。</p>
+
+<h3 id="appA4">A.4 省内存</h3>
+<figure class="pfig" id="fig6">
+<img src="daxbench/fig6.webp" width="1370" height="412" alt="图 6：三步示意：(a) 黑色大方块里标出红色的活动区域和绳子粒子；(b) 把活动区域平移到原点角落更新；(c) 再平移回原位置" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 14 页 · Chen 等，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2210.13066v2#page=14">看原图 ↗</a></span>以绳子为例说明活动区域。黑色是整个环境（原文说 128 × 128 × 128），红色是这一步会被改变的活动区域（原文说 32 × 6 × 32）。(a) 检测活动区域；(b) 把它平移到环境的原点角落，只在这一块上更新动力学和观测；(c) 再平移回原坐标。</figcaption>
+</figure>
+<p><b>惰性动力学更新。</b>MPM 在粒子级别建模和更新，时间和显存正比于环境大小，而环境可以任意大。作者的观察是：物体虽然可能和整个环境交互，但每一时刻只有一小块区域受影响。所以只考虑活动区域：先检测 32 × 6 × 32 的活动区域，线性平移到原点，做形变和交互的更新，再平移回去。作者说这平均把计算时间降低了两个数量级。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 活动区域：论文 32 × 6 × 32，代码是 64 × 6 × 64，网格缩小倍数 2 到 85</span><p>按论文的数，128³ / (32 × 6 × 32) = 2,097,152 / 6,144 ≈ 341 倍，“两个数量级”说得通。代码的推绳配置是 <span class="cv">n_grid = 128</span>、<span class="cv">res = (n_grid // 2, 6, n_grid // 2)</span> = 64 × 6 × 64（<span class="cv">shape_rope_env.py:41, 51</span>），比值 85 倍。其他任务：甩绳 64³ 对 32³，8 倍；倒水 80³ 对 26 × 20 × 26，约 38 倍；倒汤 128³ 对 128 × 64 × 128，只有 2 倍（<span class="cv">pour_soup_env.py:52</span>）。实现方式和图 6 一致：<span class="cv">pre_step</span> 把物体中心平移到活动网格中央，<span class="cv">post_step</span> 再移回来（<span class="cv">basic/mpm_env.py:99-125</span>）；完整的 128³ 网格从来不分配。文档把 <span class="cv">res</span> 解释成“惰性动力学更新的区域比例”。注意 P2G / G2P 的代价和粒子数成正比，不随网格变小而减少，所以“计算时间降两个数量级”不能只靠网格比值推出来；论文也没给计时（<b>未核实</b>）。还有一个代价：推绳的活动区在 y 方向只有 6 格（0.047），推杆和绳子都必须贴着地面。</p></div>
+<p><b>检查点。</b>只存少数状态（检查点），反传时在线重算各子步的梯度，降低长视野问题的显存。要让仿真器端到端可微，前向中算出的每个值都要存下来供反传使用，复杂度随视野快速增长；高自由度的可变形物体每步要存的东西比刚体多得多。DaXBench 用略多的计算换大量显存：前向只存检查点，反传时从每个检查点出发、倒序逐段重算前向。用了这个办法，计算量变成两倍，但能省下任意多的显存，取决于检查点的间隔。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 检查点在代码里：MPM 每个子步一个，布料可选三档</span><p>MPM：每个子步包在 <span class="cv">jax.custom_vjp</span> 里，前向只存子步的输入 <span class="cv">(f, state)</span>，反传时重新调用 <span class="cv">substep</span> 再对它求梯度（<span class="cv">mpm_simulator.py:332-363</span>）。子步内部的网格量（P2G 的 27 个邻点、网格速度）不存，但每个子步的粒子状态都存，所以检查点间隔就是 1 个子步，没有“可调间隔”。布料：<span class="cv">mem_saving_level</span>，0 不做检查点；1 每个子步做；2（所有布料任务的默认值）在每 50 个子步的外层再包一层（<span class="cv">cloth_simulator.py:175-178, 367-368</span>）。配置注释写“2：显存少得多但慢得多”。按这个结构，第 2 档反传时外层重算一遍 50 个子步，内层每个子步再重算一遍，前向大约做 3 次，不是论文说的 2 倍（<b>我的推断</b>，没有计时）。</p></div>
+
+<h3 id="appA5">A.5 不连续的梯度</h3>
+<p>端到端可微仿真器的效果取决于梯度的准确性。作者发现，不接触物体的动作会让梯度不连续，之后的梯度估计方差大、不准确。为此，DaXBench 对智能体或用户输入的每个动作做局部调整，使夹爪总是接触可变形物体，从而保证梯度端到端连续、更准确。</p>
+<div class="note" id="n15"><span class="lab">读者注 15 · A.5 的“局部调整”在发布代码里是注释掉的；反传梯度每步被归一化，论文没写</span><p><b>局部调整。</b>拾放宏动作里有一段“找离拾取点最近的质点、把拾取点挪过去”的代码，但被注释掉了（<span class="cv">basic/cloth_env.py:139-143</span>）。MPM 的推和速度控制里我没找到类似处理。所以发布版本里，不接触布的拾取就是抓空。这和 §4.2 说的“Fold-Cloth-3 上不接触就没有梯度”是一致的，反而说明 A.5 的修补没有用在实验里，或者没有发布（<b>未核实</b>是哪一种）。</p>
+<p><b>梯度归一化。</b>MPM 每个宏步开头，状态和动作都过一个自定义反传的 <span class="cv">norm_grad</span>：反传时先 NaN 清零，再把全局范数大于 1 的梯度缩放到 1（<span class="cv">mpm_simulator.py:375-411, 415-416</span>）。布料更激进：每个子步之后，位置、速度、两个夹爪状态都过 <span class="cv">norm_grad</span>，反传时梯度除以自己的范数、再除以质点数 512（<span class="cv">cloth_simulator.py:182-196, 223-224, 328-331</span>；同名函数定义了两次，生效的是后一个）。一个拾放宏动作有 2000 个子步，所以到达动作的“梯度”只保留了方向信息，大小被反复重置。这样做能防止梯度爆炸，但已经不是解析梯度本身。正文把可微方法的结果归因于“真梯度”和“优化地形”，没有提这层处理（我的读法）。</p></div>
+
+<div class="tablewrap"><table class="t-il"><caption class="tcap">表 4（原文第 15 页）：强化学习方法的任务结果，原注“20 个随机种子的均值和标准误”</caption>
+<thead><tr><th>类型</th><th>任务（原文写法）</th><th>PPO</th><th>APG</th><th>SHAC</th></tr></thead><tbody>
+<tr class="grp"><td colspan="5">高层</td></tr>
+<tr><td></td><td>Fold Cloth 1</td><td>0.40±0.13</td><td>0.36±0.06</td><td>0.34±0.07</td></tr>
+<tr><td></td><td>Fold Cloth 3</td><td>0.21±0.11</td><td>0.19±0.09</td><td>0.22±0.22</td></tr>
+<tr><td></td><td>Fold T-shirt</td><td>0.61±0.08</td><td>0.40±0.05</td><td>0.44±0.09</td></tr>
+<tr><td></td><td>Unfold Cloth 1</td><td>0.72±0.01</td><td>0.42±0.02</td><td>0.50±0.03</td></tr>
+<tr><td></td><td>Unfold Cloth 3</td><td>0.56±0.00</td><td>0.39±0.02</td><td>0.48±0.03</td></tr>
+<tr><td></td><td>Rope Push</td><td>0.75±0.02</td><td>0.72±0.02</td><td>0.75±0.01</td></tr>
+<tr class="grp"><td colspan="5">低层</td></tr>
+<tr><td></td><td>Wipe Rope</td><td>0.25±0.10</td><td>0.83±0.01</td><td>0.66±0.03</td></tr>
+<tr><td></td><td>Pour Water</td><td>0.27±0.02</td><td>0.27±0.02</td><td>0.28±0.00</td></tr>
+<tr><td></td><td>Pour Soup</td><td>0.27±0.08</td><td>0.27±0.00</td><td>0.32±0.13</td></tr>
+</tbody></table></div>
+
+<h2 id="appB">附录 B：仿真到真机的差距</h2>
+<p>为验证仿真任务的动力学保真度高、差距小，作者在 Kinova Gen3 上把 CEM-MPC 部署到推绳任务。CEM-MPC 以 DaX 作预测模型，给定状态，规划下一个最优的推 \((x,y,z,x',y',z')\)。状态从点云估计，笛卡尔空间的推通过逆运动学转成关节轨迹。作者说明：这里不验证状态估计或运动学不准造成的差距，只关心 DaX 的动力学能否正确引导 CEM-MPC 完成任务。实验在补充视频里。</p>
+<p>代码对照：<span class="cv">exp/</span> 下是真机实验的客户端（ROS + <span class="cv">kortex_api</span>，<span class="cv">exp/experiment.py</span>、<span class="cv">robot_interface.py</span>）和 MQTT 通信。策略服务器 <span class="cv">exp/policy_server.py</span> 只实现了一个返回固定动作的 <span class="cv">MockPolicyHandler</span>；命令行虽然允许选 <span class="cv">shac</span>，但没有对应实现，CEM-MPC 也不在仓库里。<span class="cv">exp/calibrate.py</span> 读 12 个真机记录（<span class="cv">exp/calibration_data/*.pkl</span>），按真机绳子两端的位置和角度在仿真里摆好绳子，执行同一次推，把仿真和真机的前后状态拼成一张图。这是目测对照，不是系统辨识，也不输出误差数字。</p>
+
+<h2 id="appC">附录 C：强化学习的数值结果</h2>
+<p>表 4（见上，附在 A.4 之后，和原文版面一致）补充正文的学习曲线，原文说它报告的是图 3 曲线的最终表现。核对结果见<a href="#n1">读者注 1</a>。</p>
+
+<h2 id="appD">附录 D：用图像作输入的 Transporter</h2>
+<div class="tablewrap"><table class="t-il"><caption class="tcap">表 5（原文第 15 页）：模仿学习方法的任务表现。原注照抄表 3：“规划和模仿学习方法……20 个种子的均值和标准误”</caption>
+<thead><tr><th>类型</th><th>任务</th><th>Transporter</th><th>Transporter-RGB</th><th>ILD</th><th>专家</th></tr></thead><tbody>
+<tr class="grp"><td colspan="6">高层</td></tr>
+<tr><td></td><td>Fold-Cloth-1</td><td>0.19±0.04</td><td>0.86±0.07</td><td>0.76±0.04</td><td>0.91±0.00</td></tr>
+<tr><td></td><td>Fold-Cloth-3</td><td>0.40±0.05</td><td>0.56±0.25</td><td>0.82±0.05</td><td>0.89±0.00</td></tr>
+<tr><td></td><td>Fold-T-shirt</td><td>0.46±0.02</td><td>0.83±0.05</td><td>0.59±0.11</td><td>0.85±0.00</td></tr>
+<tr><td></td><td>Unfold-Cloth-1</td><td>0.48±0.01</td><td>0.76±0.06</td><td>0.64±0.03</td><td>0.87±0.00</td></tr>
+<tr><td></td><td>Unfold-Cloth-3</td><td>0.30±0.00</td><td>0.70±0.06</td><td>0.52±0.02</td><td>0.87±0.00</td></tr>
+<tr><td></td><td>Push-Rope</td><td>0.70±0.00</td><td>0.86±0.09</td><td>0.76±0.02</td><td>0.93±0.00</td></tr>
+<tr class="grp"><td colspan="6">低层</td></tr>
+<tr><td></td><td>Whip-Rope</td><td>—</td><td>—</td><td>0.70±0.06</td><td>1.00±0.00</td></tr>
+<tr><td></td><td>Pour-Water</td><td>—</td><td>—</td><td>0.32±0.03</td><td>0.91±0.06</td></tr>
+<tr><td></td><td>Pour-Soup</td><td>—</td><td>—</td><td>0.42±0.12</td><td>0.85±0.00</td></tr>
+</tbody></table></div>
+<p>表 5 有两个 Transporter：Transporter 用 3D 粒子投影成高度图；Transporter-RGB 加上 RGB 通道，把粒子投到图像平面，粒子白色、背景黑色。作者发现显式把粒子渲染成 RGB 图像能显著提升 Transporter。Transporter、ILD、专家三列和表 3 逐格相同（我逐个对过）。</p>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>以下按 README、文档 <span class="cv">docs/source/basics/getting-started.rst</span> 和源码整理，提交 bc73c58（2023-11-01）。我没有运行任何命令。仓库的 git 历史只有 8 个提交：2022-10-24 建仓，2023-05-02 首次发布代码，2023-07-01 修观测维数，2023-10-30 加 PPO 和 SHAC，2023-11-01 改 README。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>路径</th><th>内容</th></tr></thead><tbody>
+<tr><td><span class="cv">core/engine/mpm_simulator.py</span></td><td>MLS-MPM（431 行）：P2G / 网格 / G2P，固定共旋应力，三种材料（0 液体、1 弹性、2 弹塑性），子步级 <span class="cv">custom_vjp</span> 重算，梯度归一化</td></tr>
+<tr><td><span class="cv">core/engine/cloth_simulator.py</span></td><td>质点-弹簧（370 行）：8 邻域、显式欧拉、库仑摩擦、吸附球夹爪、三档 <span class="cv">mem_saving_level</span></td></tr>
+<tr><td><span class="cv">core/engine/primitives/</span></td><td>MPM 用的刚体夹爪：盒子 / 碗的 SDF，基于 SDF 的网格碰撞（<span class="cv">collide_batch</span>）和位置控制（<span class="cv">position_control_batch</span>）</td></tr>
+<tr><td><span class="cv">core/engine/svd_safe_batch.py</span></td><td>带安全反传的批量 SVD（奇异值相近时梯度不爆）</td></tr>
+<tr><td><span class="cv">core/envs/basic/</span></td><td><span class="cv">MPMEnv</span>、<span class="cv">ClothEnv</span> 两个基类：<span class="cv">step_diff</span>（jit）、<span class="cv">step_with_render</span>、奖励、观测</td></tr>
+<tr><td><span class="cv">core/envs/*_env.py</span></td><td>10 个任务类，注册表 12 个名字（<span class="cv">registration.py</span>；推绳另有 <span class="cv">shape_rope_hard</span>，视野 20、先随机推 8 次）</td></tr>
+<tr><td><span class="cv">core/envs/goals/*/goal.npy</span></td><td>每个任务的目标点云（倒汤的文件存在，但环境指向不存在的 <span class="cv">pour_soup2/</span>）</td></tr>
+<tr><td><span class="cv">algorithms/apg|ppo|shac/</span></td><td>三个强化学习基线（基于 brax 0.0.13 的训练工具；SHAC 移植自 DiffRL）</td></tr>
+<tr><td><span class="cv">algorithms/expert_demo/</span></td><td>专家示范 pickle：每个任务 10 条，甩绳 1 条，倒汤 11 条</td></tr>
+<tr><td><span class="cv">exp/</span></td><td>Kinova 真机实验的客户端、标定对照脚本和 12 条真机记录</td></tr>
+</tbody></table></div>
+<h3 id="repro-env">安装</h3>
+<pre class="cmd"># README / 文档的步骤
+# 1. 按 JAX 官方说明装 jax（env.yml 记录的是 jax 0.3.14 + jaxlib 0.3.14+cuda11.cudnn82，Python 3.9.12）
+pip install git+https://github.com/fogleman/sdf.git
+pip install -e .</pre>
+<p><span class="cv">setup.py</span> 钉死了 <span class="cv">brax==0.0.13</span>、<span class="cv">gym&gt;=0.25,&lt;0.26</span>、<span class="cv">tensorflow==2.7.0</span>、<span class="cv">opencv-python==4.6.0.66</span>、<span class="cv">pyrender==0.1.45</span> 等，但没有 <span class="cv">tensorboardX</span> 和 <span class="cv">pyyaml</span>，而三个训练脚本都要 <span class="cv">tensorboardX</span>，SHAC 还要 <span class="cv">yaml</span>，需要手动装。<span class="cv">jax.random.KeyArray</span>（<span class="cv">cloth_simulator.py:10</span>）和 <span class="cv">jax._src.lax.control_flow.fori_loop</span> 这类导入在新版 JAX 里已经移走，所以基本只能用 2022 年的 JAX（我的判断，未运行验证）。<span class="cv">setup.py</span> 里声明的命令行入口 <span class="cv">daxbench.cli:main</span> 不存在。</p>
+<h3 id="repro-cmd">怎么跑</h3>
+<pre class="cmd"># 交互式脚本（会弹 OpenCV 窗口：点击给拾放 / 推的起止点；倒水、甩绳用 w/s/a/d、shift/tab）
+python daxbench/core/envs/shape_rope_env.py
+
+# 训练：仓库没写命令，以下按各脚本的 argparse 推出
+python daxbench/algorithms/apg/apg.py --env whip_rope --ep_len 70 --num_envs 4 --max_it 2000
+python daxbench/algorithms/ppo/ppo.py --env fold_cloth1 --ep_len 3 --num_envs 64
+cd daxbench/algorithms/shac &amp;&amp; python shac.py --env whip_rope --num_envs 16   # 用了同目录的相对导入，必须在该目录下运行</pre>
+<p>APG 的默认 <span class="cv">--ep_len</span> 是 10、PPO 是 3，都不随任务变；按论文复现要自己把它设成任务的视野。SHAC 自动取任务的 <span class="cv">max_steps</span>。Transporter、ILD、CEM-MPC、diff-MPC、diff-CEM-MPC 五个基线没有发布（README 的方法表只有前三个打勾，To Do 里写“Release Code for more baseline methods”）。</p>
+<h3 id="repro-cmp">和论文设置逐项对照</h3>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码 bc73c58</th></tr></thead><tbody>
+<tr><td>液体、绳子</td><td>MLS-MPM</td><td>一致；推绳弹塑性、甩绳弹性（读者注 13）</td></tr>
+<tr><td>布料</td><td>网格 + 质点-弹簧</td><td>一致；8 邻域、无弯曲、无自碰撞（读者注 14）</td></tr>
+<tr><td>视野</td><td>见 §3.2</td><td>T 恤 5、展开 15、倒汤 120 不同（读者注 10）</td></tr>
+<tr><td>奖励</td><td>\(\exp(-\lambda D)\)，训练加 \(r_{aux}\)</td><td>λ = 10；D 每坐标均方根；布料再乘 0.99ᵗ；r_aux 用动作前 3 维（读者注 17）</td></tr>
+<tr><td>倒汤目标</td><td>目标粒子</td><td>路径 <span class="cv">goals/pour_soup2/</span> 不存在，退化成全零目标（读者注 20）</td></tr>
+<tr><td>活动区域</td><td>32 × 6 × 32 / 128³</td><td>64 × 6 × 64 / 128（读者注 9）</td></tr>
+<tr><td>检查点</td><td>只存少数状态，计算 2 倍</td><td>MPM 每子步；布料第 2 档两层（读者注 16）</td></tr>
+<tr><td>接触修正（A.5）</td><td>总让夹爪接触物体</td><td>被注释掉（读者注 15）</td></tr>
+<tr><td>梯度</td><td>解析梯度</td><td>每步 NaN 清零 + 范数归一化（读者注 15）</td></tr>
+<tr><td>APG</td><td>没写超参数</td><td>MLP [512, 256]，swish，tanh 高斯；Adam 1e-4；全局裁剪 0.3；整段 BPTT（读者注 19）</td></tr>
+<tr><td>SHAC</td><td>短视野演员-评论家</td><td>窗口 = 整个回合；末端价值被清零（读者注 18）</td></tr>
+<tr><td>PPO</td><td>没写超参数</td><td>brax 的 PPO：折扣 0.9，熵系数 1e-4，lr 1e-3，64 环境（<span class="cv">ppo.py:181-200, 536-556</span>）</td></tr>
+<tr><td>迭代数</td><td>图 3 横轴 2000</td><td>三个脚本 <span class="cv">--max_it</span> 默认都是 2000</td></tr>
+<tr><td>示范数</td><td>Transporter 10，ILD 1</td><td>仓库每任务 10 条（甩绳 1、倒汤 11）；人工点击 / 键盘采集（各环境的 <span class="cv">collect_expert_demo</span>）</td></tr>
+<tr><td>真机</td><td>CEM-MPC + DaX，Kinova Gen3</td><td>客户端和对照脚本在；CEM-MPC 和策略服务未发布</td></tr>
+</tbody></table></div>
+<div class="note" id="n18"><span class="lab">读者注 18 · 发布的 SHAC：窗口就是整个回合，评论家进不了演员损失</span><p>以下读 <span class="cv">algorithms/shac/shac.py</span>（文件头无许可声明，同目录的 <span class="cv">actor_jax.py</span>、<span class="cv">dataset.py</span>、<span class="cv">common.py</span> 带 NVIDIA 文件头，所以只写行号）。① <span class="cv">:70-72</span> 把 <span class="cv">args.ep_len</span> 设成环境的 <span class="cv">max_steps</span>，再令 <span class="cv">steps_num = episode_length</span>：短窗口长度等于整个回合（倒水 100、甩绳 70、叠布 3–5）。② 末端价值项被 <span class="cv">early_mask = (episode_length &lt; max_episode_length) × done</span> 乘掉（<span class="cv">:239-243</span>）：最后一步时 <span class="cv">episode_length</span> 正好等于上限，掩码为 0，\(V\) 被清零；中间步只有提前 done 才计入。MPM 任务从不提前终止，所以演员损失里只剩折扣奖励和，和 APG 的区别只剩折扣 0.99。③ 目标评论家是在执行动作<b>之前</b>的观测上算的（<span class="cv">:228-231</span>），即使用到，也是 \(V(s_t)\) 而不是 \(V(s_{t+1})\)。④ 只有 <span class="cv">env == 'shape_rope'</span> 时把动作过 sigmoid 映射到 [0, 1]（<span class="cv">:226-227</span>）；APG、PPO 对布料也做 sigmoid（<span class="cv">apg.py:186-187</span>）。所以 SHAC 在布料任务上的拾放坐标落在 [−1, 1]，一半落在桌面之外。⑤ 布料环境没有自动重置，SHAC 训练时状态一直接着上一轮（<span class="cv">:351</span>；只有 <span class="cv">shape_rope</span> 每轮重置，<span class="cv">:524-526</span>），超过 <span class="cv">max_steps</span> 后每一步都是 done。⑥ <span class="cv">cfg/shac.yaml</span> 里的网络 <span class="cv">[128, 64, 32]</span>、学习率 2e-3、3000 轮都没有生效：网络取自 <span class="cv">actor_jax.py</span>（演员 [512, 256, 128, 64]，评论家 [256, 128, 64, 32]，swish），学习率、迭代数、裁剪来自命令行（1e-4、2000、0.3）。观测归一化器建了但没用（<span class="cv">:222</span>）。以上是我读代码的结论，没有运行；这份代码比论文晚 7 个月提交，和论文实验用的版本是否相同，<b>未核实</b>。</p></div>
+<div class="note" id="n19"><span class="lab">读者注 19 · APG：整段反传，学习率衰减可能没有生效</span><p><span class="cv">algorithms/apg/apg.py</span>：损失是整段展开的平均奖励取负（<span class="cv">:207-216</span>），对策略参数整段反传；可选的截断 <span class="cv">truncation_length</span> 没有从命令行传入，所以默认不截断。策略是 brax 的 MLP [512, 256]、swish、tanh 高斯（<span class="cv">:354-359</span>），布料和推绳再过 sigmoid。观测归一化那一行被注释掉（<span class="cv">:183</span>）。梯度先 NaN 清零再按全局范数裁到 <span class="cv">--max_grad_norm</span> = 0.3（<span class="cv">:234-235, 261-268</span>）。循环里每轮按线性衰减重建一个 <span class="cv">optax.adam</span>（<span class="cv">:310-311</span>），但 <span class="cv">minimize</span> 已经被 <span class="cv">jax.jit</span> + <span class="cv">jax.pmap</span> 编译（<span class="cv">:271-272</span>），闭包里的优化器在第一次追踪时就固定了；我的推断是学习率实际一直是初值 1e-4，衰减没有生效（未运行验证）。</p></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 发布范围：8 个方法发布 3 个；倒汤的目标文件路径错了；真机部分只有对照脚本</span><p><b>方法。</b>README 的方法表只给 APG、SHAC、PPO 打勾，正文还写着“We first release the training code for APG”。表 3、表 5 的全部方法（Transporter、ILD、三种 MPC）都没有代码。<b>倒汤。</b><span class="cv">pour_soup_env.py:59-60</span> 的 <span class="cv">task = "pour_soup2"</span>，目标路径是 <span class="cv">goals/pour_soup2/goal.npy</span>，仓库里只有 <span class="cv">goals/pour_soup/</span>。<span class="cv">MPMEnv.__init__</span> 找不到文件时打印警告、把目标设成一个零向量（<span class="cv">basic/mpm_env.py:46-48</span>），再被重采样成 7631 个原点。于是倒汤的奖励变成“粒子离坐标原点多近”，和倒进目标碗无关。而 <span class="cv">goals/pour_soup/goal.npy</span> 只有 1102 个点，和现在 7631 个粒子的环境也对不上，说明倒汤环境在论文之后改过（我的推断）。<b>真机。</b>见附录 B 的代码对照：没有 CEM-MPC，没有系统辨识，<span class="cv">calibrate.py</span> 只出对照图。</p></div>
+<div class="note" id="n21"><span class="lab">读者注 21 · 仓库许可的四种说法</span><p>根目录 <span class="cv">LICENSE</span> 和 <span class="cv">daxbench/version.py:4</span>、文档首页都说 Apache-2.0；<span class="cv">setup.py:24, 36</span> 写 BSD-2-Clause；<span class="cv">docs/source/conf.py:55</span> 写 “2022-2023 AdaComp All Rights Reserved.”；<span class="cv">algorithms/shac/actor_jax.py</span>、<span class="cv">dataset.py</span>、<span class="cv">common.py</span> 和 <span class="cv">core/utils/load_utils.py</span>、<span class="cv">running_mean_std.py</span>、<span class="cv">torch_utils.py</span> 保留着 NVIDIA 的文件头（“未经 NVIDIA 明示许可，禁止使用、复制、分发”），这些来自 DiffRL，后者是 NVIDIA Source Code License。本页按最保守的处理：只引行号和配置键，不复制这些文件的代码。</p></div>
+
+<h3 id="repro-decide">论文没写、要自己决定的</h3>
+<ul>
+<li>所有强化学习的网络、学习率、批量环境数、展开长度（代码有默认值，但和任务视野不匹配，读者注 19）。</li>
+<li>Transporter、ILD、三种 MPC 的全部实现和超参数；CEM 的样本数、精英比例、迭代次数；可微 MPC 的步长和步数。</li>
+<li>表 4 取的是哪个检查点（读者注 1）；图 3 是否平滑过。</li>
+<li>“专家”一列怎么评测：专家示范是人工点击 / 键盘采的，回放时是不是开环执行、为什么大多数标准误是 0.00，论文没说。</li>
+<li>ILD 的 1 条示范是 10 条里的哪一条；甩绳仓库里本来就只有 1 条。</li>
+<li>倒汤要先把目标路径改回 <span class="cv">pour_soup</span>，并重新生成和 7631 个粒子匹配的目标（读者注 20）。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。编号按首次写作的顺序，点击跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">表 4 更像每条曲线的最高点</a>：和终点差 ≤ 0.02 的只有 6 / 24，和最高点 16 / 24。</li>
+<li><a href="#n2">种子和展开次数有三种说法</a>：5 × 20、20 个种子、100 次展开；表 5 注抄了表 3。</li>
+<li><a href="#n3">任务名四种写法</a>：Push / Shape / Rope Push；Whip / Wipe；图 3 缺 Fold-Cloth-1。</li>
+<li><a href="#n4">用表 4 核对 §4.2 的结论</a>：“APG 大幅超过 PPO”只由甩绳支撑。</li>
+<li><a href="#n5">可微方法越训越差</a>：APG、SHAC 各有 5 / 8 格终点比起点低 0.05 以上。</li>
+<li><a href="#n6">换成 Transporter-RGB，ILD 只领先 1 个任务</a>。</li>
+<li><a href="#n7">diff-CEM-MPC 的提升全在布料上</a>：绳子和液体 4 个任务 −0.01 到 0。</li>
+<li><a href="#n8">“SHAC 只计当前步奖励”不成立</a>；图 4 注的顺序写反。</li>
+<li><a href="#n9">活动区域：论文 32 × 6 × 32，代码 64 × 6 × 64</a>；网格缩小 2 到 85 倍。</li>
+<li><a href="#n10">视野：4 个任务和代码不一致</a>：T 恤 5、展开 15、倒汤 120。</li>
+<li><a href="#n11">动作空间</a>：代码一律 6 维；倒水的 \(v_y\) 被置 0。</li>
+<li><a href="#n12">观测维数反推</a>：倒水 702 粒子、倒汤 7631、甩绳 67，不是 “1000 × 3 + 6”。</li>
+<li><a href="#n13">“弹塑性”是推绳的绳子</a>：雕塑环境存在但未注册。</li>
+<li><a href="#n14">布料：无弯曲弹簧、无自碰撞、吸附球夹爪</a>。</li>
+<li><a href="#n15">A.5 的接触修正被注释掉；反传梯度每步归一化</a>。</li>
+<li><a href="#n16">检查点：MPM 每子步一个；布料第 2 档约 3 倍前向</a>（推断）。</li>
+<li><a href="#n17">奖励细节</a>：λ = 10、D 除了 √3、r_aux 用动作前 3 维、布料乘 0.99ᵗ。</li>
+<li><a href="#n18">发布的 SHAC 窗口 = 整个回合</a>，末端价值被清零，布料动作没过 sigmoid。</li>
+<li><a href="#n19">APG 整段反传</a>；学习率衰减大概没生效（推断）。</li>
+<li><a href="#n20">发布范围和倒汤目标路径</a>：8 个方法发布 3 个；<span class="cv">pour_soup2</span> 不存在。</li>
+<li><a href="#n21">仓库许可的四种说法</a>：Apache、BSD、All Rights Reserved、NVIDIA 文件头。</li>
+</ol>
+<p>论文没写、我也没找到的：仿真和真机之间的定量误差；A.3 计时用的任务；规划方法的全部超参数；“专家”一列的评测方式。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的基准、仿真器、框架和方法。2026 年 11 月 21 日用脚本核对，全部返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://github.com/AdaCompNUS/DaXBench">DaXBench</a></td><td>本文的基准和仿真器 DaX</td><td><a href="https://daxbench.github.io/">项目页</a> · <a href="https://daxbench.readthedocs.io/en/latest/">文档</a></td><td><a href="https://arxiv.org/abs/2210.13066">2210.13066</a></td></tr>
+<tr><td><a class="ds" href="https://sites.google.com/view/softgym">SoftGym</a></td><td>不可微的 DOM 基准</td><td><a href="https://github.com/Xingyu-Lin/softgym">代码</a></td><td><a href="https://arxiv.org/abs/2011.07215">2011.07215</a></td></tr>
+<tr><td><a class="ds" href="https://plasticinelab.csail.mit.edu/">PlasticineLab</a></td><td>可微的弹塑性体基准</td><td><a href="https://github.com/hzaskywalker/PlasticineLab">代码</a></td><td><a href="https://arxiv.org/abs/2104.03311">2104.03311</a></td></tr>
+<tr><td><a class="ds" href="https://www.threedworld.org/">ThreeDWorld</a></td><td>不可微的多模态交互仿真</td><td>threedworld.org</td><td>NeurIPS 2020</td></tr>
+<tr><td><a class="ds" href="https://github.com/yuanming-hu/ChainQueen">ChainQueen</a></td><td>可微 MPM 软体仿真</td><td>github</td><td><a href="https://arxiv.org/abs/1810.01054">1810.01054</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/DiSECt">DiSECt</a></td><td>可微的切割仿真</td><td>github</td><td>RSS 2021</td></tr>
+<tr><td><a class="ds" href="https://github.com/YilingQiao/diffsim">DiffSim</a></td><td>可微布料 / 刚体仿真</td><td>github</td><td>ICML 2020</td></tr>
+<tr><td><a class="ds" href="https://github.com/google/jax">JAX</a></td><td>DaX 的计算框架</td><td>github</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/google/brax">Brax</a></td><td>APG 的来源；本仓库训练工具依赖 brax 0.0.13</td><td>github</td><td><a href="https://arxiv.org/abs/2106.13281">2106.13281</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/openai/gym">OpenAI Gym</a></td><td>环境接口</td><td>github</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/taichi-dev/taichi">Taichi</a></td><td>MLS-MPM 参考实现（README 致谢）</td><td>github</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://github.com/NVlabs/DiffRL">DiffRL</a></td><td>SHAC 官方代码；<a href="shac.html">本站精读</a></td><td>github</td><td><a href="https://arxiv.org/abs/2204.07137">2204.07137</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/sail-sg/ILD">ILD</a></td><td>用可微物理做模仿学习</td><td>github</td><td><a href="https://arxiv.org/abs/2206.04873">2206.04873</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/google-research/ravens">Ravens / Transporter</a></td><td>Transporter 网络的代码库</td><td>github</td><td><a href="https://arxiv.org/abs/2012.03385">2012.03385</a>（目标条件版）</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/1707.06347">PPO</a></td><td>不可微强化学习基线</td><td>–</td><td><a href="https://arxiv.org/abs/1707.06347">1707.06347</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/oscarkey/constrained-cem-mpc">constrained-cem-mpc</a></td><td>CEM-MPC 参考实现（README 致谢）</td><td>github</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://www.kinovarobotics.com/product/gen3-robots">Kinova Gen3</a></td><td>真机实验的机械臂</td><td>kinovarobotics.com</td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2210.13066 后的整理，不是作者的官方内容。原文：Siwei Chen、Yiqing Xu、Cunjun Yu、Linfeng Li、Xiao Ma、Zhongwen Xu、David Hsu，《DaXBench: Benchmarking Deformable Object Manipulation with Differentiable Physics》，ICLR 2023，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 6 从原文 PDF 裁切，只做了裁切和格式转换。表 1 到 5 照录原文；“图 3 矢量读数”是我从 PDF 矢量曲线读出的，不是原文表格。代码引用 AdaCompNUS/DaXBench（根目录 Apache-2.0）提交 bc73c58，以文件名、行号和配置键为主；带 NVIDIA 文件头的文件只引行号。读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>
