@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DiffMimic 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2304.03274 DiffMimic（穿过可微仿真器做动作模仿）的框架做成 11 幕 3D 动画：总览、环境与 PD、状态匹配损失、梯度沿时间反传、局部极小、10 步截断、随机回放、阈值回放（当场算替换点和断开的梯度链）、图 7 和图 8 的矢量读数、和 RL 的梯度方差对比、发布代码的训练循环。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="diffmimic.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/diffmimic.html">返回精读</a><a href="../../papers/diffmimic.html#s3-3">原文 §3.3</a><a href="../../papers/diffmimic.html#code">代码对照</a><a href="https://arxiv.org/abs/2304.03274">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2304.03274 · DiffMimic · 可微物理动作模仿</p>
+<h1>从“滚一段、比一比、往回传”到示范回放：DiffMimic 一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览（原文图 2 的 3D 版）；第 2、3 幕是环境和状态匹配损失；第 4 到 6 幕是三个难题（梯度爆炸和消失、局部极小、截断）；第 7、8 幕是随机回放和<b>阈值回放</b>；第 9 幕是图 7、图 8 的矢量读数；第 10 幕和 RL 比梯度估计；第 11 幕是发布代码的训练循环和表 1。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。第 2、3、4、7、8、10 幕的数字是页面当场算的玩具；第 9 幕的曲线来自原文图 7、图 8 的矢量读数；柱子是原文表格数字。小人是手工做的示意，没有任何 DiffMimic 策略在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 jiawei-ren/diffmimic 提交 d0db48a（2025-01-22），S-Lab License 1.0（非商业），只读未运行，这里只写文件名和配置键。行号见精读页的代码对照表。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（d0db48a）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">环境</td></tr>
+<tr><td>E1</td><td>仿真器</td><td>Brax，物理 480 FPS，控制 30 FPS</td><td>brax.v1，pbd 积分，dt 0.0333 × 16 子步（HUMANOID.py）</td></tr>
+<tr><td>E2</td><td>角色</td><td>照 DeepMimic：13 刚体、34 自由度、45 kg、1.62 m</td><td>AMP 格式人形：13 刚体、28 个转轴，质量合计 48.89 kg</td></tr>
+<tr><td>E3</td><td>PD</td><td>式 (3.1)，k<sub>p</sub>、k<sub>d</sub> 同 DeepMimic</td><td>k<sub>p</sub> = strength，k<sub>d</sub> = k<sub>p</sub>/10，目标角 = 动作 × 1.2π（pd_controller.py）</td></tr>
+<tr><td>E4</td><td>观测 / 动作</td><td>193 / 28</td><td>相对根位置 36 + 6D 旋转 78 + 速度 39 + 角速度 39 + 相位 1；动作 28</td></tr>
+<tr class="grp"><td colspan="4">损失与梯度</td></tr>
+<tr><td>L1</td><td>状态匹配</td><td>式 (3.2)：Σ<sub>t</sub> ‖s<sub>t</sub> − ŝ<sub>t</sub>‖²，权重粗调</td><td>位置 1、旋转 0.5、速度 0.01、角速度 0.01，× 0.02，对时间和环境取平均</td></tr>
+<tr><td>L2</td><td>BPTT</td><td>式 (3.3)</td><td>jax.lax.scan 59 步 + jax.grad；可选 truncation_length（未用）</td></tr>
+<tr><td>L3</td><td>优化</td><td>Adam 3e-4 线性降，裁剪 0.3</td><td>Adam 3e-4 → 1e-5，全局范数裁剪 0.4</td></tr>
+<tr class="grp"><td colspan="4">示范回放</td></tr>
+<tr><td>R1</td><td>阈值</td><td>式 (3.5)，‖s − ŝ‖² &lt; ε 才不换</td><td>13 个刚体世界位置平均距离（米）&gt; threshold 就换；0.2 或 0.4</td></tr>
+<tr><td>R2</td><td>随机</td><td>式 (3.4)，Bernoulli(γ)</td><td>demo_replay_mode: random，replay_rate 默认 0.05</td></tr>
+<tr><td>R3</td><td>梯度</td><td>图 2：替换点不回传（正文没说）</td><td>s ← s·(1 − r) + ŝ·r，r = 1 时导数为 0</td></tr>
+<tr class="grp"><td colspan="4">训练与评估</td></tr>
+<tr><td>T1</td><td>起点</td><td>参考第一帧（算法 1）；附录 H 另加 RSI</td><td>RSI：在 [0, 600 − 60] 里随机取起点</td></tr>
+<tr><td>T2</td><td>规模</td><td>循环动作 200 环境 × 4 s × 5000 次</td><td>300 环境 × 59 步 × 1000 次</td></tr>
+<tr><td>T3</td><td>评估</td><td>32 回合 × 20 s，式 (4.1) + DTW</td><td>32 × 599 步，没有 DTW，只存误差最低的检查点</td></tr>
+<tr><td>T4</td><td>相位</td><td>[0, 1] 时间戳</td><td>(t mod cycle_len)/cycle_len，比参考文件的重复周期多一帧</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作（下蹲起跳、后空翻）是手写的，只为看出阶段。不是 Brax 的人形，不是策略输出。</li>
+<li><b>第 2 幕的 PD 曲线。</b>一个关节当成转动惯量 0.25 的单摆，没有重力和接触；k<sub>p</sub>、k<sub>d</sub>、480 Hz、每 1/30 s 换目标角是代码的值，目标角序列是固定种子随机的。</li>
+<li><b>第 3 幕的四根柱子。</b>对两个手写姿态按代码的公式和权重当场算；速度和角速度用相邻两帧的差分，角速度用 6D 旋转的差分近似。</li>
+<li><b>第 4 幕的梯度。</b>一维线性系统 s<sub>t+1</sub> = a·s<sub>t</sub> + u<sub>t</sub>，参考 sin(0.25t)，T = 40，当场反向递推。</li>
+<li><b>第 5 幕的代价面。</b>手画的两个谷，“加示范回放”那条只为说明思路，不是计算结果。</li>
+<li><b>第 6 幕的柱子。</b>图 7(a)(b) 的矢量读数（最后 10 点平均）。</li>
+<li><b>第 7、8 幕的轨迹。</b>误差动力学 e<sub>t+1</sub> = 1.07·e<sub>t</sub> + d<sub>t</sub>，d<sub>t</sub> 在第 18 到 36 帧更大，54 帧，固定种子；替换规则、“损失照算、下一步从参考起步”、“替换点断开梯度”都按代码。ε 是玩具单位。</li>
+<li><b>第 9 幕的曲线。</b>原文图 7、图 8 的矢量读数，读数误差约 ±0.003。</li>
+<li><b>第 10 幕的直方图。</b>J(θ) = −(θ − 1)²，θ = 0 处似然比估计，扰动 σ = 0.3，均值基线，每种 N 重复 200 次。柱子是表 2 原数字。</li>
+<li><b>第 11 幕的流程方块。</b>示意；数字来自附录 C 和代码配置。表 1 的柱子是原数字。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2304.03274 后的理解，不是作者的官方图。原文许可是 arXiv 非独占分发，这里没有用任何原图。逐节内容和核算在<a href="../../papers/diffmimic.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

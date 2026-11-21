@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DaXBench 可微基准：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2210.13066（DaXBench，ICLR 2023）的框架做成 11 幕 3D 动画：JAX 批量求梯度、MLS-MPM 子步、布料质点-弹簧和拾放宏动作、活动区域和检查点、9 个任务、奖励、三类方法的梯度路径、梯度为什么会卡住、结果表、推绳的仿真到真机。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="daxbench.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/daxbench.html">返回精读</a><a href="../../papers/daxbench.html#s3-1">原文 §3.1</a><a href="../../papers/daxbench.html#repro">复现要点</a><a href="../../papers/daxbench.html#notes">读者注</a><a href="https://arxiv.org/abs/2210.13066">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2210.13066 · DaXBench · 可微可变形物体操作</p>
+<h1>DaXBench：一个可微仿真器上的九个任务和八个方法</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 到 5 幕是仿真器 DaX（JAX 批量求梯度、MPM 子步、布料和拾放、省内存的两个办法）；第 6、7 幕是任务和奖励；<b>第 8 幕是三类方法的梯度路径</b>，第 9 幕解释可微方法为什么会卡住；第 10 幕是结果表；第 11 幕是推绳的仿真到真机。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。表里的数字来自原文表 3 到表 5，图 3 的终点是 PDF 矢量读数；仿真器的常数来自官方代码提交 bc73c58。第 3、4、7、9 幕是页面当场算的玩具，标了“玩具”。没有任何 DaX 代码在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 AdaCompNUS/DaXBench 提交 bc73c58（2023-11-01），只读未运行，根目录 Apache-2.0。路径省略前缀 daxbench/。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（bc73c58）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">仿真器 DaX</td></tr>
+<tr><td>D1</td><td>液体、绳</td><td>MLS-MPM，粒子</td><td>core/engine/mpm_simulator.py；材料 0 液体、1 弹性、2 弹塑性（奇异值 [0.75, 1.45]）</td></tr>
+<tr><td>D2</td><td>布</td><td>网格 + 质点-弹簧</td><td>core/engine/cloth_simulator.py；8 邻域、k(‖d‖ − l)/l、无弯曲、无自碰撞</td></tr>
+<tr><td>D3</td><td>并行</td><td>JAX，多 GPU</td><td>vmap（仿真器）+ pmap（APG、PPO）</td></tr>
+<tr><td>D4</td><td>活动区域</td><td>32 × 6 × 32 / 128³</td><td>推绳 64 × 6 × 64；倒汤 128 × 64 × 128</td></tr>
+<tr><td>D5</td><td>检查点</td><td>只存少数状态，计算约 2 倍</td><td>MPM 每子步 custom_vjp；布料 mem_saving_level 0 / 1 / 2</td></tr>
+<tr><td>D6</td><td>接触修正</td><td>每个动作都调整到接触物体（A.5）</td><td>basic/cloth_env.py:139-143 被注释掉</td></tr>
+<tr><td>D7</td><td>梯度处理</td><td>没写</td><td>每步 NaN 清零 + 范数归一化（MPM ≤ 1；布料除以范数再除以质点数）</td></tr>
+<tr class="grp"><td colspan="4">任务</td></tr>
+<tr><td>T1</td><td>倒水、倒汤</td><td>4 维速度，100 步</td><td>6 维，v_y 置 0；倒汤 120 步、目标路径 pour_soup2 不存在</td></tr>
+<tr><td>T2</td><td>推绳、甩绳</td><td>推 6 步；甩 3 维速度 70 步</td><td>同；甩绳用位置控制</td></tr>
+<tr><td>T3</td><td>叠布、T 恤、展开</td><td>拾放；3 / 4 / 4 / 10 / 10 步</td><td>拾放 = 40 段 × 50 子步；T 恤 5、展开 15 步</td></tr>
+<tr><td>T4</td><td>奖励</td><td>exp(−λD)；训练加 exp(−L2)</td><td>λ = 10；MPM 编号对应的每坐标均方根，布料倒角；布料再乘 0.99ᵗ</td></tr>
+<tr class="grp"><td colspan="4">方法</td></tr>
+<tr><td>M1</td><td>PPO</td><td>不可微基线</td><td>algorithms/ppo/ppo.py（brax），折扣 0.9</td></tr>
+<tr><td>M2</td><td>APG</td><td>可微，整段反传</td><td>algorithms/apg/apg.py，默认展开 10 步，裁剪 0.3</td></tr>
+<tr><td>M3</td><td>SHAC</td><td>短窗口 + 评论家</td><td>algorithms/shac/shac.py，窗口 = 整个回合，末端 V 被清零</td></tr>
+<tr><td>M4</td><td>Transporter、ILD</td><td>10 条 / 1 条示范</td><td>未发布；示范 pickle 每任务 10 条</td></tr>
+<tr><td>M5</td><td>CEM-MPC、diff-MPC、diff-CEM-MPC</td><td>规划</td><td>未发布</td></tr>
+<tr class="grp"><td colspan="4">真机</td></tr>
+<tr><td>R1</td><td>推绳</td><td>Kinova Gen3，CEM-MPC + DaX</td><td>exp/ 下客户端和 calibrate.py 对照图；策略服务只有 mock</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、2 幕的方块和流。</b>只表示数据和梯度往哪里走。第 2 幕每个小方块是一个环境。</li>
+<li><b>第 3 幕。</b>二维 MLS-MPM 玩具，32 × 32 网格、312 个粒子，杨氏模量、泊松比、步长、压块路径都是我设的；液体按 mpm99 的写法重置 F，和 DaX 不同。弹塑性的截断区间用的是 DaX 的 [0.75, 1.45]。</li>
+<li><b>第 4 幕。</b>布料按 cloth_simulator.py 的更新顺序和 fold_cloth1 的常数当场重算，拾放的 40 段子动作照 cloth_env.py 展开。抓取点、放置点是我设的；0.03 半径只为对比。</li>
+<li><b>第 5 幕。</b>环境和活动区的比例按论文和代码的数画；绳子是示意。检查点的 12 步是示意，计数当场算。</li>
+<li><b>第 7 幕。</b>12 个粒子的绳子和目标是我设的；D、r_gt、r_aux 按代码的公式当场算。</li>
+<li><b>第 8 幕。</b>状态链是示意，SHAC 原文的窗口取 h = 3 只为画得下（原文默认 32）。</li>
+<li><b>第 9 幕。</b>一维奖励地形完全是我设的，CEM 和梯度上升当场算，固定种子。</li>
+<li><b>第 11 幕。</b>机械臂、相机、绳子形状都是示意；论文没有给出仿真和真机的定量误差。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2210.13066 后的理解，不是作者的官方图。原图见<a href="../../papers/daxbench.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

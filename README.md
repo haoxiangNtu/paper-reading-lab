@@ -8,6 +8,8 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| DiffMimic: Efficient Motion Mimicking with Differentiable Physics（[arXiv 2304.03274](https://arxiv.org/abs/2304.03274)，ICLR 2023） | [diffmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/diffmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/diffmimic/index.html) | Brax 可微仿真里整段 BPTT 做动作模仿 + Demonstration Replay。替换参考状态同时截断梯度；发布配置和论文不同；表 2 两个百分比算错。非独占许可，图用文字描述。 | 20 条 |
+| DaXBench: Benchmarking Deformable Object Manipulation with Differentiable Physics（[arXiv 2210.13066](https://arxiv.org/abs/2210.13066)，ICLR 2023 oral） | [daxbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/daxbench.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/daxbench/index.html) | JAX 可微仿真（MPM + 质点-弹簧），9 个可变形物体任务。表 4 不是图 3 的终值；发布的 SHAC 实际没有短窗口；倒汤目标路径缺失。 | 21 条 |
 | Learning Sim-to-Real Humanoid Locomotion in 15 Minutes（[arXiv 2512.01996](https://arxiv.org/abs/2512.01996)，2025-12） | [holosoma-15min 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/holosoma-15min.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/holosoma-15min/index.html) | FastSAC / FastTD3 一张 4090 约 15 分钟训出 G1 / T1 行走。对照 holosoma 78aeb23：目标 Q 各用各的、演员 8 次只更新 2 次、AdamW；FastTD3 不在 holosoma 里。含复现要点。 | 20 条 |
 | RPL: Learning Robust Humanoid Perceptive Locomotion on Challenging Terrains（[arXiv 2602.03002](https://arxiv.org/abs/2602.03002)，v3 2026-10，CoRL 2026） | [rpl 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/rpl.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/rpl/index.html) | 分地形特权专家 → 多路深度学生蒸馏，Warp 光线投射渲染。“5 倍”只在 4 路相机时成立（1 路 2.7 倍）；对照 RPL 1ca0250：DFSV 阈值符号相反，混合 DAgger+RL 没有发布。非独占许可，图用文字描述。 | 21 条 |
 | Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching（[arXiv 2602.15827](https://arxiv.org/abs/2602.15827)，v2 2026-05，RSS 2026） | [php-parkour 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/php-parkour.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/php-parkour/index.html) | motion matching 拼技能 → 特权专家跟踪 → DAgger+RL 蒸馏成深度学生。对照 php_parkour c7c9ce3：高度扫描 1.6 m（论文 0.7 m）、学生 30K 次、实际 32,768 环境（issue #5）。 | 22 条 |
@@ -72,6 +74,13 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## 可微物理两篇（Siwei Chen 等，2026-11-21）读后要点
+
+- 两篇都是 ICLR 2023，都用 JAX：DiffMimic 用 Brax 刚体仿真，DaXBench 自己写了 MPM（水、绳）和质点-弹簧（布料）。都不是有限元，也不是高斯。
+- **DiffMimic**：动作模仿变成状态匹配，梯度穿过整段可微仿真；Demonstration Replay 在偏离超过阈值时换回参考状态，代码里这一步同时截断了梯度。发布代码是附录 H 的随机起点变体，配置和论文正文不同。
+- **DaXBench**：基准的价值在统一的可微环境；数字要小心：表 4 和学习曲线终点对不上，可微 RL 的优势只在少数任务上成立；发布的 SHAC 和 SHAC 原文不一样。
+- 和 SHAC、SuperMimic 连起来看：DiffMimic 是“整段 BPTT + 截断重置”，SHAC 是“短窗口 + 评论家”，SuperMimic 是“不要可微仿真器，学世界模型再做短窗口 BPTT”。
 
 ## 人形行走三篇（2026-11-20）读后要点
 
@@ -367,6 +376,8 @@ papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbe
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
+papers/diffmimic.html      DiffMimic 精读（无原图，重画图在 papers/diffmimic/；11 幕动画在 interactives/diffmimic/）
+papers/daxbench.html       DaXBench 精读（原图在 papers/daxbench/，11 幕动画在 interactives/daxbench/）
 papers/holosoma-15min.html 15 分钟人形行走精读（原图在 papers/holosoma-15min/，11 幕动画在 interactives/holosoma-15min/）
 papers/rpl.html            RPL 精读（无原图，重画图在 papers/rpl/；10 幕动画在 interactives/rpl/）
 papers/php-parkour.html    PHP 跑酷精读（原图在 papers/php-parkour/，11 幕动画在 interactives/php-parkour/）
