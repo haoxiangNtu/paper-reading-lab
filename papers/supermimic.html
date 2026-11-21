@@ -386,6 +386,17 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
 
 <h2 id="qa">读者问答</h2>
 <section id="qa-list">
+<ol class="qa-idx">
+<li><a href="#qa-bptt">BPTT 是什么，在 SuperMimic 里是什么结构</a></li>
+<li><a href="#qa-story">这篇论文讲了一个什么故事</a></li>
+<li><a href="#qa-collect">仿真器在收集里也要跑，耗不耗时，具体怎么收集</a></li>
+<li><a href="#qa-wm">世界模型里有什么，“自回归”是什么意思</a></li>
+<li><a href="#qa-vs">和 OpenWAM、Dreamer、Cosmos 的世界模型有什么不同</a></li>
+<li><a href="#qa-score">“到 0.82”的 0.82 是什么</a></li>
+<li><a href="#qa-reward">奖励表里各项权重管什么</a></li>
+<li><a href="#qa-window">“72.5% 在窗口之外”是什么意思</a></li>
+<li><a href="#qa-lambda">GAE λ 是什么</a></li>
+</ol>
 <h3 id="qa-bptt">问 1：BPTT 是什么意思？在 SuperMimic 里是一个什么样的结构？</h3>
 <p><b>先说结论：</b>BPTT 是 backpropagation through time，“随时间反向传播”。做法是把一个<b>按时间一步步循环的计算</b>沿时间展开成一张很深的计算图，再对这张图做普通的反向传播。这个名字来自训练循环神经网络（RNN）的老方法（<a href="https://doi.org/10.1109/5.58337">Werbos 1990</a>）。</p>
 <p>在 SuperMimic 里，被展开的“循环”是<b>策略和冻结的世界模型组成的闭环</b>：</p>
@@ -491,6 +502,261 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
 <li>世界模型 32 步的误差没有数据（<a href="#n3">读者注 3</a>）；状态里有什么、四个头哪些是学的，论文没写，作者也没有公开训练代码（<a href="#n1">读者注 1</a>、<a href="#n17">读者注 18</a>）。</li>
 </ul>
 <p>一句话概括：<b>用一个学到的可微物理模型代替“反复试错”，把几万 GPU 小时的人形动作跟踪训练压到单卡几小时，而且动作库越大，这个优势越明显。</b></p>
+
+<h3 id="qa-collect">问 3：仿真器在“收集”里也要跑，这不耗时吗？具体是怎么收集的？</h3>
+<p><b>先说结论：</b>仿真器确实一直在跑，也确实要花时间。问 1 说的“绕开仿真器”，是指<b>梯度</b>不经过仿真器，不是不用仿真器。仿真器只需要往前算一步，不需要给出 \(\partial s_{t+1}/\partial a_t\) 这类导数。</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th>一次迭代里的三步</th><th>用不用仿真器</th><th>有没有反向传播</th></tr></thead><tbody>
+<tr><td>收集</td><td>用，只做前向步进</td><td>没有。策略只推理，不记梯度；写进缓存的数据就是普通张量</td></tr>
+<tr><td>拟合世界模型</td><td>不用，读缓存</td><td>有，只更新 \(\omega\)。仿真器数据只当监督目标</td></tr>
+<tr><td>改进策略（BPTT）</td><td>不用</td><td>有。起点从缓存取，之后 32 步全部在 \(f_\omega\) 里走</td></tr>
+</tbody></table></div>
+<p><b>收集具体怎么做</b>（<a href="#s3-1">§3.1</a>、算法 A.1、<a href="#apD">附录 D.1</a>、表 A.5）：</p>
+<ol>
+<li><b>并行环境。</b>每张 GPU 在 MuJoCo Warp 里同时开 4096 个环境，每个环境跟踪动作库里的某个片段。</li>
+<li><b>每个回合开始时：</b>
+<ul>
+<li>抽一组仿真上下文 \(\xi\)：摩擦、关节标定偏移、躯干质心（表 A.3）。</li>
+<li>按回报选起点：把动作时间轴切成 1 秒一段，每段记一个回报的滑动估计 \(G_b\)。起点按三种分布混合抽取：50% 均匀抽；40% 按 \(\mathrm{softmax}_b(-25G_b/G_{max})\) 抽，回报低、也就是难的段更容易被抽到；10% 按过去的权重抽，让已经学会的难动作还能继续练。</li>
+</ul></li>
+<li><b>每一步：</b>
+<ul>
+<li>仿真器给出观测 \(o_t=\bar o_t+\eta_t\)，参考动作给出目标 \(g_t\)。</li>
+<li>用<b>当前最新的</b> \(\pi_\theta\) 前向算出 \(a_t\)，不记梯度。图 2 里“冻结的策略”就是这个意思：这一步只推理，不训练。</li>
+<li>仿真器执行 \(a_t+\epsilon_t\)，其中 \(\epsilon\sim\mathcal N(0,0.1^2)\)。加噪声是为了让世界模型见到更宽的动作范围，论文说这一项是可选的。</li>
+<li>把 \((s_t,\ a_t+\epsilon_t,\ \xi)\) 和终止标志写进回放缓存。拟合损失式 (1) 还要用到奖励、干净观测和终止，所以这些也要存，或者能从状态算出来。论文没有逐项列出缓存的字段。</li>
+<li>环境终止（摔倒）后，按第 2 步的规则重新选起点。</li>
+</ul></li>
+<li><b>和训练交替进行。</b>仿真每走一个向量步，平均做 0.4 次更新（表 A.5 的“更新数据比”）：
+<ul>
+<li>拟合：取 10 批、每批 2048 个 8 步窗口，更新世界模型；</li>
+<li>改进：从缓存取 4096 个起点，各想象 32 步，做 BPTT 更新策略，同时训练评论家。</li>
+</ul></li>
+</ol>
+<p><b>“新的覆盖最旧的”是什么意思。</b>回放缓存是显存里一块固定大小的数组：每个环境 1000 格，单卡共约 410 万条转移。仿真每走一步，4096 个环境各写一格，写到第 \(t \bmod 1000\) 格。写满以后，第 1001 步又写回第 0 格，把最老的那条覆盖掉。这种结构叫环形缓冲区，也就是先进先出。</p>
+<ul>
+<li><b>显存固定：</b>缓存不会越存越多。</li>
+<li><b>数据总是最近的：</b>表里只有最近 1000 步的数据。按读者注 11 的推算，单卡一次迭代约 105 毫秒，1000 步不到 2 分钟。世界模型学的是当前策略附近会去到的状态，不是很早以前笨拙策略摔倒时的状态。</li>
+<li><b>旧数据仍然有效：</b>同一个 \((s,a)\) 不管由哪个策略执行，下一状态都一样，因为物理规律不取决于采集它的策略（§3.1）。</li>
+</ul>
+
+<div class="bptt" id="rb">
+<p class="lab">示意 · 环形回放缓存。画了 6 个环境 × 20 格，论文是每卡 4096 个环境 × 1000 格。颜色越深越新，红框是下一步要覆盖的格，小三角表示那一步环境摔倒后重置</p>
+<div class="bptt-ctl">
+<button type="button" id="rb-play" class="play">▶ 播放</button>
+<input type="range" id="rb-t" min="0" max="60" value="27" aria-label="已走的仿真步数">
+</div>
+<div class="bptt-svgwrap"><svg id="rb-svg" viewBox="0 0 640 238" role="img" aria-label="环形回放缓存示意：每行是一个环境，每列是一格，写指针从左往右循环，写满后覆盖最旧的格"></svg></div>
+<p class="bptt-info" id="rb-info"></p>
+</div>
+
+<p><b>耗不耗时：耗，但被摊薄了。</b>下面的速度来自图 5(a)，单次迭代的时间拆分是读者注 11 的推算，论文没有直接给出：</p>
+<div class="tbar" role="img" aria-label="单卡一次迭代约 105 毫秒：仿真一步约 31 毫秒，平均 0.4 次更新约 74 毫秒">
+<span class="tb-sim" style="flex:31">仿真一步 ≈ 31 ms</span><span class="tb-upd" style="flex:74">平均 0.4 次更新（拟合 + 想象 + BPTT）≈ 74 ms</span>
+</div>
+<ul>
+<li><b>仿真器：</b>4096 个环境时约 1.31×10⁵ 步/秒，所以 4096 个环境一起走一步约 31 毫秒，约占一次迭代的 30%。</li>
+<li><b>世界模型：</b>约 1.68×10⁶ 步/秒，比仿真器快约 12.8 倍（<a href="#n6">读者注 7</a>）。</li>
+<li><b>全程总量：</b>约 1.3×10⁹ 个仿真步，对应约 1.7×10¹⁰ 个想象步。每个真实仿真步大约被“放大”成 13 个想象步来用（读者注 11 的推算）。</li>
+</ul>
+<p>和 PPO 比，仿真本身一样贵，PPO-Sim 也在 MuJoCo Warp 里跑。区别在于每个仿真步能带来多少学习信号：</p>
+<ul>
+<li><b>PPO：</b>所有梯度信息都要从带噪声的仿真样本里统计出来，样本用完就丢。</li>
+<li><b>SuperMimic：</b>仿真样本先拿去教世界模型，一份数据在缓存里停约 1000 次迭代，期间被反复抽来拟合；策略再在便宜的世界模型里拿解析梯度。论文称，达到同样回报需要的想象步数比 PPO 少约 64 倍（<a href="#s4-2">§4.2</a>）。</li>
+</ul>
+<p>省掉的是“大量仿真采样 + 高方差梯度估计”，不是仿真本身。<a href="#n10">读者注 11</a> 也说明了，“一次迭代 = 一个仿真向量步、平均 0.4 次更新”是按图上的速度反推的理解，第三方复现也这样理解，但论文没写清楚。</p>
+
+<h3 id="qa-wm">问 4：SuperMimic 的世界模型里有什么？“自回归”是什么意思？</h3>
+<p>它是一个<b>可微的物理仿真器替身</b>，只在训练时给策略提供预测和梯度，部署到机器人上时不用。它由一个主干加三个头组成，全部以机器人的物理状态为中心（<a href="#s3-2">§3.2</a>、表 A.4）：</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th>部分</th><th>公式</th><th>输入 → 输出</th><th>作用</th></tr></thead><tbody>
+<tr><td>动力学</td><td>\(\hat s_{t+1}=f_\omega(\hat s_t,a_t,\xi)\)</td><td>状态 + 动作 + 物理参数 → 下一状态</td><td>核心：代替仿真器往前算一步。MLP (2048, 2048, 2048)</td></tr>
+<tr><td>奖励头</td><td>\(\hat r_{t+1}=r_\omega(\hat s_t,a_t,g_t)\)</td><td>状态 + 动作 + 目标 → 奖励</td><td>想象时算跟踪得分（问 7）</td></tr>
+<tr><td>观测头</td><td>\(\hat{\bar o}_t=g_\omega(\hat s_t,\xi)\)</td><td>状态 → 干净的本体观测</td><td>策略看不到完整状态，只看观测（表 A.1，一帧 93 维），所以要从状态生成观测再喂给策略</td></tr>
+<tr><td>终止头</td><td>\(\hat d_t=d_\omega(\hat s_t,g_t)\)</td><td>状态 + 目标 → 摔倒概率</td><td>仿真器给的是 0/1 硬终止，模型给 0 到 1 的概率，存活权重 \(\hat c_t\) 才能求导</td></tr>
+</tbody></table></div>
+<ul>
+<li>每个头既可以用网络学，也可以用公式直接算，比如奖励本来就是状态的已知函数。哪些是学的，论文没写（<a href="#n1">读者注 1</a>）。状态 \(s\) 里有什么、多少维，论文也没写。</li>
+<li>它是<b>确定性</b>的，不输出分布。仿真器里的随机性来源都已知：物理参数在 \(\xi\) 里，动作噪声已记在动作里，观测噪声 \(\eta\) 在模型外按已知分布加。</li>
+<li>想象一步的链条：\(\hat s_t\xrightarrow{g_\omega}\hat{\bar o}_t\xrightarrow{+\eta_t}o_t\xrightarrow{\pi_\theta}a_t\xrightarrow{f_\omega(\hat s_t,a_t,\xi)}\hat s_{t+1}\)，同时由 \(r_\omega\)、\(d_\omega\) 给出奖励和终止概率。</li>
+</ul>
+<p><b>“自回归”的意思：把模型自己上一步的预测，当作下一步的输入。</b>拟合时，从缓存取一段连续 8 步的真实记录 \(s_0,a_0,s_1,a_1,\dots,s_8\)，有两种训练方式：</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th></th><th>逐步监督（不是自回归）</th><th>自回归（SuperMimic 用这个，式 1）</th></tr></thead><tbody>
+<tr><td>每一步的输入</td><td>真实状态：\(f_\omega(s_j,a_j)\) 对比 \(s_{j+1}\)</td><td>只有起点是真实的，\(\hat s_0=s_0\)；之后 \(\hat s_{j+1}=f_\omega(\hat s_j,a_j)\)，喂的是自己的预测</td></tr>
+<tr><td>动作</td><td>缓存里记录的动作</td><td>同样用记录的动作，不让策略重新算</td></tr>
+<tr><td>损失</td><td>每步单独算</td><td>8 步误差全部加起来，梯度沿 8 步链条往回传</td></tr>
+<tr><td>学到什么</td><td>“从真实状态出发走一步”</td><td>还要学会面对自己的误差，把轻微偏离的状态拉回来</td></tr>
+</tbody></table></div>
+<p><b>为什么要自回归：</b>因为使用时就是自回归的。策略在模型里想象 32 步，每一步的输入都是模型上一步的预测，没有真实状态来纠正。单步再准，每步也有一点小误差，连续滚下去会累积，状态漂到模型从没见过的地方，然后越错越离谱，这叫复合误差。论文认为 8 步自回归训练让模型学会了纠正自己的误差，所以 32 步想象够稳。但论文只报告了 8 步误差，没有 32 步或更长的数据（<a href="#n3">读者注 3</a>）。</p>
+
+<div class="bptt" id="ar">
+<p class="lab">玩具 · 两种训练方式得到的模型，在“只见过 8 步”之后继续滚 32 步。误差的放大系数是我编的，只为说明复合误差，不是论文数据</p>
+<div class="bptt-ctl">
+<button type="button" data-m="tf" class="on">① 逐步监督：每步从真值出发</button>
+<button type="button" data-m="ar">② 自回归：8 步链条</button>
+<button type="button" data-m="use">③ 使用时：滚 32 步</button>
+<input type="range" id="ar-k" min="1" max="32" value="32" aria-label="滚到第几步">
+</div>
+<div class="bptt-svgwrap"><svg id="ar-svg" viewBox="0 0 640 250" role="img" aria-label="一维玩具：灰色是真实轨迹，两种训练方式得到的模型在 32 步滚动中的偏离"></svg></div>
+<p class="bptt-info" id="ar-info"></p>
+</div>
+<p><b>和 DreamerV3 的输入 \(x_t\)、重建 \(\hat x_t\) 对照。</b>DreamerV3 的 \(x_t\) 是环境给的原始观测（Atari 画面、机器人图像或本体向量），编码器把它变成隐变量 \(z_t\)，解码器再从 \((h_t,z_t)\) 把观测“画回来”得到 \(\hat x_t\)。重建的目的是逼迫隐变量记住画面里的信息：<a href="dreamerv3.html">DreamerV3 精读</a>里记过，去掉重建梯度，性能掉到 26%。SuperMimic 不需要这一套，因为仿真器直接给出完整、精确的状态，状态本身就是模型的“隐变量”。它的观测头 \(g_\omega\) 看起来像解码器，但目的只是给策略生成输入，不是学表征。</p>
+
+<h3 id="qa-vs">问 5：它和 OpenWAM、Dreamer、Cosmos 这些“世界模型”有什么不同？</h3>
+<p>同样叫“世界模型”，指的东西差别很大：</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th></th><th>SuperMimic</th><th><a href="openwam.html">OpenWAM</a>（世界-动作模型）</th><th><a href="dreamerv3.html">Dreamer 类</a></th><th><a href="cosmos-predict25.html">Cosmos</a> 类视频世界模型</th></tr></thead><tbody>
+<tr><td>预测什么</td><td>机器人物理状态 \(s\)，低维向量</td><td>视频隐变量（Wan2.2 VAE 编码的未来帧）和动作块</td><td>从图像或观测编码出的隐状态</td><td>未来视频帧</td></tr>
+<tr><td>网络</td><td>3 层 MLP</td><td>5B 视频 DiT + 1B ActionDiT，逐层联合注意力</td><td>RSSM：循环网络 + 随机隐变量</td><td>大型 DiT，扩散或流匹配</td></tr>
+<tr><td>确定 / 随机</td><td>确定性</td><td>生成式，去噪采样</td><td>随机隐变量</td><td>生成式</td></tr>
+<tr><td>数据从哪来</td><td>训练中由自己的策略在仿真器里在线收集</td><td>离线的人类第一视角视频 + 机器人数据，约 5.2 亿帧</td><td>智能体自己在线交互</td><td>大规模视频</td></tr>
+<tr><td>作用</td><td>训练策略的可微环境，提供解析梯度</td><td><b>它本身就是策略</b>：预测世界怎么变，是为了帮助输出动作</td><td>在想象中训练演员和评论家</td><td>生成数据、仿真评测，或作为 WAM 的骨干</td></tr>
+<tr><td>部署时用不用</td><td>不用，只部署策略</td><td>用，模型就是策略</td><td>一般只部署演员</td><td>看用途</td></tr>
+<tr><td>覆盖范围</td><td>一种机器人（G1）、一套刚体动力学、平地</td><td>多种机器人形态、语言条件的操作任务</td><td>单个环境</td><td>开放世界的视觉内容</td></tr>
+</tbody></table></div>
+<ol>
+<li><b>“世界模型”所指不同。</b>SuperMimic 的是控制和基于模型强化学习意义上的<b>动力学模型</b>：给状态和动作，预测下一状态，要求物理上准、可微。OpenWAM 和 Cosmos 的是<b>视觉生成模型</b>：预测画面接下来怎样，靠的是从大量视频里继承的视觉先验。</li>
+<li><b>知识从哪来。</b>SuperMimic 有一个已知的仿真器源源不断地给精确数据，再把物理“蒸馏”进可微网络。它不需要先验，但离不开仿真器，也只懂仿真器里有的东西。OpenWAM 没有仿真器可问，只能从视频里学先验，再用少量机器人数据适配到动作上。</li>
+<li><b>梯度怎么用。</b>SuperMimic 的核心是穿过模型反传回报，模型的价值在雅可比，不只在预测结果。OpenWAM 训练时用去噪损失，不对任何回报求导，本质上是带世界预测辅助的模仿学习。Dreamer 介于两者之间：也在学到的模型里想象并训练演员，DreamerV1 也穿过模型反传，但 DreamerV3 的演员改用 Reinforce 式梯度（见 DreamerV3 精读）。SuperMimic 和 Dreamer 最大的不同是：它在低维、确定、物理的状态上做 BPTT，并且有仿真器的精确状态当监督。</li>
+<li><b>规模方向相反。</b>SuperMimic 的模型小，但每秒要跑上百万步，用速度换算力。OpenWAM 的模型有几十亿参数，推理慢，换来对多样场景的理解。</li>
+</ol>
+<p>一句话：SuperMimic 适用于<b>物理已知、只是太贵或不可微</b>的情形，世界模型是加速和求导的工具；OpenWAM 适用于<b>物理和场景都未知、只能从视频里学</b>的情形，世界模型是知识的载体。</p>
+
+<h3 id="qa-score">问 6：“1.2 GPU 小时到 0.82”里的 0.82 是什么？</h3>
+<p>0.82 是<b>归一化回报</b>。可以把它理解成动作模仿的得分，满分 1。论文 <a href="#s4">§4</a> 的定义是：整段回合每一步奖励的不打折加和，除以这个和理论上能取到的最大值。</p>
+\[ \text{归一化回报}=\frac{\sum_t r_t}{\text{理论最大的}\sum_t r_t} \]
+<ul>
+<li><b>每步满分：</b>奖励表 A.2 里正项的权重加起来是 1 + 1 + 1 + 1 + 0.5 + 0.5 = 5，再乘控制周期 0.02 秒，等于 0.1。两个惩罚项为 0 时才能拿满。各项是什么见问 7。</li>
+<li><b>整段满分：</b>一段长 N 步的回合满分是 0.1 × N。这里按整段动作都不摔、每项都完美来理解“能取到的最大值”，这是我的理解，论文没有展开。</li>
+</ul>
+<p><b>0.82 同时反映两件事：</b></p>
+<ol>
+<li><b>跟得准不准。</b>每一步各部位的位置、朝向、速度越接近参考，单步得分越接近满分。</li>
+<li><b>能不能坚持到最后。</b>根部高度偏差超过 0.25 米、或倾斜过大，就算摔倒、回合终止，后面的步全是 0 分。一个动作撑到一半就摔，即使前半段完美，这一段最多也只有 0.5。</li>
+</ol>
+<p>所以 0.82 不是“82% 的动作成功了”，也不是“误差 18%”，而是<b>跟踪精度和存活时长混在一起</b>的综合分。</p>
+<p><b>这个数出自哪里。</b>图 4(a) 的受控实验，数据集是 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LAFAN1</a>，SuperMimic 和 PPO-Sim 的动作、观测、奖励、终止、网络大小、评测方法都一样（<a href="#s4-1">§4.1</a>）：</p>
+<ul>
+<li>SuperMimic：1 张 H100 训练约 1.2 小时，回报第一次越过 0.82。我从矢量图读到 1.19 GPU 小时那个点是 0.834（<a href="#n2">读者注 4</a>）。</li>
+<li>PPO-Sim：18 小时都没到 0.82，最终 1 卡 0.60、4 卡 0.70、8 卡 0.72。</li>
+</ul>
+<p>0.82 在这里是一条<b>目标线</b>，用来比较谁先到。图 4(c) 画的就是各设置到 0.82 要几小时。论文没有解释为什么选 0.82。</p>
+<p><b>容易混淆的地方：</b></p>
+<ul>
+<li><b>不能和 SONIC 的 0.90 比大小。</b>图 3 里的 0.90 是在 BONES-SEED 大动作库上算的，和 LAFAN1 上的 0.82 不是同一个数据集。图 3(b) 的“目标回报”是多少，论文也没说（<a href="#n5">读者注 6</a>）。</li>
+<li><b>它只在同一套奖励和终止判据下有意义。</b>提前终止会直接拉低回报，判据一变这个数就变；SuperMimic 和 SONIC 的判据并不相同（<a href="#n13">读者注 14</a>）。</li>
+<li><b>复现时可能先卡在这里。</b>第三方复现按论文的观测在整段 LAFAN1 片段上只得到 0.56 到 0.59，加上相对锚点的观测后到 0.904；另一个复现报告 0.829（<a href="#n9">读者注 10</a>，我没有核实）。</li>
+</ul>
+<p>如果想要更直观的指标，看<b>失败数</b>：129,514 个动作里没能跟完的个数。SuperMimic 3 小时版失败 25 个，SONIC 失败 179 个。</p>
+
+<h3 id="qa-reward">问 7：奖励表里这些权重各管什么？</h3>
+<p>附录 A 表 A.2 的 8 项可以分成三组：四项<b>刚体项</b>管“姿态和动作像不像”；两项<b>根部项</b>管“人在不在对的地方、朝不朝对的方向”；两项<b>惩罚</b>管“动作是不是平顺、安不安全”。六个跟踪项都是同一个形式：</p>
+\[ r=w\cdot\exp\!\Big(-\frac{\overline{e^2}}{\sigma^2}\Big) \]
+<ul>
+<li>\(w\) 是表里的权重：这一项最多值多少分。</li>
+<li>\(\overline{e^2}\) 是误差的平方；刚体项对被跟踪的各个刚体取平均。</li>
+<li>\(\sigma\) 是容忍度：误差正好等于 \(\sigma\) 时，这一项只剩 \(e^{-1}\approx37\%\)。误差为 0 时得满分，误差越大越接近 0。</li>
+</ul>
+<p>用 exp 的好处：分数在 0 和 1 之间，一次大误差不会带来巨大的负分；误差接近 0 时曲线很平，跟得已经很好时边际收益小，跟得差时扣分快，所以策略会先修正大错误。</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th>项</th><th>权重</th><th>σ</th><th>管什么</th><th>不加会怎样</th></tr></thead><tbody>
+<tr><td>刚体位置</td><td>1.0</td><td>0.3 m</td><td>手、脚、膝、肘是否在该在的地方</td><td>姿态走样，比如右手该举过头顶却只到肩膀</td></tr>
+<tr><td>刚体朝向</td><td>1.0</td><td>0.4 rad（23°）</td><td>每一节身体的朝向和扭转</td><td>位置对了但部件扭错，比如脚掌没放平，落地不稳</td></tr>
+<tr><td>刚体线速度</td><td>1.0</td><td>1.0 m/s</td><td>每个部位移动得快慢对不对</td><td>节奏不对；跳跃、踢腿这类靠速度和冲量的动作做不出来</td></tr>
+<tr><td>刚体角速度</td><td>1.0</td><td>3.14 rad/s</td><td>每个部位转得快慢对不对</td><td>旋转类动作转不够，空翻落不了地</td></tr>
+<tr><td>根部位置</td><td>0.5</td><td>0.3 m</td><td>根部在世界坐标里的位置</td><td>姿势很像但原地踏步，参考往前走了 3 米也不管</td></tr>
+<tr><td>根部朝向</td><td>0.5</td><td>0.4 rad</td><td>根部在世界里的朝向</td><td>参考转身 180°，机器人只转 90°</td></tr>
+<tr><td>动作平滑</td><td>−0.1</td><td>—</td><td>\(\lVert a_t-a_{t-1}\rVert^2\)：相邻两步的关节指令不要跳变</td><td>指令高频抖动：仿真里可能还行，真机上电机发热、齿轮受冲击</td></tr>
+<tr><td>关节限位</td><td>−2</td><td>—</td><td>关节转出可动范围的量，只在越界时扣分</td><td>关节撞到机械限位，可能损坏或触发保护停机</td></tr>
+</tbody></table></div>
+<p><b>为什么刚体项和根部项要分开。</b>按 BeyondMimic 的定义（<a href="beyondmimic.html">BeyondMimic 精读</a>），锚点直接跟参考的全局位姿；其他刚体的参考先经过一个“对齐偏航、保留高度”的变换，换到以机器人当前锚点为中心的坐标里再比较。所以整个人整体偏了一点，不扣刚体项的分，只扣根部项。这样刚体项专心管“形状像不像”，根部项管“全局位置对不对”。根部项权重只有一半，是因为全局误差会随时间累积，权重太大时策略可能为了到达位置而牺牲姿态。这条权重理由是我的理解，论文没有解释。</p>
+<p><b>两个细节：</b></p>
+<ul>
+<li><b>被跟踪的刚体：</b>论文没列名单。BeyondMimic 代码里是 14 个：骨盆、双髋、双膝、双踝、躯干、双肩、双肘、双腕。</li>
+<li><b>“根部”是哪个刚体：</b>SuperMimic 写的是骨盆，BeyondMimic 的 G1 配置里锚点是躯干 torso_link（<a href="#n19">读者注 19</a>）。</li>
+</ul>
+<p><b>SuperMimic 相对 BeyondMimic 改了两处</b>（附录 A）：</p>
+<ol>
+<li><b>去掉自碰撞惩罚。</b>原来这项防的是随机策略钻空子：参考动作让两个部位靠近时，把它们压在一起能压住动作噪声，反而提高速度跟踪分。SuperMimic 的策略是确定性的，想象里没有这个漏洞。</li>
+<li><b>关节限位从 −10 降到 −2。</b>论文没解释。我的推测是：这一项是分段线性的，越界时梯度大小恒定，乘 −10 可能在反传时压过跟踪项，或加剧 BPTT 的大梯度。只是推断。</li>
+</ol>
+
+<div class="bptt" id="rw">
+<p class="lab">自己做的 · 单步奖励计算器。拖动各项误差，看每一项得几分。公式和 σ、权重照表 A.2</p>
+<div class="bptt-ctl" id="rw-pre">
+<button type="button" data-p="good" class="on">跟得不错</button>
+<button type="button" data-p="perfect">完美</button>
+<button type="button" data-p="slow">姿势对但慢半拍</button>
+<button type="button" data-p="drift">原地踏步</button>
+<button type="button" data-p="jitter">抖动</button>
+</div>
+<div id="rw-rows"></div>
+<p class="bptt-info" id="rw-info"></p>
+<p class="tcap">误差的含义：刚体项是“各刚体误差平方取平均再开根号”，根部项是根部一个刚体的误差，动作平滑是 \(\lVert a_t-a_{t-1}\rVert^2\)（29 维），关节限位是各关节越界量之和（弧度）。这五个预设是我编的例子，不是论文数据。</p>
+</div>
+
+<h3 id="qa-window">问 8：“折扣回报约 72.5% 在窗口之外”是什么意思？</h3>
+<p>意思是：如果每一步奖励都一样，那么在策略要最大化的“总分”里，只有约 27.5% 落在 32 步想象窗口之内。剩下约 72.5% 来自第 32 步以后，世界模型没有想象到那里，只能靠评论家估计（<a href="#n2b">读者注 2</a>）。</p>
+<p><b>折扣回报</b>是越远的奖励权重越小的总分：</p>
+\[ G=\sum_{t=0}^{\infty}\gamma^t r_{t+1}=r_1+0.99\,r_2+0.99^2\,r_3+\cdots \]
+<p>设每步奖励都是 1，总分是一个等比数列：\(\sum_t 0.99^t=1/(1-0.99)=100\)。这就是“有效视野约 100 步”：控制频率 50 Hz，100 步约 2 秒。再往后的奖励权重已经很小，比如 \(0.99^{300}\approx0.05\)。把总分切成窗口内外两段：</p>
+\[ \underbrace{\sum_{t=0}^{31}0.99^t}_{\text{窗口内}\ =\ (1-0.99^{32})\times100\ \approx\ 27.5}\ +\ \underbrace{\sum_{t=32}^{\infty}0.99^t}_{\text{窗口外}\ =\ 0.99^{32}\times100\ \approx\ 72.5} \]
+<p>其中 \(0.99^{32}=e^{32\ln0.99}\approx0.725\)。</p>
+
+<div class="bptt" id="dw">
+<p class="lab">自己做的 · 折扣权重 \(\gamma^t\) 和想象窗口。点按钮换 γ 和 H</p>
+<div class="bptt-ctl" id="dw-g"><span class="mut-l">γ</span></div>
+<div class="bptt-ctl" id="dw-h"><span class="mut-l">H</span></div>
+<div class="bptt-svgwrap"><svg id="dw-svg" viewBox="0 0 640 220" role="img" aria-label="折扣权重随步数衰减的曲线，想象窗口内的部分着色，标出窗口内外各占多少"></svg></div>
+<p class="bptt-info" id="dw-info"></p>
+</div>
+
+<p><b>窗口外的部分怎么办：交给评论家。</b>如果只把 32 步奖励加起来就反传，策略只看到总分的 27.5%，会很短视。比如一个动作现在多拿一点分，但 1 秒后会让机器人失去平衡，摔倒发生在窗口外，策略看不到，就会继续选它。SuperMimic 沿用 <a href="shac.html">SHAC</a> 的做法，在窗口末尾接上评论家（式 2）：</p>
+\[ \hat J=\sum_{t=0}^{31}\gamma^t\hat c_t\,\hat r_{t+1}+\gamma^{32}\hat c_{32}\,V_\psi(\hat s_{32}) \]
+<ul>
+<li>前一项来自世界模型的想象，可以精确求导；后一项就是那 72.5%，由评论家一口吃下。</li>
+<li>梯度也穿过 \(V_\psi(\hat s_{32})\) 传回前面 32 步的动作。某个动作把机器人带到“看起来快要摔”的状态，评论家给它低分，策略就学会避开。</li>
+<li>\(\hat c_t\) 是软存活权重：想象中摔倒的概率越大，后面的分越少。</li>
+</ul>
+<p>图 4(b) 说明了这一点：没有评论家时 H ≤ 16 训不动；带评论家时 H = 32 最快到目标（<a href="#s4-3">§4.3</a>）。窗口拉长也不是办法：雅可比连乘更长，梯度更容易爆炸或消失（问 1 的 ρ 玩具）；世界模型自回归滚得越远误差越大（问 4）；带评论家时 H 从 64 加到 128，训练时间几乎变成 3 倍。所以分工是：<b>短窗口管近处，给精确的解析梯度；评论家管远处，估计窗口外的长期价值。</b></p>
+<p>两点补充：</p>
+<ul>
+<li>“拟合窗口 8 步”是另一回事。它是训练世界模型时自回归滚动的长度，和折扣回报无关。8 步只有 0.16 秒，使用时却要滚 32 步，这是读者注 3 提到的隐患。</li>
+<li>72.5% 只在“每步奖励相同、不终止”时成立，是直观的比例。真实奖励每步不同，还会被存活权重打折。</li>
+</ul>
+
+<h3 id="qa-lambda">问 9：表 A.5 里的“GAE λ = 0.95”是什么？</h3>
+<p>λ 是一个 0 到 1 之间的旋钮，决定评论家的学习目标里，<b>真实走出来的奖励</b>和<b>评论家自己的估计</b>各占多少。</p>
+<p><b>先看两个极端。</b>评论家 \(V(s)\) 要学“从 s 出发，以后还能拿多少分”，训练它需要一个目标值：</p>
+<ul>
+<li><b>λ = 0，只走 1 步（TD）：</b>\(R^{(1)}_t=r_{t+1}+\gamma V(s_{t+1})\)。只用一步真实奖励，波动小；但后面全靠 \(V\) 自己估计，\(V\) 不准，目标就偏。这叫偏差大。</li>
+<li><b>λ = 1，一路走到底（蒙特卡洛）：</b>\(R^{(\infty)}_t=r_{t+1}+\gamma r_{t+2}+\gamma^2r_{t+3}+\cdots\)。不依赖 \(V\)，没有偏差；但一长串随机奖励加起来，波动很大。这叫方差大。</li>
+</ul>
+<p>两者之间是 n 步回报：先走 n 步真实奖励，再用评论家接上，\(R^{(n)}_t=r_{t+1}+\cdots+\gamma^{n-1}r_{t+n}+\gamma^nV(s_{t+n})\)。n 该选多少？λ 的做法是不选，全部按权重混在一起：</p>
+\[ R^\lambda_t=(1-\lambda)\big[R^{(1)}_t+\lambda R^{(2)}_t+\lambda^2R^{(3)}_t+\cdots\big] \]
+<p>第 n 步回报的权重是 \((1-\lambda)\lambda^{n-1}\)。λ = 0.95 时，不截断的话平均大约看 \(1/(1-\lambda)=20\) 步真实奖励，再交给评论家；SuperMimic 的窗口只有 32 步，截断后约 16 步（下面的图）。λ 越大越信任真实奖励，λ 越小越信任评论家。0.95 是常用的折中，PPO 和 BeyondMimic 也用它。</p>
+<p>实际计算不用把每个 n 步回报都算出来，从后往前递推即可。SuperMimic 的式 (3) 就是这样写的：</p>
+\[ \hat R_t=\hat r_{t+1}+\gamma(1-\hat d_{t+1})\big[(1-\lambda)V_{t+1}+\lambda\hat R_{t+1}\big] \]
+<p>读法：拿到这一步的奖励；如果没摔（\(1-\hat d\)），再加上未来的分数，其中 5% 听评论家的，95% 听“再往后一步的 λ-回报”。窗口末尾直接取评论家的值。窗口只有 32 步，所以从第 0 步看，n 最多到 32；超过 32 的那部分权重都集中到“走满 32 步再接评论家”这一项，约占 \(0.95^{31}\approx20\%\)。</p>
+
+<div class="bptt" id="lw">
+<p class="lab">自己做的 · 从窗口第 0 步看，λ-回报里第 n 步回报的权重（H = 32，最后一根柱子收下剩余全部权重）。点按钮换 λ</p>
+<div class="bptt-ctl" id="lw-l"><span class="mut-l">λ</span></div>
+<div class="bptt-svgwrap"><svg id="lw-svg" viewBox="0 0 640 210" role="img" aria-label="λ-回报中 1 到 32 步回报的权重柱状图"></svg></div>
+<p class="bptt-info" id="lw-info"></p>
+</div>
+
+<p><b>为什么叫 GAE。</b>GAE 是 generalized advantage estimation（广义优势估计，<a href="https://arxiv.org/abs/1506.02438">Schulman 等 2016</a>），估计的是<b>优势</b>：这个动作比平均水平好多少。</p>
+\[ \delta_t=r_{t+1}+\gamma V(s_{t+1})-V(s_t),\qquad \hat A_t=\delta_t+(\gamma\lambda)\delta_{t+1}+(\gamma\lambda)^2\delta_{t+2}+\cdots=R^\lambda_t-V(s_t) \]
+<p>所以“GAE 的 λ”和“λ-回报的 λ”是同一个参数，一个用在优势上，一个用在价值目标上。</p>
+<div class="tablewrap"><table class="t-qa">
+<thead><tr><th></th><th>PPO</th><th>SuperMimic</th></tr></thead><tbody>
+<tr><td>λ 用在哪</td><td>演员：优势 \(\hat A_t\) 决定动作概率往哪调<br>评论家：\(R^\lambda\) 作回归目标</td><td>只用在评论家：\(\hat R_t\) 是 \(V_\psi\) 的回归目标（式 3）</td></tr>
+<tr><td>演员的梯度从哪来</td><td>似然比 × \(\hat A_t\)，采样估计</td><td>回报穿过世界模型做 BPTT，不需要优势</td></tr>
+<tr><td>λ 影响什么</td><td>同时影响演员和评论家，对稳定性影响很大</td><td>只影响评论家学得好不好；而评论家决定窗口外那 72.5% 估得准不准</td></tr>
+</tbody></table></div>
+<p>所以表 A.5 写“GAE λ”是沿用 PPO 的叫法，在 SuperMimic 里它的实际意思是：<b>评论家用 λ = 0.95 的 λ-回报作学习目标</b>。</p>
 </section>
 <style>
 .bptt{--c-s:#3aa8e0;--c-f:#4fc98a;--c-pi:#38d1ff;--c-r:#f2c14e;--c-v:#9d8cff;--c-g:#ff7a59;--c-n:#d45fa0;border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:10px 12px;margin:18px 0}
@@ -512,6 +778,19 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
 .bptt .mut{fill:var(--muted)}
 .bptt .el{transition:opacity .25s}
 .t-qa{min-width:600px}
+.qa-idx{columns:2 300px;font-size:14.5px;margin:6px 0 14px}
+.qa-idx li{margin:2px 0;break-inside:avoid}
+.tbar{display:flex;gap:2px;margin:10px 0;font-size:13px;line-height:1.35;border-radius:8px;overflow:hidden}
+.tbar span{padding:7px 9px;color:#fff}
+.tbar .tb-sim{background:#6b7785}.tbar .tb-upd{background:#1f9a5c}
+.mut-l{font-family:var(--font-mono);font-size:13px;color:var(--muted);min-width:1.4em}
+.rw-row{display:grid;grid-template-columns:8.5em minmax(90px,1fr) 6.2em minmax(60px,.8fr) 3.6em;gap:8px;align-items:center;font-size:13.5px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.rw-n small{display:block;font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.rw-v,.rw-c{font-size:12.5px;text-align:right}
+.rw-bar{height:12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.rw-bar i{display:block;height:100%}
+.rw-bar i.pos{background:var(--c-f)}.rw-bar i.neg{background:var(--c-g)}
+@media (max-width:560px){.rw-row{grid-template-columns:7em 1fr 4.6em;}.rw-bar,.rw-c{display:none}}
 </style>
 <script>
 (function(){
@@ -644,6 +923,190 @@ m anchor}\in\mathbb R^9\)、IMU 角速度和线速度、关节状态和上一步
     svg.innerHTML=s;
   }
   sl.addEventListener('input',draw); draw();
+})();
+</script>
+<script>
+(function(){
+  /* ---------- shared helpers ---------- */
+  function $(id){return document.getElementById(id);}
+  function btnRow(host,vals,cur,fmt,on){
+    var bs=[];
+    vals.forEach(function(v){var b=document.createElement('button');b.type='button';b.textContent=fmt(v);if(v===cur)b.className='on';
+      b.addEventListener('click',function(){bs.forEach(function(x){x.className='';});b.className='on';on(v);});host.appendChild(b);bs.push(b);});
+  }
+  function pct(x){return (x*100).toFixed(1)+'%';}
+
+  /* ---------- Q3: ring buffer ---------- */
+  (function(){
+    var svg=$('rb-svg'); if(!svg) return;
+    var E=6,N=20,TMAX=60,x0=64,y0=34,cw=27,ch=26, sl=$('rb-t'), pl=$('rb-play'), info=$('rb-info'), playing=false, timer=0;
+    function reset(e,t){return ((t*7+e*13)%17)===0;}
+    function draw(){
+      var T=+sl.value, s='';
+      for(var j=0;j<N;j++) s+='<text x="'+(x0+j*cw+cw/2)+'" y="'+(y0-8)+'" font-size="10" text-anchor="middle" class="mono mut">'+j+'</text>';
+      for(var e=0;e<E;e++){
+        s+='<text x="'+(x0-8)+'" y="'+(y0+e*ch+ch/2+4)+'" font-size="12" text-anchor="end" class="mut">环境 '+e+'</text>';
+        for(j=0;j<N;j++){
+          var x=x0+j*cw, y=y0+e*ch, last=(T-1>=j)? j+N*Math.floor((T-1-j)/N) : -1;
+          if(last<0){ s+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(ch-2)+'" rx="3" style="fill:none;stroke:var(--line)"/>'; continue; }
+          var age=T-1-last, op=(1-age/N*0.85).toFixed(2);
+          s+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(ch-2)+'" rx="3" style="fill:var(--c-s);fill-opacity:'+op+';stroke:var(--line)"/>';
+          if(reset(e,last)) s+='<path d="M'+(x+4)+' '+(y+ch-4)+' l6 0 l-3 -6 z" style="fill:var(--c-g)"/>';
+          if(N<=T && j===0 && e===0) {}
+        }
+      }
+      var pj=T%N, px=x0+pj*cw;
+      s+='<rect x="'+(px-1)+'" y="'+(y0-1)+'" width="'+(cw+2)+'" height="'+(E*ch+2)+'" rx="4" style="fill:none;stroke:var(--c-g);stroke-width:2.2"/>';
+      s+='<text x="'+(px+cw/2)+'" y="'+(y0+E*ch+18)+'" font-size="12" text-anchor="middle" style="fill:var(--c-g)">下一步写这里</text>';
+      s+='<text x="'+x0+'" y="'+(y0+E*ch+40)+'" font-size="12" class="mut">格号 = 步数 mod '+N+'（论文：mod 1000）</text>';
+      svg.innerHTML=s;
+      var oldest=Math.max(0,T-N);
+      info.textContent= T===0 ? '缓存是空的。每走一步，所有环境同时往同一列写一条转移。' :
+        (T<N ? '已走 '+T+' 步，缓存还没写满（'+T+' / '+N+' 列）。下一步写第 '+pj+' 列。' :
+         '已走 '+T+' 步。缓存已满，下一步写第 '+pj+' 列，覆盖第 '+(T-N)+' 步写的数据。缓存里现在是第 '+oldest+' 到第 '+(T-1)+' 步的数据，永远只保留最近 '+N+' 步。');
+    }
+    function tick(){ if(!playing) return; if(+sl.value>=TMAX){ sl.value=0; } sl.value=+sl.value+1; draw(); if(+sl.value>=TMAX){ stop(); return;} timer=setTimeout(tick,260); }
+    function stop(){ playing=false; clearTimeout(timer); pl.textContent='▶ 播放'; }
+    pl.addEventListener('click',function(){ if(playing){stop();return;} playing=true; pl.textContent='❚❚ 暂停'; if(+sl.value>=TMAX) sl.value=0; tick(); });
+    sl.addEventListener('input',function(){stop();draw();});
+    draw();
+  })();
+
+  /* ---------- Q4: autoregressive toy ---------- */
+  (function(){
+    var svg=$('ar-svg'); if(!svg) return;
+    var K=32, W=8, x0=50, x1=620, yc=118, A=80, sl=$('ar-k'), info=$('ar-info'), mode='tf';
+    function tru(t){return Math.sin(2*Math.PI*t/40+0.4);}
+    /* error dynamics (made up): step-supervised model amplifies its own error, autoregressive-trained model damps it */
+    function roll(g,b){var e=[0],v=0;for(var t=1;t<=K;t++){v=g*v+b*(t%2?1:0.6);e.push(v);}return e;}
+    var eTF=roll(1.16,0.025), eAR=roll(0.72,0.025);
+    function px(t){return x0+t*(x1-x0)/K;} function py(v){return yc-v*A;}
+    function path(f,n){var d='';for(var t=0;t<=n;t++)d+=(t?'L':'M')+px(t).toFixed(1)+' '+py(f(t)).toFixed(1);return d;}
+    var btns=[].slice.call(document.querySelectorAll('#ar .bptt-ctl button'));
+    function draw(){
+      var k=+sl.value, s='';
+      s+='<rect x="'+px(0)+'" y="12" width="'+(px(W)-px(0))+'" height="200" style="fill:var(--c-f);fill-opacity:.10"/>';
+      s+='<text x="'+(px(0)+4)+'" y="26" font-size="11.5" style="fill:var(--c-f)">训练时见过的长度：8 步</text>';
+      s+='<line x1="'+x0+'" x2="'+x1+'" y1="212" y2="212" style="stroke:var(--muted)"/>';
+      [0,8,16,24,32].forEach(function(t){s+='<text x="'+px(t)+'" y="228" font-size="11" text-anchor="middle" class="mono mut">'+t+'</text>';});
+      s+='<text x="'+x1+'" y="244" font-size="11" text-anchor="end" class="mut">步数（50 Hz，32 步 = 0.64 秒）</text>';
+      s+='<path d="'+path(tru,K)+'" style="fill:none;stroke:var(--muted);stroke-width:2.4"/>';
+      s+='<text x="'+(px(K)-2)+'" y="'+(py(tru(K))-8)+'" font-size="11.5" text-anchor="end" class="mut">真实轨迹</text>';
+      if(mode==='tf'){
+        for(var t=0;t<W;t++){ var a=tru(t), b=tru(t+1)+eTF[1]*1.0;
+          s+='<circle cx="'+px(t)+'" cy="'+py(a)+'" r="3.5" style="fill:var(--muted)"/>';
+          s+='<line x1="'+px(t)+'" y1="'+py(a)+'" x2="'+px(t+1)+'" y2="'+py(b)+'" style="stroke:var(--c-g);stroke-width:2"/>';
+          s+='<circle cx="'+px(t+1)+'" cy="'+py(b)+'" r="3.5" style="fill:var(--c-g)"/>'; }
+        info.textContent='逐步监督：每一步都从真实状态出发，只预测下一步，再和真值比。每段误差都很小，但模型从来没有见过“从自己的预测出发”的情形。';
+      } else if(mode==='ar'){
+        var d='M'+px(0)+' '+py(tru(0));
+        for(t=1;t<=W;t++){ var v=tru(t)+eAR[t]; d+='L'+px(t)+' '+py(v);
+          s+='<line x1="'+px(t)+'" y1="'+py(tru(t))+'" x2="'+px(t)+'" y2="'+py(v)+'" style="stroke:var(--c-r);stroke-dasharray:3 3"/>'; }
+        s+='<path d="'+d+'" style="fill:none;stroke:var(--c-pi);stroke-width:2.4"/>';
+        for(t=0;t<=W;t++) s+='<circle cx="'+px(t)+'" cy="'+py(tru(t)+eAR[t])+'" r="3.5" style="fill:var(--c-pi)"/>';
+        info.textContent='自回归：只有起点 ŝ₀ = s₀ 是真的，之后每一步都把自己上一步的预测喂回去（动作用缓存里记录的）。黄色虚线是每一步和真值的差，8 步全部计入损失，梯度沿整条链往回传，模型因此要学会把偏了的状态拉回来。';
+      } else {
+        var dT='M'+px(0)+' '+py(tru(0)), dA=dT;
+        for(t=1;t<=k;t++){ dT+='L'+px(t)+' '+py(Math.max(-1.45,Math.min(1.45,tru(t)+eTF[t]))); dA+='L'+px(t)+' '+py(tru(t)+eAR[t]); }
+        s+='<path d="'+dT+'" style="fill:none;stroke:var(--c-g);stroke-width:2.4"/>';
+        s+='<path d="'+dA+'" style="fill:none;stroke:var(--c-pi);stroke-width:2.4"/>';
+        s+='<text x="'+(px(Math.min(k,30))+4)+'" y="'+(py(Math.max(-1.45,Math.min(1.45,tru(Math.min(k,30))+eTF[Math.min(k,30)])))-6)+'" font-size="11.5" style="fill:var(--c-g)">逐步监督训出的模型</text>';
+        s+='<text x="'+(px(Math.min(k,20)))+'" y="'+(py(tru(Math.min(k,20))+eAR[Math.min(k,20)])+20)+'" font-size="11.5" style="fill:var(--c-pi)">自回归训出的模型</text>';
+        info.textContent='使用时：策略在模型里滚 32 步，每一步都喂自己的预测。第 '+k+' 步时，逐步监督的模型偏离真值 '+Math.abs(eTF[k]).toFixed(2)+'，自回归训练的模型偏离 '+Math.abs(eAR[k]).toFixed(2)+'。前者的小误差被一步步放大；后者在训练时就面对过自己的误差，偏离保持在小范围内。论文只报告了 8 步误差，32 步的效果是作者的说法（读者注 3）。';
+      }
+      svg.innerHTML=s;
+      sl.style.visibility=mode==='use'?'visible':'hidden';
+    }
+    btns.forEach(function(b){b.addEventListener('click',function(){mode=b.dataset.m;btns.forEach(function(x){x.classList.toggle('on',x===b);});draw();});});
+    sl.addEventListener('input',draw); draw();
+  })();
+
+  /* ---------- Q7: reward calculator ---------- */
+  (function(){
+    var host=$('rw-rows'); if(!host) return;
+    var T=[ /* name, sigma(null=penalty), weight, max, step, unit */
+      ['刚体位置',0.3,1.0,0.6,0.01,'m'],['刚体朝向',0.4,1.0,0.8,0.01,'rad'],['刚体线速度',1.0,1.0,2.0,0.05,'m/s'],['刚体角速度',3.14,1.0,6.0,0.1,'rad/s'],
+      ['根部位置',0.3,0.5,1.0,0.01,'m'],['根部朝向',0.4,0.5,0.8,0.01,'rad'],['动作平滑',null,-0.1,4.0,0.05,'‖Δa‖²'],['关节限位',null,-2,0.3,0.01,'rad']];
+    var P={good:[0.05,0.1,0.3,1.0,0.1,0.1,0.5,0],perfect:[0,0,0,0,0,0,0,0],slow:[0.08,0.1,1.2,3.5,0.1,0.1,0.3,0],drift:[0.05,0.1,0.3,1.0,1.0,0.6,0.5,0],jitter:[0.06,0.12,0.4,1.5,0.1,0.1,4.0,0.05]};
+    var rows=[];
+    T.forEach(function(t,i){
+      var r=document.createElement('div'); r.className='rw-row';
+      r.innerHTML='<span class="rw-n">'+t[0]+'<small>'+(t[1]?'w '+t[2].toFixed(1)+' · σ '+t[1]:'w '+t[2])+'</small></span>'+
+        '<input type="range" min="0" max="'+t[3]+'" step="'+t[4]+'" aria-label="'+t[0]+'误差">'+
+        '<span class="rw-v mono"></span><span class="rw-bar"><i></i></span><span class="rw-c mono"></span>';
+      host.appendChild(r); var inp=r.querySelector('input'); inp.addEventListener('input',calc); rows.push({r:r,inp:inp,t:t});
+    });
+    function set(p){ rows.forEach(function(o,i){o.inp.value=P[p][i];}); calc(); }
+    function calc(){
+      var tot=0;
+      rows.forEach(function(o){
+        var e=+o.inp.value, t=o.t, c;
+        if(t[1]){ c=t[2]*Math.exp(-e*e/(t[1]*t[1])); } else { c=t[2]*e; }
+        tot+=c;
+        o.r.querySelector('.rw-v').textContent=e.toFixed(t[4]<0.05?2:(t[4]<0.1?2:1))+' '+t[5];
+        var bar=o.r.querySelector('i'), frac=t[1]?c/t[2]:Math.min(1,Math.abs(c)/1);
+        bar.style.width=(frac*100).toFixed(1)+'%'; bar.className=t[1]?'pos':'neg';
+        o.r.querySelector('.rw-c').textContent=(c>=0?'+':'')+c.toFixed(2);
+      });
+      $('rw-info').innerHTML='合计 <b>'+tot.toFixed(2)+'</b> / 5（'+pct(Math.max(0,tot)/5)+'），乘控制周期 0.02 秒后这一步得 <b>'+(tot*0.02).toFixed(4)+'</b>，满分 0.1。'+
+        '把整段回合每一步这样加起来、再除以满分，就是问 6 的归一化回报；中途摔倒的话，后面的步全是 0 分。';
+    }
+    var pb=[].slice.call(document.querySelectorAll('#rw-pre button'));
+    pb.forEach(function(b){b.addEventListener('click',function(){pb.forEach(function(x){x.classList.toggle('on',x===b);});set(b.dataset.p);});});
+    set('good');
+  })();
+
+  /* ---------- Q8: discount weights and window ---------- */
+  (function(){
+    var svg=$('dw-svg'); if(!svg) return;
+    var g=0.99, H=32, TM=300, x0=46, x1=620, yb=180, yt=20, info=$('dw-info');
+    function px(t){return x0+t*(x1-x0)/TM;} function py(v){return yb-v*(yb-yt);}
+    function draw(){
+      var s='', dIn='M'+px(0)+' '+yb, dOut='M'+px(H)+' '+yb, t;
+      for(t=0;t<=H;t++) dIn+='L'+px(t).toFixed(1)+' '+py(Math.pow(g,t)).toFixed(1);
+      dIn+='L'+px(H)+' '+yb+'Z';
+      for(t=H;t<=TM;t++) dOut+='L'+px(t).toFixed(1)+' '+py(Math.pow(g,t)).toFixed(1);
+      dOut+='L'+px(TM)+' '+yb+'Z';
+      s+='<path d="'+dOut+'" style="fill:var(--c-v);fill-opacity:.35;stroke:var(--c-v)"/>';
+      s+='<path d="'+dIn+'" style="fill:var(--c-f);fill-opacity:.55;stroke:var(--c-f)"/>';
+      s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+yb+'" y2="'+yb+'" style="stroke:var(--muted)"/>';
+      [0,50,100,150,200,250,300].forEach(function(v){s+='<text x="'+px(v)+'" y="'+(yb+15)+'" font-size="11" text-anchor="middle" class="mono mut">'+v+'</text>';});
+      s+='<text x="'+x1+'" y="'+(yb+32)+'" font-size="11" text-anchor="end" class="mut">步数 t（50 Hz，50 步 = 1 秒）</text>';
+      s+='<text x="'+(x0-6)+'" y="'+(yt+4)+'" font-size="11" text-anchor="end" class="mono mut">1</text><text x="'+(x0-6)+'" y="'+(yb+4)+'" font-size="11" text-anchor="end" class="mono mut">0</text>';
+      var inn=1-Math.pow(g,H), eff=1/(1-g);
+      s+='<text x="'+(px(H)+6)+'" y="'+(yt+14)+'" font-size="12.5" style="fill:var(--c-f)">窗口内 H = '+H+'：'+pct(inn)+'</text>';
+      s+='<text x="'+(px(H)+6)+'" y="'+(yt+32)+'" font-size="12.5" style="fill:var(--c-v)">窗口外（评论家）：'+pct(1-inn)+'</text>';
+      if(eff<=TM){ s+='<line x1="'+px(eff)+'" x2="'+px(eff)+'" y1="'+yt+'" y2="'+yb+'" style="stroke:var(--muted);stroke-dasharray:4 4"/><text x="'+(px(eff)+4)+'" y="'+(yb-8)+'" font-size="11" class="mut">1/(1−γ) = '+Math.round(eff)+' 步</text>'; }
+      svg.innerHTML=s;
+      info.textContent='γ = '+g+'：有效视野 1/(1−γ) = '+Math.round(eff)+' 步，约 '+(eff*0.02).toFixed(1)+' 秒。想象窗口 H = '+H+' 步（'+(H*0.02).toFixed(2)+' 秒）只覆盖折扣回报的 '+pct(inn)+'，剩下 γ^H = '+pct(1-inn)+' 交给评论家 V_ψ。论文的设置是 γ = 0.99、H = 32。';
+    }
+    btnRow($('dw-g'),[0.95,0.98,0.99,0.995],g,function(v){return String(v);},function(v){g=v;draw();});
+    btnRow($('dw-h'),[8,16,32,64,128],H,function(v){return String(v);},function(v){H=v;draw();});
+    draw();
+  })();
+
+  /* ---------- Q9: lambda-return weights ---------- */
+  (function(){
+    var svg=$('lw-svg'); if(!svg) return;
+    var L=0.95, H=32, x0=46, x1=620, yb=170, yt=18, info=$('lw-info');
+    function draw(){
+      var w=[], n, mean=0, mx=0;
+      for(n=1;n<=H;n++){ w[n]= n<H ? (1-L)*Math.pow(L,n-1) : Math.pow(L,H-1); mean+=n*w[n]; if(w[n]>mx) mx=w[n]; }
+      var top=Math.max(0.06,mx), bw=(x1-x0)/H, s='';
+      for(n=1;n<=H;n++){ var h=w[n]/top*(yb-yt), x=x0+(n-1)*bw;
+        s+='<rect x="'+(x+1.5).toFixed(1)+'" y="'+(yb-h).toFixed(1)+'" width="'+(bw-3).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" style="fill:'+(n===H?'var(--c-v)':'var(--c-pi)')+'"/>'; }
+      s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+yb+'" y2="'+yb+'" style="stroke:var(--muted)"/>';
+      [1,8,16,24,32].forEach(function(v){s+='<text x="'+(x0+(v-0.5)*bw)+'" y="'+(yb+15)+'" font-size="11" text-anchor="middle" class="mono mut">'+v+'</text>';});
+      s+='<text x="'+x1+'" y="'+(yb+32)+'" font-size="11" text-anchor="end" class="mut">n：先走 n 步真实（想象）奖励，再接评论家</text>';
+      s+='<text x="'+(x0-6)+'" y="'+(yt+4)+'" font-size="11" text-anchor="end" class="mono mut">'+top.toFixed(2)+'</text>';
+      if(w[H]>0.005) s+='<text x="'+(x1-2)+'" y="'+(yb-w[H]/top*(yb-yt)-6)+'" font-size="11.5" text-anchor="end" style="fill:var(--c-v)">n = 32：'+pct(w[H])+'</text>';
+      svg.innerHTML=s;
+      info.textContent='λ = '+L+'：1 步回报权重 '+pct(w[1])+'，走满 32 步再接评论家的权重 '+pct(w[H])+'，平均看 '+mean.toFixed(1)+' 步。'+
+        (L===0?'全部权重在 n = 1：只信评论家（TD）。':(L===1?'全部权重在 n = 32：窗口内只用奖励，末端才接评论家。':'λ 越大，权重越往右，越信任走出来的奖励。'));
+    }
+    btnRow($('lw-l'),[0,0.5,0.8,0.9,0.95,0.99,1],L,function(v){return String(v);},function(v){L=v;draw();});
+    draw();
+  })();
 })();
 </script>
 
