@@ -36,7 +36,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 仿真评测与世界模型 | `real2sim-eval`（Real-to-Sim + 3DGS + PhysTwin，和 `simpler` 对照）`phystwin` `rgbench`（布料模拟器基准）`mundo`（无论文，只读项目页和博客） |
 | SuperMimic 及其引用论文 | `supermimic`，以及它相关工作和表 1 引到的全部论文：`shac` `dreamer` `supertrack` `rwm` `deepmimic` `rwm-u` `dreamerv3` `td-mpc` `daydreamer` `controlvae` `sonic` `phc` `moconvq` `superdyno` `beyondmimic` `pulse` `latent` `npmp` `physicsvae` `maskedmimic`；`supermimic` 页末有读者问答 `#qa`（问 1–9：BPTT 展开图、论文故事、收集与环形缓存、世界模型与自回归、和 OpenWAM/Dreamer/Cosmos 对比、归一化回报 0.82、奖励权重计算器、窗口外 72.5%、GAE λ） |
 | 视觉-语言感知（2026-11-17） | `wevisone-vl`（arXiv 2610.31329，CC BY 4.0 放原图；mask2alpha 分支无 LICENSE，只引文件名不抄代码；项目网页只链接）；读者问答在 `#qa` |
-| 人形行走 · 可复现（2026-11-20） | `holosoma-15min`（arXiv 2512.01996，CC BY 4.0 放原图）、`rpl`（2602.03002，非独占，只用文字描述图）、`php-parkour`（2602.15827，CC BY 4.0 放原图）。都基于 amazon-far/holosoma（Apache-2.0），每页有 `#repro`“代码与复现要点”和代码对照；论文 PDF 和代码克隆在仓库外 `../loco_papers_20261120/` |
+| 人形行走 · 可复现（2026-11-20） | `holosoma-15min`（arXiv 2512.01996，CC BY 4.0 放原图）、`rpl`（2602.03002，非独占，2026-11-23 经用户决定放原图 1–14）、`php-parkour`（2602.15827，CC BY 4.0 放原图）。都基于 amazon-far/holosoma（Apache-2.0），每页有 `#repro`“代码与复现要点”和代码对照；论文 PDF 和代码克隆在仓库外 `../loco_papers_20261120/` |
 | VLA / 世界模型 / 触觉（2026-11-23） | 自变量：`wall-oss`（2509.11766，CC BY 放原图）、`wall-oss-05`（2605.30877，CC BY 放原图，页内有 WALL-OSS 1.0 模型卡小节）、`wall-ss`（2608.26239，非独占，只放仓库 MIT 图和重画图；代码未发布）；代码 X-Square-Robot/wall-x（Apache-2.0）。Sharpa：`craftnet`（无论文，照 mundo 写法，© 保留不放图）、`wm-craftnet`（2609.07002，CC BY 放原图，但 PDF 页脚写版权保留，读者注 1 已写明）、`ftp1`（2606.13102 v4，CC BY-SA 放原图并声明同许可；图 8 是 UniDex 第三方图未放）。另有 `nablamimic`（2610.41654，非独占，只放仓库 Apache 图和重画图）。PDF、代码克隆和 Sharpa 网页存档在仓库外 `../vla_tactile_20261123/` |
 | 可微物理 · Siwei Chen 等（2026-11-21） | `diffmimic`（arXiv 2304.03274，非独占，只用文字描述图；代码 jiawei-ren/diffmimic 是 S-Lab 非商业许可，只引文件名和行号）、`daxbench`（2210.13066，CC BY 4.0 放原图；代码 Apache-2.0，但有 6 个文件带 NVIDIA 禁止分发的文件头，只引行号）。PDF 和代码克隆在仓库外 `../diffphys_papers_20261121/` |
 | 触觉（2026-11-17） | `lingbot-touch`（arXiv 2611.12806，CC BY 4.0 放原图；项目网页 © All rights reserved，只链接不抓取）；页末有空的 `#qa` 节 |
@@ -67,6 +67,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 - **OpenWAM 上游模型批（2026-11-16）**：`wan`、`dinov3`、`vjepa21`、`svae`、`rae` 五页，用户明确要求不论许可都放原图（理由是“只有我们会读”；已告知站点是公开的）。图注写原文许可和“经站点作者决定放原图”。只对这五页有效，其他新页仍按上表。
 - **NVIDIA Cosmos / GR00T 批（2026-11-16）**：`cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t` 八页，用户同样要求都放原图，规则同上。2026-11-17 加的 `gr00t2` 同样放原图。
 - **SHAC**（2026-11-20）：非独占许可，用户要求放原图（“只是我们自己阅读”），图 1 到 13 已裁切到 `papers/shac/`，图注写法同 OpenWAM 上游批。只对这一篇有效。
+- **RPL**（2026-11-23）：非独占许可，用户要求放原图，图 1 到 14 已裁切到 `papers/rpl/`（fig1–fig14.webp，图 3、4 合成一张 fig3），图注写法同 SHAC；算法 1 仍用文字。只对这一篇有效。
 - **SONIC、GraspGen** 的 arXiv 许可是 CC BY-SA，但 PDF 页脚写着 “NVIDIA. All rights reserved”。用户决定保留原图，页面上已写明这个矛盾。
 - **MaskedMimic** 的 arXiv 许可是 CC BY-NC-SA，PDF 上有 ACM 版权声明，处理方式同上（读者注 1 里写明）。
 
