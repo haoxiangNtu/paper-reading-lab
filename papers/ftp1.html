@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FTP-1 跨传感器触觉基础策略 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2606.13102《FTP-1: A Generalist Foundation Tactile Policy Across Tactile Sensors for Contact-Rich Manipulation》（CoRL 2026）的中文精读：逐节整理和附录、结果表照录、裁切的原图、和官方代码 ftp1-policy 及公开权重的逐项对照、复现要点、和 LingBot-Touch 的对比、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-res{min-width:760px}.t-real{min-width:720px}.t-un{min-width:520px}.t-small{min-width:420px}.t-data{min-width:720px}.t-code{min-width:720px}.t-links{min-width:640px}.t-cmp{min-width:720px}.t-rel{min-width:640px}.t-map{min-width:520px}.t-probe{min-width:620px}
+.t-res td,.t-res th,.t-real td,.t-real th,.t-un td,.t-un th,.t-small td,.t-small th,.t-probe td,.t-probe th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;overflow-x:auto;max-width:100%;line-height:1.55}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+td.dn{color:var(--warn)}
+td b.best{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/ftp1/index.html">3D 框架动画</a><a href="#repro">代码要点</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2606.13102 · cs.RO · v4 2026 年 10 月 27 日 · CoRL 2026 · 中文精读</p>
+<h1>FTP-1：一个能换触觉传感器的触觉基础策略</h1>
+<p class="orig">FTP-1: A Generalist Foundation Tactile Policy Across Tactile Sensors for Contact-Rich Manipulation</p>
+<p>作者 Chengbo Yuan（项目负责人）、Zicheng Zhang、Mingjie Zhou（三人共同一作）、Wendi Chen、Yi Wang、Zhuoyang Liu、Dantong Niu、Shuo Wang、Hui Zhang、Wenkang Zhang、Yingdong Hu、Yuanqing Gong、Wanli Xing、Chuan Wen、Cewu Lu、Kaifeng Zhang（通讯）、Yang Gao（通讯）。单位：清华大学、上海期智研究院、Sharpa、上海交通大学、UC Berkeley、ETH Zurich、复旦大学、上海创智学院。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2606.13102">arXiv 原文</a><a href="https://arxiv.org/pdf/2606.13102v4">PDF（v4）</a><a href="https://github.com/michaelyuancb/ftp1-policy">官方代码</a><a href="https://ftp1-policy.github.io/">项目页</a><a href="https://huggingface.co/MJJJJ1064/ftp1_v0426_50kstep">权重（Hugging Face）</a><span>正文 9 页，参考文献到第 16 页，附录第 17–29 页，PDF 共 29 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布（2026-11-23 查摘要页）。PDF 首页页脚只有会议名“10th Conference on Robot Learning (CoRL 2026), Austin, Texas, USA”，没有和这个许可矛盾的版权声明。<b>按 ShareAlike 条款，本页的文字和裁切图同样按 CC BY-SA 4.0 提供</b>，署名 Yuan 等。</p>
+<p><b>版本。</b>我读的是本地 PDF，页眉写 <span class="cv">arXiv:2606.13102v4 [cs.RO] 27 Oct 2026</span>。摘要页的提交历史：v1 2026-06-11，v2 2026-06-19，v3 2026-10-13，v4 2026-10-27。约稿时说的是 v2，但手上的文件是 v4，所以本页按 v4 写，“看原图”也链到 v4。v2 和 v4 的差别我没有逐字比对（<b>未核实</b>）；从文件大小看 v1、v2 都是 23,063 KB，v4 是 24,103 KB，可能加了附录内容。</p>
+<p><b>图。</b>图 1–7、图 9–16 从 PDF 裁切（pdftoppm 250 dpi 渲染，用 <span class="cv">pdftotext -bbox</span> 定位，只裁切，再用 PIL 转 webp，宽 360–1394 px），没有改动内容；图下文字是我写的。<b>图 8 没有放</b>：原文说它“取自 UniDex 原论文”，是第三方的图，我只用文字描述。原文没有编号公式，§2 和附录 B 的几个式子我照原文写出，不编号；代码里的式子标“代码”。表 1–4、表 7–12 照录原文数字，表 5、表 6 是文字表，我压缩成中文。“读者注”是整理时核算或对照得到的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码和权重。</b>官方代码 <a href="https://github.com/michaelyuancb/ftp1-policy">michaelyuancb/ftp1-policy</a>，我读的是提交 <span class="cv">89fa681</span>（2026-07-15），只读没有运行。根目录 LICENSE 是 Apache-2.0，另有 <span class="cv">LICENSE_GEMMA.txt</span>（Gemma 使用条款，来自 openpi 的 PaliGemma 权重）。仓库里的 <span class="cv">UniVTAC/</span> 是第三方基准的拷贝，子目录许可不一，其中 libuipc 的 Python 绑定是 GPL-3.0（见<a href="#repro">代码与复现要点</a>）。本页只引文件名、行号和配置键，不复制代码。Hugging Face 上预训练权重 <span class="cv">ftp1_v0426_50kstep</span> 我只下载了几个小的 JSON 和 <span class="cv">model.safetensors</span> 的文件头（约 180 KB，只含张量名和形状），没有下载权重本身；模型卡和数据集卡都没有写许可。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#sharpa">和 Sharpa / CraftNet 的关系</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 FTP-1</a><a href="#s2-1">2.1 MTTS</a><a href="#s2-2">2.2 触觉编码器</a><a href="#s2-3">2.3 触觉专家</a><a href="#s2-4">2.4 预训练数据</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 微调实验</a><a href="#s4">4 迁移能力</a><a href="#s5">5 相关工作</a><a href="#s6">6 结论</a><a href="#appA">附录 A</a><a href="#appB">附录 B</a><a href="#appC">附录 C</a><a href="#appD">附录 D</a><a href="#appE">附录 E</a><a href="#appF">附录 F</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>触觉传感器五花八门：有的输出一张图（GelSight 这类视触觉），有的输出一个压力阵列（手套、皮肤），有的只输出几维力或力矩。已有的触觉策略都绑定一种传感器、一种机器人。FTP-1 想做“触觉版的 π0.5”：一个预训练好的策略，换传感器、换机器人以后微调一下就能用。</p>
+<ul>
+<li><b>统一的 token 空间 MTTS。</b>每只手固定 24 个“功能区”槽位（指尖、指腹、掌心、腕部和关节力矩……），每个槽位一个 token。不管是什么传感器，信号先按功能区分组，再编码成槽位上的一个 token。平行夹爪的两侧传感器放进拇指尖和食指尖两个槽。每个槽位有一个所有传感器共享的“功能区嵌入”，左右手各一套。</li>
+<li><b>三类编码器。</b>图像型：每种传感器一个 3 层 ViT，后接一个所有图像传感器共享、用 <a class="ds" href="https://github.com/alanzjl/t3">T3</a> 初始化的 9 层 Transformer，取 [CLS]。阵列型：Fourier 编码 + 3 层 CNN + MLP。状态型：Fourier 编码 + MLP。</li>
+<li><b>三个专家。</b>在 π0.5 的“视觉语言专家 + 动作专家”之外，加一个独立的触觉专家（Transformer）。三路 token 拼起来做一次带掩码的注意力：视觉语言和触觉各看各的，动作 token 能看到全部三路。本体感觉通过 adaRMS 注入动作专家。输出 32 步的动作块，动作放在 120 维的统一动作空间（UAS）里。</li>
+<li><b>数据。</b>26 个来源、21 种传感器（7 图像、5 阵列、9 状态）、约 3,000 小时，重采样后人手 20%、灵巧手 30%、夹爪 50%。其中新采了 Sharpa North 平台上的 4,000 条长时程示教。</li>
+<li><b>评测。</b>5 套硬件（1 个仿真基准 + 4 套真机），14 个任务，分发给 5 个机构各自微调。见过的传感器（GelSight-Mini、Sharpa DTC）：仿真 <a class="ds" href="https://univtac.github.io/">UniVTAC</a> 平均 66.66%，比第二名高 17.5 个点；真机 6 个任务平均 62.5%，比 π0.5 的 45.3% 高 17.2 个点。没见过的传感器（Xense 视触觉、Contactile 阵列）：3 个任务平均 46.6%，比最好的基线 15.0% 高 31.6 个点。</li>
+</ul>
+<p>读完我认为最值得记住的五点：</p>
+<ol>
+<li><b>摘要的 +17.2% 和 +31% 都是百分点，不是相对提升，而且只来自真机。</b>+17.2 = 表 2 的 62.5 − 45.3，只含两套 Sharpa 真机，不含 UniVTAC。按表 2 逐格重算，π0.5 的平均应是 275 / 6 = 45.83，不是 45.3，那差距就是 16.7 个点（<a href="#n1">读者注 1</a>）。+31% 来自表 3 的 46.6 − 15.0，换成相对提升是 3.1 倍（<a href="#n2">读者注 2</a>）。</li>
+<li><b>公开代码和权重里的触觉专家不是 300M。</b>论文说触觉专家 3 亿参数、宽 1024、MLP 4096；公开的 <span class="cv">ftp1_v0426_50kstep</span> 用的是 <span class="cv">gemma_small</span>：宽 512、18 层、MLP 2048，我从权重文件头数出来是 99.1M。论文附录 B.5 那组数正好是动作专家 <span class="cv">gemma_300m</span> 的配置（<a href="#n8">读者注 8</a>）。</li>
+<li><b>图 7 有一根柱子和表对不上。</b>UniVTAC 上 FTP-π0.5 的柱子标 41.8，表 1 和表 10 都是 45.16；41.8 恰好是表 1 里 Tactile-VLA 的平均 41.83（<a href="#n4">读者注 4</a>）。</li>
+<li><b>“3,000 小时”在表里加不出来。</b>表 8 没有小时数，只有重采样倍数和最终占比。公开权重的 <span class="cv">dataset_stats.json</span> 显示：重采样倍数和表 8 完全一致；去重后约 5,420 万帧，重采样后 2.335 亿帧。按去重数据算，三个 EgoTac 手套来源约占六成（按帧数 32.9M / 54.2M = 61%）（<a href="#n5">读者注 5</a>、<a href="#n6">6</a>）。</li>
+<li><b>真机样本小，但主要差距在统计上站得住。</b>每个真机任务 20 次。表 2 合起来 75/120 对 55/120，双比例检验 p ≈ 0.01；表 3 合起来 28/60 对 9/60，p ≈ 0.0002（<a href="#n12">读者注 12</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="ftp1/fig1.webp" width="1377" height="518" alt="图 1：左边是 20 张预训练数据缩略图；中间是 FTP-1 的手形标志和三行字：首个通用触觉策略、21 种传感器预训练、未见传感器提升 31.6%；右边上框是见过的传感器设置（UniVTAC、Sharpa North、Sharpa&amp;Dexmate）和 45.3% 到 62.5% 的柱子，下框是没见过的传感器设置（FlexivXense、TactileUMI）和 15.0% 到 46.6% 的柱子" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=2">看原图 ↗</a></span>左：异构预训练数据的缩略图拼贴（手套第一视角、灵巧手、夹爪、UMI 鱼眼）。右上“见过的传感器”框：三张设置照片，柱状图是最好基线 π0.5 的 45.3% 和 FTP-1 的 62.5%，箭头写 +17.2%。右下“没见过的传感器”框：15.0% 对 46.6%，箭头写 +31.6%。注意右上框画了 UniVTAC 的照片，但柱子的 45.3 → 62.5 只来自表 2 的两套真机（读者注 1）。底部写“在全球 5 个机构分布式评测”。</figcaption>
+</figure>
+
+<h3 id="sharpa">FTP-1 和 Sharpa、CraftNet 的关系（按论文核实）</h3>
+<p>这一节回答“FTP-1 是不是 Sharpa 那套 CraftNet”。我只按论文和代码说话：</p>
+<ul>
+<li><b>Sharpa 是作者单位之一。</b>首页单位 3 是 “Sharpa”。标了这个单位的作者有 Chengbo Yuan（项目负责人，同时挂清华和期智）、Zicheng Zhang、Mingjie Zhou（两人另挂复旦）、Yuanqing Gong、Wanli Xing 和通讯作者 Kaifeng Zhang。另一位通讯作者 Yang Gao 是清华和期智。</li>
+<li><b>致谢里写明 Sharpa 提供了硬件、算力和 Sharpa North-FTP-1 数据集</b>（第 10 页，“Sharpa Pte Ltd.”）。</li>
+<li><b>Sharpa 的硬件在论文里出现三次：</b>Sharpa North（双臂平台，用来采 4,000 条预训练示教，也是真机评测设置之一）；Sharpa Wave（灵巧手，每只 22 个主动关节，附录 B.1 给了它到 FAAS 槽位的映射表 7）；Sharpa DTC（指尖上的触觉传感器，论文归为图像型）。Sharpa&amp;Dexmate 设置是 Dexmate 的机器人装 Sharpa Wave 手。论文把 Sharpa North 和 Sharpa DTC 的出处都引到 [10]（ViTacFormer，作者含 Kaifeng Zhang），没有引产品文档。</li>
+<li><b>论文没有提 CraftNet。</b>全文（含附录和参考文献）里没有 “CraftNet”，也没有 System 0 / 1 / 2、1 Hz / 10 Hz / 100 Hz 的分层，没有 DQ 门店或冰激凌任务。代码仓库里也搜不到 “craft”。FTP-1 是一个单层的 VLA：一次前向给出 32 步动作块，论文和代码都没有写控制频率，也没有更快的触觉闭环层。论文自己在 §6 局限里说“尚未处理基于触觉或力的伺服和控制”。</li>
+<li><b>所以：</b>FTP-1 和 CraftNet 的关系，按论文只能说“部分作者和 Sharpa 有关、用了 Sharpa 的硬件和数据”。至于 FTP-1 是否被用在 CraftNet 里、是否是它的某一层，论文没写，我不推断。CraftNet 本身见本站 <a href="craftnet.html">CraftNet 页</a>，Sharpa 的另一篇 WM-Craftnet 见 <a href="wm-craftnet.html">WM-Craftnet 页</a>。</li>
+</ul>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<h3 id="rel-lingbot">和 LingBot-Touch：两种“统一异构触觉”的做法</h3>
+<p><a href="lingbot-touch.html">LingBot-Touch</a>（arXiv 2611.12806，2026-11）来自 Robbyant（蚂蚁灵波），作者里没有 Sharpa 或 FTP-1 的作者。它和 Sharpa 的联系是数据：三分之一的预训练数据来自遥操作的 Sharpa Wave 手，评测的“见过的手”也是 Sharpa Wave。它在 §2.2 把 FTP-1 列为“主要对手”，§4.2 和 §5.4 都拿 FTP-1 做基线。两篇解决的是同一个问题（不同触觉传感器的数据怎样放进同一个模型），但出发点不同：</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>FTP-1（本文）</th><th><a href="lingbot-touch.html">LingBot-Touch</a></th></tr></thead><tbody>
+<tr><td>产物</td><td>一个完整的策略（VLA），输出动作</td><td>一个触觉编码器，输出表征，要接到别的策略上</td></tr>
+<tr><td>规模</td><td>整模型约 36.4 亿参数（权重文件头数出，读者注 8）；触觉部分是 T3 主干 + 触觉专家</td><td>Tiny 5.46M、Small 21.76M</td></tr>
+<tr><td>训练目标</td><td>动作的流匹配（监督，需要动作标签）</td><td>Tactile-JEPA：隐空间预测，自监督，不需要动作</td></tr>
+<tr><td>数据</td><td>26 个来源、21 种传感器、约 3,000 小时；人手 / 灵巧手 / 夹爪重采样后 20 / 30 / 50%</td><td>4,983 小时；压阻、磁、视触觉三类；手套三分之二、Sharpa Wave 遥操作三分之一</td></tr>
+<tr><td>不同传感器怎么对齐</td><td><b>功能区</b>：每只手 24 个离散槽位，信号按“属于哪块手”分组；同一功能区的所有触点压成一个 token</td><td><b>几何</b>：每个触点映射到一个单位半径的标准指尖空间，带连续三维坐标和手指编号</td></tr>
+<tr><td>token 粒度</td><td>每个功能区一个 token，每只手最多 24 个；空间细节都压进这一个 token</td><td>每个触点每 2 帧（Small 实际 4 帧）一个 token，一只手几百个</td></tr>
+<tr><td>位置信息怎么进模型</td><td>加一个可学习的功能区嵌入（左右手共 48 个）</td><td>五维 RoPE（时间、手指、xyz），没有可学习位置表</td></tr>
+<tr><td>传感器专用参数</td><td>每种传感器（按观测形状）一个编码器：图像型 3 层 ViT，阵列型 CNN，状态型 MLP；图像型再共享 T3 主干</td><td>只按模态分三个浅层 tokenizer（两层 MLP），没有按传感器的参数</td></tr>
+<tr><td>新传感器怎么接</td><td>新建一个传感器编码器，和整模型一起微调；复用触觉专家、功能区嵌入、T3 主干（§4）</td><td>按几何标定映射到标准空间，交给对应模态的 tokenizer，<b>不更新参数</b></td></tr>
+<tr><td>“没见过的传感器”评测</td><td>Xense（视触觉）、Contactile（阵列）：微调后的任务成功率，3 个任务 60 次</td><td>XHand1（磁）：冻结特征的探针（力、接触中心、面积、未来力、检索）；26 个真机任务</td></tr>
+<tr><td>和对方比</td><td>没有和 LingBot-Touch 比（FTP-1 早约五个月）</td><td>冻结 FTP-1 公开的共享触觉骨干、每个传感器训一个适配器，探针和策略都比 FTP-1 好（见该页 §4.2、§5.4）</td></tr>
+</tbody></table></div>
+<p>我的看法（<b>我的推断</b>）：两者的差距主要在“空间分辨率”这一点上。FTP-1 把一个指尖压成一个 token，这对“这根手指是否接触、力大不大”够用，但接触中心、接触面积这种空间量要靠编码器把它塞进一个 512 维向量；LingBot-Touch 保留到触点级。LingBot-Touch 页 §4.2 里 FTP-1 在接触中心上误差最大（Sharpa Wave 上 2.19 mm 对 0.12 mm），和这个解释一致，但那一页的对比里 FTP-1 的输入端被换成了新训的适配器，不是它原生的图像 tokenizer，所以不能直接当成 FTP-1 原样的表现。另一方面，FTP-1 是一个能直接出动作的策略，它的优势应该在策略层（触觉专家和动作专家一起预训练），LingBot-Touch 的 §5.4 只拿 FTP-1 的“触觉编码器”接到别人的策略上比，没有比较两个完整策略。</p>
+
+<h3 id="rel-vla">和其他 VLA 页</h3>
+<p><b><a href="gr00t.html">GR00T N1</a>。</b>同样是“VLM + 流匹配动作模块”，但处理不同机器人的方式相反：GR00T N1 给每种具身一套状态和动作的编解码 MLP（32 个槽位），FTP-1 用一个固定布局的 120 维统一动作空间（UAS），每个机器人只填自己有的维度，缺的维度在损失里掩掉（附录 B.1）。触觉方面 GR00T N1 没有触觉输入。</p>
+<p><b><a href="molmoact2.html">MolmoAct2</a>。</b>MolmoAct2 的动作专家每一层直接读 VLM 那一层的 K、V；FTP-1 继承 π0.5 的写法，也是每层把各专家的 Q、K、V 拼起来做一次带掩码的注意力，区别是多了第三路（触觉），并且触觉和视觉语言两路互相看不见（附录 B.4）。两者都只在动作 token 那一侧汇合多路信息。</p>
+<p><b><a href="libero.html">LIBERO</a>、<a href="openwam.html">OpenWAM</a>。</b>FTP-1 的代码基于 <a class="ds" href="https://github.com/Physical-Intelligence/openpi">openpi</a>（π0 / π0.5 的官方仓库），仓库里还带着 openpi 的 LIBERO 示例目录 <span class="cv">examples/libero</span>，但论文没有在 LIBERO 上评测。</p>
+<p><b><a href="craftnet.html">CraftNet</a>、<a href="wm-craftnet.html">WM-Craftnet</a>。</b>都是 Sharpa 的工作，见上面“和 Sharpa / CraftNet 的关系”。这里不复述那两页的结论。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>通用机器人策略（OpenVLA、π0.5、GR00T N1 等）靠大规模异构数据预训练，再快速适配到新机器人和新任务。触觉策略还没走到这一步。已有的预训练触觉策略（OmniVTLA、VTDexManip、OmniVTA）都绑定少数传感器、固定的观测格式和机器人。根子在于触觉信号随硬件变化太大：模态、分辨率、形态、接触响应都不同。作者问：一个触觉策略能不能吸收异构的触觉经验，并迁移到预训练没见过的传感器和机器人上？</p>
+<p><b>做法。</b>FTP-1（Foundation Tactile Policy）是一个跨传感器、跨本体预训练的动作生成模型，组件可以复用到新硬件和新任务。它支持图像型、阵列型、状态型三类触觉输入。为此提出“形态感知的触觉 token 空间”MTTS：用固定的一组功能区 token 表示触觉，每个 token 加一个共享的功能区嵌入；异构编码器把不同传感器投影进这个空间。上面是多专家的基础策略结构，一个共享的触觉 Transformer 专家统一处理触觉 token。</p>
+<p><b>数据和评测。</b>作者整理了 FTP-1-Dataset：26 个来源、约 3,000 小时、21 种传感器的人和机器人示教，全部按 MTTS 标准化。预训练权重分给全球 5 个独立机构，各自在一套硬件上微调，共涉及 4 种触觉传感器、14 个任务（手内调整、控力按压、插拔、长时程精细灵巧操作）。结果：见过的 3 套传感器设置提升 17.2%，没见过的 2 种传感器提升 31%（这两个数的口径见<a href="#n1">读者注 1</a>、<a href="#n2">2</a>）。消融说明收益来自可迁移的触觉技能。</p>
+<p><b>贡献。</b>（1）FTP-1 本身：形态感知的触觉 token 化 + 共享触觉专家；（2）26 个来源、21 种传感器的聚合数据集；（3）触觉操作知识可迁移的实验证据，包括没见过的传感器。</p>
+
+<h2 id="s2"><span class="no">2</span>FTP-1：通用的触觉基础策略</h2>
+<p>输入是语言指令 \(\ell\)、（多视角）RGB 图像 \(I_t\)、本体感觉 \(s_t\) 和触觉观测 \(X_t\)，输出一个动作块：</p>
+<div class="eq"><div class="m">\[ \hat A_{t:t+H-1}=\pi_\theta(\ell,\ I_t,\ s_t,\ X_t),\qquad \hat A_{t:t+H-1}\in\mathbb R^{H\times D} \]</div><span class="no">§2</span></div>
+<p>\(H\) 是动作视野，\(D\) 是预定义的统一动作空间（UAS，沿用 UniDex）的维数，细节在附录 B.1。论文正文没给 \(H\) 和 \(D\) 的数值；代码和公开权重是 \(H=32\)、\(D=120\)（<span class="cv">ftp1_model_config.py:27</span>，权重的 <span class="cv">model_config.json</span>）。下面依次是 MTTS（§2.1）、异构编码器（§2.2）、共享触觉专家（§2.3）和预训练数据（§2.4）。</p>
+<figure class="pfig" id="fig2">
+<img src="ftp1/fig2.webp" width="1394" height="605" alt="图 2：FTP-1 结构。左边是三类触觉信号（状态、阵列、图像）分别进 MLP、CNN、ViT，得到统一触觉 token，再加功能区嵌入，进触觉专家；中间是 SigLIP 的视觉 token 和语言 token 进 VL 专家；右边是噪声 token 进动作专家，本体感觉通过 AdaRMS 注入，输出连续动作" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=3">看原图 ↗</a></span>左框“异构触觉编码器”：状态型（一条曲线）走 MLP，阵列型（4×4 色块）走 CNN，图像型（一张视触觉图）走 ViT，输出“统一触觉 token”，和“功能区嵌入”相加（⊕）后进触觉专家。中间：图像经 SigLIP、指令（例子是“在气球上画笑脸”）经语言 tokenizer，进 VL 专家。右边：噪声 token 进动作专家，本体感觉经 AdaRMS 注入，输出连续动作。三个专家之间的连接在图里没画，见附录 B.4。</figcaption>
+</figure>
+
+<h3 id="s2-1"><span class="no">2.1</span>形态感知的触觉 token 空间（MTTS）</h3>
+<p>不同传感器的模态、分辨率、形态都不同，难以共享表示。MTTS 把触觉信号组织成 <b>24 个功能区</b>（这个划分引自 [14]，人形“触觉做梦”那篇），每个功能区一个 token，定义见图 3：</p>
+<ul>
+<li>手上的触觉用槽位 0–14，对应手的不同区域；</li>
+<li>腕部和手指的力 / 力矩用槽位 15–20；</li>
+<li>平行夹爪的两侧传感器映射到拇指尖（槽位 0）和食指尖（槽位 1），对应两指抓取的功能；</li>
+<li>槽位 21–23 预留。</li>
+</ul>
+<p>各传感器的信号先按功能区分组，再编码成统一的 token。为了告诉模型每个 token 属于哪个功能区，在送进后面的网络前加一个可学习的功能区嵌入，所有传感器共享；左右手用两套嵌入。</p>
+<figure class="pfig" id="fig3" style="max-width:360px">
+<img src="ftp1/fig3.webp" width="364" height="490" alt="图 3：一只张开的右手照片，手指和掌上标了编号：拇指尖 0，食指尖 1，各指节 2 到 14，掌心 5，红色数字 15 腕部力矩、16 到 20 手指关节力矩；右上写 21 到 23 未使用；拇指尖和食指尖之间连线标“夹爪共用”" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 3 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=3">看原图 ↗</a></span>黑色数字是触觉槽位：0 拇指尖，6 拇指根，1/7/11 食指，2/8/12 中指，3/9/13 无名指，4/10/14 小指，5 掌心。红色是力矩：15 腕部，16–20 五根手指的关节力矩。左上角写“1-14: Tactile”，正文写“0-14”（读者注 10）。</figcaption>
+</figure>
+
+<h3 id="s2-2"><span class="no">2.2</span>把异构触觉编码进 MTTS</h3>
+<p>MTTS 给了统一的 token 接口，但输入的形状和模态还是各不相同，所以用异构编码器（沿用 HPT 的思路）。每种传感器先按功能区分组，再把每组归到三种观测类型之一：</p>
+<ul>
+<li><b>图像型</b>（例如 GelSight）：一个轻量的传感器专用 ViT，后接所有传感器共享的、预训练过的 T3 Transformer 编码器，取最后的 [CLS] 作为触觉 token。</li>
+<li><b>阵列型</b>（例如 Contactile）：CNN 抓空间结构，把每个功能区压成一个 token。</li>
+<li><b>状态型</b>（例如力 / 力矩）：先对原始值做 Fourier 编码，再过一个轻量 MLP。</li>
+</ul>
+<p>同一种传感器上多个功能区观测形状相同时，共用一个编码器，减少传感器专用参数，也让相同的触觉动态被一致地建模。细节在附录 B.2。</p>
+<figure class="pfig" id="fig4">
+<img src="ftp1/fig4.webp" width="1393" height="570" alt="图 4：数据集概览。左边约 3000 小时、26 个数据来源，配 20 张缩略图；中上饼图：人手 20%、灵巧手 30%、夹爪 50%；中下饼图：状态型 9、图像型 7、阵列型 5；右边 21 种触觉传感器的照片和信号样例" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 4 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=4">看原图 ↗</a></span>左：“~3000 小时、26 个数据来源”和缩略图。中上：重采样后的领域占比，人手 20%、灵巧手 30%、夹爪 50%。中下：传感器按类型计数，状态 9、图像 7、阵列 5，合计 21。右：传感器照片和信号样例（灵巧手、GelSight Mini、视触觉的点阵图、手套压力条等）。</figcaption>
+</figure>
+
+<h3 id="s2-3"><span class="no">2.3</span>共享触觉专家做模态融合</h3>
+<p>FTP-1 在 π0.5 的基础上用多专家结构：预训练的视觉语言 Transformer 专家（PaliGemma）处理图像和指令；流匹配的动作专家读它的输出。本体感觉用 adaRMS 注入：一个 MLP 编码本体感觉的 Fourier 特征，归一化后和流匹配的时间步特征拼接，去调制注意力块。细节在附录 B.3。</p>
+<p>以往的“触觉增强 VLA”多用轻量适配器把触觉注入视觉语言专家（Tactile-VLA、OmniVTLA、ForceVLA2 等）。FTP-1 改用一个<b>独立的触觉专家</b>处理触觉 token。作者给了三个理由：（1）微调到没见过的传感器时可以复用预训练好的触觉专家，促进可迁移的触觉技能；（2）不扰动视觉语言专家里的预训练知识；（3）处理触觉更高效，接触丰富任务的表现更好（和 Tactile-VLA 的对比见 §3、§4.1）。</p>
+<p>融合方式：动作专家的 query 去看触觉专家和视觉语言专家的 key、value。视觉语言和触觉各自只在本流内做注意力，动作 token 看全部三路。这个分块掩码让触觉直接影响动作生成，同时保持视觉语言和触觉分开处理，连接方式见附录 B.4。<b>触觉专家是一个 3 亿参数的 Transformer</b>（公开代码和权重不是，见<a href="#n8">读者注 8</a>）。更复杂的融合（比如 MoE）在作者的实验里没有稳定的收益，所以用最简单的多专家结构。</p>
+
+<h3 id="s2-4"><span class="no">2.4</span>FTP-1 预训练数据</h3>
+<p>预训练数据集（图 4）聚合自 26 个来源，覆盖 21 种传感器：7 种图像型、5 种阵列型、9 种状态型。除了已有数据，作者用 Sharpa North 新采了 Sharpa North-FTP-1，含 4,000 条长时程灵巧示教。所有触觉标注都按 MTTS 功能区整理。为缓解数据不平衡，每个来源设一个采样倍率；重采样后人手、灵巧手机器人、夹爪机器人三类大约占 20%、30%、50%。合计约 3,000 小时。细节在附录 C。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总览、三类触觉信号长什么样、图像型编码器（传感器专用 ViT + 共享 T3）、阵列型和状态型编码器（Fourier + CNN / MLP）、MTTS 的 24 个槽位、功能区嵌入和统一投影、三专家的分块注意力、adaRMS 和流匹配出 120 维动作块、26 个来源的重采样、新传感器微调时哪些模块复用、结果表。网络尺寸按公开代码和权重画，论文和代码不一致的地方两种都标出。下面嵌的是第 7 幕。</p>
+<iframe src="../interactives/ftp1/index.html?embed=1&amp;scene=7" title="FTP-1 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/ftp1/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>微调实验（见过的传感器）</h2>
+<p>核心问题：FTP-1 预训练能不能通过学到有效的触觉感知表征，改善下游触觉策略的微调？作者把预训练权重分给 3 个独立机构，各自在一套本体和任务上评测，覆盖仿真和真机。训练细节在附录 D。</p>
+<h3 id="s3-1"><span class="no">3.1</span>基线和指标</h3>
+<p>仿真每个任务 100 次，照原基准的做法；真机每个任务 20 次。报告微调后的成功率，和三个基线比：</p>
+<ul>
+<li><b>π0.5</b>：开源的强 VLA，没有触觉输入。衡量“加触觉”本身的收益。</li>
+<li><b>Tactile-VLA</b>：按 Huang 等（作者组的前作，Yang Gao 是共同作者）改出的触觉 VLA，把 token 化的触觉直接送进 VLM 专家，没有独立的触觉专家。衡量触觉专家这个设计。</li>
+<li><b>FTP-π0.5</b>：FTP-1 的结构，部分权重用 π0.5 初始化，但没有 FTP-1 预训练。衡量大规模触觉预训练。</li>
+</ul>
+<p>所有方法都在 π0.5 代码库上实现，模型规模、微调数据和训练流程相当。</p>
+
+<figure class="pfig" id="fig5">
+<img src="ftp1/fig5.webp" width="1393" height="814" alt="图 5：三套见过传感器的设置。Sharpa North：真机灵巧手，Sharpa North 加 Sharpa Wave，传感器 Sharpa DTC（灰度接触图），任务画气球、修手、拧盖；Sharpa&amp;Dexmate：Dexmate（未见）加 Sharpa Wave，Sharpa DTC（彩色热图），任务翻书、擦盘；UniVTAC：仿真（未见）夹爪，Franka，GelSight-Mini，6 个任务" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 5 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=5">看原图 ↗</a></span>三栏。Sharpa North：人形上身装两只 Sharpa Wave 手（背景打了马赛克），Sharpa DTC 的样例是一张灰度接触斑；任务画气球、修手、拧盖。Sharpa&amp;Dexmate：Dexmate 的机器人（标“未见”）装 Sharpa Wave，DTC 样例画成橙色热图；任务翻书、擦盘。UniVTAC：仿真里的 Franka 和夹爪（领域标“仿真（未见）”），GelSight-Mini 的点阵图；6 个任务。</figcaption>
+</figure>
+
+<h3 id="s3-2"><span class="no">3.2</span>任务设置</h3>
+<p>三个本体：仿真的 UniVTAC，真机的 Sharpa North 和 Sharpa&amp;Dexmate。涉及两种预训练里有的传感器：GelSight-Mini 和 Sharpa DTC，所以触觉 tokenizer 和触觉专家都从 FTP-1 权重初始化。UniVTAC 选 6 个接触丰富任务（手内操作和接触感知的插拔）；Sharpa North 三个长时程灵巧任务：画气球、修手、拧盖（可变形物体、小零件装配、双手拧）；Sharpa&amp;Dexmate 侧重按压和控力：翻书、擦盘。硬件、任务定义、排除的 UniVTAC 任务见附录 E.1、E.2，执行示例见 E.3。</p>
+
+<h3 id="s3-3"><span class="no">3.3</span>结果</h3>
+<p><b>仿真。</b>表 1 是 UniVTAC 的结果。意外的是，Lift Bottle 和 Lift Can 在仿真里不用触觉也基本能做：π0.5 已经有 97% 和 72%。所以另报一个去掉这两项的平均。FTP-1 两个口径都最好：总平均 66.66%，去掉 Lift 后 59.5%，都比第二名高约 17.5 个点。</p>
+<div class="tablewrap"><table class="t-res"><caption class="tcap">表 1（原文第 6 页）：UniVTAC 仿真基准的成功率（%）。“w/o Lift”去掉 Lift Bottle 和 Lift Can。带 * 的取自原基准论文。原文加粗最好、下划线次好，这里只照录数字</caption>
+<thead><tr><th>方法</th><th>Lift Bottle</th><th>Pull-out Key</th><th>Lift Can</th><th>Put Bottle</th><th>Insert Hole</th><th>Insert Tube</th><th>Avg.</th><th>Avg. w/o Lift</th></tr></thead><tbody>
+<tr><td>VITaL*</td><td>72</td><td>47</td><td>8</td><td>32</td><td>25</td><td>34</td><td>36.33</td><td>34.5</td></tr>
+<tr><td>UniVTAC-ACT*</td><td>71</td><td>46</td><td>29</td><td>31</td><td>25</td><td>56</td><td>43.00</td><td>39.5</td></tr>
+<tr><td>π0.5</td><td>97</td><td>38</td><td>72</td><td>16</td><td>31</td><td>41</td><td>49.16</td><td>31.5</td></tr>
+<tr><td>Tactile-VLA</td><td>97</td><td>32</td><td>15</td><td>10</td><td>41</td><td>56</td><td>41.83</td><td>34.75</td></tr>
+<tr><td>FTP-π0.5</td><td>77</td><td>30</td><td>26</td><td>19</td><td>47</td><td>72</td><td>45.16</td><td>42</td></tr>
+<tr><td>FTP-1</td><td>97</td><td>48</td><td>65</td><td>47</td><td>64</td><td>79</td><td>66.66</td><td>59.5</td></tr>
+</tbody></table></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 1–3 的平均逐格重算</span>
+<p>表 1：VITaL 218/6 = 36.33，138/4 = 34.5；UniVTAC-ACT 258/6 = 43.00，158/4 = 39.5；π0.5 295/6 = 49.17，126/4 = 31.5；Tactile-VLA 251/6 = 41.83，139/4 = 34.75；FTP-π0.5 271/6 = 45.17，168/4 = 42；FTP-1 400/6 = 66.67，238/4 = 59.5。全部对得上，只是原文的两位小数是<b>截断</b>不是四舍五入（49.16、45.16、66.66）。“比第二名高约 17.5”：总平均第二是 π0.5，66.67 − 49.17 = 17.5；去 Lift 第二是 FTP-π0.5，59.5 − 42 = 17.5，成立。</p>
+<p>表 2：Tactile-VLA 215/6 = 35.83；FTP-π0.5 250/6 = 41.67（原文 41.6，截断）；FTP-1 375/6 = 62.5。<b>π0.5 是 275/6 = 45.83，原文写 45.3</b>，见读者注 1。表 3：π0.5 45/3 = 15.0，Tactile-VLA 25/3 = 8.33，FTP-π0.5 45/3 = 15.0，FTP-1 140/3 = 46.67（原文 46.6，截断）。带 * 的两行我没有回 UniVTAC 原论文核对，<b>未核实</b>。</p></div>
+
+<div class="tablewrap"><table class="t-real"><caption class="tcap">表 2（原文第 6 页）：见过传感器的真机结果，微调后成功率（%）。每格 20 次</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="4">Sharpa North</th><th colspan="2">Sharpa&amp;Dexmate</th><th rowspan="2">平均</th></tr>
+<tr><th>Draw Balloon</th><th>Fix Hand (Tear)</th><th>Fix Hand (Finish)</th><th>Twist Cap</th><th>Flip Book</th><th>Wipe Dish</th></tr></thead><tbody>
+<tr><td>π0.5</td><td>35</td><td>70</td><td>35</td><td>40</td><td>65</td><td>30</td><td>45.3</td></tr>
+<tr><td>Tactile-VLA</td><td>20</td><td>80</td><td>25</td><td>10</td><td>45</td><td>35</td><td>35.8</td></tr>
+<tr><td>FTP-π0.5</td><td>25</td><td>65</td><td>25</td><td>20</td><td>70</td><td>45</td><td>41.6</td></tr>
+<tr><td>FTP-1</td><td>45</td><td>80</td><td>40</td><td>65</td><td>85</td><td>60</td><td>62.5</td></tr>
+</tbody></table></div>
+<p><b>真机。</b>FTP-1 平均 62.5%，最好。意外的是不带触觉的 π0.5 排第二（45.3%），高于两个带触觉的基线。作者的解释：没有合适的模态融合时，触觉输入会干扰视觉语言感知，反而有害（和 [14] 的观察一致），在 Sharpa North 的长时程任务上尤其明显。行为上，Tactile-VLA 和 FTP-π0.5 在接触条件变化时动作不稳；π0.5 没有触觉，在两个 Sharpa&amp;Dexmate 任务上有时维持不住按压力，拧盖时顶着瓶盖不会随力调整。FTP-1 的动作更稳、更平滑。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · 摘要的 “+17.2%” 是什么</span>
+<p>出处：图 1 右上的柱子写 45.3% → 62.5%、+17.2%，即表 2 的 FTP-1 平均减 π0.5 平均：62.5 − 45.3 = 17.2。所以它是<b>绝对百分点</b>，而且<b>只含表 2 的两套真机</b>（6 列，都用 Sharpa DTC）。摘要和 §1 说“在 3 套见过的传感器设置上提升 17.2%”，但第三套 UniVTAC 的提升是另一个数（表 1，+17.5）。</p>
+<p>问题在 45.3：π0.5 那一行 35 + 70 + 35 + 40 + 65 + 30 = 275，275 / 6 = 45.83。我试了其他口径：把 Fix Hand 两列合成一个任务（只取 Finish）是 205/5 = 41.0；按两个设置各自平均再平均是 (180/4 + 95/2)/2 = 46.25，都不是 45.3。同一张表的另三行都是“6 列直接平均再截断”。所以 45.3 很可能是 45.8 的笔误（<b>我的推断</b>）。按 45.83 算，提升是 62.5 − 45.83 = 16.7 个点。相对提升是 62.5 / 45.83 − 1 = 36%。</p></div>
+
+<h2 id="s4"><span class="no">4</span>可迁移触觉操作能力的实验</h2>
+<p>已有工作表明同一种传感器上的预训练能改善下游策略（T3、OmniVTLA、OmniVTA），但大规模异构预训练能否迁移到没见过的传感器还不清楚。这里说的“没见过的传感器”是指 FTP-1 预训练里没有的具体硬件。Xense 和 Contactile 分别属于预训练覆盖到的图像型和阵列型。微调时，FTP-1 用目标传感器采的示教<b>新训一个传感器专用编码器</b>，复用预训练的触觉专家、功能区嵌入，图像型还复用共享的 T3 主干；视觉语言专家和动作专家也从 FTP-1 权重初始化。所有方法用相同的示教和附录 D 的微调流程。</p>
+<figure class="pfig" id="fig6">
+<img src="ftp1/fig6.webp" width="1393" height="561" alt="图 6：两套没见过传感器的设置。FlexivXense：Flexiv 机械臂加 Robotiq 夹爪，Xense 视触觉（未见），任务插汉诺塔圈和插 USB；TactileUMI：Franka 加 3D 打印夹爪（未见），Contactile 阵列传感器（未见），GoPro 相机，任务擦黑板" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 7 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=7">看原图 ↗</a></span>左 FlexivXense：Flexiv 机械臂加 Robotiq 夹爪，Xense 的样例是一张带点阵的蓝色视触觉图；右边两张任务照：把一个圆环套到汉诺塔柱上、把 USB 插头插进排插。右 TactileUMI：Franka 加 3D 打印夹爪（标“未见”），夹爪上方是 GoPro，指尖是 3×3 的 Contactile 阵列；任务是按着板擦擦黑板上的字。</figcaption>
+</figure>
+
+<h3 id="s4-1"><span class="no">4.1</span>迁移到没见过的触觉传感器</h3>
+<p>权重分给另外两个机构：FlexivXense 用 Xense 图像型传感器，TactileUMI（来自 Tactile-VLA）用 Contactile 阵列传感器。附录 E.4 给了预训练里和它们最像的传感器。任务：FlexivXense 两个精细插入（Insert Hanoi：把小圆环套到柱子上；Insert USB），每任务 100 条示教；TactileUMI 一个控压任务 Wipe Board，每任务 50 条。执行示例见附录 E.5。</p>
+<div class="tablewrap"><table class="t-un"><caption class="tcap">表 3（原文第 7 页）：没见过传感器的真机成功率（%）。每格 20 次</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="2">FlexivXense</th><th>TactileUMI</th><th rowspan="2">平均</th></tr>
+<tr><th>Insert Hanoi</th><th>Insert USB</th><th>Wipe Board</th></tr></thead><tbody>
+<tr><td>π0.5</td><td>25</td><td>0</td><td>20</td><td>15.0</td></tr>
+<tr><td>Tactile-VLA</td><td>0</td><td>10</td><td>15</td><td>8.3</td></tr>
+<tr><td>FTP-π0.5</td><td>5</td><td>10</td><td>30</td><td>15.0</td></tr>
+<tr><td>FTP-1</td><td>55</td><td>30</td><td>55</td><td>46.6</td></tr>
+</tbody></table></div>
+<p>FTP-1 平均 46.6%，最高；比 FTP-π0.5 的 15% 高 31.6 个点，说明大规模异构触觉预训练在没见过的传感器上也能改善微调。π0.5 和 FTP-π0.5 相当，说明光加一个触觉分支、没有合适的融合先验和预训练知识，不一定有用。行为上：Insert Hanoi 里 FTP-1 和 π0.5 都会出错后恢复，其他基线不会，作者认为这来自大规模预训练；FTP-1 还会根据触觉在圆环没对准柱子时放慢插入，π0.5 不会。Insert USB 只有 100 条示教很难学，是数据效率的测试，其他模型插入时更不稳、会轻微抖动。Wipe Board 和 Sharpa&amp;Dexmate 的情况类似：其他模型难以维持稳定压力，擦的时候会离开板面。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · “未见传感器 +31%” 是绝对还是相对</span>
+<p>绝对百分点。表 3：46.6 − 15.0 = 31.6。摘要和 §1 写 “+31%”，图 1 和 §4.1 写 “31.6%”、“31.6% point gain”。π0.5 和 FTP-π0.5 都是 15.0，所以“对最好基线”和“对没有预训练的同结构”是同一个数。</p>
+<p>按原始数据 FTP-1 是 140/3 = 46.67，四舍五入应写 46.7、差 31.7；原文截断成 46.6。换成相对提升：46.67 / 15.0 = 3.11 倍，即 +211%。分到任务看：FlexivXense 两个插入平均 42.5 对 π0.5 的 12.5、FTP-π0.5 的 7.5；TactileUMI 一个任务 55 对 30。三个任务合计只有 60 次试验（读者注 12）。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>收益来自预训练的触觉知识</h3>
+<p>两种可能的解释：</p>
+<ul>
+<li><b>假设 1（数据分布）：</b>FTP-1 的预训练数据更接近下游任务，所以微调更容易。</li>
+<li><b>假设 2（可迁移知识）：</b>FTP-1 学到了可迁移的触觉操作知识，给下游触觉策略更好的初始化。</li>
+</ul>
+<p>为此预训练一个 NTP（No-Tactile-Pretraining）权重：设置和 FTP-1 一样，数据也一样，但不用触觉输入、去掉触觉相关结构。微调时再加上和 FTP-1 相同的触觉结构，叫 NTP-1。在 UniVTAC（见过的传感器）和 FlexivXense（没见过的传感器）上评测，微调设置同上。</p>
+<figure class="pfig" id="fig7" style="max-width:560px">
+<img src="ftp1/fig7.webp" width="627" height="461" alt="图 7：柱状图，纵轴平均成功率。UniVTAC：FTP-π0.5 41.8，NTP-1 50.0，FTP-1 66.6；FlexivXense：FTP-π0.5 7.5，NTP-1 5.0，FTP-1 42.5" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 8 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=8">看原图 ↗</a></span>三种颜色：紫 FTP-π0.5、绿 NTP-1、橙 FTP-1。UniVTAC 上柱顶标 41.8 / 50.0 / 66.6；FlexivXense 上 7.5 / 5.0 / 42.5。这张图是位图（PDF 第 8 页只有一张 1448×1086 的嵌入图），我按像素量过柱高，紫色柱确实画在 41.8 左右，不是标签写错。</figcaption>
+</figure>
+<p>三者结构完全相同，只差预训练权重。UniVTAC 上 NTP-1 好于 FTP-π0.5，说明 FTP-1-Dataset 的分布可能更接近 UniVTAC；但 NTP-1 仍不如 FTP-1，说明预训练给了触觉分支有用的初始化。FlexivXense 上 FTP-1 比 NTP-1 高 37.5 个点，说明迁移到这个领域必须有触觉预训练。没有触觉分支的预训练，NTP-1 对触觉变化不鲁棒，关键插入阶段动作不稳。这些结果支持假设 2。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 图 7 的 41.8 和表 1、表 10 的 45.16 不一致</span>
+<p>图 7 UniVTAC 组的 FTP-π0.5 柱标 41.8。表 1 和附录表 10 的 FTP-π0.5 平均都是 45.16（271/6），§4.3 和表 11 的“0%（FTP-π0.5）”也是 45.2。41.8 恰好是表 1 里 <b>Tactile-VLA</b> 的平均 41.83。所以图 7 很可能画错了一行（<b>我的推断</b>）。这不影响 §4.2 的结论（FTP-π0.5 &lt; NTP-1 &lt; FTP-1 两种读法都成立）。</p>
+<p>其余数字：NTP-1 = 300/6 = 50.0（表 10），FTP-1 = 66.6；FlexivXense 的 FTP-π0.5 = (5 + 10)/2 = 7.5，FTP-1 = (55 + 30)/2 = 42.5，都和表 3 一致；“+37.5%”= 42.5 − 5.0，是百分点。附录 E.6 说“详细结果在表 10”，但表 10 只有 UniVTAC；<b>NTP-1 在 FlexivXense 两个任务上的分项成绩论文没给</b>，5.0 只能是平均。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>其他分析</h3>
+<p><b>匹配的 VLA 预训练。</b>为了控制“FTP-1 预训练见过更多机器人轨迹”这个因素，把 π0.5 在同样的机器人轨迹、同样的预训练预算上继续预训练（只用视觉-语言-动作输入）。微调后它在 UniVTAC 上总平均 57.0%、去 Lift 44.0%（表 4），FTP-1 分别高 9.7 和 15.5 个点。说明触觉预训练的收益不只来自多看了机器人轨迹。</p>
+<div class="tablewrap"><table class="t-small"><caption class="tcap">表 4（原文第 9 页）：UniVTAC 上的匹配预训练对比，微调后成功率（%）。两者用同样的机器人轨迹和预训练预算</caption>
+<thead><tr><th>方法</th><th>Avg.</th><th>Avg. w/o Lift</th></tr></thead><tbody>
+<tr><td>π0.5，匹配预训练</td><td>57.0</td><td>44.0</td></tr>
+<tr><td>FTP-1</td><td>66.7</td><td>59.5</td></tr>
+</tbody></table></div>
+<p><b>预训练预算的缩放。</b>数据量和训练步数一起缩放：50% 条件是一半数据、一半步数。UniVTAC 平均从无预训练的 45.2% 升到 50% 时的 59.0% 和 100% 时的 66.7%。完整结果在附录 F.2。</p>
+<p><b>触觉特征探针。</b>用冻结的触觉特征预测力和滑动（附录 F.3）。相对 T3 初始化，注意力探针的滑动 F1 从 0.725 升到 0.780（FTP-1 主干）和 0.786（tokenizer）。力探针也能恢复定量的力信息。作者认为这是表征层面的证据，补充下游策略评测。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · §4.3 的减法都对；但“缩放”混了两个变量，“力信息”其实变差了</span>
+<p>算术：66.7 − 57.0 = 9.7，59.5 − 44.0 = 15.5；表 11 里 59.0 − 45.2 = 13.8，46.0 − 42.0 = 4.0，66.7 − 59.0 = 7.7，59.5 − 46.0 = 13.5，66.7 − 45.2 = 21.5，59.5 − 42.0 = 17.5，全部成立。</p>
+<p>两点保留：一是 50% 条件同时减半了数据和步数（25,000 步），所以表 11 分不开“数据多”和“训练久”哪个起作用；而且去 Lift 的平均在 0% → 50% 只涨 4 个点、50% → 100% 涨 13.5，单看三个点说不了是什么曲线。二是表 12 里力的两个探针 FTP-1 都不比 T3 好：T1 上 0.107 对 0.106（基本持平），FeelAnyForce 上 0.314 对 0.273，误差大 15%；tokenizer 特征 0.424，更差。所以正文“力探针也能恢复定量力信息”只说明“还剩着”，不是“变好”。附录 F.3 的措辞（“quantitative force information remains accessible”）更准确。</p></div>
+
+<h2 id="s5"><span class="no">5</span>相关工作</h2>
+<p>详细综述和传感器覆盖、动作生成、迁移评测的对比在附录 A 和表 5、6。通用机器人策略（OpenVLA、π0、π0.5、GR00T N1、RDT-1B）在任务、本体、环境上迁移得好，但基本不用触觉。已有的触觉策略和 VTLA（ViTacFormer、Tactile-VLA、OmniVTLA、VTLA、ForceVLA2）证明了触觉对接触丰富操作的价值，但通常绑定特定传感器、任务或本体。触觉表征和策略预训练（Sparsh、AnyTouch、ViTaL、T3、OmniVTA、FreeTacMan）改善了触觉感知或下游控制，但没有做到端到端、与传感器无关的通用触觉策略。FTP-1 把通用策略范式扩展到触觉操作：不把触觉当成某个传感器的附加件，而是研究触觉技能能否大规模预训练并跨传感器和本体迁移。</p>
+
+<h2 id="s6"><span class="no">6</span>结论</h2>
+<p>FTP-1 是一个为跨传感器、跨本体微调而预训练的通用触觉基础策略。在 26 个来源、21 种传感器的数据上预训练后，它在 5 套硬件上改善了见过和没见过传感器的微调表现，为触觉策略学习提供了一个共享的模型级起点。</p>
+<p><b>局限和方向。</b>作为初步探索，FTP-1 主要关注通用触觉感知，<b>还没有处理基于触觉或力的伺服和控制</b>。把异构编码框架扩展到触觉预测和基于预测的底层控制是一个方向。另一个局限是预训练数据的规模和多样性仍然有限，更大的聚合数据集和进一步扩大预训练留给以后。</p>
+<p><b>致谢</b>（第 10 页）：上海期智研究院创新项目和清华“笃实”计划资助；感谢 Sharpa Pte Ltd. 提供硬件、算力和 Sharpa North-FTP-1 数据集；感谢 Aether Embodied Technology（北京）提供 EgoTac 第一视角人类数据和 AetherGlove 手套；感谢 PaXini Technology（深圳）提供 OmniSharingDB 人类数据。</p>
+
+<h2 id="appA"><span class="no">A</span>附录 A：详细相关工作</h2>
+<p><b>A.1 通用操作策略。</b>机器人学习从任务专用策略（Diffusion Policy、ACT）转向通用策略：在大规模机器人数据（Open X-Embodiment、DROID、RoboCOIN）上训练，再快速适配新环境、本体和任务。机器人示教之外，人体运动、语义隐 token、视频生成、视觉问答等异构信号也被加进训练。但通用策略基本不用触觉。</p>
+<p><b>A.2 接触丰富操作的触觉策略。</b>通用触觉策略缺席，主要因为触觉硬件太异构（TACO 基准）。不过大量针对特定传感器的视触觉策略（3D-ViTac、RDP、MimicTouch、ViTaMIn、exUMI 等）都显示触觉明显改善接触丰富操作。另一条线是 VTLA：在预训练的视觉基础策略上加触觉输入（Tactile-VLA、VLA-Touch、VTLA、TacVLA、ForceVLA、ForceVLA2）。FTP-1 定位成“原生触觉”的基础模型，而不是任务专用策略或视觉策略的扩展。</p>
+<p><b>A.3 大规模触觉表征预训练。</b>一类（Sparsh、AnyTouch、ViTaL、T3 等）从视触觉配对数据学编码器，再给下游策略微调，但表征不是为操作端到端优化的。另一类直接在带动作的触觉操作数据上预训练策略（VTAO-BiManip、FreeTacMan、OmniVTA、TAMEn），但受限于特定传感器和数据规模。</p>
+<p><b>A.4 和触觉表征、策略模型的比较。</b>表 5 和表 6 从互补的角度比较代表性模型。“传感器覆盖”指论文报告的数据或训练设置，不是机器人上装了几个传感器。作者区分三件事：传感器个体之间的迁移、传感器设计之间的迁移、下游动作生成；“预训练编码器 + 任务专用策略头”和“预训练一个共享的动作生成触觉策略”不是一回事。“NR”表示原文没报告，不代表做不到。</p>
+<div class="tablewrap"><table class="t-rel"><caption class="tcap">表 5（原文第 18 页）：代表性模型的触觉覆盖和传感器迁移评测（我压缩成中文）</caption>
+<thead><tr><th>模型</th><th>报告的触觉覆盖</th><th>学习目标</th><th>没见过传感器的评测</th></tr></thead><tbody>
+<tr><td>T3</td><td>FoTa 里 13 种传感器；图像输入</td><td>共享触觉表征</td><td>留出 GelSight Svelte、DenseTact 2.0；分类 / 位姿估计，有无微调两种</td></tr>
+<tr><td>Sparsh</td><td>3 个家族：DIGIT、GelSight 2017、GelSight Mini</td><td>自监督触觉表征</td><td>同家族的新个体；冻结特征的感知任务和下游策略</td></tr>
+<tr><td>AnyTouch</td><td>5 种训练传感器；图像 / 视频</td><td>静态 / 动态触觉表征</td><td>TACTO、Taxim 合成传感器；材质分类的线性探针</td></tr>
+<tr><td>FEATS</td><td>1 种：GelSight Mini，多个个体 / 凝胶</td><td>稠密三维力分布</td><td>新的 Mini 个体 / 凝胶组合；力估计</td></tr>
+<tr><td>FeelAnyForce</td><td>GelSight Mini 训练；Mini 和 DIGIT 评测</td><td>三维接触力和深度</td><td>更多 Mini 个体（有无标定）；DIGIT 需微调回归头</td></tr>
+<tr><td>Tactile-VLA</td><td>双指尖力传感；类型数 NR</td><td>位置 / 力动作和触觉推理</td><td>NR；泛化指指令、物体、任务条件</td></tr>
+<tr><td>OmniVTLA</td><td>ObjTac 和机器人上的 Paxini Gen2；另有编码器训练数据（总类型数 NR）</td><td>对齐的触觉特征和动作</td><td>留出传感器的策略评测 NR</td></tr>
+<tr><td>OmniVTA</td><td>数据集 4 种；触觉 VAE 验证 3 种；机器人策略评测用 Xense</td><td>触觉动态和动作</td><td>留出传感器的策略评测 NR</td></tr>
+<tr><td>FTP-1</td><td>预训练 21 种；图像、阵列、状态</td><td>共享的动作生成触觉策略</td><td>在预训练没有的 Xense 和 Contactile 上微调策略</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-rel"><caption class="tcap">表 6（原文第 19 页）：动作生成、本体覆盖和真机评测（压缩）。“策略设置”数的是被评测的下游机器人配置</caption>
+<thead><tr><th>模型</th><th>动作生成</th><th>策略设置</th><th>真机策略评测</th><th>跨本体评测</th></tr></thead><tbody>
+<tr><td>T3</td><td>下游行为克隆头</td><td>1：Franka Panda + 平行夹爪</td><td>有；插入</td><td>NR</td></tr>
+<tr><td>Sparsh</td><td>下游扩散策略</td><td>1：Franka + 触觉手</td><td>有；珠子迷宫</td><td>NR</td></tr>
+<tr><td>AnyTouch</td><td>下游模仿策略</td><td>1：xArm 6 + Robotiq</td><td>有；倒水</td><td>NR</td></tr>
+<tr><td>FEATS</td><td>力估计器</td><td>NR</td><td>NR</td><td>NR</td></tr>
+<tr><td>FeelAnyForce</td><td>力估计器 + 反馈控制器</td><td>无学习策略；物理力反馈任务</td><td>力反馈控制演示</td><td>NR</td></tr>
+<tr><td>Tactile-VLA</td><td>端到端位置 / 力策略</td><td>1 套夹爪；UMI 采数据</td><td>有</td><td>用 UMI 数据上机器人；留出机器人测试 NR</td></tr>
+<tr><td>OmniVTLA</td><td>端到端动作策略</td><td>2：UR5 + 夹爪 / 灵巧手</td><td>有</td><td>共享编码器，夹爪和手分别微调策略</td></tr>
+<tr><td>OmniVTA</td><td>扩散策略 + 触觉控制器</td><td>1：xArm 7 + 平行夹爪</td><td>有</td><td>机器人和 TacUMI 用同款夹爪采；留出机器人测试 NR</td></tr>
+<tr><td>FTP-1</td><td>共享的端到端动作策略</td><td>5：1 个仿真 + 4 套真机</td><td>有</td><td>夹爪和灵巧手上共享策略微调，包括新硬件</td></tr>
+</tbody></table></div>
+<p>正文的小结：T3 和 AnyTouch 明确评测了跨传感器设计的迁移，Sparsh 评测了新个体；FEATS、FeelAnyForce 提供有物理依据的监督。Tactile-VLA 把触觉接到位置-力动作，OmniVTLA 把触觉和视觉语言对齐，OmniVTA 结合视触觉世界模型、扩散策略和反应式触觉控制器，它的数据集支持 4 种传感器，但真机策略实验只用了 Xense。FTP-1 的区别是：异构触觉输入 + 共享的预训练动作策略，在 5 套硬件上评测微调，其中 2 种传感器预训练没见过。</p>
+
+<h2 id="appB"><span class="no">B</span>附录 B：FTP-1 结构细节</h2>
+<h3 id="appB1"><span class="no">B.1</span>统一动作空间（UAS）</h3>
+<p>不同本体的动作空间不同，比如一个是单臂关节空间，另一个是双臂末端位姿。FTP-1 沿用 RDT 的做法，把所有命令表示成固定长度的稀疏向量。一个控制步的动作是：</p>
+<div class="eq"><div class="m">\[ \mathbf a=[\mathbf a^{L},\ \mathbf a^{R},\ \mathbf a^{ego},\ \mathbf a^{sup}]\in\mathbb R^{D},\qquad \mathbf a^{b}=[\mathbf t^{b}_{w},\ \mathbf r^{b}_{w},\ \mathbf q^{b}_{arm},\ \mathbf q^{b}_{hand}],\ b\in\{L,R\} \]</div><span class="no">B.1</span></div>
+<p>\(\mathbf t_w\in\mathbb R^3\) 是腕部平移，\(\mathbf r_w\in\mathbb R^6\) 是 6D 旋转表示，\(\mathbf q_{arm}\in\mathbb R^7\) 是臂关节，\(\mathbf q_{hand}\in\mathbb R^{32}\) 是规范的手关节槽位；\(\mathbf a^{ego}=[\mathbf t^{ego},\mathbf r^{ego}]\)（3 + 6）是头部位姿；\(\mathbf a^{sup}\) 是给移动底盘、腰部等的补充槽位。手关节沿用 UniDex 的 FAAS（功能-执行器对齐空间）：功能相似的关节放进同一个槽位。原文图 8 是 UniDex 里八种灵巧手（Ability、Allegro、Inspire、Leap、Oymotion、Shadow、Wuji、Xhand）的关节映射，<b>原文注明“复制自 UniDex 原论文”，本页不放</b>。图 9 是作者给人手定义的 FAAS。平行夹爪用一个独立的槽位 28。每个本体只填它支持的槽位，训练时用掩码 \(M\in\{0,1\}^D\) 把缺失或不支持的维度排除出损失。这样 FTP-1 总是输出同一种布局。</p>
+<p>正文没写 \(D\)。按上面的定义：每臂 3 + 6 + 7 + 32 = 48，两臂 96，加头部 9 是 105，代码再留 15 维补充槽位，\(D=120\)（<span class="cv">ftp1_model_config.py:17-25</span>，公开权重 <span class="cv">action_dim: 120</span>）。代码里右臂排在前面（<span class="cv">ftp1_action_groups.py:23-35</span>），和原文 \([\mathbf a^L,\mathbf a^R,\dots]\) 的书写顺序相反，<span class="cv">data_processing/README.md:176</span> 又写左臂在前；这只是排列约定，不影响结果。</p>
+<figure class="pfig" id="fig9" style="max-width:520px">
+<img src="ftp1/fig9.webp" width="668" height="433" alt="图 9：人手的 FAAS 定义。左手掌面图上蓝色弧线标屈伸关节 2、3、7 到 9、12 到 14、17 到 19、22 到 24、27；右边手背图上绿色标外展内收 1、6、11、16、21、26；上方写“28：夹爪开合距离”" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 20 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=20">看原图 ↗</a></span>左图蓝色是屈伸：拇指 2、3（还有掌上 27 的斜轴），食指 7、8、9，中指 12、13、14，无名指 17、18、19，小指 22、23、24；掌上红带示意掌横向。右图绿色是外展 / 内收：1、26（拇指），6、11、16、21（四指）。上方“28: gripper distance”。</figcaption>
+</figure>
+<p><b>Sharpa Wave 的 FAAS 映射。</b>Sharpa North 和 Sharpa&amp;Dexmate 用的 Sharpa Wave 手每只有 22 个主动关节。按原生关节顺序，对应的 FAAS 槽位序列是</p>
+<div class="eq"><div class="m">\[ s=[1,2,3,26,4,7,6,8,9,12,11,13,14,17,16,18,19,25,22,21,23,24],\qquad q^{b}_{hand,\,s_k}=h^{b}_{k},\ k=0,\dots,21 \]</div><span class="no">B.1</span></div>
+<p>槽位 25 是小指的腕掌（CMC）关节，26 是拇指掌指（MCP）外展内收。没用到的槽位 {0, 5, 10, 15, 20, 27, 28, 29, 30, 31} 填 0 并排除出损失。本体感觉和动作目标用同一映射；部署时按原生顺序取回 22 个关节命令。下标都从 0 数，左右手相同。</p>
+<figure class="pfig" id="fig10">
+<img src="ftp1/fig10.webp" width="1329" height="827" alt="图 10：Sharpa Wave 右手的 FAAS 编号。a 图屈伸关节用蓝色圆标 1、3、4、7 到 9、12 到 14、17 到 19、22 到 24；b 图外展内收用橙色标 2、6、11、16、21、26，紫色虚线是小指 CMC 轴，编号 25" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 21 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=21">看原图 ↗</a></span>(a) 屈伸（蓝）：拇指 1、3、4，食指 7、8、9，中指 12、13、14，无名指 17、18、19，小指 22、23、24。(b) 外展 / 内收（橙）：拇指 2、26，四指 6、11、16、21；小指 CMC 轴（紫色虚线）是 25。底部写“只画右手，左手映射相同”。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-map"><caption class="tcap">表 7（原文第 21 页）：Sharpa Wave 原生关节到 FAAS 槽位（都从 0 数）。FE 屈伸，AA 外展内收</caption>
+<thead><tr><th>原生下标</th><th>手指</th><th>关节</th><th>FAAS 槽位</th></tr></thead><tbody>
+<tr><td>0</td><td>拇指</td><td>CMC FE</td><td>1</td></tr><tr><td>1</td><td>拇指</td><td>CMC AA</td><td>2</td></tr><tr><td>2</td><td>拇指</td><td>MCP FE</td><td>3</td></tr><tr><td>3</td><td>拇指</td><td>MCP AA</td><td>26</td></tr><tr><td>4</td><td>拇指</td><td>IP</td><td>4</td></tr>
+<tr><td>5</td><td>食指</td><td>MCP FE</td><td>7</td></tr><tr><td>6</td><td>食指</td><td>MCP AA</td><td>6</td></tr><tr><td>7</td><td>食指</td><td>PIP</td><td>8</td></tr><tr><td>8</td><td>食指</td><td>DIP</td><td>9</td></tr>
+<tr><td>9</td><td>中指</td><td>MCP FE</td><td>12</td></tr><tr><td>10</td><td>中指</td><td>MCP AA</td><td>11</td></tr><tr><td>11</td><td>中指</td><td>PIP</td><td>13</td></tr><tr><td>12</td><td>中指</td><td>DIP</td><td>14</td></tr>
+<tr><td>13</td><td>无名指</td><td>MCP FE</td><td>17</td></tr><tr><td>14</td><td>无名指</td><td>MCP AA</td><td>16</td></tr><tr><td>15</td><td>无名指</td><td>PIP</td><td>18</td></tr><tr><td>16</td><td>无名指</td><td>DIP</td><td>19</td></tr>
+<tr><td>17</td><td>小指</td><td>CMC</td><td>25</td></tr><tr><td>18</td><td>小指</td><td>MCP FE</td><td>22</td></tr><tr><td>19</td><td>小指</td><td>MCP AA</td><td>21</td></tr><tr><td>20</td><td>小指</td><td>PIP</td><td>23</td></tr><tr><td>21</td><td>小指</td><td>DIP</td><td>24</td></tr>
+</tbody></table></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 表 7 和序列 s 一致；人手图和 Sharpa 图对拇指的编号不同</span>
+<p>表 7 最后一列按原生下标读出来就是 1, 2, 3, 26, 4, 7, 6, 8, 9, 12, 11, 13, 14, 17, 16, 18, 19, 25, 22, 21, 23, 24，和正文序列 \(s\) 逐项相同；用到的 22 个槽位加上列出的 10 个未用槽位正好是 0–31。和图 9（人手）比，拇指的编号不一样：人手图里 1 是外展、2 和 3 是屈伸、27 是掌上的斜轴，Sharpa 表里 1 是 CMC 屈伸、2 是 CMC 外展。槽位名义上按“功能”对齐，但拇指 CMC 这两个自由度在不同手上的对应似乎是按执行器排的（<b>我的推断</b>）。公开代码里<b>找不到 Sharpa Wave 的这张映射表</b>：仓库只有人手 MANO 21 关节到 FAAS 的映射（<span class="cv">data_processing/utils_data_process.py:21-27</span>），<span class="cv">setup_env.sh:17</span> 指向一个不存在的 <span class="cv">sharpa_toolkit</span> 目录。</p></div>
+
+<h3 id="appB2"><span class="no">B.2</span>异构触觉编码器细节</h3>
+<p><b>图像型</b>，形状 \((H,W,C)\)：照 T3，每张触觉图缩放到 224 × 224，经传感器专用的 Transformer 编码器（深 3、宽 768、12 头），再进共享的 Transformer（深 9、宽 768、12 头）。共享部分用 T3 预训练权重初始化，取最后的 [CLS] 作为触觉表示。</p>
+<p><b>阵列型</b>，形状 \((H,W,D)\)，\(H,W\) 是阵列分辨率，\(D\) 是每个单元的信号维数：对信号维做 Fourier 编码，和原始输入拼接，过 3 层 CNN 和 2 层 ReLU MLP 得到触觉 token。</p>
+<p><b>状态型</b>，形状 \((D,)\)：Fourier 编码，和原始状态拼接，过 3 层 ReLU MLP。</p>
+<p>所有触觉 token 再经 LayerNorm、加共享的功能区嵌入、经 2 层 GELU MLP 投影到触觉专家的输入维度。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · B.2 和代码的四处小出入</span>
+<ul>
+<li><b>状态型的激活是 GELU 不是 ReLU</b>：<span class="cv">ftp1_blocks.py:48-54</span>，三层 Linear 之间是 <span class="cv">nn.GELU()</span>。阵列型的 MLP 头确实是 ReLU，CNN 层是 GELU。</li>
+<li><b>LayerNorm 和功能区嵌入的顺序反过来</b>：代码先加嵌入（<span class="cv">ftp1_blocks.py:800-801</span>，只加到有效 token 上），再过 <span class="cv">unified_proj = LayerNorm → Linear → GELU → Linear</span>（<span class="cv">:646-651</span>）。公开权重里 <span class="cv">unified_proj.0</span> 是 512 维的 LayerNorm，<span class="cv">.1</span>、<span class="cv">.3</span> 是 512 × 512。</li>
+<li><b>图像型 [CLS] 之后还有一个 768 → 512 的线性层</b> <span class="cv">image_proj</span>（<span class="cv">ftp1_blocks.py:329, 342-345</span>；权重形状 [512, 768]），B.2 没提，附录 F.3 提了“512 维的 image projection”。512 等于触觉专家宽度，不是独立设的数。</li>
+<li><b>Fourier 编码的参数</b>：每个标量 8 维（4 sin + 4 cos），周期在 1e-3 到 1.0 之间按对数取（<span class="cv">ftp1_model_config.py:52-54</span>，<span class="cv">ftp1_blocks.py:75-79</span>）。代码另有一个论文没写的 <span class="cv">binary</span> 类型（<span class="cv">nn.Embedding(2, d)</span>，<span class="cv">:389-391</span>）。</li>
+</ul></div>
+
+<h3 id="appB3"><span class="no">B.3</span>adaRMS 本体感觉注入</h3>
+<p>预实验发现，用 adaRMS 注入本体感觉比在 Transformer 专家里放一个独立的本体感觉 token 泛化和鲁棒性更好。做法：本体感觉做 Fourier 编码，过 3 层 MLP，LayerNorm 后和（LayerNorm 过的）π0.5 流匹配时间步特征拼接，经 adaRMS 注入注意力块。代码：状态编码器输入 1080 = 120 × (1 + 8)，三层 GELU MLP 到 1024（权重 <span class="cv">state_encoder.mlp.0/2/4</span>：[2048, 1080]、[2048, 2048]、[1024, 2048]），时间特征也是 1024，拼成 2048 维去调制动作专家每层的两个 RMSNorm（<span class="cv">input_layernorm.dense</span> 形状 [3072, 2048]，即 scale、shift、gate 三组 1024），<span class="cv">ftp1_pytorch.py:282-292</span>。触觉专家没有 adaRMS（<span class="cv">ftp1_gemma_pytorch.py:91-105</span>）。注意代码的默认值 <span class="cv">state_input_mode='action_expert'</span>（把状态当 token），所有脚本都改成 <span class="cv">adarms</span>。</p>
+
+<h3 id="appB4"><span class="no">B.4</span>注意力连接</h3>
+<p>三个专家各有自己的注意力投影和前馈参数。每一层把三者的 Q、K、V 序列拼起来做一次共享的带掩码注意力，然后各自做输出投影和前馈。按 query 为行、key 为列，顺序都是视觉语言、触觉、动作，分块可见性掩码是</p>
+<div class="eq"><div class="m">\[ M_{\text{expert}}=\begin{bmatrix}1&0&0\\0&1&0\\1&1&1\end{bmatrix} \]</div><span class="no">B.4</span></div>
+<p>1 表示允许注意，另外再叠加输入的 padding 掩码。动作专家预测动作块时能用两路感知，两路感知专家各自独立处理自己的观测。代码 <span class="cv">ftp1_attention_masks.py:49-100</span> 和这个矩阵一致；动作块内部是全双向（<span class="cv">ftp1_pytorch.py:401</span> 的 att_masks 是 [1] + [0]×(H−1)）。推理时视觉语言和触觉两路的 KV 缓存各算一次再拼接，去噪循环只重算动作那一路（<span class="cv">ftp1_pytorch.py:610-642</span>）。</p>
+
+<h3 id="appB5"><span class="no">B.5</span>其他细节</h3>
+<p>状态和动作用 z-score 归一化（π0 的做法）。作者说在接触丰富的精细动作上它比分位数归一化（π0.5 的做法）生成质量更好。触觉专家是宽 1024、深 18、MLP 4096、8 头、头维 256 的 Transformer。优化器 AdamW。早期试过 Muon：收敛快、离线动作 MSE 低得多，但真机执行的泛化和鲁棒性变差，所以最终用 AdamW。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 触觉专家：论文 300M，公开代码和权重约 99M</span>
+<p>论文两处说触觉专家是“300M 参数”（§2.3）、“宽 1024、深 18、MLP 4096、8 头、头维 256”（B.5）。这组数和代码里的 <span class="cv">gemma_300m</span> 完全相同（<span class="cv">src/openpi/models/gemma.py:96-104</span>，注释写“311M params”），而 <span class="cv">gemma_300m</span> 在 openpi 里是<b>动作专家</b>。</p>
+<p>公开代码的默认值 <span class="cv">tactile_expert_variant = "gemma_small"</span>（<span class="cv">ftp1_model_config.py:71</span>），定义是宽 512、深 18、MLP 2048、8 头、1 个 KV 头、头维 256（<span class="cv">gemma.py:69-76</span>）。所有示例脚本都传 <span class="cv">gemma_small</span>；发布的 UniVTAC 微调权重目录名带 <span class="cv">expert_gsmall</span>。我读了 <span class="cv">ftp1_v0426_50kstep/model.safetensors</span> 的文件头：<span class="cv">gemma_tactile_expert</span> 18 层，每层 q [2048, 512]、k/v [256, 512]、o [512, 2048]、MLP [2048, 512] × 2 + [512, 2048]，合计 99,108,864 + 末层 RMSNorm 512 ≈ <b>99.1M</b>。逐层算：注意力 2048·512 + 2·256·512 + 512·2048 = 2,359,296，MLP 3·2048·512 = 3,145,728，两个 RMSNorm 1,024，每层 5,506,048，× 18 = 99,108,864，和文件头一致。</p>
+<p>同一个文件头里：整模型 3,642,362,472 个参数（词嵌入和 lm_head 共用一份 526,647,296，只存一次）；PaliGemma 语言模型 1.98B，SigLIP 视觉塔 0.41B，动作专家 538M（其中 adaRMS 的 dense 层占了不少），T3 共享主干 9 个块 63.8M。所以“300M 触觉专家”只可能指论文作者的另一个内部配置，或者是把动作专家的规格抄错了；<b>两者哪个对，论文和代码不能互相印证</b>。按公开权重复现的话，触觉专家就是 99M。</p></div>
+
+<h2 id="appC"><span class="no">C</span>附录 C：预训练数据细节</h2>
+<p>数据集聚合自 26 个来源，包括人类示教、灵巧手、平行夹爪和 UMI 式数据：大规模机器人操作数据（RH20T、HumanoidEveryday、FreeTacMan、MotionTrans、Touch in the Wild），带触觉标注的人类操作数据（OpenTouch），以及较小的实验数据（DexUMI、exUMI、ViTaMIn、REASSEMBLE、UniT、RDP、VLA-Touch）。另外用 Sharpa North 平台新采了 Sharpa North-FTP-1，约 4,000 条长时程灵巧示教。</p>
+<p>21 种传感器：7 种图像型（Sharpa DTC、ViTai-GF、FreeTacMan、exUMI、ViTaMIn、GelSight-Mini、MCTac），5 种阵列型（AetherGlove、OpenTouchGlove、LinkerHandL6Touch、3DViTac、uSkin），9 种状态型（PaxiniGlove、UnitreeDex3、InspireHand、DexumiInspire、DexumiXHand、ATI Axia80-M20、FrankaTorque、AIDIN-FT、FlexivGripperTorque）。有腕部或头部位姿的来源统一坐标方向。语言标注用 GPT-4o 改写原指令，增加多样性。各来源规模差别很大，按表 8 的倍率重采样，重采样后人手 20%、灵巧手 30%、夹爪 50%。合计约 3,000 小时。预训练时每个数据集单独算归一化统计量。编码器按传感器而不是按来源组织，同一传感器的数据共用一个编码器。</p>
+<div class="tablewrap"><table class="t-data"><caption class="tcap">表 8（原文第 23 页）：预训练数据来源和采样。Sample-Scale 是重采样倍率，Final-Percentage 是重采样后的占比。最后两列是我从公开权重的 <span class="cv">normalization/dataset_stats.json</span> 读出的（读者注 5、6）</caption>
+<thead><tr><th>来源</th><th>本体</th><th>触觉 / 力传感器（类型）</th><th>Sample-Scale</th><th>Final-Percentage</th><th>权重里的倍率</th><th>权重里的占比</th></tr></thead><tbody>
+<tr><td colspan="7"><b>人手（20%）</b></td></tr>
+<tr><td>EgoTac-Open</td><td>Human</td><td>AetherGlove（阵列）</td><td>0.89</td><td>8.2%</td><td>0.89*</td><td>8.30%</td></tr>
+<tr><td>EgoTac-Kitchen</td><td>Human</td><td>AetherGlove（阵列）</td><td>1.63</td><td>5.5%</td><td>1.63</td><td>5.55%</td></tr>
+<tr><td>EgoTac-Hotel</td><td>Human</td><td>AetherGlove（阵列）</td><td>2.82</td><td>3.8%</td><td>2.81</td><td>3.86%</td></tr>
+<tr><td>OpenTouch</td><td>Human</td><td>OpenTouchGlove（阵列）</td><td>11.09</td><td>1.5%</td><td>11.07</td><td>1.55%</td></tr>
+<tr><td>OmniSharingDB</td><td>Human</td><td>PaxiniGlove（状态）</td><td>21.65</td><td>1.0%</td><td>21.79</td><td>0.67%</td></tr>
+<tr><td colspan="7"><b>灵巧手（30%）</b></td></tr>
+<tr><td>Sharpa North-FTP-1</td><td>DexHand</td><td>Sharpa DTC（图像）</td><td>3.29</td><td>9.0%</td><td>3.29</td><td class="dn">11.13%</td></tr>
+<tr><td>HumanoidEveryday</td><td>DexHand</td><td>UnitreeDex3（状态）</td><td>13.97</td><td>6.0%</td><td>13.94</td><td class="dn">5.09%</td></tr>
+<tr><td>OpenLETDex</td><td>DexHand</td><td>LinkerHandL6Touch（阵列）</td><td>14.14</td><td>6.0%</td><td>14.15</td><td class="dn">5.03%</td></tr>
+<tr><td>MotionTrans</td><td>DexHand</td><td>InspireHand（状态）</td><td>26.39</td><td>3.6%</td><td>26.38</td><td>3.61%</td></tr>
+<tr><td>DexumiInspire</td><td>UMI+DexHand</td><td>DexumiInspire（状态）</td><td>35.62</td><td>3.0%</td><td>35.64</td><td>3.06%</td></tr>
+<tr><td>DexumiXHand</td><td>UMI+DexHand</td><td>DexumiXHand（状态）</td><td>56.02</td><td>2.4%</td><td>56.02</td><td>2.36%</td></tr>
+<tr><td colspan="7"><b>夹爪 / UMI（50%）</b></td></tr>
+<tr><td>VTouch-D-WHEEL</td><td>Gripper</td><td>ViTai-GF（图像）</td><td>2.77</td><td>5.7%</td><td>2.76</td><td>5.75%</td></tr>
+<tr><td>FreeTacMan</td><td>UMI</td><td>FreeTacMan（图像）</td><td>7.75</td><td>4.4%</td><td>7.74</td><td>4.46%</td></tr>
+<tr><td>TouchInTheWild</td><td>UMI</td><td>3DViTac（阵列）</td><td>10.79</td><td>4.0%</td><td>10.79</td><td>4.10%</td></tr>
+<tr><td>VTouch-QINGLONG</td><td>Gripper</td><td>ViTai-GF（图像）</td><td>12.73</td><td>3.9%</td><td>12.73</td><td>3.87%</td></tr>
+<tr><td>exUMI</td><td>UMI</td><td>exUMI（图像）</td><td>13.73</td><td>3.8%</td><td>13.75</td><td>3.86%</td></tr>
+<tr><td>RH20T-Cfg6</td><td>Gripper</td><td>ATIAxia80M20（状态）</td><td>13.88</td><td>3.8%</td><td>13.80</td><td>3.82%</td></tr>
+<tr><td>ViTaMIn</td><td>UMI</td><td>ViTaMIn（图像）</td><td>22.19</td><td>3.4%</td><td>22.20</td><td>3.40%</td></tr>
+<tr><td>RH20T-Cfg7</td><td>Gripper</td><td>uSkin（阵列）；ATIAxia80M20（状态）</td><td>22.89</td><td>3.4%</td><td>22.83</td><td>3.37%</td></tr>
+<tr><td>RH20T-Cfg5</td><td>Gripper</td><td>FrankaTorque（状态）</td><td>24.42</td><td>3.3%</td><td>24.35</td><td>3.30%</td></tr>
+<tr><td>REASSEMBLE</td><td>Gripper</td><td>AIDIN-FT（状态）</td><td>27.77</td><td>3.2%</td><td>27.78</td><td>3.24%</td></tr>
+<tr><td>Unit-Bimanual</td><td>Gripper</td><td>GelSight-Mini（图像）</td><td>63.93</td><td>2.6%</td><td>63.93</td><td>2.57%</td></tr>
+<tr><td>RDP</td><td>Gripper</td><td>GelSight-Mini、MCTac（图像）；FlexivGripperTorque（状态）</td><td>89.76</td><td>2.4%</td><td>89.78</td><td>2.28%</td></tr>
+<tr><td>Unit</td><td>Gripper</td><td>GelSight-Mini（图像）</td><td>132.83</td><td>2.2%</td><td>132.84</td><td>2.09%</td></tr>
+<tr><td>VLA-Touch</td><td>Gripper</td><td>GelSight-Mini（图像）</td><td>170.36</td><td>2.0%</td><td>170.36</td><td>2.01%</td></tr>
+<tr><td>RDP-Bimanual</td><td>Gripper</td><td>GelSight-Mini、MCTac（图像）；FlexivGripperTorque（状态）</td><td>199.20</td><td>1.9%</td><td>199.16</td><td>1.67%</td></tr>
+</tbody></table></div>
+<p class="tcap">* EgoTac-Open 在权重里只有一个 <span class="cv">_partial</span> 副本，倍率 0.89 是表 8 的值，我没法从文件独立算出。权重里的名字和表 8 不同：EgoTac 三个是 <span class="cv">AetherData_20260331</span>、<span class="cv">AetherData_260204_7.5H_v0211</span>、<span class="cv">AetherData_260121_5H_v0211</span>，OmniSharingDB 是 <span class="cv">Paxini-new_v0214</span>，Sharpa 是 <span class="cv">sharpa</span>；对应关系是按倍率配的。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 26 个来源、21 种传感器能从表 8 数出来；3,000 小时数不出来</span>
+<p><b>26 个来源</b>：表 8 人手 5 行、灵巧手 6 行、夹爪 15 行，合计 26。<b>21 种传感器</b>：表 8 里不同的传感器名去重是 21 个，和附录 C 列的 7 + 5 + 9 一一对应，也和图 4 饼图的 9 / 7 / 5 一致。<b>占比</b>：人手 8.2 + 5.5 + 3.8 + 1.5 + 1.0 = 20.0，灵巧手 9.0 + 6.0 + 6.0 + 3.6 + 3.0 + 2.4 = 30.0，夹爪 15 行合计 50.0，总 100.0，成立。</p>
+<p><b>3,000 小时</b>：表 8 没有时长列，论文也没给每个来源的小时数，所以加不出来。公开权重的 <span class="cv">dataset_stats.json</span> 有帧数：把同一来源的 <span class="cv">_copyN</span> 副本加起来，重采样后训练集共 233,524,112 帧、718,250 条轨迹（含副本）；每个来源只数一份（EgoTac-Open 按 0.89 倍还原），去重约 5,420 万帧。3,000 小时 = 1,080 万秒，对应的平均帧率是：按重采样后的帧数 21.6 帧/秒，按去重帧数 5.0 帧/秒。我不知道各来源的帧率（文件里没有），所以说不清 3,000 小时是“重采样前”还是“重采样后”的时长（<b>未核实</b>）。</p>
+<p>如果按“倍率 = 复制次数”还原原始规模（权重文件证实了这一点：例如 Unit 有 132 个完整副本加一个部分副本），原始数据里人手占 62.8%、灵巧手 17.1%、夹爪 20.1%，三个 EgoTac 手套来源合计 62%（按 Σ 占比 / 倍率算）。也就是说，原始数据以手套为主，重采样把夹爪从约五分之一放大到一半（<b>我的推断</b>，前提是各来源帧率相近）。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 表 8 和公开权重的数据配比：倍率全对，三行占比差 1–2 个点</span>
+<p>权重里每个来源的重采样倍率（总帧数 / 一份副本的帧数）和表 8 的 Sample-Scale 逐行相差不超过 0.15（上表第 6 列）。最终占比大多相差 0.1 以内，但 Sharpa North-FTP-1 是 11.13% 对表 8 的 9.0%，HumanoidEveryday 5.09% 对 6.0%，OpenLETDex 5.03% 对 6.0%，OmniSharingDB 0.67% 对 1.0%（上表标橙的三行）。灵巧手合计 30.28%，仍接近 30%。权重的 <span class="cv">train_config.json</span> 里实验名是 <span class="cv">pretrain_gold_16H20_zmj_v0409_final_no_REASSEMBLE_FAST_DECAY</span>，数据配置是 v0409，模型叫 v0426；表 8 可能来自另一版配置（<b>未核实</b>）。</p>
+<p>另外两处：（1）Sharpa North-FTP-1 正文说“约 4,000 条示教”，权重里 <span class="cv">sharpa</span> 一份副本有 9,320 条轨迹、789.6 万帧，可能是把长示教按子任务切开了（<b>未核实</b>）；（2）实验名里有 “no_REASSEMBLE”，但统计和 tokenizer 里都有 REASSEMBLE，名字和内容对不上，我不清楚原因。</p></div>
+
+<h2 id="appD"><span class="no">D</span>附录 D：训练细节</h2>
+<p><b>预训练。</b>基于 π0.5 代码库。视觉编码器、语言 tokenizer、视觉语言专家和动作专家从 π0.5 初始化；图像型的共享触觉主干从 T3 初始化；传感器专用编码器、触觉专家、功能区嵌入、adaRMS 本体感觉注入器和动作投影从零开始。48 张 NVIDIA H20，50k 步，全局 batch 768，学习率从 1e-4 衰减到 5e-5。超过 50k 步性能就饱和，作者推测原因是触觉数据多样性有限，以及“保留 π0.5 知识”和“学触觉技能”之间的权衡；更多样的数据或和 π0.5 数据共训可能改善。</p>
+<p><b>预训练基础设施。</b>新写的训练框架把不同领域的数据自动分到不同 GPU，保证每张卡上的 batch 数据格式一致，便于并行。领域专用模块的梯度独立更新，共享模块的梯度先合并再联合更新。</p>
+<p><b>微调。</b>8 张 A800，每个数据集 20k 步，batch 64，学习率从 5e-5 衰减到 5e-6，其余同预训练。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 预训练超参：论文、公开权重的配置、代码三方对照</span>
+<p>公开权重的 <span class="cv">train_config.json</span>：batch 768（和论文一致）；学习率 warmup 5,000 步、峰值 1e-4、<span class="cv">decay_steps</span> 180,000、终值 1e-5、<span class="cv">num_train_steps</span> 400,000；Adam β₂ 0.98、ε 1e-6、权重衰减 1e-10、梯度裁剪 1.0；实验名带 “16H20”。按代码的余弦公式（<span class="cv">scripts/zarr_train_ftp1_pytorch.py:638-654</span>），第 50k 步的进度是 (50,000 − 5,000) / 175,000 = 0.257，学习率 = 1e-5 + 9e-5 × ½(1 + cos 0.257π) = <b>8.6e-5</b>；降到 5e-5 要到约第 98,700 步。所以“50k 步、1e-4 → 5e-5”和这份配置对不上，像是一个计划跑 40 万步、在 5 万步处取出的权重（<b>我的推断</b>）。“48 张 H20”和实验名里的 “16H20” 也不一致，可能指 16 台机器或另一次运行（<b>未核实</b>）。</p>
+<p>代码的“异构预训练基础设施”是 <span class="cv">DomainBatchSampler</span>（<span class="cv">src/openpi/training/data_loader.py:646-770</span>）：每个 batch 只含一个领域，打乱后轮流分给各卡，所以每张卡每一步是单一领域，但<b>领域并不固定在某张卡上</b>。梯度合并就是普通的 DDP（<span class="cv">find_unused_parameters=True</span>，<span class="cv">zarr_train_ftp1_pytorch.py:516-527</span>），没有专门的“领域模块独立、共享模块合并”逻辑；按 DDP 的行为，没用到某个传感器编码器的卡会贡献零梯度参与平均，严格说不是“独立更新”（<b>我的推断</b>，没有运行）。</p>
+<p>微调：UniVTAC 示例脚本是 20k 步、全局 batch 64（4 卡 × 16）、5e-5 → 5e-6、warmup 500，和论文一致，只是用 4 卡不是 8 卡。</p></div>
+
+<h2 id="appE"><span class="no">E</span>附录 E：评测细节</h2>
+<h3 id="appE1"><span class="no">E.1</span>硬件</h3>
+<div class="tablewrap"><table class="t-rel"><caption class="tcap">表 9（原文第 24 页）：评测设置。标“未见”的部件不在 FTP-1 预训练里</caption>
+<thead><tr><th>设置</th><th>领域</th><th>机器人</th><th>末端</th><th>触觉传感器</th><th>类型</th></tr></thead><tbody>
+<tr><td>UniVTAC</td><td>仿真（未见），夹爪</td><td>Franka</td><td>Franka</td><td>GelSight-Mini</td><td>图像</td></tr>
+<tr><td>Sharpa North</td><td>真机，灵巧手</td><td>Sharpa North</td><td>Sharpa Wave</td><td>Sharpa DTC</td><td>图像</td></tr>
+<tr><td>Sharpa&amp;Dexmate</td><td>真机，灵巧手</td><td>Dexmate（未见）</td><td>Sharpa Wave</td><td>Sharpa DTC</td><td>图像</td></tr>
+<tr><td>FlexivXense</td><td>真机，夹爪</td><td>Flexiv</td><td>Robotiq</td><td>Xense（未见）</td><td>图像</td></tr>
+<tr><td>TactileUMI</td><td>真机，夹爪</td><td>Franka</td><td>3D 打印（未见）</td><td>Contactile（未见）</td><td>阵列</td></tr>
+</tbody></table></div>
+<h3 id="appE2"><span class="no">E.2</span>见过传感器的评测设置</h3>
+<p>UniVTAC 按原协议，每个任务用 50 条官方示教微调。排除两个任务：Grasp Classify 已被以前的基线完美解决；Insert HDMI 的数据是运动规划采的，每条示教都完美插入，缺少接触反馈，不适合评测触觉策略。剩下 6 个分两类：手内操作（Lift Bottle、Lift Can、Put Bottle）和接触感知的插拔（Pull-out Key、Insert Hole、Insert Tube）。</p>
+<p>Sharpa North：三个长时程任务共 250–400 条示教微调。Draw Balloon 是在气球上画笑脸；Fix Hand 是给一只损坏的小模型手装上手指，分两段评：先撕下贴纸（Tear），再装手指完成修复（Finish）；Twist Cap 是双手拧瓶盖。作者说这些任务故意做难，用来探 FTP-1 的能力边界。Sharpa&amp;Dexmate：翻书、擦盘，测按压和控力，每任务 100 条示教。</p>
+<p class="tcap">“250–400 条”是三个任务合计还是每个任务，原文写法不明确。</p>
+<h3 id="appE3"><span class="no">E.3</span>见过传感器的执行可视化</h3>
+<figure class="pfig" id="fig12">
+<img src="ftp1/fig12.webp" width="1368" height="885" alt="图 12：UniVTAC 六个任务各一行、每行五帧的仿真执行画面：Lift Bottle、Pull-out Key、Lift Can、Put Bottle、Insert Hole、Insert Tube" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 26 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=26">看原图 ↗</a></span>每行一个任务、五个关键帧：抬瓶子（粉色的高瓶）、拔钥匙、抬罐子、把瓶子放进架子、插孔、插管。</figcaption>
+</figure>
+<figure class="pfig" id="fig13">
+<img src="ftp1/fig13.webp" width="1382" height="575" alt="图 13：Sharpa North 四行执行画面：画气球、修手（撕贴纸）、修手（完成）、拧瓶盖，每行五帧" loading="lazy">
+<figcaption><span class="lab">图 13 · 原文第 26 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=26">看原图 ↗</a></span>人形上身用两只 Sharpa Wave 手：一只手扶气球、另一只拿笔画；撕小手上的贴纸；把手指装回去；双手拧瓶盖。背景打了马赛克。</figcaption>
+</figure>
+<figure class="pfig" id="fig14">
+<img src="ftp1/fig14.webp" width="1377" height="308" alt="图 14：Sharpa&amp;Dexmate 两行执行画面：翻书和擦盘，每行五帧" loading="lazy">
+<figcaption><span class="lab">图 14 · 原文第 26 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=26">看原图 ↗</a></span>Dexmate 机器人装 Sharpa Wave 手，按住书页翻过去；拿布按着盘子擦。</figcaption>
+</figure>
+<h3 id="appE4"><span class="no">E.4</span>和没见过传感器最像的预训练传感器</h3>
+<p>Xense（图像型）最像 GelSight-Mini；Contactile（阵列型）最像 AetherGlove。</p>
+<figure class="pfig" id="fig11">
+<img src="ftp1/fig11.webp" width="1393" height="561" alt="图 11：左 FlexivXense 设置旁边是相似传感器 GelSight-Mini 的照片和点阵图；右 TactileUMI 设置旁边是相似传感器 AetherGlove 手套，手指上有彩色压力条" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 25 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=25">看原图 ↗</a></span>左边和图 6 相同的 FlexivXense 设置，右侧“相似传感器”是 GelSight-Mini 的外观和点阵触觉图；右边 TactileUMI 设置，相似传感器是 AetherGlove（黑手套，各指有彩色的压阻条和白色测点）。</figcaption>
+</figure>
+<div class="note" id="n10"><span class="lab">读者注 10 · 几处小的文字出入</span>
+<ul>
+<li>图 3 左上写 “1-14: Tactile”，§2.1 写“槽位 0–14”；图里拇指尖确实标了 0，所以“1-14”应是“0-14”。</li>
+<li>§3 开头说把权重分给“3 个独立机构”做见过传感器的评测，其中一个是仿真基准 UniVTAC；加 §4.1 的两个，正好是摘要说的 5 个机构、5 套设置。“4 种传感器”= GelSight-Mini、Sharpa DTC、Xense、Contactile，成立。</li>
+<li>UniVTAC 标“仿真（未见）”，但它的传感器 GelSight-Mini 在预训练里出现过（Unit、RDP、VLA-Touch 等都是真实的 GelSight-Mini）。所以这一设置其实是“见过的传感器型号 + 没见过的仿真渲染”。</li>
+<li>摘要最后一句“所有权重、数据和训练代码将来发布”在 v4（2026-10-27）里还在，但代码 2026-07 已经公开，Hugging Face 上已有预训练权重和 15 个来源的数据（读者注 14）。</li>
+<li>Sharpa North 和 Sharpa DTC 的引用都是 [10] ViTacFormer。我没有核对 ViTacFormer 是否用了这套硬件（<b>未核实</b>）。</li>
+</ul></div>
+<h3 id="appE5"><span class="no">E.5</span>没见过传感器的执行可视化</h3>
+<figure class="pfig" id="fig15">
+<img src="ftp1/fig15.webp" width="1382" height="306" alt="图 15：FlexivXense 两行执行画面：插汉诺塔圈和插 USB，每行五帧" loading="lazy">
+<figcaption><span class="lab">图 15 · 原文第 27 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=27">看原图 ↗</a></span>Robotiq 夹爪夹起小圆环、对准木柱套下去；夹 USB 插头、对准排插插入。</figcaption>
+</figure>
+<figure class="pfig" id="fig16">
+<img src="ftp1/fig16.webp" width="1382" height="162" alt="图 16：TactileUMI 擦黑板五帧，板擦把黑板上的字擦掉" loading="lazy">
+<figcaption><span class="lab">图 16 · 原文第 27 页 · Yuan 等，CC BY-SA 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2606.13102v4#page=27">看原图 ↗</a></span>3D 打印夹爪夹着蓝色板擦，按在黑板上擦掉粉笔字，最后一帧板面干净。</figcaption>
+</figure>
+<h3 id="appE6"><span class="no">E.6</span>预训练触觉知识消融的细节</h3>
+<div class="tablewrap"><table class="t-res"><caption class="tcap">表 10（原文第 27 页）：UniVTAC 上的预训练触觉知识消融，成功率（%）</caption>
+<thead><tr><th>方法</th><th>Lift Bottle</th><th>Pull-out Key</th><th>Lift Can</th><th>Put Bottle</th><th>Insert Hole</th><th>Insert Tube</th><th>Avg.</th><th>Avg. w/o Lift</th></tr></thead><tbody>
+<tr><td>FTP-π0.5</td><td>77</td><td>30</td><td>26</td><td>19</td><td>47</td><td>72</td><td>45.16</td><td>42</td></tr>
+<tr><td>NTP-1</td><td>88</td><td>38</td><td>66</td><td>32</td><td>31</td><td>45</td><td>50.00</td><td>36.5</td></tr>
+<tr><td>FTP-1</td><td>97</td><td>48</td><td>65</td><td>47</td><td>64</td><td>79</td><td>66.66</td><td>59.5</td></tr>
+</tbody></table></div>
+<p class="tcap">NTP-1：300/6 = 50.00，146/4 = 36.5，都对。值得注意：NTP-1 的总平均高于 FTP-π0.5，但去掉两个 Lift 以后反而更低（36.5 对 42），它的优势全在 Lift 这两个“不需要触觉”的任务上；在两个插入任务上 NTP-1（31、45）明显低于 FTP-π0.5（47、72）。这和 §4.2“数据分布更近”的解释一致：非触觉预训练帮的是视觉能完成的部分。</p>
+
+<h2 id="appF"><span class="no">F</span>附录 F：其他分析</h2>
+<h3 id="appF1"><span class="no">F.1</span>匹配的 VLA 预训练基线</h3>
+<p>在 FTP-1 用的同一批机器人轨迹上、同样的预算继续预训练 π0.5（无触觉）。UniVTAC 平均 57.0% 对 FTP-1 的 66.7%；去掉两个 Lift 是 44.0% 对 59.5%。提升 9.7 和 15.5 个点。去 Lift 的平均更有信息量，因为那两个任务视觉就能做。</p>
+<h3 id="appF2"><span class="no">F.2</span>触觉预训练数据量和训练步数</h3>
+<div class="tablewrap"><table class="t-small"><caption class="tcap">表 11（原文第 28 页）：UniVTAC 上数据量和步数一起缩放，成功率（%）</caption>
+<thead><tr><th>设置</th><th>数据比例</th><th>训练步数</th><th>Avg.</th><th>Avg. w/o Lift</th></tr></thead><tbody>
+<tr><td>0%（FTP-π0.5）</td><td>0%</td><td>0</td><td>45.2</td><td>42.0</td></tr>
+<tr><td>50%</td><td>50%</td><td>25,000</td><td>59.0</td><td>46.0</td></tr>
+<tr><td>100%（FTP-1）</td><td>100%</td><td>50,000</td><td>66.7</td><td>59.5</td></tr>
+</tbody></table></div>
+<p>0% → 50%：总平均 +13.8，去 Lift +4.0；50% → 100%：再 +7.7 和 +13.5；全量比 FTP-π0.5 高 21.5 和 17.5。性能随数据和步数一起增加而持续上升，从一半到全量时非 Lift 任务涨得更多。（算术核对见<a href="#n13">读者注 13</a>。）</p>
+<h3 id="appF3"><span class="no">F.3</span>触觉特征探针</h3>
+<p>用冻结特征做力估计和滑动检测，比较 T3、FTP-1 主干、FTP-1 tokenizer 三种特征。力估计用线性探针，指标是平均绝对误差（牛）；滑动检测用注意力探针，指标 F1。探针训练种子 42、43、44 取平均。</p>
+<p><b>特征提取。</b>用 GelSight Mini 的图像编码器和共享图像 Transformer，来自原始 T3 权重或 FTP-1 50k 步权重。T3 和 FTP-1 主干特征是共享 Transformer 的 768 维 [CLS]；FTP-1 tokenizer 特征是之后的 512 维图像投影输出（在功能区嵌入和共享投影之前）。特征冻结，探针头在缓存的特征上训练。TacBench 样本含当前帧和 5 步前的一帧；FeelAnyForce 只有一帧。输入都缩放到 224 × 224，通道归一化用训练集统计。</p>
+<p><b>数据划分。</b>TacBench T1（来自 <a class="ds" href="https://github.com/facebookresearch/sparsh">Sparsh</a>）：用球形和尖头压头的第 1、2 批训练，留出平头压头第 1 批测试，训练轨迹留 10% 验证。TacBench T2：用公开数据重建的球形 1–6 批，按轨迹不相交划分训练 / 验证 / 测试，测试 25,035 个样本，三种特征用同一划分。<a class="ds" href="https://www.prg.cs.umd.edu/FeelAnyForce">FeelAnyForce</a>：用发布的基本压头划分，CSV 里训练 96,520、验证 10,725、测试 2,864。</p>
+<p><b>探针训练。</b>力探针是对有序帧特征的一个仿射映射。滑动探针是 768 维、12 头的注意力池化，接滑动分类器和一个辅助的力变化头。Adam，学习率 1e-4，batch 256，最多 100 轮，按验证损失选检查点，早停耐心 15 轮。特征和力目标的标准化只用训练样本。力 MAE 对三个力分量和测试样本平均。滑动 F1 在预测概率阈值 0.4 之后，再在每条轨迹内要求连续三个正例。T2 的参考是冻结的 SPARSH-MAE 编码器（原生两帧输入 + 同样的注意力探针）；FeelAnyForce 的参考是它发布的、用力和深度监督训过的 DINOv2 主干，冻结后接同样的线性力探针，所以这个参考代表“任务专门监督之后”能拿到的力信息。</p>
+<div class="tablewrap"><table class="t-probe"><caption class="tcap">表 12（原文第 29 页）：冻结特征的触觉评测，三个探针种子平均</caption>
+<thead><tr><th>基准和指标</th><th>T3</th><th>FTP-1 主干</th><th>FTP-1 tokenizer</th><th>参考</th></tr></thead><tbody>
+<tr><td>T1 力：线性 MAE ↓（N）</td><td>0.106</td><td>0.107</td><td>0.116</td><td>—</td></tr>
+<tr><td>T2 滑动：注意力 F1 ↑</td><td>0.725</td><td>0.780</td><td>0.786</td><td>0.922</td></tr>
+<tr><td>FeelAnyForce：线性 MAE ↓（N）</td><td>0.273</td><td>0.314</td><td>0.424</td><td>0.041</td></tr>
+</tbody></table></div>
+<p>T1 力估计上 FTP-1 主干 0.107 N，接近 T3 初始化的 0.106 N，说明策略预训练之后定量的力信息仍然可得。T2 上滑动 F1 从 T3 的 0.725 升到 0.780（主干）和 0.786（tokenizer）。注意力探针能从冻结的 FTP-1 特征里恢复和操作相关的接触动态，补充下游策略评测。（FeelAnyForce 那一行变差，正文没讨论，见<a href="#n13">读者注 13</a>。）</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 每任务 20 次够不够</span>
+<p>单个真机任务 20 次，成功率 50% 附近的二项标准误是 √(0.5 × 0.5 / 20) = 11.2 个点，所以表 2、表 3 的单列差距（多数 5–25 个点）大都在一两个标准误以内，单任务排名不太可靠。合起来看：表 2 六列共 120 次，FTP-1 成功 75 次、π0.5 55 次，双比例 z = 2.59，p ≈ 0.010；表 3 三列共 60 次，FTP-1 28 次、π0.5 9 次，z = 3.76，p ≈ 0.0002；UniVTAC 600 次，FTP-1 400 次对 π0.5 295 次，z = 6.1。这里把各任务的试验当成独立同分布，是粗略的检验（我自己算的，论文没有误差条，也没说试验的初始条件怎么定）。所以“FTP-1 整体更好”站得住，单任务上的细节差异（比如 Fix Hand (Tear) 80 对 80 对 70）不该过度解读。</p></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>以下按 README、<span class="cv">data_processing/README.md</span>、<span class="cv">UniVTAC/Installation_FTP1.md</span> 和源码整理，提交 <span class="cv">89fa681</span>（2026-07-15）。我没有运行任何命令，也没有下载权重。仓库 git 历史有 15 个提交，主体是一次批量上传，之后多是 README 修改，所以“哪些是新写的、哪些继承自 openpi”是按文件名和内容判断的。路径都相对仓库根目录。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>路径</th><th>内容</th><th>来源</th></tr></thead><tbody>
+<tr><td><span class="cv">src/openpi/models_pytorch/ftp1_pytorch.py</span></td><td>FTP-1 主模型（772 行）：前缀 / 触觉 / 后缀三段嵌入、流匹配损失、10 步 Euler 采样、KV 缓存</td><td>新</td></tr>
+<tr><td><span class="cv">…/ftp1_blocks.py</span></td><td>异构触觉编码器 <span class="cv">FTP1HptTactileEncoder</span>（979 行）：状态型 <span class="cv">FourierStateEncoder</span>、阵列型 <span class="cv">MatrixCNNEncoder</span>、图像型（接 T3）、二值型；功能区嵌入、统一投影、按传感器存取 tokenizer</td><td>新</td></tr>
+<tr><td><span class="cv">…/t3_tactile_encoder.py</span></td><td>T3 的传感器专用 ViT 和共享主干（389 行），下载 T3 权重</td><td>改自 T3</td></tr>
+<tr><td><span class="cv">…/ftp1_gemma_pytorch.py</span>、<span class="cv">ftp1_attention_masks.py</span></td><td>三专家的逐层拼接注意力（556 行）；分块掩码（148 行）</td><td>新</td></tr>
+<tr><td><span class="cv">…/ftp1_model_config.py</span></td><td>常量：24 个功能区、32 维手、120 维动作、视野 32；T3 传感器名表；默认触觉专家 <span class="cv">gemma_small</span></td><td>新</td></tr>
+<tr><td><span class="cv">…/transformers_replace/</span></td><td>改过的 HF Gemma（adaRMS 条件维度、只调制末尾若干 token）；安装时要拷进 site-packages</td><td>openpi 改</td></tr>
+<tr><td><span class="cv">src/openpi/dataset_zarr.py</span></td><td>zarr 数据集（2,871 行）：UAS 拼装、动作掩码、功能区 ID（左手 +24）、按领域归一化</td><td>新</td></tr>
+<tr><td><span class="cv">src/openpi/training/data_loader.py</span></td><td><span class="cv">DomainBatchSampler</span>：每个 batch 只含一个领域</td><td>openpi 改</td></tr>
+<tr><td><span class="cv">src/openpi/policies/ftp1_inference_wrapper.py</span></td><td>推理封装（1,029 行）：加载、归一化、反归一化</td><td>新</td></tr>
+<tr><td><span class="cv">scripts/zarr_*_ftp1*.py</span></td><td>训练（1,142 行）、评估、归一化统计、调试推理</td><td>新</td></tr>
+<tr><td><span class="cv">scripts_exp_zarr/</span></td><td>三组启动脚本：<span class="cv">univtac</span>、<span class="cv">pretrain_small</span>、<span class="cv">univtac_example_real_machine</span></td><td>新</td></tr>
+<tr><td><span class="cv">data_processing/</span></td><td>各数据集转 zarr 的解析器（aether、motiontrans、touchinthewild、univtac）和合并脚本</td><td>新</td></tr>
+<tr><td><span class="cv">UniVTAC/</span></td><td>UniVTAC 基准的拷贝 + <span class="cv">policy/FTP1/</span> 部署代码和评测脚本</td><td>第三方 + 新</td></tr>
+<tr><td><span class="cv">examples/</span>、<span class="cv">packages/openpi-client/</span>、<span class="cv">README_openpi.md</span>、<span class="cv">LICENSE_GEMMA.txt</span></td><td>openpi 原样带过来的（ALOHA、DROID、LIBERO、UR5 示例）</td><td>openpi</td></tr>
+</tbody></table></div>
+
+<h3 id="repro-openpi">和 openpi 的关系</h3>
+<p>FTP-1 是 openpi 的 PyTorch 分支上改出来的。保留的：PaliGemma（<span class="cv">gemma_2b</span>）视觉语言专家、<span class="cv">gemma_300m</span> 动作专家、流匹配和 adaRMS、π0.5 权重的加载（<span class="cv">pytorch_weight_path</span> 以 <span class="cv">pi05</span> 结尾时按名字和形状匹配加载，<span class="cv">zarr_train_ftp1_utils.py:323-398</span>）。新增的：第三路触觉专家和它的注意力掩码；异构触觉编码器；120 维 UAS 和损失掩码；zarr 数据管线和按领域的 z-score 统计；单领域 batch 采样。训练走 PyTorch（<span class="cv">torch.distributed.run</span> + DDP），openpi 的 JAX 训练入口 <span class="cv">scripts/train.py</span> 还在但 FTP-1 不用。π0.5 的动作维数是 32，这里是 120，所以 <span class="cv">action_in_proj</span>、<span class="cv">action_out_proj</span> 和 adaRMS 的 dense 层（条件维度 1024 → 2048）形状对不上，只能从头训（按形状匹配逻辑推断）。</p>
+
+<h3 id="repro-mtts">MTTS 和功能区嵌入在代码里的位置</h3>
+<ul>
+<li><b>24 个槽位</b>：<span class="cv">ftp1_model_config.py:10</span> <span class="cv">FTP1_SINGLE_HAND_NUM_TACTILE_AREAS = 24</span>。代码里<b>没有</b> 24 个功能区的名字表，定义只有一张图 <span class="cv">src/openpi/models_pytorch/definition_tactile_torque_function_area.png</span>（就是论文图 3）。各解析器按这张图手写槽位号：Aether 手套五指 0–4、掌心 5（<span class="cv">parse_data_aether.py:291, 321</span>）；Inspire 手指力矩 20、19、18、17，拇指 16（<span class="cv">parse_data_motiontrans.py:282, 286</span>）；夹爪 [0, 1]（<span class="cv">parse_data_univtac.py:191</span>、<span class="cv">UniVTAC/policy/FTP1/deploy_policy.py:309</span>）。</li>
+<li><b>功能区嵌入</b>：<span class="cv">ftp1_blocks.py:552-553</span> 一张 <span class="cv">nn.Embedding(2 × 24, d)</span>，即 48 行，左手的槽位号在数据管线里加 24（<span class="cv">dataset_zarr.py:1525-1528</span>）。公开权重里形状 [48, 512]。嵌入只加到有效 token 上，缺失的槽位是全零 token、padding 掩码为假（<span class="cv">ftp1_blocks.py:681-682, 800-801</span>），所以进触觉专家的序列长度固定是 48，实际有效 token 由数据决定（夹爪 2 个，灵巧手若干）。</li>
+<li><b>统一投影</b>：<span class="cv">unified_proj = LayerNorm → Linear → GELU → Linear</span>（<span class="cv">ftp1_blocks.py:646-651</span>），宽度等于触觉专家宽度（公开权重 512）。</li>
+</ul>
+
+<h3 id="repro-tok">三类触觉 tokenizer</h3>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>类型（代码里的名字）</th><th>结构（代码）</th><th>和论文附录 B.2</th></tr></thead><tbody>
+<tr><td>图像型 <span class="cv">image</span></td><td>缩放到 224；传感器专用 ViT（patch 16、宽 768、3 层、12 头，前置 CLS）；共享 T3 主干（宽 768、9 层、12 头 + LayerNorm）；取 CLS；<span class="cv">image_proj</span> 768 → d（<span class="cv">t3_tactile_encoder.py:36-51</span>，<span class="cv">ftp1_blocks.py:329-345, 445-457</span>）</td><td>一致；多一个 768 → 512 的投影（读者注 7）</td></tr>
+<tr><td>阵列型 <span class="cv">matrix</span></td><td>Fourier 编码 + 原值拼接；3 层 3×3 卷积（GELU，图大于 4 时 maxpool，通道 2d）；Flatten → Linear → ReLU → Linear（<span class="cv">ftp1_blocks.py:126-295</span>）</td><td>一致</td></tr>
+<tr><td>状态型 <span class="cv">state</span></td><td>Fourier 编码 + 原值拼接；3 层 MLP，激活 GELU（<span class="cv">ftp1_blocks.py:27-123</span>）</td><td>论文写 ReLU</td></tr>
+<tr><td>二值型 <span class="cv">binary</span></td><td><span class="cv">nn.Embedding(2, d)</span>（<span class="cv">:389-391</span>）</td><td>论文没有</td></tr>
+</tbody></table></div>
+<p>tokenizer 的键是 <span class="cv">{传感器名}_{类型}_{形状}</span>（<span class="cv">tactile_identity.py:83</span>），存成 <span class="cv">hpt_tokenizer/{键}.safetensors</span>。所以“按传感器共享”其实是“按传感器 + 观测形状共享”：公开权重里有 29 个传感器 tokenizer 文件加一个 <span class="cv">shared_image_chunk_encoder</span>（T3 主干），例如 OpenTouch 有 4 种形状（3×2、4×2、4×3、7×11）、AetherGloveV1 有 2 种、InspireHand 和 UnitreeDex3 各 2 种。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 公开权重里的传感器名和论文的 21 种对不上号的地方</span>
+<p>公开权重 <span class="cv">hpt_tokenizer/</span> 里去重后是 22 个传感器名。和论文附录 C 的 21 种比：<span class="cv">SharpaWave_image</span> 对应论文的 “Sharpa DTC”；<span class="cv">OpenLoongVTouch_image</span> 应是 ViTai-GF（两个 VTouch 来源共用）；<span class="cv">REASSEMBLE_FT_state_6</span> 对应 AIDIN-FT；<span class="cv">FlexivGripperForce</span> 对应 FlexivGripperTorque；<b>多出一个 <span class="cv">LinkerHandL6Torque_state_6</span></b>，论文的 21 种里没有（OpenLETDex 在表 8 只列了 LinkerHandL6Touch）。所以按权重数是 22 种（对应关系是我按名字配的，<b>我的推断</b>）。代码里<b>没有传感器注册表</b>，传感器名是 zarr 里的自由字符串；没有 Xense 或 Contactile 的条目，也没有 “SharpaDTC”。XenseWS 只出现在 UniVTAC 仿真的传感器定义里（<span class="cv">UniVTAC/envs/sensors/tactile.py:163-236</span>）。</p>
+<p>数据发布：Hugging Face 的 FTP-1-Dataset 卡片说“包含 18 个数据包”，但列出、实际存在的是 15 个（FreeTacMan、MotionTrans、RDP、RDP_Bimanual、RH20T 三个配置、Unit、Unit_Bimanual、VLA_touch、ViTaMIn、两个 VisuoTactile、exUMI、sharpa），共约 7.5 TB，其中 VisuoTactile_D-WHEEL 3.3 TB、sharpa 1.9 TB。没有发布的 11 个：三个 EgoTac、OpenTouch、OmniSharingDB、HumanoidEveryday、OpenLETDex、两个 DexUMI、TouchInTheWild、REASSEMBLE。也就是说，原始数据里占大头的手套数据（读者注 5）没有公开。卡片和模型卡都没写许可。</p></div>
+
+<h3 id="repro-model">三专家、adaRMS 和流匹配</h3>
+<ul>
+<li><b>注意力掩码</b>：<span class="cv">ftp1_attention_masks.py:49-100</span>，和附录 B.4 的矩阵一致；动作块内部全双向。推理时视觉语言和触觉各算一次 KV 缓存再拼接，触觉的位置编号接在前缀之后（<span class="cv">ftp1_pytorch.py:607-642</span>）。</li>
+<li><b>本体感觉</b>：<span class="cv">state_input_mode</span> 可选 <span class="cv">none / adarms / vl_expert / action_expert</span>，默认 <span class="cv">action_expert</span>，所有脚本用 <span class="cv">adarms</span>。adaRMS 只调制序列末尾的动作 token（<span class="cv">transformers_replace/models/gemma/modeling_gemma.py:489-496</span>）。</li>
+<li><b>流匹配</b>：时间 \(t\sim\) Beta(1.5, 1)·0.999 + 0.001，\(x_t=t\,\epsilon+(1-t)\,a\)（<span class="cv">ftp1_pytorch.py:303-306, 472</span>）；损失是带 UAS 掩码的 MSE（<span class="cv">:530-534</span>）；推理从 \(t=1\) 到 0 做 10 步 Euler（<span class="cv">:541, 652-674</span>）。代码里有一个按动作组平衡的损失 <span class="cv">compute_group_balanced_masked_loss</span>（<span class="cv">ftp1_action_groups.py:135</span>），没有被调用。</li>
+<li><b>代码有、论文没写的</b>：接触时丢掉图像和状态的 <span class="cv">non_tactile_dropout_ratio</span>（默认 0）；历史帧（默认关）；<span class="cv">use_domain_condition</span>（把领域名加进提示词）；<span class="cv">gemma_tiny</span>、<span class="cv">gemma_tiny_adapter</span> 两个更小的触觉专家；可冻结 T3 主干的 <span class="cv">frozen_shared_chunk</span>。没有 MoE，也没有 Muon。</li>
+</ul>
+
+<h3 id="repro-univtac">UniVTAC 仿真</h3>
+<p><span class="cv">UniVTAC/</span> 是 <a class="ds" href="https://github.com/univtac/UniVTAC">UniVTAC</a> 基准（Isaac Lab + TacEx 的视触觉仿真）的拷贝，带它自己的 ACT、TactileACT 基线，FTP-1 加了 <span class="cv">policy/FTP1/deploy_policy.py</span>（357 行）、<span class="cv">deploy.yml</span>、<span class="cv">scripts/eval_ftp1.py</span>（1,402 行）和几个 shell 脚本。环境要求按 <span class="cv">Installation_FTP1.md</span>：Isaac Sim 4.5.0、Isaac Lab 2.1.1、TacEx、libuipc、cuRobo。<span class="cv">scripts/shell/eval_ftp1_batch.sh</span> 评 6 个任务（pull_out_key、insert_hole、insert_tube、lift_bottle、lift_can、put_bottle_in_shelf，第 34–41 行），不含 grasp_classify 和 insert_HDMI，和附录 E.2 一致；每任务 <span class="cv">TOTAL_NUM=100</span> 个种子（第 18 行），和论文“每任务 100 次”一致。每次推理执行动作块的前 <span class="cv">CHUNK_FIRST_N=20</span> 步（第 28 行；<span class="cv">deploy.yml</span> 里另有 <span class="cv">chunk_len 16</span>，两处不一样，以哪个为准要看 <span class="cv">eval_ftp1.py</span> 的读取顺序，<b>未核实</b>）。脚本里的权重路径写死成作者集群的 <span class="cv">/cephfs/...</span>，要自己改。</p>
+<p>许可要注意：<span class="cv">UniVTAC/LICENSE</span> 是 Apache-2.0；ACT、TactileACT 是 MIT；<span class="cv">third_party/TacEx/.../libuipc/python/LICENSE</span> 是 <b>GPL-3.0</b>；libuipc 里的 TetGen 是它自己的限制性许可；TacEx 顶层没有 LICENSE 文件。</p>
+
+<h3 id="repro-data">数据处理</h3>
+<p>训练只吃 zarr。每个来源先用 <span class="cv">data_processing/parse_data_module/parse_data_*.py</span> 转成约定的键（<span class="cv">data_processing/README.md:95-113, 149-166</span>）：<span class="cv">timestamps</span>；相机 <span class="cv">camera_{main,ego}_rgb</span>、<span class="cv">{left,right}_wrist_camera_rgb</span>、<span class="cv">camera_ego_pose</span>；本体 <span class="cv">{side}_wrist_pose</span>、<span class="cv">{side}_arm_joints</span>、<span class="cv">{side}_hand_joints</span>（加 <span class="cv">_idx</span> 指明 FAAS 槽位）；触觉每组四个键 <span class="cv">{side}_tactile_{data,area,sensor,type}_{group}</span>，分别是数据、功能区号、传感器名、类型；另有 <span class="cv">sub_task_instruction</span>、<span class="cv">supplementary_joints</span>。README 列的类型是 <span class="cv">state | binary | image</span>，漏了 <span class="cv">matrix</span>。公开的解析器只有 aether、motiontrans、touchinthewild、univtac 四个，覆盖 26 个预训练来源中的 5 个（三个 EgoTac、MotionTrans、TouchInTheWild），其他 21 个来源（包括 Sharpa）的转换代码没有发布。归一化统计用 <span class="cv">scripts/zarr_compute_norm_stats.py</span>，按领域独立算触觉、手关节、腕位姿（<span class="cv">independent_norm_mode="all"</span>），其余共享。</p>
+<p>两个可能的问题（读代码看到的，没有运行验证）：TouchInTheWild 的 3DViTac 被标成 <span class="cv">"state"</span> 类型、每区形状却是二维的 (12, 32)（<span class="cv">parse_data_touchinthewild.py:220-223</span>），而公开权重里它的 tokenizer 叫 <span class="cv">3DViTac_matrix_12_32</span>，说明作者实际训练时用的是阵列型，公开解析器和权重不一致；<span class="cv">dataset_zarr.py:1508</span> 判断是否需要缩放时取的是 <span class="cv">shape[-2], shape[-1]</span>，对 (H, W, 3) 的图像总是成立，所以 224 的图也会再缩放一次（无害但多余）。</p>
+
+<h3 id="repro-cmp">和论文设置逐项对照</h3>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码 89fa681 / 公开权重</th></tr></thead><tbody>
+<tr><td>MTTS 槽位</td><td>24 个 / 手，左右两套嵌入</td><td>一致：24，嵌入 [48, d]</td></tr>
+<tr><td>夹爪</td><td>两侧传感器 → 槽位 0、1；动作槽位 28</td><td>一致</td></tr>
+<tr><td>图像型编码器</td><td>3 层 ViT + 9 层 T3（768），取 CLS</td><td>一致；另加 768 → 512 投影</td></tr>
+<tr><td>阵列型</td><td>Fourier + 3 层 CNN + 2 层 ReLU MLP</td><td>一致</td></tr>
+<tr><td>状态型</td><td>Fourier + 3 层 ReLU MLP</td><td>激活是 GELU</td></tr>
+<tr><td>触觉专家</td><td>300M；宽 1024、MLP 4096</td><td><b><span class="cv">gemma_small</span>：宽 512、MLP 2048，99.1M</b>（读者注 8）</td></tr>
+<tr><td>分块掩码</td><td>[[1,0,0],[0,1,0],[1,1,1]]</td><td>一致</td></tr>
+<tr><td>本体感觉</td><td>adaRMS</td><td>脚本用 adaRMS；代码默认是 state token</td></tr>
+<tr><td>动作</td><td>UAS，维数未写</td><td>120 维（右臂在前），视野 32，10 步 Euler</td></tr>
+<tr><td>归一化</td><td>z-score，每个数据集单独统计</td><td>脚本用 z-score（代码默认分位数）；按领域独立</td></tr>
+<tr><td>优化器</td><td>AdamW</td><td>AdamW；EMA 参数在 PyTorch 训练里不生效（<span class="cv">zarr_train_ftp1_pytorch.py:743</span>）</td></tr>
+<tr><td>预训练</td><td>48 × H20，50k 步，batch 768，1e-4 → 5e-5</td><td>权重配置：batch 768，计划 40 万步、余弦到 1e-5，第 50k 步约 8.6e-5（读者注 11）；仓库没有完整预训练配方，<span class="cv">pretrain_small</span> 是 8 卡 × 16、15 万步，且不加载 π0.5</td></tr>
+<tr><td>异构预训练框架</td><td>领域分卡；领域模块独立、共享模块合并</td><td>单领域 batch 轮流分卡 + 普通 DDP（读者注 11）</td></tr>
+<tr><td>微调</td><td>8 × A800，20k 步，batch 64，5e-5 → 5e-6</td><td>UniVTAC 脚本 4 卡、其余一致</td></tr>
+<tr><td>Sharpa Wave 映射</td><td>表 7</td><td>代码里没有（读者注 9）</td></tr>
+<tr><td>Xense、Contactile</td><td>§4 的新传感器</td><td>代码和权重里都没有它们的配置</td></tr>
+</tbody></table></div>
+
+<h3 id="repro-cmd">怎么跑（按 README，未运行）</h3>
+<pre class="cmd"># 1. 安装（和 openpi 相同的流程；Python 3.11）
+GIT_LFS_SKIP_SMUDGE=1 uv sync
+GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/
+
+# 2. 数据：把自己的数据转成 zarr（见 data_processing/README.md），写数据集 JSON
+#    示例：scripts_exp_zarr/univtac/dataset_univtac.json
+
+# 3. 归一化统计（见过的本体建议直接拷预训练权重里的 normalization/）
+bash scripts_exp_zarr/univtac/compute_norm_stats_univtac_example.sh
+
+# 4. 微调（pytorch_weight_path 指向下载的 ftp1_pretrain_v0426_50kstep）
+bash scripts_exp_zarr/univtac/train_univtac_example.sh
+
+# 5. 在 UniVTAC 里评测（先按 UniVTAC/Installation_FTP1.md 装 Isaac Sim / Isaac Lab / TacEx）
+cd UniVTAC &amp;&amp; bash scripts/shell/eval_ftp1_batch.sh     # 结果在 UniVTAC/eval_results</pre>
+<p>单独推理用 <span class="cv">FTP1InferenceWrapper</span>（<span class="cv">src/openpi/policies/ftp1_inference_wrapper.py</span>）：构造参数 <span class="cv">checkpoint_dir, domain_name, device, num_inference_steps=10</span>；<span class="cv">infer()</span> 要传图像、<span class="cv">(T, state_dim)</span> 的状态、提示词，以及三个触觉字典：数据 <span class="cv">(T, 区数, …)</span>、每组的功能区号（夹爪是 <span class="cv">[0, 1]</span>）、传感器名（例如 <span class="cv">"GelSightMini"</span>）。返回反归一化的 <span class="cv">(32, 120)</span> 动作块，一般执行前几步再重新推理。接新传感器时传感器名要和训练时一致，否则会建一个新的随机初始化 tokenizer（按 tokenizer 键的逻辑推断）。</p>
+<p>几点提醒：（1）换新传感器微调时，论文说复用触觉专家、功能区嵌入和 T3 主干，新建传感器编码器；代码里这一步是自动的（找不到对应键就新建），但没有单独的“冻结哪些层”的开关，除了 <span class="cv">frozen_shared_chunk</span>。（2）<span class="cv">pretrain_small</span> 不加载 π0.5（<span class="cv">pytorch_weight_path=""</span>），配置里的 JAX <span class="cv">weight_loader</span> PyTorch 训练器不用，想从 π0.5 起步要自己填路径。（3）T3 权重的下载地址指向 <span class="cv">t3_large/encoders/</span>（<span class="cv">ftp1_model_config.py:41</span>），README 里提供的是 “t3_base_encoder_rename”，两者是否同一份我没核对。（4）SwanLab 版本的启动脚本里写了一个 API key 的默认回退值（<span class="cv">*_swanlab.sh:25</span>），用之前应换成自己的。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。编号按首次写作的顺序，点击跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">摘要的 +17.2% 是什么</a>：表 2 的 62.5 − 45.3，绝对百分点、只含真机；π0.5 平均按原数是 45.83，差距应为 16.7。</li>
+<li><a href="#n2">“未见传感器 +31%” 是绝对百分点</a>：46.6 − 15.0；相对是 3.1 倍；只有 60 次试验。</li>
+<li><a href="#n3">表 1–3 的平均逐格重算</a>：除表 2 的 π0.5 外全对，原文截断不四舍五入。</li>
+<li><a href="#n4">图 7 的 41.8 和表的 45.16 不一致</a>：41.8 是 Tactile-VLA 的数；NTP-1 在 FlexivXense 的分项没给。</li>
+<li><a href="#n5">26 个来源、21 种传感器能数出来，3,000 小时数不出来</a>：权重里 2.335 亿帧（含复制）/ 约 5,420 万帧（去重）；原始数据手套占约 62%。</li>
+<li><a href="#n6">表 8 和公开权重的配比</a>：倍率全对；Sharpa 11.1% 对 9.0% 等三行差 1–2 个点；Sharpa 有 9,320 条轨迹。</li>
+<li><a href="#n7">B.2 和代码的四处小出入</a>：状态型用 GELU；LN 和嵌入顺序；768 → 512 投影；Fourier 参数。</li>
+<li><a href="#n8">触觉专家：论文 300M，公开权重 99.1M</a>：论文的规格是动作专家 <span class="cv">gemma_300m</span> 的。</li>
+<li><a href="#n9">表 7 和序列 s 一致</a>；Sharpa Wave 映射代码里没有。</li>
+<li><a href="#n10">几处小的文字出入</a>：图 3 “1-14”；UniVTAC 的“未见”只是仿真；“将来发布”。</li>
+<li><a href="#n11">预训练超参三方对照</a>：第 50k 步学习率约 8.6e-5 不是 5e-5；“16H20” 对 48 张；领域分卡其实是 DDP。</li>
+<li><a href="#n12">每任务 20 次够不够</a>：合起来 p ≈ 0.01（表 2）和 0.0002（表 3），单任务不可靠。</li>
+<li><a href="#n13">§4.3 的减法都对</a>；缩放混了数据和步数；FeelAnyForce 上力探针比 T3 差 15%。</li>
+<li><a href="#n14">权重里的传感器名</a>：22 个，多一个 LinkerHandL6Torque；数据只发布了 15 / 26 个来源，手套数据没有公开。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td>FTP-1</td><td>本文</td><td><a href="https://ftp1-policy.github.io/">项目页</a> · <a href="https://github.com/michaelyuancb/ftp1-policy">代码</a></td><td><a href="https://arxiv.org/abs/2606.13102">2606.13102</a></td></tr>
+<tr><td>ftp1_v0426_50kstep</td><td>预训练权重</td><td><a href="https://huggingface.co/MJJJJ1064/ftp1_v0426_50kstep">Hugging Face</a></td><td>–</td></tr>
+<tr><td>ftp1_univtac_finetune</td><td>UniVTAC 6 个任务的微调权重</td><td><a href="https://huggingface.co/MJJJJ1064/ftp1_univtac_finetune">Hugging Face</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/MJJJJ1064/FTP-1-Dataset">FTP-1-Dataset</a></td><td>预训练数据（已发布 15 个来源）</td><td><a href="https://www.modelscope.cn/datasets/Eureka1064/FTP-1-Dataset">ModelScope 镜像</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://univtac.github.io/">UniVTAC</a></td><td>视触觉仿真基准，§3 的仿真评测</td><td><a href="https://github.com/univtac/UniVTAC">github</a></td><td><a href="https://arxiv.org/abs/2602.10093">2602.10093</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Physical-Intelligence/openpi">openpi</a></td><td>π0 / π0.5 官方代码，本仓库的基础</td><td>github</td><td>π0.5：<a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/alanzjl/t3">T3</a></td><td>可迁移触觉 Transformer，图像型共享主干的初始化</td><td>github</td><td><a href="https://arxiv.org/abs/2406.13640">2406.13640</a></td></tr>
+<tr><td>HPT</td><td>异构预训练 Transformer，“异构编码器”思路的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2409.20537">2409.20537</a></td></tr>
+<tr><td>UniDex</td><td>UAS 和 FAAS 的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2603.22264">2603.22264</a></td></tr>
+<tr><td>Tactile-VLA</td><td>基线；TactileUMI 设置来自它</td><td>–</td><td><a href="https://arxiv.org/abs/2507.09160">2507.09160</a></td></tr>
+<tr><td>ViTacFormer</td><td>论文给 Sharpa North / DTC 的引用 [10]</td><td>–</td><td><a href="https://arxiv.org/abs/2506.15953">2506.15953</a></td></tr>
+<tr><td><a class="ds" href="https://rh20t.github.io/">RH20T</a></td><td>预训练来源（Cfg5、6、7）</td><td>rh20t.github.io</td><td><a href="https://arxiv.org/abs/2307.00595">2307.00595</a></td></tr>
+<tr><td><a class="ds" href="https://tuwien-asl.github.io/REASSEMBLE_page/">REASSEMBLE</a></td><td>预训练来源（AIDIN-FT 力传感）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2502.05086">2502.05086</a></td></tr>
+<tr><td><a class="ds" href="https://opentouch-tactile.github.io/">OpenTouch</a></td><td>预训练来源（全手触觉手套）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2512.16842">2512.16842</a></td></tr>
+<tr><td><a class="ds" href="https://humanoideveryday.github.io/">Humanoid Everyday</a></td><td>预训练来源（Unitree Dex3）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2510.08807">2510.08807</a></td></tr>
+<tr><td><a class="ds" href="https://freetacman.github.io/">FreeTacMan</a></td><td>预训练来源（视触觉 UMI）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2506.01941">2506.01941</a></td></tr>
+<tr><td><a class="ds" href="https://binghao-huang.github.io/touch_in_the_wild/">Touch in the Wild</a></td><td>预训练来源（3D-ViTac）</td><td>项目页</td><td>NeurIPS 2025</td></tr>
+<tr><td><a class="ds" href="https://chuanyune.github.io/ViTaMIn_page/">ViTaMIn</a></td><td>预训练来源</td><td>项目页</td><td><a href="https://arxiv.org/abs/2504.06156">2504.06156</a></td></tr>
+<tr><td><a class="ds" href="https://dex-umi.github.io/">DexUMI</a></td><td>预训练来源（Inspire、XHand 两套）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2505.21864">2505.21864</a></td></tr>
+<tr><td><a class="ds" href="https://motiontrans.github.io/">MotionTrans</a></td><td>预训练来源；代码致谢</td><td>项目页</td><td><a href="https://arxiv.org/abs/2509.17759">2509.17759</a></td></tr>
+<tr><td><a class="ds" href="https://reactive-diffusion-policy.github.io/">RDP</a></td><td>预训练来源（GelSight-Mini、MCTac）</td><td>项目页</td><td><a href="https://arxiv.org/abs/2503.02881">2503.02881</a></td></tr>
+<tr><td><a class="ds" href="https://zhengtongxu.github.io/unit-website/">UniT</a></td><td>预训练来源（Unit、Unit-Bimanual）</td><td>项目页</td><td>RA-L 2025</td></tr>
+<tr><td>exUMI、VLA-Touch</td><td>预训练来源</td><td>–</td><td><a href="https://arxiv.org/abs/2509.14688">2509.14688</a>、<a href="https://arxiv.org/abs/2507.17294">2507.17294</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/facebookresearch/sparsh">Sparsh / TacBench</a></td><td>附录 F.3 的 T1、T2 探针</td><td>github</td><td><a href="https://arxiv.org/abs/2410.24090">2410.24090</a></td></tr>
+<tr><td><a class="ds" href="https://www.prg.cs.umd.edu/FeelAnyForce">FeelAnyForce</a></td><td>附录 F.3 的力估计数据</td><td>prg.cs.umd.edu</td><td>ICRA 2025</td></tr>
+<tr><td><a href="lingbot-touch.html">LingBot-Touch</a></td><td>本站精读；异构触觉编码器，拿 FTP-1 做基线</td><td>–</td><td><a href="https://arxiv.org/abs/2611.12806">2611.12806</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2606.13102（v4）后的整理，不是作者的官方内容。原文：Chengbo Yuan、Zicheng Zhang、Mingjie Zhou、Wendi Chen、Yi Wang、Zhuoyang Liu、Dantong Niu、Shuo Wang、Hui Zhang、Wenkang Zhang、Yingdong Hu、Yuanqing Gong、Wanli Xing、Chuan Wen、Cewu Lu、Kaifeng Zhang、Yang Gao，《FTP-1: A Generalist Foundation Tactile Policy Across Tactile Sensors for Contact-Rich Manipulation》，CoRL 2026，以 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 发布。<b>本页文字和裁切图按同一许可（CC BY-SA 4.0）提供。</b>图 1–7、9–16 从原文 PDF 裁切，只做了裁切和格式转换；图 8 取自 UniDex，未转载。表 1–4、7–12 照录原文，表 5、6 为压缩改写。代码引用 michaelyuancb/ftp1-policy（Apache-2.0，另含 Gemma 使用条款）提交 89fa681，只引文件名、行号和配置键；公开权重只读了配置和文件头。读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

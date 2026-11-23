@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wall-OSS-0.5 技术报告精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2605.30877《Wall-OSS-0.5 Technical Report: Pretrain Once, Act Anywhere》（X Square Robot / 自变量机器人）的中文精读：逐节整理正文和附录 A.1–A.5，6 个编号公式，全部结果表照录并核算，12 张裁切原图，和官方 wall-x 代码（1.1.0 / ce2a1ae）及 Hugging Face 检查点逐项对照，复现要点，WALL-OSS 1.0 模型卡核对，11 幕 3D 框架动画和 21 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-res{min-width:560px}.t-zs{min-width:680px}.t-ft{min-width:520px}.t-mm{min-width:720px}.t-mt{min-width:560px}.t-rub{min-width:760px}.t-links{min-width:680px}.t-code{min-width:760px}.t-cmp{min-width:720px}.t-w10{min-width:700px}.t-ds{min-width:640px}
+.t-res td,.t-res th,.t-zs td,.t-zs th,.t-ft td,.t-ft th,.t-mt td,.t-mt th{white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;overflow-x:auto;max-width:100%;line-height:1.55}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+td.b{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/wall-oss-05/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2605.30877 · cs.RO · v1 2026 年 5 月 29 日 · v2 2026 年 6 月 1 日 · 技术报告 · 中文精读</p>
+<h1>Wall-OSS-0.5：预训练出来的检查点直接上真机</h1>
+<p class="orig">Wall-OSS-0.5 Technical Report: Pretrain Once, Act Anywhere</p>
+<p>作者 X Square Robot Team（自变量机器人），贡献者 27 人；核心贡献者 Ryan Yu、Pushi Zhang、Starrick Liu、Brae Liu、Miracle Kang、Shalfun Li，项目负责人 Lucy Liang，通讯作者 Hao Wang。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2605.30877">arXiv 原文</a><a href="https://arxiv.org/pdf/2605.30877v2">PDF（v2）</a><a href="https://x2robot.com/en/oss">项目页</a><a href="https://github.com/X-Square-Robot/wall-x">官方代码 wall-x</a><a href="https://huggingface.co/x-square-robot/wall-oss-0.5">HF 权重</a><span>正文 23 页，参考文献到第 28 页，附录第 29–33 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇报告在 arXiv 上以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布，有 v1（2026-05-29）和 v2（2026-06-01）两版，两版 PDF 大小相同（23,286 KB），这里读的是 v2。我检查了 PDF 全文，没有找到和 CC BY 矛盾的版权声明。本页按原文顺序覆盖摘要、第 1–8 节和附录 A.1–A.5，小节编号和原文一致；用自己的话整理，不逐字翻译。</p>
+<p><b>图。</b>图 1 到图 12 从 arXiv PDF 裁切（pdftoppm 250 dpi，只裁切、缩放到约 1500 px 宽、转 webp，没有改内容），图注都不含原文标题文字，标题和说明是我写的。版权归作者，裁切件按 CC BY 4.0 使用，署名 X Square Robot Team。原文的图都是位图，不能按矢量读数；少数地方我按像素读了图 11 的点，标了“读图”。<b>表 1 到表 10 照录原文数字</b>，并逐项重算了平均值。“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方仓库 <a href="https://github.com/X-Square-Robot/wall-x">X-Square-Robot/wall-x</a>，Apache-2.0，同时服务 WALL-OSS 原版和 0.5。对应 0.5 的第一个提交是 <a href="https://github.com/X-Square-Robot/wall-x/tree/72834e7de5f6d8ed95f4e7addd8a8696c4fb28dd">72834e7</a>“Update Wall-X to 1.1.0 (#104)”（2026-06-15，README 的 News 写“Wall-X 1.1.0 updates the open-source training and inference stack for Wall-OSS-0.5”）；原版 FLOW / FAST 模型要回退到 97406f2（<span class="cv">workspace/README.md:7-11</span>）。我读的是当时最新的 <a href="https://github.com/X-Square-Robot/wall-x/tree/ce2a1ae31d9ee1028b97ca40e3f66034cf8c0e5f">ce2a1ae</a>（2026-09-11），只读，没有运行。两者之间模型代码没有变，只改了归一化除零（<span class="cv">normalizer.py</span>，#112）、LeRobot 数据加载和插花示例；下文行号都指 ce2a1ae。另外核对了 Hugging Face 上 <a href="https://huggingface.co/x-square-robot/wall-oss-0.5">x-square-robot/wall-oss-0.5</a> 的 <span class="cv">config.json</span> / <span class="cv">config.yml</span>（提交 b7dc23a）和 <a href="https://huggingface.co/lerobot/wall-oss-0.5">lerobot/wall-oss-0.5</a> 的模型卡。0.5 的模型卡没有标许可。代码和论文不一致的地方两边都写。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 方法</a><a href="#s2-1">2.1 结构</a><a href="#s2-2">2.2 训练配方</a><a href="#s2-3">2.3 推理优化</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 数据</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 零样本</a><a href="#s4-2">4.2 微调</a><a href="#s4-3">4.3 多模态</a><a href="#s5">5 消融</a><a href="#s6">6 相关工作</a><a href="#s7">7 讨论与局限</a><a href="#s8">8 贡献者</a><a href="#appA">附录 A</a><a href="#w10">关于 WALL-OSS 1.0</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>VLA 预训练的效果几乎总是在“任务微调之后”才报告。作者想回答一个更直接的问题：<b>预训练本身能不能产出能执行的机器人行为</b>，还是只给下游学习提供了更好的初始化？Wall-OSS-0.5 是一个开源的 4B 参数 VLA，在 3B 的 VLM（Qwen2.5-VL-3B-Instruct）上加了动作生成部件。预训练覆盖 20 多种具身，每个 epoch 过一百万条以上的机器人轨迹，外加约 9000 万条带具身语境的多模态样本。</p>
+<ul>
+<li><b>训练配方“梯度桥接联合训练”</b>：三个目标各管一件事。离散动作 token 的交叉熵（RVQ 分词）把强的、VLM 原生的梯度送进主干；多模态交叉熵保住视觉-语言能力；连续流匹配是部署时真正输出动作的接口。三者在同一阶段一起训，<b>不做梯度截断</b>（区别于 π0.5 的 stop-gradient）。</li>
+<li><b>三个设计</b>：每层都分 VL 专家和动作专家的 Mixture-of-Transformers（MoT）；视觉对齐的 RVQ 动作分词器（替代 FAST）；在动作空间而非速度场上算损失的流匹配（Action-Space Supervision）。</li>
+<li><b>零样本</b>：17 个真机任务（12 见过、5 没见过），400k 步检查点平均任务进度 51.1，6 个任务 ≥ 60，包括没见过的柔性物体任务拉紧绳子（82）。</li>
+<li><b>微调</b>：15 个真机任务、每任务约 500 条示范，平均任务进度 60.5，π0.5 是 43.0，DreamZero 是 33.4。“比 π0.5 高 17.5%”是<b>百分点</b>，相对提高约 40.7%（<a href="#n1">读者注 1</a>）。</li>
+<li><b>多模态</b>：相对 Qwen2.5-VL-3B，具身定位 +21.8、Where2Place +11.0、EO-Bench +3.9；通用 VQA 下降（RealWorldQA −15.0、ERQA −5.5）。</li>
+<li><b>推理</b>：单张 RTX 5090、三路图像、10 步去噪，224 分辨率约 21 Hz，448 分辨率约 15 Hz，比 PyTorch eager 快 4 倍。</li>
+</ul>
+<p>读完我认为最值得记住的四点：</p>
+<ol>
+<li>核心论点“离散动作 CE 是梯度桥”由图 10 的消融支撑：同样 70k 步从 VLM 开训，联合训练 57.0，只用流匹配 36.7，梯度截断 31.9。但“流匹配只占主干更新约 5%”“两种梯度正相关”这类梯度分析，<b>正文没有给任何图或表</b>（<a href="#n7">读者注 7</a>）。</li>
+<li>图 1 和正文有三处对不上：“4/17 任务 ≥ 80%，其中 3 个没见过”实际只有 1 个；左边的曲线少了 300k 的回落；雷达图里的 Fast-WAM、X-VLA 和五个类别在正文里都没出现（<a href="#n4">读者注 4</a>）。图 7 的 65.59 用表 9 重算是 66.50（<a href="#n5">读者注 5</a>）。</li>
+<li><b>公开代码里没有 RVQ 动作分词器</b>。注册表只有 <span class="cv">fast</span> 和 <span class="cv">spatialvla</span>；公开的微调示例配置没有设分词器，离散动作 CE 实际不生效，等于只用流匹配微调，而论文图 10b 说这样会差很多（<a href="#n12">读者注 12</a>、<a href="#n13">13</a>）。同公司 6 月发布的 <a href="https://huggingface.co/x-square-robot/X-Tokenizer">X-Tokenizer</a>（arXiv 2606.14752）描述和它很像，但本报告没引用它。</li>
+<li>动作空间监督（式 4–6）在代码和 HF 配置里对得上：<span class="cv">use_x_loss: true</span>、<span class="cv">use_x_pred: false</span>，Beta(1.5, 1) 和 s = 0.999 也一致（<a href="#n10">读者注 10</a>）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="wall-oss-05/fig1.webp" width="1500" height="1278" alt="图 1：左为预训练步数与平均任务进度曲线；中为五类任务的雷达图；右为三个数字卡片 4/17、+17.5pp、+21.8pp；下方是 8 个真机任务的照片" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 2 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=2">看原图 ↗</a></span>能力总览。左：零样本平均任务进度随预训练步数上升，从 25.5 到 51.1。中：雷达图，五个类别是容器放置、空间排布、受约束和顺序操作、连续接触装载、语义分拣，画了 Wall-OSS-0.5 预训练、微调和 Fast-WAM、π0.5、DreamZero、X-VLA 的微调结果。右：三张卡片，“4/17 个任务不微调就 ≥ 80%”“微调后平均比 π0.5 高 17.5 pp（60.5 对 43.0）”“具身定位 +21.8 pp”。下：8 个真机任务，(a) 开锅盖、(b) 盖住方块、(c) 套圈、(d) 笔放进袋子、(e) 配对袜子、(f) 插螺丝刀、(g) 勺子放进碗、(h) 杯子放到盘上，图注说预训练模型不微调就能做到较高进度。图注明确“pp 表示百分点”。这张图有几处和正文不一致，见<a href="#n4">读者注 4</a>。</figcaption>
+</figure>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p><b>和 <a href="wall-oss.html">WALL-OSS 原版</a>。</b>原版是 arXiv 2509.11766《Igniting VLMs toward the Embodied Space》（本报告参考文献 [2]），同一个团队、同一个 wall-x 仓库。0.5 在主干（同为 Qwen2.5-VL-3B 起步）、MoT 结构、流匹配动作头上一脉相承；0.5 新加的是 RVQ 动作分词器、动作空间损失、联合训练的“梯度桥”解释和更大的数据。原版的结论以那一页为准，这里不展开。仓库里两者的分界见上面“代码”一段。</p>
+<p><b>和同公司的世界模型 <a href="wall-ss.html">wall-ss</a>。</b>本报告是纯 VLA，不预测未来画面。同公司另有世界模型方向的工作，wall-x README 的 News 里列了 WALL-WM（arXiv 2606.01955），HF 上也有 <span class="cv">wall-wm-2.0-robodojo</span>。它们和 0.5 的关系请看那一页；本页只在<a href="#w10">关于 WALL-OSS 1.0</a> 里回答“1.0 是不是世界模型”。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>Wall-OSS-0.5（本页）</th><th><a href="gr00t.html">GR00T N1</a></th><th><a href="molmoact2.html">MolmoAct2</a></th><th><a href="gr00t2.html">GR00T 2</a> / <a href="openwam.html">OpenWAM</a></th></tr></thead><tbody>
+<tr><td>类型</td><td>VLA，单系统 MoT（每层 VL 专家 + 动作专家，共享注意力）</td><td>双系统 VLA（Eagle-2 VLM + 流匹配 DiT）</td><td>VLA，离散 token VLM + 逐层读 KV 的流匹配动作专家</td><td>世界-动作模型（WAM），视频骨干同时预测未来画面和动作</td></tr>
+<tr><td>离散动作</td><td>RVQ 动作 token 的 CE，只在训练时用</td><td>无</td><td>有（MolmoAct2-FAST），预训练阶段只用离散 token</td><td>无</td></tr>
+<tr><td>VLM 和动作头之间的梯度</td><td>端到端，不截断</td><td>语言部分冻结</td><td>后训练用知识隔离（detach），预训练不用</td><td>—</td></tr>
+<tr><td>和本文的直接交集</td><td>—</td><td>相关工作“双系统”一类</td><td>同样把离散和连续动作合在一起训</td><td>本文的基线 DreamZero 是 WAM；相关工作把 Cosmos Policy 归为“视频生成世界模型”一类</td></tr>
+</tbody></table></div>
+<p><b>和 <a href="libero.html">LIBERO</a>。</b>本文只在 §5.2 用 <a class="ds" href="https://libero-project.github.io/">LIBERO</a>（<a href="https://arxiv.org/abs/2306.03310">论文</a>）做“动作空间损失 vs 速度损失”的从头训练对照，没有报告 0.5 的 LIBERO 微调成绩。wall-x 里有 LIBERO 的微调配置和评测脚本（<a href="#repro">复现要点</a>）。各家 LIBERO 协议的差别见 <a href="openwam.html#qa-libero">OpenWAM 页的 LIBERO 问答</a>。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>问题。</b>语言和视觉的基础模型，预训练后直接就能回答问题、跟指令。机器人这边证据没那么直接：VLA 继承了 VLM 的感知和推理，但最好的结果通常都在下游微调之后报告。作者把问题收窄成可操作的一句：<b>只靠 VLA 预训练，能不能得到一个在真机上可执行的策略？</b></p>
+<p><b>“面向部署的预训练”。</b>为此预训练检查点要满足三件事：开箱就能做有用的操作；保留足够的视觉-语言能力，能跟指令；给下游适配更好的先验，让微调更省数据。</p>
+<p><b>主要经验结果。</b>17 个真机零样本任务（语义、刚体、柔性、精细、长程五类），不经任务微调，几个任务已经很高：方块分拣 100、水果分拣 96、套圈 86、没见过的柔性任务拉紧绳子 82。没见过的任务和见过的任务在预训练过程中一起上升，说明学到的是能复用的操作能力，而不只是记住任务模板。微调后，在 15 个真机任务上平均任务进度 60.5，比 π0.5 高 17.5，操作类 10 个任务上差距扩大到 26。多模态评测显示整体稳定，具身定位提高 21.8。</p>
+<p><b>方法核心：梯度桥接联合训练。</b>VLA 训练的矛盾在于：连续流匹配是天然的执行接口，但它对预训练 VLM 主干的更新很弱；离散动作 token 的下一词交叉熵是 VLM 原生的接口，强烈塑造主干，但解码出的离散动作太粗，不够精确控制；冻结或截断梯度能保住 VLM 先验，但精确的动作目标就塑造不了主干。本文的解法是三者分工：</p>
+<ul>
+<li><b>动作 token 交叉熵 = 梯度桥</b>。强度上，它和 VLM 预训练共享自回归接口，推动主干比流匹配有效得多；方向上，它的梯度和流匹配的梯度正相关，塑造的特征连续控制也能用。</li>
+<li><b>多模态交叉熵 = 锚</b>，把主干拴在指令跟随、视觉定位和具身场景理解上；它的更新方向和动作优化大体正交，是补充而不是竞争。</li>
+<li><b>流匹配</b>训练推理时用的连续动作生成器。作者说梯度分析显示：早期之后，流匹配只占主干更新的一小部分但一直存在，主要更新来自两个交叉熵。去掉梯度桥、截断梯度、推迟联合训练都会明显变差（§5.1）。</li>
+</ul>
+<p><b>三个设计。</b>(1) MoT 主干，每层分 VL 专家和动作专家：视觉、语言和离散动作 token 走 VL 专家，连续动作走动作专家；梯度仍端到端穿过两个专家，这是“路由分解”，不是梯度隔离。(2) 视觉对齐的 RVQ 动作分词器替代规则式的 FAST，让离散 token 成为更有语义的训练接口。(3) 动作空间监督：把流匹配的损失放到原始动作空间，而不是速度场上，收敛更快、更稳。</p>
+<p><b>数据和推理。</b>单阶段训练，三种来源：高质量自采操作数据、精选的开源多具身轨迹、9000 万条多模态样本（其中一部分是从动作轨迹合成的“具身桥接”样本）。推理侧用 CUDA Graph 和自写融合核，比 PyTorch eager 端到端快 4 倍，高分辨率下 15 Hz 实时控制。</p>
+<p><b>贡献</b>（原文四条）：能直接在机器人上评测的预训练 VLA（开源 4B，3B VLM 主干，17 任务零样本，448 分辨率 15 Hz）；一套联合训练配方（动作 CE 是桥、多模态 CE 是锚、流匹配是执行目标，三者缺一不可）；整合的结构和训练设计（MoT、RVQ 分词器、动作空间监督，部署时的动作接口不变）；多轴评测（开箱真机、微调后真机、多模态）。</p>
+<div class="note" id="n1"><span class="lab">读者注 1 · “比 π0.5 高 17.5%”是百分点，不是相对提高</span><p>表 4：60.5 − 43.0 = 17.5，是<b>百分点</b>；相对提高是 17.5 / 43.0 = 40.7%。图 1 的卡片写的是“+17.5pp”，图 1 图注也说明 pp 是百分点，所以摘要和正文写的“17.5%”应读作 17.5 pp。同样：“操作子集差距扩大到 26%” = 61.1 − 35.0 = 26.1 pp（相对 74.6%）；“比 DreamZero 高 27.1%” = 60.5 − 33.4 = 27.1 pp（相对 81.1%）；“具身定位提高 21.8%” = 30.8 − 9.0 = 21.8 pp（相对 242%）；图 7 的“+9.8%” = 83.75 − 73.96 = 9.79 pp。全文这类“%”都是绝对差。</p></div>
+
+<h2 id="s2"><span class="no">2</span>方法</h2>
+<p>预训练围绕三种数据形态组织：离散动作 token 在训练中塑造 VLM 主干；连续流匹配在推理时给出动作；带具身语境的多模态数据保住视觉-语言先验。这一节讲结构、分词器、损失和动作接口，全部在一个训练阶段里实现。</p>
+
+<figure class="pfig" id="fig2">
+<img src="wall-oss-05/fig2.webp" width="1467" height="741" alt="图 2：MoT 结构示意。左侧 VL Expert 处理视觉语言 token 和 RVQ 离散动作 token，右侧 Action Expert 处理连续动作；中间是贯穿两者的 Joint Attention；顶部三个损失：多模态 CE、离散动作 CE、连续动作 FM" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 4 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=4">看原图 ↗</a></span>梯度桥接联合训练和 MoT 路由。底部输入分两路：图像和指令进 VL 编码器；状态和动作进“RVQ 分词器 / 投影器”。中间每层有 VL 专家和动作专家各自的 QKV 和 FFN，用一层“联合注意力”连起来。VL 专家上方是 LM 头，同时出多模态 CE（“泛化锚”）和离散动作 CE（“梯度桥”）；动作专家上方是 FM 头，出连续动作的流匹配损失（“精确动作”）。</figcaption>
+</figure>
+
+<h3 id="s2-1"><span class="no">2.1</span>结构</h3>
+<h4 id="s2-1-1">2.1.1 主干路由</h4>
+<p>从 Qwen2.5-VL-3B-Instruct 初始化，扩成 MoT 主干，总参数超过 4B。原来的 3B VLM 保留为 VL 专家；新加的动作专家和连续动作头里的动作投影提供额外的动作生成能力。四种 token 流——视觉、语言、本体感觉、离散动作——走 VL 专家；带噪声的连续动作 token 走动作专家，由流匹配训练。</p>
+<p>这是路由分解，不是梯度截断。两个专家共享同一个序列级注意力上下文，动作专家生成连续动作时能看到视觉和语言信息。注意力掩码让离散动作 token 和连续动作 token 在前向里<b>互相看不见</b>，所以两条动作通路可以独立训练、独立评测；同时流匹配的梯度经共享注意力流回 VL 专家，没有被挡住。</p>
+<p>代码：HF 的 <span class="cv">config.json</span> 写 <span class="cv">num_experts: 2</span>，VL 专家 hidden 2048、FFN 11008，动作专家 hidden 1024、FFN 2048，36 层，<span class="cv">attention_moe / mlp_moe / norm_moe</span> 都开；按 token 类型路由（<span class="cv">wall_x/model/core/action/moe.py:9-26</span>，<span class="cv">TokenTypeRouter</span> 取 <span class="cv">token_types % num_experts</span>），连续动作 token 的类型来自输入里 <span class="cv">&lt;|action|&gt;</span> 的位置（<span class="cv">data/backends/lerobot/loader.py:654</span>）。“互相看不见”在 <span class="cv">model/core/attention/mask.py:100-110</span>：连续动作行对离散动作预测位置的列置零。HF 上的检查点共 4,162,224,832 个参数（BF16 4,158,769,152 + F32 3,455,680），和“超过 4B”一致（<a href="#n18">读者注 18</a>）。</p>
+
+<figure class="pfig" id="fig3">
+<img src="wall-oss-05/fig3.webp" width="1500" height="398" alt="图 3：RVQ 动作分词器。稀疏多视角视频经冻结的上下文编码器，动作块经动作编码器，两者做对比学习；动作特征进残差向量量化得到 q0 到 qk；之后分两路：动作解码器重建动作块，特征预测器预测未来上下文特征" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 5 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=5">看原图 ↗</a></span>视觉对齐的 RVQ 动作分词器。左上：稀疏多视角视频经<b>冻结</b>的上下文编码器（雪花）得到上下文特征；左下：动作块经动作编码器（火焰，可训）。两者之间画了“对比学习”。动作特征进残差向量量化，每个时间位置得到 q₀…q_k 多级 token。右侧两路：动作解码器重建动作块；特征预测器预测未来的上下文特征。</figcaption>
+</figure>
+
+<h4 id="s2-1-2">2.1.2 视觉对齐的 RVQ 动作分词器</h4>
+<p>用离散动作 token，是因为下一词交叉熵是和 VLM 主干最直接兼容的训练接口。所以分词器的任务不只是“重建误差小”，还要给主干训练暴露有结构的动作语义。作者因此用学出来的视觉对齐 RVQ 分词器替代 FAST，在跨多种具身的异构机器人数据上训练。</p>
+<p>它在增量动作空间里工作，结构是“编码器 – RVQ – 解码器”：编码器用时间交叉注意力压缩以观测为条件的动作块；RVQ 码本的前几级抓粗的运动结构，后几级补细的残差；解码器以观测状态为条件重建动作序列。除了重建，还有三个目标一起塑造 token 空间：<b>视觉-动作对齐</b>（把动作潜变量拉向 VLM 的视觉特征）、<b>下一帧预测</b>（让 token 编码动作的后果）、<b>DCT 域重建</b>（压制高频抖动）。结果是可重建、视觉对齐、物理上平滑的离散表示。</p>
+<p>原文没有给码本大小、级数、压缩比、对比损失的形式和各项权重。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · 公开代码里找不到 RVQ 分词器</span><p>wall-x 的动作分词器注册表只有两项：<span class="cv">"fast": FastTokenizerMixin</span> 和 <span class="cv">"spatialvla": SpatialVLATokenizerMixin</span>（<span class="cv">wall_x/model/qact/tokenizer_mixin.py:938-941</span>）；FAST 分支从 <span class="cv">action_tokenizer_path</span> 加载外部处理器（<span class="cv">:312-318</span>）。代码注释里提到“v3.1 delta”分词器和“RVQ layer accuracy”（<span class="cv">tokenizer_mixin.py:232</span>，<span class="cv">trainer/adapters/vla_model_adapter.py:279</span>），但对应的类没有发布。HF 的 wall-oss-0.5 仓库里有 <span class="cv">ar_normalizer_action.pth</span>，没有分词器权重。</p>
+<p>同公司 2026-06-18 在 HF 发布了 <a href="https://huggingface.co/x-square-robot/X-Tokenizer">X-Tokenizer</a>，论文 arXiv 2606.14752（2026-06-07，CC BY 4.0），摘要写的是 RVQ 变体（SRQ）、对比对齐到基础模型的表示空间、下一帧视觉-语言特征预测、26 维动作布局、“作为表示塑造信号插进离散-连续混合的 VLA”，作者里有 Lucy Liang、Pushi Zhang、Hao Wang 等本报告的作者。<b>我的推断</b>：它就是或接近本报告的“视觉对齐 RVQ 分词器”。但本报告没有引用它，X-Tokenizer 的模型卡写的是 18 种具身、2048 码 × 4 级、压缩比 4，和本报告也没有逐项对照，未核实。</p></div>
+
+<h3 id="s2-2"><span class="no">2.2</span>训练配方</h3>
+<h4 id="s2-2-1">2.2.1 梯度桥接联合训练</h4>
+<p>预训练在一个阶段里同时优化三个目标。(1) <b>动作 token 交叉熵</b>自回归地预测 RVQ 动作 token，是 VL 编码器和动作专家之间的梯度桥：一个强的、VLM 原生的信号，让主干对动作敏感。(2) <b>多模态交叉熵</b>在带具身语境的视觉-语言样本上训练 VL 编码器，是保住指令跟随、视觉定位和具身场景理解的锚。(3) <b>流匹配</b>训练动作专家生成推理时用的连续动作块。离散通路主要是训练时的通路；连续通路是部署时的通路。</p>
+<p>动机来自消融里的梯度动态：流匹配定义了执行目标，但早期之后它对 VLM 主干更新的贡献稳定在约 <b>5%</b>，主要更新来自两个交叉熵。动作 token CE 和动作生成方向一致，把主干推向与控制相关的特征；多模态 CE 把更新拴在原来的视觉-语言先验上。所以本文保留端到端梯度，<b>不用 π0.5 的 stop-gradient</b>：那 5% 的流匹配残差对动作质量仍有用，而主干的塑造主要靠动作 token CE。</p>
+<p>总目标：</p>
+<div class="eq"><div class="m">\[ \mathcal L=\mathcal L_{\text{flow}}+\lambda_{\text{act}}\,\mathcal L_{\text{act-CE}}+\lambda_{\text{mm}}\,\mathcal L_{\text{mm-CE}} \]</div><span class="no">(1)</span></div>
+<p>\(\mathcal L_{\text{act-CE}}\) 是自回归 RVQ 动作 token 损失，\(\mathcal L_{\text{mm-CE}}\) 是多模态下一词损失，\(\lambda_{\text{act}}=\lambda_{\text{mm}}=0.01\)。在动作空间监督下，\(\mathcal L_{\text{flow}}\) 比交叉熵小大约两个数量级；共同的 0.01 把交叉熵压到和流匹配可比的量级，避免语言式预测压过动作学习。动作 CE 和多模态 CE 之间的相对分量由批次构成决定：动作数据和多模态数据按 <b>9 : 1</b> 混合。推理默认走连续流匹配通路，它和离散通路靠注意力掩码解耦；离散通路只在训练时承载梯度桥。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · “约 5%”“正相关”“大体正交”没有给数据</span><p>§1 和 §2.2.1 的三条梯度分析——流匹配对主干更新的份额“约 5%”、动作 CE 和流匹配梯度方向“正相关”、多模态 CE 和动作优化“大体正交”——在全文 12 张图、10 张表里都找不到对应的曲线或数字。§5.1 只给了四种策略的任务进度和一句流损失收敛的定性描述。这些说法目前只能当作者的陈述，未核实。</p>
+<p>能核的是 §5.1 的区间：“去掉任一信号会掉 7.4–25.1 个百分点”= 57.00 − 49.58 = 7.42 到 57.00 − 31.93 = 25.07，对得上。正文写只用流匹配 36.6%，图 10a 标的是 36.68，四舍五入应是 36.7。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 代码里两个 λ 是同一个旋钮</span><p><span class="cv">wall_x/model/core/vla_mixin.py:583-655</span>：所有带标签的 token（离散动作 token 和多模态文本 token 都在 <span class="cv">labels</span> 里）一起算交叉熵，<b>对 token 取平均</b>，再乘同一个 <span class="cv">config.ar_loss_weight</span> 加进总损失（<span class="cv">:655</span>）；流损失直接相加（<span class="cv">:702</span>），权重 1。所以代码和式 (1) 的“λ_act = λ_mm”一致。但因为是按 token 平均，两种 CE 的实际相对分量取决于一个批次里各自的 token 数，而不只是 9 : 1 的样本比（我的推断；多模态混合的数据管线没有公开，无法核实 token 数）。权重值：仓库 <span class="cv">workspace/models_config/qwen2_5_moe_flash.json</span> 写 <span class="cv">ar_loss_weight: 1</span>；LIBERO / ManipArena 示例 yml 写 <span class="cv">0.01</span>；HF 的 0.5 <span class="cv">config.json</span> 没有这个键，按 <span class="cv">trainer_utils.py:219</span> 由训练 yml 决定。yml 里的 <span class="cv">flow_loss_weight: 1.0</span> 在 Python 里没有被读取。</p></div>
+
+<h4 id="s2-2-2">2.2.2 动作空间监督</h4>
+<p>流匹配从带噪动作块出发，学一个把噪声运到干净动作的速度场。用线性高斯路径：</p>
+<div class="eq"><div class="m">\[ \mathbf A_t^{\tau}=\tau\,\mathbf A_t+(1-\tau)\,\boldsymbol\epsilon,\qquad \boldsymbol\epsilon\sim\mathcal N(\mathbf 0,\mathbf I) \]</div><span class="no">(2)</span></div>
+<p>τ = 0 是纯噪声，τ = 1 是干净动作。沿用 π0 的做法，把时间步采样偏向高噪声：</p>
+<div class="eq"><div class="m">\[ u\sim\mathrm{Beta}(1.5,\,1),\qquad \tau=s\,(1-u),\qquad s=0.999 \]</div><span class="no">(3)</span></div>
+<p>因为 τ = 0 是纯噪声，这个变换把概率质量集中在高噪声一侧。</p>
+<p><b>假设。</b>机器人动作序列低维、平滑，任务相关的结构主要在低频的轨迹形状里，而不是高频细节。作者因此假设：高噪声段决定能否恢复轨迹的整体形状，低噪声段主要补残差细节；和自然图像（高低频都有丰富语义）不同，高噪声段的监督质量基本决定了生成上限。于是网络仍输出速度，但损失定义在恢复出的动作上：</p>
+<div class="eq"><div class="m">\[ \hat A=A^{\tau}+(1-\tau)\cdot f_\theta(A^{\tau},\tau) \]</div><span class="no">(4)</span></div>
+<div class="eq"><div class="m">\[ \mathcal L_A=\mathbb E_{\tau,\epsilon}\Big[\big\lVert \hat A-A\big\rVert^2\Big] \]</div><span class="no">(5)</span></div>
+<p>它等价于在速度空间里乘 \((1-\tau)^2\) 的加权损失：</p>
+<div class="eq"><div class="m">\[ \mathcal L_A=\mathbb E_{\tau,\epsilon}\Big[(1-\tau)^2\,\big\lVert f_\theta(A^{\tau},\tau)-(A-\epsilon)\big\rVert^2\Big] \]</div><span class="no">(6)</span></div>
+<p>这个权重强调高噪声步（整体轨迹在这里成形），和上面的平滑性假设一致。它和扩散模型里的 x-prediction（Li 与 He 2025）相关，但动机来自机器人动作的频谱结构，不是方差上的考虑。§5.2 的对照实验支持这个选择：收敛更快、峰值更高、训练更稳。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 式 (4)–(6) 推导和代码一致</span><p>把式 (2) 代入式 (4)：\(A^\tau+(1-\tau)(A-\epsilon)=\tau A+(1-\tau)\epsilon+(1-\tau)A-(1-\tau)\epsilon=A\)，所以速度预测准确时 \(\hat A=A\)；\(\hat A-A=(1-\tau)\,(f_\theta-(A-\epsilon))\)，平方后正是式 (6) 的 \((1-\tau)^2\) 权重。τ = 0（纯噪声）权重 1，τ = 1（干净）权重 0。</p>
+<p>式 (3)：Beta(1.5, 1) 的累积分布是 \(u^{1.5}\)，所以 \(P(\tau&lt;0.5)=P(u&gt;0.5005)=1-0.5005^{1.5}\approx 0.646\)，E[τ] = 0.999 × (1 − 0.6) ≈ 0.40。采样偏向高噪声，再乘上 \((1-\tau)^2\)，高噪声段被强调两次。</p>
+<p>代码：<span class="cv">data/backends/lerobot/loader.py:664-692</span> 先抽 <span class="cv">np_rng.beta(1.5, 1.0)</span>，再 <span class="cv">time = 1 - sample</span>，再乘 <span class="cv">s</span>，和式 (3) 一样；<span class="cv">model/core/action/processor.py:169-172</span> 是式 (2)，<span class="cv">flow = action_chunk - noise</span> 是速度目标；<span class="cv">:288-294</span> 在 <span class="cv">use_x_pred=False</span> 时由速度算 <span class="cv">x_pred = (1 - t) * v_pred + noisy_action</span>，即式 (4)；<span class="cv">:296-302</span> 在 <span class="cv">use_x_loss=True</span> 时对 <span class="cv">x_pred</span> 和真动作算 MSE，即式 (5)。HF 的 0.5 <span class="cv">config.json</span> 正好是 <span class="cv">use_x_pred: false</span>、<span class="cv">use_x_loss: true</span>、<span class="cv">beta_alpha 1.5</span>、<span class="cv">beta_beta 1.0</span>、<span class="cv">s 0.999</span>、<span class="cv">num_inference_timesteps 10</span>。代码默认 <span class="cv">use_x_loss=False</span>（<span class="cv">configuration_qwen2_5_vl.py:245</span>），所以用仓库自带的 <span class="cv">qwen2_5_moe_flash.json</span> 从头训，得到的是普通速度损失；LIBERO 示例的注释提到的 <span class="cv">mot_flash_mask_causal_xloss.json</span> 不在仓库里。</p></div>
+
+<h4 id="s2-2-3">2.2.3 动作接口</h4>
+<p>模型沿用 VLM 的对话格式。动作预测的输入是：</p>
+<p class="cv" style="max-width:none">[System] 具身提示 [User] Observation: {相机}: ⟨图像 token⟩ … Instruction: {任务} Proprioception: ⟨本体 token⟩ [Assistant] ⟨action_ar_token⟩ ⟨action_flow_token⟩ × N</p>
+<p>⟨action_ar_token⟩ 是交叉熵通路用的离散 RVQ 动作 token；⟨action_flow_token⟩ 是流匹配通路用的连续动作查询 token；N 是预测时域里的帧数。多模态理解样本只输出文本，没有动作 token。相机路数任意，按数据源采。每个任务既有目标级指令（“收拾桌子”），也有步骤级子指令（“把它扔进垃圾桶”），训练时每步随机选一种粒度；另外用改写降低对措辞的过拟合。本体感觉<b>离散化成文本数字 token</b>，训练时随机丢弃或扰动，减少对无噪声状态的依赖。推理时不解码离散 token，由动作专家多步去噪生成连续动作块，两条通路靠注意力掩码在前向里解耦。</p>
+<p><b>动作空间。</b>用相对动作表示和 6D 旋转（不用欧拉角或四元数，避开 SO(3) 的不连续和歧义）。模型动作空间是 <b>26 维</b>：每只手臂相对当前末端位姿的 3D 位置、6D 旋转和 1D 夹爪（两臂共 20 维），加上 3D 底盘速度、1D 升降高度、2D 头部。离散和连续通路都预测 <b>1 秒</b>的动作时域，帧数按各数据源的控制频率调整。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 26 维在 HF 配置里逐项对得上；公开代码有三处和这里不同</span><p>HF <span class="cv">config.yml</span> 的 <span class="cv">dof_config</span>：左右各 <span class="cv">ee_cartesian_pos_relative 3 + ee_rotation_6D_relative 6 + gripper 1</span>，再 <span class="cv">velocity_decomposed 3 + height 1 + head_actions 2</span>，合计 (3+6+1)×2+3+1+2 = 26；<span class="cv">action_horizon_flow</span> 和 <span class="cv">action_horizon_ar</span> 都是 32；图像 448；<span class="cv">use_state_string_representation: true</span>、<span class="cv">state_bins: 512</span>，对应“本体离散成文本数字 token”（离散化在 <span class="cv">data/backends/lerobot/utils.py:541-547</span>，<span class="cv">np.digitize</span> 到 [−1, 1] 的等宽桶）。</p>
+<p>不同之处：(1) 系统提示。公开代码固定写“You are a helpful assistant.”（<span class="cv">utils.py:356-357</span>），HF <span class="cv">config.yml</span> 的 <span class="cv">use_embodied_system_prompt_ratio: 0.0</span>，没有看到“具身提示”。(2) 公开的 LIBERO / ManipArena 微调示例都写 <span class="cv">use_state_string_representation: false</span>，本体改走线性投影 <span class="cv">propri_proj</span>（<span class="cv">action/processor.py:43-51</span>），和预训练的文本 token 方式不同；这对微调效果有没有影响，论文和文档都没说，未核实。(3) LIBERO 示例用 3 维 ZYX 欧拉增量旋转加 19 维零填充（<span class="cv">workspace/example/libero.yml:32-37</span>），不是 6D；ManipArena 示例用 6D 相对旋转加 6 维填充。填充维靠 <span class="cv">dof_mask</span> 不进损失。按示例注释（<span class="cv">libero.yml:25-27</span>“the lerobot collator right-pads”），填充是补在右侧的：LIBERO 的 7 维占的是 26 维向量的<b>前 7 位</b>，而预训练布局里前 7 位是左臂位置 3 维和左臂 6D 旋转的前 4 维。也就是说，微调时同一个槽位的语义和预训练不同，靠的是按数据集分开的归一化和微调本身（我的推断，没有运行验证）。</p></div>
+
+<h4 id="s2-2-4">2.2.4 优化和配置</h4>
+<p>作者发现 <b>Muon</b> 在联合训练里收敛更快、更稳。Muon 用在每个专家的二维参数上，视觉嵌入和 LM 头用 AdamW。Muon 先把动量正交化再作为更新，更新的谱范数被归一，和梯度大小无关；这很关键，因为动作专家和 VL 专家的梯度尺度差别很大。</p>
+<p>为了在大规模上用 Muon，作者写了分布式运行时 <b>DMuon</b>，兼容混合并行：用“最长处理时间优先”的负载均衡给每个矩阵参数指定唯一的属主 rank；Newton–Schulz 更新只在属主上做一次；状态同步走“归约到属主”加步后异步广播，广播在专用 CUDA 流上，尽量和下一次前向重叠；属主本地的 Newton–Schulz 还用了利用对称性的核和按形状自动调优。在他们的训练栈里，Muon 带来的额外优化器开销从朴素实现的约 2 倍“前向 + 反向”时间降到约 0.02 倍，约 100 倍的降低。</p>
+<p><b>超参数。</b>预训练有效全局批大小 8192，bf16 混合精度，梯度裁剪 1.0，余弦学习率加线性预热，峰值学习率 1 × 10⁻⁴。图像保持长宽比、长边缩到 448。所有预训练数据都过滤掉静止帧，防止过拟合到停顿动作。<b>微调</b>学习率 5 × 10⁻⁵，所有模块都训，保留同样的“离散 + 连续”联合目标；§5.1 显示这比只用流匹配微调有大的相对提升。</p>
+<p>代码：DMuon 是单独的包（<a href="https://github.com/X-Square-Robot/dmuon">X-Square-Robot/dmuon</a>），wall-x 里只有接入层 <span class="cv">wall_x/trainer/optimizer/dmuon/utils.py:54</span> <span class="cv">get_dmuon_optimizer</span>，按“专用 / Muon”和“非专用 / AdamW”分组。仓库的训练模板 <span class="cv">workspace/example/lerobot/qwen2_5_lerobot_template.yml</span> 用 <span class="cv">optimizer_type: dmuon</span>、学习率 1e-4、余弦、预热 1000 步；LIBERO 和 ManipArena 示例用 <span class="cv">adamw</span>、5e-5，学习率和论文的微调值一致，但优化器不是 Muon（<a href="#n13">读者注 13</a>）。</p>
+
+<h3 id="s2-3"><span class="no">2.3</span>推理优化</h3>
+<p>实时控制是上真机的 VLA 的硬要求：闭环里每多一毫秒延迟，执行就晚一点，跟踪动态目标变差，成功率降低，所以几十赫兹是功能前提。这和现代 VLA 的趋势矛盾：大视觉编码器、十亿级语言主干、迭代式动作解码器全在一次前向里。高分辨率输入更贵：ViT 的计算量随图像 token 数平方增长，更长的视觉上下文又撑大语言主干的 KV cache，每次注意力都变慢。</p>
+<p>作者按剖析结果从两方面优化。(1) 去噪步是<b>访存受限</b>的：GPU 核执行时间比 CPU 发射延迟还短，CPU 调度成为瓶颈，GPU 在核之间空转。因为每步的计算图是静态的，把整个去噪步捕获成一个 <b>CUDA Graph</b>，CPU 调度移出关键路径。(2) 除了 GEMM 和注意力，RoPE、RMSNorm 等逐元素和归约算子单个都便宜，但分开执行时会产生大量 HBM 读写。作者把它们融合成在寄存器里算完的自定义 CUDA 核，比原生实现快 2–10 倍。</p>
+<p><b>结果。</b>单张 RTX 5090，三路图像，标准 T = 10 步去噪：224 × 224 约 21 Hz，448 × 448 约 15 Hz，比 PyTorch eager 端到端快 4 倍。448 下 eager 基线受 ViT 平方开销和 KV cache 拖累最重，相对加速仍然明显。作者说这只是部分探索。</p>
+<div class="note" id="n14"><span class="lab">读者注 14 · 公开代码里 CUDA Graph 没有接上，RMSNorm 融合核缺失</span><p><span class="cv">wall_x/utils/cudagraph_wrapper.py:14</span> 定义了 <span class="cv">CUDAGraph_Wrapper</span>（按批大小分桶捕获），但整个仓库没有任何地方实例化它；服务入口只会设环境变量 <span class="cv">ENABLE_CUDA_GRAPH</span>（<span class="cv">_vendor/harrix/serving/launch_serving.py:139, 215-217</span>）。随包编译的 CUDA 算子（<span class="cv">model/core/ops/csrc/binding.cu:49-68</span>）是 RoPE、M-RoPE、旋转位置、窗口索引和 MoE 置换，<b>没有 RMSNorm</b>；<span class="cv">ops/norm.py:22-30</span> 试图导入 <span class="cv">_cuda_wrappers.Rmsnorm</span>，这个类不存在，会退回外部的 <span class="cv">external_accel</span> 模块（不公开）或 PyTorch 实现。我的推断：用公开代码大概达不到论文的 15 Hz；我没有运行，未核实实际速度。去噪循环本身在 <span class="cv">modeling_qwen2_5_vl_act.py:2064-2160</span>：前缀前向一次缓存 KV，之后 10 步欧拉积分只跑动作 token。</p></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总览（预训练即可执行）、26 维统一动作空间和跨具身填充、对话式输入序列和注意力掩码、MoT 路由、RVQ 分层量化（玩具）、三个损失和四种训练策略（图 10）、动作空间监督的权重和时间步分布、数据配方和平方根采样、10 步去噪推理、零样本评测随检查点变化（表 5/6）、微调对比和多模态变化（表 8、表 7）。可以暂停、拖进度、旋转画面、切换开关。</p>
+<iframe src="../interactives/wall-oss-05/index.html?embed=1&amp;scene=6" title="Wall-OSS-0.5 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/wall-oss-05/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h2 id="s3"><span class="no">3</span>数据配方和管理</h2>
+<p>预训练数据把多样的高质量自采操作数据、开源多具身数据集和定向的多模态语料合在一起，在任务多样性、具身覆盖和数据源分布上做了平衡。</p>
+<h3 id="s3-1"><span class="no">3.1</span>机器人操作数据</h3>
+<p>自采和开源数据的动作表示统一到同一套语义：双臂末端位姿、关节位置、夹爪状态、底盘运动、升降 / 腰部、头部。同一平台内的相机流按时间戳同步，但保留各平台自己的相机数量和视角。细节在 §3.1.3。</p>
+<h4 id="s3-1-1">3.1.1 自采操作数据</h4>
+<p>自采数据是操作预训练语料的核心，覆盖几千个不同任务。</p>
+<p><b>具身构成。</b>两类平台：桌面双臂系统和移动操作机器人，覆盖固定工作空间和移动操作。另外有一个和具身无关的采集设备 <b>XRZero-G0</b>（本公司的专有设备，arXiv 2604.13001），能低成本在各种场景采数据而不绑定某种机器人形态，扩展环境和任务的多样性。</p>
+<p><b>场景和任务分布。</b>场景有真实的非结构化环境（家庭、工业、办公，带自然杂乱和光照变化），也有受控的采集间（提高复现性和批次一致性）。任务按三个互补的轴打标签：操作复杂度、轨迹时长、特殊属性（例如空间推理、柔性物体交互），既有工业相关操作也有日常行为。这些标签用于平衡训练混合（§3.1.3），避免少数大体量任务占满语料。</p>
+<p><b>任务切分和语言标注。</b>每条轨迹有两种指令：只说最终目标的简短指令，和按时间顺序列出中间子目标和关键动作转换的详细指令；两种都用大语言模型扩写，保持语义不变。同时把长的遥操作轨迹切成时间上连贯的子轨迹，每段对应一个原子子目标并配上指令。合起来得到几千条基础指令和几万条改写。</p>
+
+<figure class="pfig" id="fig4">
+<img src="wall-oss-05/fig4.webp" width="1500" height="652" alt="图 4：左为数据构成环形图，内圈自采 60%、开源 40%，外圈十个开源子集的比例；右为十二种机器人形态的照片" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 9 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=9">看原图 ↗</a></span>预训练用的机器人操作数据。左：内圈是全部动作数据，自采 60%、开源 40%；外圈是开源部分的 10 个子集：AgiBotWorld Beta 24.6%、RoboMIND v2.0 21.7%、Fractal 12.3%、RealOmin 10.9%、DROID 10.7%、RoboCOIN 7.3%、RoboMIND v1 3.8%、RoboChallenge 3.6%、BRIDGE v2 2.7%、Galaxea Open-World 2.4%（加起来 100.0%）。右：12 种机器人形态的照片，有人形、单臂、双臂移动平台等。</figcaption>
+</figure>
+
+<h4 id="s3-1-2">3.1.2 开源多具身数据</h4>
+<p>开源操作数据不用额外采集就能扩展具身和场景覆盖。作者对一批高质量开源数据集做统一整理（格式对齐、元数据核验、跨源字段映射），按时间戳连续性、动作-观测合理性和帧异常过滤样本。保留的 10 个子集见图 4：<a class="ds" href="https://agibot-world.com/">AgiBot World</a> Beta（<a href="https://arxiv.org/abs/2503.06669">论文</a>）、<a class="ds" href="https://x-humanoid-robomind.github.io/">RoboMIND</a> v1 和 v2.0（<a href="https://arxiv.org/abs/2412.13877">v1</a>、<a href="https://arxiv.org/abs/2512.24653">v2</a>）、Fractal / Google Robot（<a class="ds" href="https://robotics-transformer1.github.io/">RT-1</a> 的数据）、<a class="ds" href="https://huggingface.co/datasets/genrobot2025/10Kh-RealOmin-OpenData">RealOmin</a>、<a class="ds" href="https://droid-dataset.github.io/">DROID</a>（<a href="https://arxiv.org/abs/2403.12945">论文</a>）、<a class="ds" href="https://flagopen.github.io/RoboCOIN/">RoboCOIN</a>（<a href="https://arxiv.org/abs/2511.17441">论文</a>）、<a class="ds" href="https://robochallenge.ai/">RoboChallenge</a>（<a href="https://arxiv.org/abs/2510.17950">论文</a>）、<a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a>、<a class="ds" href="https://opengalaxea.github.io/G0/">Galaxea Open-World</a>（<a href="https://arxiv.org/abs/2509.00576">论文</a>）。§1 还引了 <a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a>。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 模型卡列的数据键比图 4 多</span><p>图 4 外圈 10 个比例相加 = 24.6 + 21.7 + 12.3 + 10.9 + 10.7 + 7.3 + 3.8 + 3.6 + 2.7 + 2.4 = 100.0，自洽。HF 0.5 模型卡的“Supported Robot Embodiments”列了 56 个 <span class="cv">norm_key</span>：自有的 <span class="cv">ex_normal</span>、<span class="cv">x2_normal</span>，以及 24 个开源键（含 RH20T、DobbE、UMI-biarm、furniture_bench、taco_play 等多个 OXE 子集）、RoboChallenge 4 个、RoboCoin 8 个、RoboMind 18 个。其中有不少不在图 4 的 10 个子集里。我的推断：这是归一化统计里保留的键，不一定都进了 0.5 的预训练；论文说的“20 多种具身”也没有逐一列出，未核实。</p></div>
+
+<h4 id="s3-1-3">3.1.3 数据预处理和采样策略</h4>
+<p>多源机器人数据在质量、格式和动作表示上很不一致：存储格式和字段命名不同，同一个具身在不同数据集里的动作定义也可能不同（坐标系朝向、旋转表示约定、夹爪开合的正负）。不处理就会给联合训练带来噪声。所以所有带动作标注的数据都过一遍系统的预处理：</p>
+<ul>
+<li><b>动作空间统一。</b>标准化到统一的动作结构（双臂末端位姿、关节位置、夹爪、底盘、升降 / 腰、头）。只有关节状态的数据用对应平台的 URDF 正运动学求末端位姿。统一物理语义：x 向前、y 向左、z 向上；零旋转是夹爪朝前、开口水平；夹爪值越大开得越大。源数据用欧拉角的，只在归一化的源层面保留，训练前转成 6D。</li>
+<li><b>视频-动作时间对齐。</b>传感器采样频率和时间戳精度不同。按时间戳统一对齐；不能一一对应时，每个视频帧取时间戳最近的状态帧。</li>
+<li><b>错误数据修复。</b>质检发现的典型错误（相机映射对调、末端位姿异常）能修就修（重映射相机、用正运动学恢复位姿），修不了就丢。</li>
+<li><b>静止帧过滤。</b>近乎静止的帧（同样的观测对应零动作和非零动作）引入监督噪声，并在推理时造成停顿。用全局统计归一化动作，删掉每一维和上一个保留帧差异低于阈值的帧。作者观察到训练后执行节奏明显更紧凑，冗余停顿减少。</li>
+<li><b>采样策略。</b>不平衡在两个层面：源之间（自采和开源的轨迹数差几个数量级）、源内（每个数据集的任务长尾）。按比例采样会让高频任务主导每个 epoch 的梯度。作者用来源和任务标签定义采样组，组内做幂次采样：第 i 组有 \(n_i\) 条轨迹，权重 \(w_i=n_i^{\,p}\)，归一化条数 \(s_i=N\,w_i/\sum_j w_j\)，N 是每个 epoch 的轨迹预算。取 p = 0.5（平方根采样），提高小组频率，同时保留大组的统计分量；再加每组上限和迭代再分配，防止超大组独占预算。采样后一个 epoch 超过一百万条轨迹，约 60% 自采、约 40% 开源。</li>
+</ul>
+<p>代码：这些预处理和采样<b>都不在 wall-x 公开仓库里</b>。公开的是把自家格式转成 LeRobot 的 <span class="cv">x2robot2lerobot.py</span>、旋转布局转换 <span class="cv">data/backends/lerobot/rotation_layout.py</span> 和 LeRobot 加载器；1.0-lite 的 RoboDojo 配置里出现了 <span class="cv">task_balance: static_count</span> 一类的采样器键，0.5 的公开代码没有。</p>
+
+<h3 id="s3-2"><span class="no">3.2</span>多模态数据</h3>
+<p>多模态数据是联合训练里的“泛化锚”：它承载多模态 CE，在动作 token CE 把主干推向控制的同时，把主干拴在有依据的视觉-语言理解上。除了通用的视觉-语言对齐，它还监督物体识别、场景构成、空间关系、可供性和与任务相关的交互线索。总共约 <b>9000 万</b>条：7800 万条开源样本，加 1200 万条直接从动作轨迹构造的<b>具身桥接</b>样本。训练时动作样本和多模态样本按 <b>9 : 1</b> 的批采样比例混合：多模态样本只算自回归下一词 CE，动作轨迹同时提供动作 token CE 和流匹配监督。</p>
+<div class="tablewrap"><table class="t-ds"><caption class="tcap">表 1（原文第 11 页）：开源多模态数据按类别整理</caption>
+<thead><tr><th>类别</th><th>任务类型</th><th>数据集</th></tr></thead><tbody>
+<tr><td>通用视觉-语言</td><td>描述、VQA、指点、推理</td><td><a class="ds" href="https://github.com/baaivision/CapsFusion">CapsFusion</a>、<a class="ds" href="https://cambrian-mllm.github.io/">Cambrian</a>、<a class="ds" href="https://huggingface.co/datasets/allenai/pixmo-cap">PixMo-Cap</a>、<a class="ds" href="https://cocodataset.org/">COCO</a>、<a class="ds" href="https://visualqa.org/">VQAv2</a>、PixMo-Point、OneThinker</td></tr>
+<tr><td>具身感知</td><td>定位、指点、空间、可供性</td><td><a class="ds" href="https://robo-point.github.io/">RoboPoint</a>、<a class="ds" href="https://huggingface.co/datasets/remyxai/SpaceThinker">SpaceThinker</a>、<a class="ds" href="https://huggingface.co/datasets/remyxai/OpenSpaces">OpenSpaces</a>、SpaceOm、<a class="ds" href="https://zhoues.github.io/RoboRefer/">RefSpatial</a>、CrossPoint、SenseNova-SI</td></tr>
+<tr><td>具身认知</td><td>任务 VQA、交互、长程推理</td><td><a class="ds" href="https://huggingface.co/datasets/keplerccc/Robo2VLM-1">Robo2VLM</a>、EO-Data、<a class="ds" href="https://robovqa.github.io/">RoboVQA</a>、<a class="ds" href="https://research.nvidia.com/labs/dir/cosmos-reason1/">Cosmos-Reason1</a>（<a href="cosmos-reason1.html">本站精读</a>）</td></tr>
+</tbody></table></div>
+
+<figure class="pfig" id="fig5">
+<img src="wall-oss-05/fig5.webp" width="1500" height="1081" alt="图 5：具身桥接数据的四类例子：(a) 场景级理解、(b) 物体级定位与双臂轨迹、(c) 多视角空间关系与指点、(d) 任务级规划" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 11 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=11">看原图 ↗</a></span>具身桥接数据的构造和任务分类，每行左边是机器人视角的图，右边是问答。(a) 场景级理解：描述头部相机看到的桌面、碗架和两只手臂的位置。(b) 物体级定位：给出粉色薯片袋的框 [568, 278, 768, 418]；规划把橙色杯子放回桌子中央的双臂二维路径。(c) 空间关系：香蕉和葡萄是不是在同一个盘子上（不是），从左视角指出橙色盘子 [461, 728]。(d) 任务级规划：四帧 t₁–t₄ 后描述机器人在做什么（拿着粉色水壶），预测下一步（用右臂转动水壶）。部分画面有马赛克。</figcaption>
+</figure>
+<p><b>开源多模态数据</b>有两个目标：保持通用 VLM 能力，注入和具身相关的理解。分三类（表 1）：通用视觉-语言（描述、通用问答、指点、开放推理）；具身感知（物体定位、可供性、空间推理）；具身认知（任务 VQA、交互理解、长程推理）。开源数据经过严格质检，用模型核验加人工标注过滤不准确、信息量低和过度重复的样本。</p>
+<p><b>具身桥接数据</b>由自动管线直接从动作预训练语料构造。叫“桥接”是因为这些样本和动作学习来自同样的轨迹、观测和任务语境，天然和可执行行为对齐。按四个层次组织（图 5）：物体理解（定位、指点、二维轨迹预测、属性 VQA）；空间理解（物体间关系、多视角指点）；场景理解（场景描述、场景级 VQA）；任务理解（任务进度预测、可供性估计、下一步动作规划）。指点和定位任务引入专门的空间 token，坐标都统一成文本：<span class="cv">&lt;box&gt;[x1,y1,x2,y2]&lt;/box&gt;</span> 和 <span class="cv">&lt;point&gt;[x,y]&lt;/point&gt;</span>。</p>
+<p>代码：多模态样本的加载和 9 : 1 混合不在公开仓库里。归一化器会跳过名为 <span class="cv">x2_multimodal</span> 的数据集（<span class="cv">model/core/action/normalizer.py:286</span>），说明内部训练栈里多模态样本以这个名字混在批里（我的推断）。</p>
+
+<h2 id="s4"><span class="no">4</span>实验和结果</h2>
+<h3 id="s4-1"><span class="no">4.1</span>预训练模型的零样本评测</h3>
+<p>不微调，直接在真机零样本套件上评测。共 17 个任务：12 个“见过”（来自预训练数据分布内）和 5 个“没见过”（留出的任务配置，在当前具身上没有采过完全相同的任务），考的是泛化和迁移。任务分五个维度：语义理解、刚体操作、柔性物体操作、精细操作、长程多步操作。每个任务按预设评分规则打分（任务进度，满分 100，10 条轨迹），比二值成功率更能反映“部分完成”的程度。训练中抽多个里程碑检查点，追踪能力变化。</p>
+<h4 id="s4-1-1">4.1.1 结果</h4>
+<p>表 2 是见过和没见过任务在各检查点的平均任务进度（每个任务的数在附录 A.1）。先看最强的：400k 检查点上，6 个任务不微调就 ≥ 60%（表 3），其中 4 个 ≥ 80%，2 个是没见过的任务。没见过的柔性任务拉紧绳子达到 82%，让“纯模板记忆”的解释不太可能。图 6a 是见过 / 没见过的平均趋势，图 6b 按五个能力维度分组。</p>
+
+<figure class="pfig" id="fig6">
+<img src="wall-oss-05/fig6.webp" width="1500" height="541" alt="图 6：(a) 六个检查点上见过与没见过任务的柱状图和总体平均折线；(b) 五个任务类别的折线和总体平均" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 13 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=13">看原图 ↗</a></span>零样本真机评测随预训练检查点的变化。(a) 蓝柱是 12 个见过任务的平均，红柱是 5 个没见过任务的平均，紫线是 17 个任务的总体平均（25.5、34.5、39.8、38.7、47.9、51.1）；整体上升，但有检查点级的波动，没见过任务在 400k 到 53.6。(b) 五类：语义最高（400k 约 72.6），精细最低（不到 10），总体平均同 (a)。数字都能由表 5、表 6 重算（<a href="#n3">读者注 3</a>）。</figcaption>
+</figure>
+
+<div class="tablewrap"><table class="t-res"><caption class="tcap">表 2（原文第 13 页）：各预训练检查点上见过和没见过零样本任务的平均任务进度</caption>
+<thead><tr><th></th><th>50k</th><th>100k</th><th>200k</th><th>300k</th><th>350k</th><th>400k</th></tr></thead><tbody>
+<tr><td>见过平均（12 个任务）</td><td>26.1</td><td>31.7</td><td>40.1</td><td>40.4</td><td>48.1</td><td>50.0</td></tr>
+<tr><td>没见过平均（5 个任务）</td><td>24.2</td><td>41.0</td><td>38.8</td><td>34.8</td><td>47.6</td><td>53.6</td></tr>
+<tr><td>总体平均（17 个任务）</td><td>25.5</td><td>34.5</td><td>39.8</td><td>38.7</td><td>47.9</td><td>51.1</td></tr>
+</tbody></table></div>
+<div class="note" id="n3"><span class="lab">读者注 3 · 表 2 和图 6b 都能由表 5、表 6 重算</span><p>用附录表 5（12 个见过任务）和表 6（5 个没见过任务）重算：见过平均 26.06 / 31.73 / 40.15 / 40.38 / 48.06 / 50.04，没见过平均 24.2 / 41.0 / 38.8 / 34.8 / 47.6 / 53.6，总体（17 个任务直接平均）25.51 / 34.46 / 39.75 / 38.74 / 47.93 / 51.09，四舍五入后和表 2 全部一致。注意总体平均是按任务数加权（12 : 5），不是两个平均的平均（后者 400k 会是 51.82）。</p>
+<p>图 6b 的类别曲线在 400k：语义（方块、水果、数字、开关、玩具篮，5 个）(100 + 96 + 54 + 55 + 58) / 5 = 72.6；刚体（套圈、杯子、擦桌、锅盖）(86 + 64 + 38 + 30) / 4 = 54.5；柔性（毛巾、摆台、碎纸、绳子、倒豆）(10 + 9 + 18 + 82 + 60) / 5 = 35.8；精细只有插充电器 1 个任务 = 9；长程只有插花和包裹 2 个 = 49.75。和图上读到的一致。“精细”和“长程”两类样本太少，曲线的起伏主要是单个任务的波动。</p></div>
+
+<div class="tablewrap"><table class="t-res"><caption class="tcap">表 3（原文第 14 页）：400k 检查点上任务进度 ≥ 60 的零样本任务</caption>
+<thead><tr><th>任务</th><th>类别</th><th>见过 / 没见过</th><th>任务进度</th></tr></thead><tbody>
+<tr><td>方块分拣 Block Sorting</td><td>语义理解</td><td>见过</td><td>100%</td></tr>
+<tr><td>水果分拣 Fruit Sorting</td><td>语义理解</td><td>见过</td><td>96</td></tr>
+<tr><td>套圈 Ring Stacking</td><td>刚体操作</td><td>见过</td><td>86</td></tr>
+<tr><td>拉紧绳子 Rope Tightening</td><td>柔性物体操作</td><td><b>没见过</b></td><td>82</td></tr>
+<tr><td>放杯子 Cup Grasping</td><td>刚体操作</td><td>见过</td><td>64</td></tr>
+<tr><td>倒豆子 Bean Pouring</td><td>柔性物体操作</td><td><b>没见过</b></td><td>60</td></tr>
+</tbody></table></div>
+
+<h4 id="s4-1-2">4.1.2 分析</h4>
+<p><b>语义定位能迁移到动作。</b>图 6b 里语义理解是最强的维度（400k 平均 72.6%）。几个高分的见过任务——方块分拣 100、套圈 86、水果分拣 96——都要先把“哪个颜色对应哪个位置”“圈该套到杆上”这类视觉语义落到画面上，再执行操作。没见过的任务里，玩具放进篮子在 400k 是 58%，预训练中最高到过 72%，说明 VLM 的语义知识在迁移到动作，同时有些留出任务对检查点很敏感。作者认为这和训练设计一致：动作 token CE 让动作通路接触到 VLM 的语义先验，所以以语义决策为主的任务受益；需要精确低层控制的任务（精细插接、柔性折叠）仍卡在执行上。</p>
+<p><b>没见过的任务和见过的一起变好。</b>没见过任务平均 24.2 → 53.6，见过任务 26.1 → 50.0，都整体上升，400k 时没见过（53.6）略高于见过（50.0）。两组难度没有配平，所以看趋势比看绝对高低更有意义。作者也提醒，大规模预训练下“没见过”是相对的：这些任务没有在当前具身上作为相同任务采过，道具组合是全新的，但预训练语料里的开源数据可能有语义相关的操作经验。所以这里的泛化主要是跨场景、跨道具的技能迁移，不是从零学会全新技能。</p>
+<p><b>零样本能力有明确的边界。</b>按 400k 的成绩分三档：</p>
+<ul>
+<li><b>零样本熟练（≥ 60%）</b>：方块分拣 100、水果分拣 96、套圈 86、拉紧绳子 82 等。语义清楚、精度要求中等，VLM 的语义理解给有效动作提供了很强的支架。</li>
+<li><b>部分熟练（40%–60%）</b>：按开关 55、数字排序 54、插花 51、包裹分拣 48.5 等。接近、抓取、移动这些基本动作会了，最后的精确执行还不够；这正是微调要补的差距。</li>
+<li><b>目前零样本做不到（&lt; 20%）</b>：叠毛巾 10、摆餐桌 9、插充电器 9。主要是柔性物体和精细操作。原因有二：这些任务本身比刚体抓放难得多，精度和状态感知的要求超过不微调能达到的；需要的动作模式（捏布边、沿轨迹折叠、插接时微调对准）在整个数据里比较孤立，和常见任务的动作分布重叠少，跨任务迁移难。</li>
+</ul>
+<p><b>能力在预训练中“涌现”。</b>多个任务在某个阶段突然进步：方块分拣在中后期从约 50% 跳到 100%；套圈在 350k 达到 100%，400k 仍有 86%；水果分拣从 61% 升到 96%。作者把这种“阶梯式”出现类比大语言模型的涌现能力：先在某个检查点突破，再稳定进入整体策略。400k 时总体平均仍在上升（见过 50.0、没见过 53.6），预训练可能还没饱和。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 三档分类和表 5、6 的对照</span><p>按表 5、6 的 400k 列：≥ 60 的正好是表 3 的 6 个；40–60 档原文列了 4 个“等”，漏掉的是没见过的玩具放进篮子 58；&lt; 20 档原文列了 3 个，碎纸 18 也在这一档但没列。<b>20–40 之间没有档</b>：擦桌子 38、锅盖 30 两个没见过任务落在这里，原文没有归类。“从 61% 升到 96%”是 350k → 400k（300k 和 350k 都是 61）；“方块从约 50% 跳到 100%”是 300k 的 51.5 → 350k 的 96 → 400k 的 100；“玩具篮最高 72%”是 350k。都对得上。</p></div>
+
+<h3 id="s4-2"><span class="no">4.2</span>真机微调结果</h3>
+<h4 id="s4-2-1">4.2.1 和基线比较</h4>
+<p>对比两个主流范式的预训练机器人基础模型：VLA 范式的 <a href="https://arxiv.org/abs/2504.16054">π0.5</a>，和世界-动作模型（WAM）范式的 <a href="https://arxiv.org/abs/2602.15922">DreamZero</a>。三个模型都从各自官方预训练权重出发，在 15 个真机任务（10 个操作 + 5 个推理）上用相同的微调数据（每任务约 500 条示范）和评测协议微调、评测。</p>
+<p><b>总体。</b>Wall-OSS-0.5 平均任务进度 60.5%，比 π0.5（43.0%）高 17.5，比 DreamZero（33.4%）高 27.1，15 个任务里 10 个最高；操作子集（61.1 对 35.0）和推理子集（59.3 对 58.9）都领先。</p>
+<div class="tablewrap"><table class="t-ft"><caption class="tcap">表 4（原文第 15 页）：真机微调基线对比。各类别平均任务进度（满分 100），逐任务见附录 A.3</caption>
+<thead><tr><th>模型</th><th>操作（10）</th><th>推理（5）</th><th>总体（15）</th></tr></thead><tbody>
+<tr><td>Wall-OSS-0.5</td><td>61.1</td><td>59.3</td><td>60.5</td></tr>
+<tr><td>π0.5</td><td>35.0</td><td>58.9</td><td>43.0</td></tr>
+<tr><td>DreamZero</td><td>33.7</td><td>32.7</td><td>33.4</td></tr>
+</tbody></table></div>
+<p><b>操作上的优势。</b>颜色方块分拣（96 对 42）、套圈（91 对 60）、整理抽屉（52 对 7）、勺子放进碗（80 对 43）上领先 π0.5 30 以上，涉及语义理解、中等精度定位和多步操作。眼镜放上架子（66 对 87）是唯一一个 π0.5 领先的操作任务。</p>
+<p><b>推理任务。</b>5 个里领先 3 个：形状分拣（68 对 63）、耳机分拣（82 对 73）、按顺序按按钮（16 对 13），把推理子集平均拉到 59.3 对 58.9。水果放进篮子（86 对 94）和物体配对（44.5 对 51.5）仍落后 π0.5。</p>
+<p><b>难点。</b>收拾笔袋（18.5%）仍是主要低分操作任务，反映在当前微调数据量下，涉及柔性和铰接交互的精细双臂操作确实难。</p>
+<p><b>微调建立在预训练之上。</b>微调后最强的任务（颜色方块分拣 96、套圈 91）在 §4.1 零样本里已经很高（100 和 86）；而提升最大的任务（例如整理抽屉从低的零样本基线跳到 52）体现了微调对预训练基础能力的放大。作者认为预训练建立的能力基础显著影响微调的上限。</p>
+<div class="note" id="n2"><span class="lab">读者注 2 · 表 4 和表 8 逐项对得上；推理子集只领先 0.4</span><p>用表 8 重算：Wall-OSS-0.5 操作 611.3 / 10 = 61.13，推理 296.5 / 5 = 59.3，总体 907.8 / 15 = 60.52；π0.5 操作 350 / 10 = 35.0，推理 294.5 / 5 = 58.9，总体 644.5 / 15 = 42.97；DreamZero 操作 336.8 / 10 = 33.68，推理 163.5 / 5 = 32.7，总体 500.3 / 15 = 33.35。全部和表 4 一致。逐行数最高：Wall-OSS-0.5 在颜色方块、套圈、勺子、杯子三角、抽屉、电源线、倒水、耳机、形状、按钮 10 个任务上最高，和“10 / 15”一致；物体进篮（DreamZero 97.8）、收拾笔袋（DreamZero 26）、眼镜架、水果篮、物体配对（π0.5）这 5 个不是。“领先 30 以上”的还有原文没列的杯子三角（58 对 18）和物体进篮（74.8 对 37）。</p>
+<p>推理子集 59.3 对 58.9 只差 0.4，换算成 5 个任务的总分只差 2 分（296.5 对 294.5），而一个任务的进度是 10 条轨迹的平均。我的推断：这个“两边都领先”在统计上很脆弱，论文没给方差或置信区间。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · “零样本已经很高”的两个例子并不是同一个任务</span><p>§4.2.1 说颜色方块分拣微调后 96、“零样本时已经是 100”。但零样本套件里的是<b>方块分拣</b> Block Sorting（5 个彩色方块按颜色放进对应托盘，每个 2 分），微调套件里的是<b>颜色方块分拣</b> Color Block Sort.（3 个 RGB 方块放到同色的色块上，每个 3 分，收手 1 分）；表 10 把它们列为两行，表 9 也同时有 Block Sorting（100）和 Color Block Sort.（97）。套圈在两个套件里是同一行，这个例子成立。另一个例子“整理抽屉从低的零样本基线跳到 52”：整理抽屉<b>不在</b> 17 个零样本任务里（表 5、表 6 都没有），论文没有它的零样本分数。</p></div>
+
+<h4 id="s4-2-2">4.2.2 多任务微调的扩展</h4>
+<p><b>设置。</b>为了看预训练模型在多任务设置下的微调能力，把微调任务集从 5 个逐步扩到 10 个、19 个，都从同一个预训练检查点出发。三种配置：5 个任务——从 §4.1 选的基础操作子集；10 个——再加 5 个更难或多步推理的任务；19 个——再加 9 个来自更大真机评测套件的操作任务，它们在背景环境和具身分布上和原来 10 个明显不同，所以这一步扩的不只是任务数，还有场景和物体覆盖。所有实验用相同的训练配置、统一 6 个 epoch，保证每个任务被过的次数相同。总体结果见图 7，逐任务结果（含叠毛巾）在附录；叠毛巾不在这次扩展研究的范围内（见 A.4）。</p>
+<p><b>扩任务帮助共享任务。</b>任务集变大时，共享子集上的成绩单调上升。5 个简单共享任务：5 → 10 → 19 个任务，平均 73.96% → 74.75% → 83.75%（端到端 +9.8%）。10 个共享任务（5 简单 + 5 复杂和推理）：10 → 19，59.98% → 64.78%（+4.8%）。加入 9 个背景和具身分布明显不同的任务后，共享子集的提升仍在，模型在这 9 个分布外任务上也达到 65.59% 平均。作者结论：在当前模型容量和训练设置下，扩任务不仅帮助适配新任务，也持续提升共享任务。</p>
+
+<figure class="pfig" id="fig7">
+<img src="wall-oss-05/fig7.webp" width="1458" height="755" alt="图 7：5、10、19 任务三种微调配置的柱状图：5 个简单共享任务 73.96、74.75、83.75；5 个复杂和推理共享任务 59.98、64.78；9 个分布外简单任务 65.59" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 16 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=16">看原图 ↗</a></span>多任务微调扩展。紫柱是 5 个简单共享任务：73.96 → 74.75（+0.79）→ 83.75（+9.00）；蓝柱是图例写的“5 个复杂和推理共享任务”：59.98 → 64.78（+4.80）；红柱是 19 任务配置下 9 个新增的分布外简单任务，65.59。注意：正文说 59.98 和 64.78 是 <b>10 个共享任务</b>的平均，图例写的是 5 个复杂任务，两者不一致；按表 9 重算，59.98 和 64.78 是 10 个任务的平均（<a href="#n5">读者注 5</a>）。</figcaption>
+</figure>
+<p><b>提升来自更广的能力覆盖。</b>作者推测提升更可能来自细粒度能力层面的补充，而不是整任务的直接迁移。新增 9 个任务整体形态差别大，但可能补上原训练数据在原子动作模式、语言表述和状态变化分布上的空白；例如接近、对准、抓取、调整、放置这些原语在新任务里被更充分地看到，不同的物体描述方式、指代形式和环境扰动也扩展了“动作-语言-状态”组合空间的覆盖。新任务的贡献更可能是补全可复用的中间能力，而不是学一组独立的新策略。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 图 7 的 65.59 用表 9 重算是 66.50；蓝柱图例写错</span><p>表 9 的 19 任务列里，10 任务配置之外新增的 9 个是：杯子三角 60、勺子进碗 98、眼镜架 65、套圈 89、颜色方块 97、倒水 27、电源线 36、物体进篮 100、笔袋 26.5，和 598.5，平均 <b>66.50</b>，不是图 7 和正文的 65.59（差 0.91；65.59 × 9 = 590.3，差 8.2 分）。其余数字都对：5 个共享任务（放杯子、包裹、方块、开关、插花）5 任务 (82 + 50.8 + 100 + 70 + 67) / 5 = 73.96，10 任务 (91 + 50.75 + 100 + 53 + 79) / 5 = 74.75，19 任务 (81 + 82.75 + 100 + 76 + 79) / 5 = 83.75；10 个共享任务 10 任务列 599.75 / 10 = 59.975，19 任务列 647.75 / 10 = 64.775。所以图 7 蓝柱是 10 个共享任务的平均，图例“5 complex &amp; reasoning shared tasks”应为 10 个；只看那 5 个“复杂”任务（摆台、充电器、水果、数字、碎纸），10 任务列平均 45.2、19 任务列 45.8。另外，那 5 个所谓“复杂和推理”任务全来自零样本套件（表 5），和 §4.2.1 的“推理”子集不是同一批。</p></div>
+
+<h3 id="s4-3"><span class="no">4.3</span>具身多模态理解</h3>
+<p>为了看联合训练对多模态理解的影响，选 5 个代表性基准（详细分数在 A.2），分两组：通用视觉问答（<a class="ds" href="https://huggingface.co/datasets/xai-org/RealworldQA">RealWorldQA</a>、<a class="ds" href="https://github.com/embodiedreasoning/ERQA">ERQA</a>）和与机器人执行直接相关的具身理解（<a class="ds" href="https://github.com/EO-Robotics/EO1">EO-Bench</a> 场景理解、Embodied Grounding 目标定位、<a class="ds" href="https://robo-point.github.io/">Where2Place</a> 放置推理），以 VLM 主干 Qwen2.5-VL-3B 为基线。Embodied Grounding 是内部构建的基准，样本从机器人动作轨迹里抽取、标注。</p>
+<p>图 8 是各基准上相对主干的变化。结果显示联合训练带来一种“专门化”：成绩从开放域 VQA 移向和机器人执行更相关的具身感知信号。</p>
+
+<figure class="pfig" id="fig8">
+<img src="wall-oss-05/fig8.webp" width="1500" height="665" alt="图 8：五个多模态基准上 Qwen2.5-VL-3B 与 Wall-OSS-0.5 的哑铃图，通用 VQA 下降，具身三项上升" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 17 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=17">看原图 ↗</a></span>联合训练带来的多模态能力变化，相对 Qwen2.5-VL-3B。上方蓝底是通用 VQA：RealWorldQA 59 → 44（−15.0），ERQA 38 → 33（−5.5）。下方紫底是具身：EO-Bench 21 → 25（+3.9），具身定位 9 → 31（+21.8），Where2Place 4 → 15（+11.0）。图上的数是表 7 四舍五入到整数。</figcaption>
+</figure>
+<p><b>具身理解明显提高。</b>最大的提升在面向机器人操作的目标定位（具身定位 +21.8）：在机器人第一视角里找到操作目标（例如“找到桌上的红杯子”）。这和开放域定位不同：主干在这个基准上基线很低（9.0），超出了它原本的预训练重点。放置推理 Where2Place（+11.0）和具身场景理解 EO-Bench（+3.9）也有明显提高。这些正对应机器人执行流程里的核心感知需求：“看哪里、指哪里、放哪里”。作者还提到：在预训练的试跑中，具身桥接数据不够时，强的动作 token 预测目标会让常见机器人观测分布上的多模态分数大幅下降。所以 §3.2 的 1200 万条桥接样本不只是额外的 VQA 数据，而是机器人视角的定位和空间决策监督，用来平衡动作 CE 带来的专门化压力。</p>
+<p><b>通用 VQA 在专门化下退步。</b>RealWorldQA −15.0、ERQA −5.5，和 VLA 联合训练带来的专门化压力一致。作者认为，对以动作执行为主要目标的 VLA，这个取舍合理：放弃部分开放域 VQA 能力，换来具身空间决策信号的提升，而不是和专门的 VLM 拼通用图像理解。</p>
+<p><b>可视化。</b>图 9 对比两者在具身场景里的定位和空间推理：Wall-OSS-0.5 更准地定位操作目标、选择和可操作区域一致的放置位置；主干更容易漂向视觉上显眼但和任务关系不大的区域。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 摘要的“不侵蚀视觉-语言能力”要打折扣看</span><p>摘要说“action training does not erode grounded vision-language competence”“preserves broad vision-language ability”。但两个通用 VQA 基准都是下降：RealWorldQA 59.2 → 44.2，相对降了 25.3%（15.0 / 59.2）；ERQA 38.3 → 32.8，相对降 14.4%。正文 §4.3 自己也写的是“General VQA regression”。“不侵蚀”只对具身那三项成立。另外这里只有 5 个基准，其中具身定位是内部基准、数据来自自己的轨迹，和训练用的具身桥接数据同源。</p></div>
+
+<h2 id="s5"><span class="no">5</span>消融研究</h2>
+<h3 id="s5-1"><span class="no">5.1</span>联合训练策略</h3>
+<p>比较四种训练策略，都从头训（只有 VLM 主干用预训练初始化）：联合训练、梯度截断、先截断再联合、只用流匹配。都跑 70k 步，在 5 个真机消融任务上，配置相同。这 5 个任务是为了从头训可行而选的子集，绝对数和 §4.1 的 17 任务评测不可比，只支持四种策略之间的相对比较。四种策略的区别在于流匹配梯度能不能到达 VLM 主干、有没有动作 token CE：</p>
+<ul>
+<li><b>联合训练（完整梯度桥）</b>：动作 token CE、流匹配、多模态 CE 一起优化，所有梯度回传到 VLM 主干。</li>
+<li><b>梯度截断</b>（流梯度挡在主干之外）：动作专家仍由流匹配损失优化，主干只由动作 token CE 和多模态 CE 更新。对应 Driess 等的“知识隔离”（<a href="https://arxiv.org/abs/2505.23705">2505.23705</a>）。</li>
+<li><b>先截断再联合</b>（两阶段热身）：先按梯度截断训，再去掉截断切到联合训练。</li>
+<li><b>只用流匹配</b>（去掉动作 token CE）：只优化流匹配和多模态 CE；主干仍可训，但收不到动作 token 的信号。</li>
+</ul>
+<figure class="pfig" id="fig10">
+<img src="wall-oss-05/fig10.webp" width="1500" height="651" alt="图 10：(a) 从头训练的四种策略柱状图：只用流匹配 36.68、梯度截断 31.93、先截断再联合 49.58、联合训练 57.00；(b) 微调阶段：1 任务只用流 63.00、1 任务联合 82.00、5 任务只用流 62.16、5 任务联合 73.96" loading="lazy">
+<figcaption><span class="lab">图 10 · 原文第 19 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=19">看原图 ↗</a></span>训练策略比较。(a) 从头训练 70k 步、5 个真机消融任务：只用流匹配 36.68，梯度截断 31.93，先截断再联合 49.58，联合训练 57.00。(b) 微调阶段（从预训练检查点出发）：单任务只用流 63.00、联合 82.00；5 任务只用流 62.16、联合 73.96。注意 (a) 的纵轴从 20 开始，(b) 从 50 开始，柱高差会显得比实际大。</figcaption>
+</figure>
+<p>图 10a：联合训练平均任务进度 57.0%，高于只用流（36.6%）、梯度截断（31.9%）和先截断再联合（49.6%）。这支持 §1 的说法：去掉三种信号中的任何一种（只有流、没有桥、或两阶段替代）都会让真机表现掉 7.4–25.1 个百分点。四种策略的 VQA 分数挤得很近，梯度截断略高一点。</p>
+<p>VQA 略高的梯度截断，在动作任务上分数最低，而且每个任务都是如此。训练中梯度截断的流损失收敛更慢、最终更高，说明动作专家欠拟合。联合训练的流损失比只用流和梯度截断收敛都快，最终值低于梯度截断、和只用流相当。据此预训练阶段采用联合训练。</p>
+<p>这一结论也延伸到微调：离散动作 token 同样给 VLM 主干更高效的适配信号，加快新任务的学习（图 10b）。所以微调阶段也用“离散动作 token + 多模态数据”的联合训练。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 图 10b 的数和图 7、表 9 是同几次运行</span><p>图 10b 单任务联合 82.00 = 表 9 放杯子 Cup Grasping 的“1-task”列 82；5 任务联合 73.96 = 图 7 的 5 任务配置 73.96（表 9 的 5 任务列重算也是 73.96）。所以单任务实验做的就是放杯子。图 10b 的“只用流”两次运行没有逐任务数字。VQA 分数四种策略“挤得很近”，但论文没有给具体数。</p></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 公开的微调示例实际上是“只用流匹配”</span><p>论文说微调保留“离散 + 连续”联合目标，而且图 10b 显示只用流会差很多（单任务 63 对 82）。但 wall-x 的公开示例 <span class="cv">workspace/example/libero.yml</span>、<span class="cv">maniparena_example.yml</span>、<span class="cv">arrange_3_flowers_wrc_red.yml</span> 都没有设 <span class="cv">action_tokenizer_type</span>。<span class="cv">trainer/trainer_utils.py:53-60</span> 在这个键为空时不建分词器；<span class="cv">data/backends/lerobot/utils.py:450-452</span> 随后把 <span class="cv">&lt;|action_fast|&gt;</span> 占位删掉，样本里没有离散动作 token 可学；数据里也没有多模态样本。所以 <span class="cv">ar_loss_weight: 0.01</span> 虽然写了，实际起作用的只有流匹配（我的推断，依据上述行号，未运行）。另外示例用 AdamW 而不是 DMuon。即便想打开离散通路，公开代码也只有 FAST 和 SpatialVLA 两种分词器（读者注 12）。用公开代码微调得到的可能更接近图 10b 的“只用流”那一列。</p></div>
+
+<h3 id="s5-2"><span class="no">5.2</span>动作空间损失的效果</h3>
+<p>在 LIBERO 仿真里对比动作空间损失（§2.2.2）和传统的速度场流匹配损失。两种条件用和预训练相同的模型结构，权重从 Qwen2.5-VL 初始化，动作专家从头训；全局批大小 128，其余超参数完全相同。</p>
+<figure class="pfig" id="fig11">
+<img src="wall-oss-05/fig11.webp" width="915" height="637" alt="图 11：LIBERO 上动作损失（紫）和速度损失（蓝）的平均成功率随训练步数的折线，10k 到 35k" loading="lazy">
+<figcaption><span class="lab">图 11 · 原文第 20 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=20">看原图 ↗</a></span>LIBERO 上动作空间损失对速度空间损失。横轴 10k 到 35k 训练步，纵轴平均成功率 60 到 100。紫线（动作损失）标了 67.8（10k）、95.7（20k）、95.9（35k）；蓝线（速度损失）标了 73.2（10k）、81.7（20k）、90.3（35k）。这页原图只有约 915 px 宽，没有放大。</figcaption>
+</figure>
+<p><b>表现。</b>动作空间损失在 25k 步达到平均成功率峰值 96.5%，比速度空间损失的峰值高 6.2。收敛速度上，动作空间损失 20k 步就到 95.8%，速度空间损失跑满 35k 步也没超过 90.3%。</p>
+<p><b>训练稳定性。</b>速度空间损失在 20k 时有明显波动，动作空间损失 20k 之后一直在 92.5%–96.5% 之间。唯一的例外是早期（10k），速度损失略好。这和设计动机一致：动作空间损失相当于对速度损失做 \((1-\tau)^2\) 重加权，早期低噪声段的梯度信号相对稀疏；一旦通过高噪声监督学到了低频轨迹结构，表现就快速上升。作者认为这些结果支持在动作空间里定义损失，也符合机器人动作信号的频谱特点：有用信息集中在低频，高噪声段是主要的质量瓶颈。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 正文的数字和图 11 小有出入</span><p>图 11 是位图，我按网格线（100 在第 23 行像素、60 在第 506 行）标定读了没标数的点：动作损失 15k ≈ 89.5、25k ≈ 96.3、30k ≈ 96.1；速度损失 15k、25k、30k 都 ≈ 88.0（读图，误差约 ±0.2）。和正文对比：(1) 正文说 20k 是 95.8，图上标的是 95.7；(2) 峰值“96.5% 在 25k”，图上 25k 约 96.3；(3) “20k 后一直在 92.5%–96.5%”，图上 20k 后四个点在 95.7–96.3，没有低到 92.5 的点。“比速度峰值高 6.2” = 96.5 − 90.3 对得上，“+6.2%”也是百分点。图 12 的“+18.9”按两柱标的 48.1 − 29.3 = 18.8，差 0.1，可能是未四舍五入的值相减。另外，LIBERO 的“平均成功率”是四个套件的平均还是别的口径、每个任务跑几次，论文没写。</p></div>
+
+<h3 id="s5-3"><span class="no">5.3</span>视觉对齐 RVQ 动作分词器的效果</h3>
+<p>为验证视觉对齐 RVQ 分词器相对 FAST 的作用，在相同联合训练设置下只换分词器，从 VLM 主干权重开训。评测 4 个真机任务和 1 个 VQA 任务；真机评测用联合训练下流匹配通路生成的连续动作。</p>
+<figure class="pfig" id="fig12">
+<img src="wall-oss-05/fig12.webp" width="1500" height="697" alt="图 12：左为 VQA 准确率 FAST 75.7%、RVQ 77.5%；右为 4 个任务平均进度 FAST 29.3、RVQ 48.1" loading="lazy">
+<figcaption><span class="lab">图 12 · 原文第 20 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=20">看原图 ↗</a></span>视觉对齐 RVQ 动作分词器对 FAST，联合训练设置相同。左：VQA 准确率 75.7% → 77.5%（+1.8）。右：4 个真机任务的平均任务进度 29.3 → 48.1（标的是 +18.9）。图注说 RVQ 在每个任务上都领先，但没有给逐任务的数。两个子图的纵轴都不从 0 开始。</figcaption>
+</figure>
+<p><b>多模态理解。</b>RVQ 分词器不但没损害 VQA，还把准确率从 75.7% 提高到 77.5%。作者认为训练分词器用的辅助多模态目标（视觉-动作对齐、下一帧预测）塑造的 token 表示，也帮助了 VLM 整体的视觉语义理解。</p>
+<p><b>任务表现。</b>平均任务进度从 29.3% 提高到 48.1%。真机评测用的是流匹配生成的连续动作，不是直接解码离散 token，所以分词器的收益不只在离散通路：联合训练中更好的离散表示也提高了连续动作的生成质量。</p>
+
+<h2 id="s6"><span class="no">6</span>相关工作</h2>
+<p><b>动作表示。</b>把预训练 VLM 改成 VLA，主流做法是直接建模连续动作分布，用扩散（Diffusion Policy）或流匹配。本文关注离散和潜在动作表示。RT-2 和 OpenVLA 把动作离散成类文本 token，证明 VLM 的语义知识能迁移到控制，也暴露了逐维朴素离散化的精度上限。<a href="https://arxiv.org/abs/2501.09747">FAST</a> 用 DCT 提高 token 效率，但仍是规则式压缩，语义容量有限；VQ-BeT、FasTer、OAT 等基于重建的方法同样把分词限于几何信号压缩。这些方法只从动作出发，忽略环境状态和任务意图，追求数值重建误差而不是抽象的行为含义。近来的工作偏向语义化、上下文感知的表示，有两条路：生成式语义分词（ActionCodec、LipVQ-VAE、LAPA、UniAct 把轨迹投到离散潜在动作 token）；用对比学习保留信息（DecisionNCE、CLAP 用跨模态对比目标把动作映到和视频或语言对齐的结构化空间）；UniT 给人到人形的策略引入统一的物理语言。最接近的是 π0.5：它把基于 FAST 的自回归通路和流匹配通路一起训。本文有三点不同：学出来的视觉对齐 RVQ 分词器；把离散通路分析为梯度桥；流匹配的动作空间监督。另一条线（GR-2、DreamZero、LingBot-VA）先通过视频生成学世界动力学，再迁移到动作预测。</p>
+<p><b>能执行动作的 VLM 结构。</b>核心难点是加入动作生成又不覆盖 VLM 里的语义知识。六类：(1) 在多任务机器人数据上从头训单个 Transformer，绕开 VLM 迁移（RT-1、Gato、Octo、双臂扩散模型 RDT-1B）；(2) 复用预训练 VLM，把动作当作额外离散 token 由同一个 Transformer 消化（RT-2、OpenVLA、RoboFlamingo、TinyVLA、X-VLA、SpatialVLA、3D-VLA），保留语言接口但精度绑在分词方案上；(3) 保留 VLM 主干、接连续动作头，例如 π0 系列加一个对基本冻结的主干做交叉注意力的流匹配动作专家，把推理能力和低层控制精度解耦；(4) 分层或双系统，把推理和执行分开（Gemini Robotics、<a href="gr00t.html">GR00T-N1</a>、Galaxea G0 配一个大 VLM 规划器和较轻的控制器；Hi Robot、Embodied-CoT、CoT-VLA、OneTwoVLA、ChatVLA 在出动作前加显式推理步）；(5) 用视频生成世界模型替代 VLM 主干，把动作当作预测的下一帧观测的结果（GR-1、GR-2、<a href="cosmos-policy.html">Cosmos Policy</a>、mimic-video）；(6) 给策略加显式记忆或时间上下文模块（MemoryVLA、ContextVLA、CronusVLA、TraceVLA、MEMER、SAM2Act）。最接近的是 CogACT（认知和动作分成独立模块）和 HPT（具身专属的输入干加共享主干）。本文用每层都有 VL 专家和动作专家的 MoT 延续这种协同设计：两个专家通过共享注意力交互、参数分开，把专家划分的作用从通用的知识分片转向模态和功能路由。</p>
+<p><b>机器人数据和具身定位。</b>Open X-Embodiment、DROID、RoboMIND v1 / v2、RoboCOIN、AgiBot World 持续扩大机器人数据的规模和多样性。本文的预训练混合在规模上可比（每 epoch 超过一百万条轨迹、20 多种具身），但围绕部署而不只是规模组织：用任务级幂次采样缓解长尾，再加大量从动作语料合成的具身桥接样本，把视觉理解连到可执行的动作语义，而不只依赖通用 VQA 数据。</p>
+
+<h2 id="s7"><span class="no">7</span>讨论和局限</h2>
+<p>本文提出一个可操作的论断：足够大规模的 VLA 预训练已经能产生可测量的真实机器人行为，同时检查点也是明显更强的下游适配先验。</p>
+<p><b>设计上的含义。</b>梯度桥机制说明：即便部署最终靠连续动作，离散动作 token 仍有价值。它的主要作用在预训练：动作 token CE 提供强的、VLM 原生的监督通道，直接把主干塑造成可控的表示。只用连续动作训练时，主干主要只受到相对弱的流匹配残差信号；梯度截断则把表示学习和连续控制优化解耦，两个目标不能完全互相加强。这个视角也把两个看似独立的设计统一起来：MoT 路由给连续动作计算分配专门的参数容量，又不切断流向 VLM 主干的梯度；具身桥接数据让多模态锚更“懂动作”，在更接近实际执行的环境里保住有依据的理解。两者目标相同：把预训练多模态模型变成可执行的机器人策略，又不把它压成一个狭窄的任务专用控制器。</p>
+<p><b>局限。</b>(1) 梯度桥的动态只在 3B VLM 主干上验证过，更大的主干可能明显改变三种训练信号之间的相对几何和相互作用强度。(2) 当前模型只用单帧图像输入，对需要时间记忆和持续状态跟踪的长程任务，零样本表现可能受限。(3) RVQ 分词器和训练管线绑定在固定的 26 维动作表示上，难以直接用到灵巧手和其他高自由度具身。(4) 任务评测依赖人工设计的评分规则（A.5），真机基准还没有覆盖多机器人协作、长时间部署和更开放的交互。</p>
+<p><b>未来工作。</b>扩到更大的 VLM 主干；为长程任务加入时间观测和分层规划；探索能支持多种形态的更通用动作表示。作为开源项目，会继续发布权重、训练代码和评测工具。</p>
+<p>后续发生的事（来自 HF 模型卡，不是本报告的内容）：2026 年 10–11 月发布的 WALL-OSS 1.0-lite 预览换成了 Qwen3.5 主干，并加了关键帧记忆，正好对应局限 (1)(2)，见下一节。</p>
+
+<h2 id="s8"><span class="no">8</span>贡献者</h2>
+<p>Wall-OSS-0.5 是 X Square Robot 团队的合作成果，27 人：Ryan Yu*、Pushi Zhang*、Starrick Liu*、Brae Liu*、Miracle Kang*、Shalfun Li*、Lights Shi、Ellie Ma、Ping Yang、Chris Pan、Jerry Chen、Dongxiu Liu、Rain Sun、Miles Guo、Byron Zhang、Hugo Zhou、Zach Xu、Vincent Chen、Harrison Huang、James Wang、Dance Kuzi、Andy Zhai、Hang Su、Roy Gan、Lucy Liang†、Hao Wang‡、Qian Wang（* 核心贡献者，† 项目负责人，‡ 通讯作者）。参考文献 100 条（第 24–28 页）。</p>
+
+<h2 id="appA">附录 A</h2>
+<h3 id="appA1">A.1 预训练模型零样本逐任务结果</h3>
+<p>见过任务在表 5，没见过任务在表 6。每个任务 10 条轨迹，按预设评分规则打分（满分 100）。类别缩写：Sem. 语义理解、Rigid 刚体、Def. 柔性、Fine 精细、Long 长程多步。原文加粗的是每个任务在各检查点中的最高值，这里用粗体标出。</p>
+<div class="tablewrap"><table class="t-zs"><caption class="tcap">表 5（原文第 29 页）：见过任务的零样本逐任务进度</caption>
+<thead><tr><th>任务</th><th>类别</th><th>50k</th><th>100k</th><th>200k</th><th>300k</th><th>350k</th><th>400k</th></tr></thead><tbody>
+<tr><td>方块分拣 Block Sorting</td><td>Sem.</td><td>46</td><td>85</td><td>87.5</td><td>51.5</td><td>96</td><td class="b">100</td></tr>
+<tr><td>水果分拣 Fruit Sorting</td><td>Sem.</td><td>41</td><td>19</td><td>81</td><td>61</td><td>61</td><td class="b">96</td></tr>
+<tr><td>数字排序 Number Ordering</td><td>Sem.</td><td>45</td><td class="b">65</td><td>32</td><td>60</td><td>56</td><td>54</td></tr>
+<tr><td>按开关 Switch Pressing</td><td>Sem.</td><td>7</td><td>18</td><td>46</td><td>30</td><td>38</td><td class="b">55</td></tr>
+<tr><td>套圈 Ring Stacking</td><td>Rigid</td><td>18</td><td>18</td><td>51</td><td>73</td><td class="b">100</td><td>86</td></tr>
+<tr><td>放杯子 Cup Grasping</td><td>Rigid</td><td>48</td><td class="b">70</td><td>63</td><td>58</td><td>56</td><td>64</td></tr>
+<tr><td>叠毛巾 Towel Folding</td><td>Def.</td><td>9</td><td>8</td><td class="b">11.5</td><td>10</td><td>10</td><td>10</td></tr>
+<tr><td>摆餐桌 Table Setting</td><td>Def.</td><td>6</td><td class="b">15</td><td>8</td><td>10</td><td>10</td><td>9</td></tr>
+<tr><td>碎纸 Paper Shredding</td><td>Def.</td><td class="b">28</td><td>10</td><td>23</td><td>12</td><td>18</td><td>18</td></tr>
+<tr><td>插充电器 Charger Plugging</td><td>Fine</td><td>5</td><td>2</td><td>2</td><td>6</td><td>6</td><td class="b">9</td></tr>
+<tr><td>插花 Flower Arranging</td><td>Long</td><td>30</td><td>34.5</td><td>37.5</td><td>54.5</td><td class="b">57</td><td>51</td></tr>
+<tr><td>包裹分拣 Package Sorting</td><td>Long</td><td>29.75</td><td>36.25</td><td>39.25</td><td>58.5</td><td class="b">68.75</td><td>48.5</td></tr>
+<tr><td>见过平均</td><td></td><td>26.1</td><td>31.7</td><td>40.1</td><td>40.4</td><td>48.1</td><td>50.0</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-zs"><caption class="tcap">表 6（原文第 29 页）：没见过任务的零样本逐任务进度</caption>
+<thead><tr><th>任务</th><th>类别</th><th>50k</th><th>100k</th><th>200k</th><th>300k</th><th>350k</th><th>400k</th></tr></thead><tbody>
+<tr><td>玩具放进篮子 Toy Basket Plcmt.</td><td>Sem.</td><td>45</td><td>71</td><td>66</td><td>60</td><td class="b">72</td><td>58</td></tr>
+<tr><td>拉紧绳子 Rope Tightening</td><td>Def.</td><td>26</td><td>30</td><td>54</td><td>60</td><td>62</td><td class="b">82</td></tr>
+<tr><td>倒豆子 Bean Pouring</td><td>Def.</td><td>12</td><td>50</td><td>19</td><td>13</td><td>50</td><td class="b">60</td></tr>
+<tr><td>擦桌子 Table Wiping</td><td>Rigid</td><td class="b">38</td><td>36</td><td>32</td><td>26</td><td>28</td><td class="b">38</td></tr>
+<tr><td>盖锅盖 Pot Lid Covering</td><td>Rigid</td><td>0</td><td>18</td><td>23</td><td>15</td><td>26</td><td class="b">30</td></tr>
+<tr><td>没见过平均</td><td></td><td>24.2</td><td>41.0</td><td>38.8</td><td>34.8</td><td>47.6</td><td>53.6</td></tr>
+</tbody></table></div>
+<div class="note" id="n4"><span class="lab">读者注 4 · 图 1 和表 5、6 有三处对不上</span><p>(1) 图 1 右上卡片写“4/17 个任务不微调就 ≥ 80%，其中 3 个没见过”。按表 5、6 的 400k 列，≥ 80 的是方块 100、水果 96、套圈 86（都是见过）和拉紧绳子 82（没见过），没见过的只有 <b>1</b> 个；就算取每个任务所有检查点的最高值，没见过任务里也只有拉紧绳子过 80（其余最高 72、60、38、30）。正文 §4.1.1 的说法是“6 个 ≥ 60，其中 4 个 ≥ 80、2 个没见过”，是对的；图 1 的“3 unseen tasks”应是笔误或指别的口径，未核实。</p>
+<p>(2) 图 1 左边的曲线只有 5 个点：25.5、34.5、39.8、47.9、51.1，横轴刻度是 50k、100k、300k、350k、400k。表 2 有 6 个检查点，200k 是 39.8、300k 是 38.7。图 1 把 39.8 画在了 300k 的位置，并省掉了 300k 的回落，曲线看起来单调上升；图 6 画的是完整的 6 个点。</p>
+<p>(3) 图 1 中间的雷达图有五个类别（容器放置 65.0、空间排布 54.5、受约束和顺序操作 24.3、语义分拣 58.1、连续接触装载 48.7），还画了 Fast-WAM 和 X-VLA 的微调结果。这五个类别和数字、以及 Fast-WAM 和 X-VLA 的对比，正文和附录都没有出现（X-VLA 只在相关工作里提到，Fast-WAM 全文没有）。无法核对。</p></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 评分规则：31 个任务；有两三个满分凑不到 10</span><p>“31 个任务” = 17 个零样本 + 15 个微调 − 1（套圈两边都有）= 31，和表 10 的 31 行一致。表 10 每个任务满分应是 10 分；逐行加：多数正好 10，例如充电器 2 + 3 + 4 + 1、放杯子 3 + 2 + 2 + 2 + 1、物体进篮 4 × (1 + 1.25) + 1。但：摆餐桌“叠餐巾 2 + 每步 1 分（7 步）”= 9；收拾笔袋“打开 3.5 + 每件 1 分（3 件）+ 拉上 1.5 + 收手 1”= 9；拉紧绳子“每只手接近 2 + 抓绳 4 + 拉紧 2”，按每只手各 2 分算是 10，按共 2 分算是 8；杯子三角“每个杯子拿起 1 + 摆放 1–3，顶上 3，收手 1”无法唯一求和。我的推断：这些是表述不全，不影响“任务进度 = 得分 / 满分 × 100”的定义，但具体满分没法从表里确定。包裹分拣“每个包裹拿起、放下、条码朝上，6 个包裹”没写分值，表 5 里出现 29.75、68.75 这样的 0.25 粒度。</p></div>
+
+<h3 id="appA2">A.2 多模态理解评测详细结果</h3>
+<div class="tablewrap"><table class="t-mm"><caption class="tcap">表 7（原文第 30 页）：多模态理解基准详细分数。Embodied Grounding 是内部构建的基准，样本直接从机器人动作数据集轨迹抽取并标注</caption>
+<thead><tr><th>维度</th><th>基准</th><th>任务描述</th><th>Qwen2.5-VL-3B</th><th>Wall-OSS-0.5</th><th>变化</th></tr></thead><tbody>
+<tr><td>通用 VQA</td><td>RealWorld VQA</td><td>真实场景图像的开放式 VQA</td><td>59.2%</td><td>44.2%</td><td>−15.0</td></tr>
+<tr><td>通用 VQA</td><td>ERQA</td><td>具身场景里的实体识别和关系问答</td><td>38.3%</td><td>32.8%</td><td>−5.5</td></tr>
+<tr><td>具身场景</td><td>EO-Bench</td><td>具身操作场景的综合视觉理解</td><td>20.8%</td><td>24.7%</td><td>+3.9</td></tr>
+<tr><td>具身定位</td><td>Emb. Grounding*</td><td>在机器人第一视角图像里用点坐标定位目标物体</td><td>9.0%</td><td>30.8%</td><td>+21.8</td></tr>
+<tr><td>放置推理</td><td>Where2Place</td><td>预测合理的放置位置坐标</td><td>4.0%</td><td>15.0%</td><td>+11.0</td></tr>
+</tbody></table></div>
+<p>五个“变化”逐项相减都对：59.2 − 44.2 = 15.0，38.3 − 32.8 = 5.5，24.7 − 20.8 = 3.9，30.8 − 9.0 = 21.8，15.0 − 4.0 = 11.0。</p>
+
+<figure class="pfig" id="fig9">
+<img src="wall-oss-05/fig9.webp" width="1490" height="1294" alt="图 9：九个具身场景中 Wall-OSS-0.5（绿点）与 Qwen2.5-VL-3B（红点）的指点对比，分物体定位、物体可供性、空间理解三行" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 18 页 · X Square Robot Team，CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2605.30877v2#page=18">看原图 ↗</a></span>具身场景里的多模态理解可视化，绿点是 Wall-OSS-0.5，红点是 Qwen2.5-VL-3B。第一行物体定位：剪刀、“左数第二把叉子”、黄色圆柱。第二行可供性：拿起水壶、抓杯子、拿起蓝杯子，绿点多落在把手或杯身可抓的位置。第三行空间理解：苹果前方的区域、绿盘和红块之间的区域、所有盘子左边的区域。这是挑选的例子，不是统计结果。</figcaption>
+</figure>
+
+<h3 id="appA3">A.3 微调评测逐任务结果</h3>
+<div class="tablewrap"><table class="t-ft"><caption class="tcap">表 8（原文第 30 页）：微调评测逐任务结果。任务进度（满分 100），粗体为每行最高。三个模型都从各自官方预训练权重出发，用相同数据（每任务约 500 条轨迹）和协议微调、评测</caption>
+<thead><tr><th>任务</th><th>类别</th><th>Wall-OSS-0.5</th><th>π0.5</th><th>DreamZero</th></tr></thead><tbody>
+<tr><td>颜色方块分拣 Color Block Sort.</td><td>操作</td><td class="b">96</td><td>42</td><td>27</td></tr>
+<tr><td>套圈 Ring Stacking</td><td>操作</td><td class="b">91</td><td>60</td><td>27</td></tr>
+<tr><td>勺子进碗 Spoon-in-Bowl</td><td>操作</td><td class="b">80</td><td>43</td><td>54</td></tr>
+<tr><td>物体进篮 Obj.-to-Basket</td><td>操作</td><td>74.8</td><td>37</td><td class="b">97.8</td></tr>
+<tr><td>眼镜放上架 Glasses Rack</td><td>操作</td><td>66</td><td class="b">87</td><td>37</td></tr>
+<tr><td>杯子三角堆叠 Cup Triangle</td><td>操作</td><td class="b">58</td><td>18</td><td>25</td></tr>
+<tr><td>整理抽屉 Drawer Org.</td><td>操作</td><td class="b">52</td><td>7</td><td>7</td></tr>
+<tr><td>插电源线 Power Cord</td><td>操作</td><td class="b">50</td><td>21</td><td>24</td></tr>
+<tr><td>倒水 Water Pouring</td><td>操作</td><td class="b">25</td><td>19</td><td>12</td></tr>
+<tr><td>收拾笔袋 Pencil Case</td><td>操作</td><td>18.5</td><td>16</td><td class="b">26</td></tr>
+<tr><td>水果放进篮子 Fruit Basket</td><td>推理</td><td>86</td><td class="b">94</td><td>45</td></tr>
+<tr><td>耳机分拣 Earphone Sort.</td><td>推理</td><td class="b">82</td><td>73</td><td>66</td></tr>
+<tr><td>物体配对 Object Matching</td><td>推理</td><td>44.5</td><td class="b">51.5</td><td>13.5</td></tr>
+<tr><td>形状分拣 Shape Sorting</td><td>推理</td><td class="b">68</td><td>63</td><td>36</td></tr>
+<tr><td>按顺序按按钮 Seq. Button</td><td>推理</td><td class="b">16</td><td>13</td><td>3</td></tr>
+</tbody></table></div>
+<p>原文表 8 的“粗体为行最大”没法从 pdftotext 看出，上面的粗体是我按数字标的。</p>
+
+<h3 id="appA4">A.4 多任务微调逐任务结果</h3>
+<div class="tablewrap"><table class="t-mt"><caption class="tcap">表 9（原文第 31 页）：多任务微调逐任务结果。任务进度（满分 100），“–”表示该配置不含这个任务</caption>
+<thead><tr><th>任务</th><th>类别</th><th>19 任务</th><th>10 任务</th><th>5 任务</th><th>1 任务</th></tr></thead><tbody>
+<tr><td>放杯子 Cup Grasping</td><td>Rigid</td><td>81</td><td>91</td><td>82</td><td>82</td></tr>
+<tr><td>包裹分拣 Package Sorting</td><td>Long</td><td>82.75</td><td>50.75</td><td>50.8</td><td>–</td></tr>
+<tr><td>方块分拣 Block Sorting</td><td>Sem.</td><td>100</td><td>100</td><td>100</td><td>–</td></tr>
+<tr><td>按开关 Switch Pressing</td><td>Sem.</td><td>76</td><td>53</td><td>70</td><td>–</td></tr>
+<tr><td>插花 Flower Arranging</td><td>Long</td><td>79</td><td>79</td><td>67</td><td>–</td></tr>
+<tr><td>摆餐桌 Table Setting</td><td>Def.</td><td>18</td><td>18</td><td>–</td><td>–</td></tr>
+<tr><td>插充电器 Charger Plugging</td><td>Fine</td><td>35</td><td>24</td><td>–</td><td>–</td></tr>
+<tr><td>水果分拣 Fruit Sorting</td><td>Sem.</td><td>90</td><td>91</td><td>–</td><td>–</td></tr>
+<tr><td>数字排序 Number Ordering</td><td>Sem.</td><td>59</td><td>66</td><td>–</td><td>–</td></tr>
+<tr><td>碎纸 Paper Shredding</td><td>Def.</td><td>27</td><td>27</td><td>–</td><td>–</td></tr>
+<tr><td>杯子三角堆叠 Cup Triangle Stack.</td><td>Long</td><td>60</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>勺子进碗 Spoon-in-Bowl</td><td>Rigid</td><td>98</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>眼镜放上架 Glasses Rack</td><td>Rigid</td><td>65</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>套圈 Ring Stacking</td><td>Rigid</td><td>89</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>颜色方块分拣 Color Block Sort.</td><td>Sem.</td><td>97</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>倒水 Water Pouring</td><td>Fine</td><td>27</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>插电源线 Power Cord</td><td>Fine</td><td>36</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>物体进篮 Obj.-to-Basket</td><td>Sem.</td><td>100</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>收拾笔袋 Pencil Case</td><td>Fine</td><td>26.5</td><td>–</td><td>–</td><td>–</td></tr>
+</tbody></table></div>
+<div class="note" id="n20"><span class="lab">读者注 20 · 同一批 9 个任务，表 8 和表 9 差得不少</span><p>19 任务配置里新增的 9 个任务，正是表 8 的 10 个操作任务去掉整理抽屉。两张表的 Wall-OSS-0.5 分数：勺子 80 对 98、物体进篮 74.8 对 100、电源线 50 对 36、笔袋 18.5 对 26.5、颜色方块 96 对 97、套圈 91 对 89、眼镜 66 对 65、杯子三角 58 对 60、倒水 25 对 27。表 8 是 15 个任务一起微调一个模型，还是每任务单独微调，§4.2.1 没写；表 9 是 6 个 epoch 的多任务微调。两者的类别标注也不同（表 8 全写“操作”，表 9 分 Rigid / Sem. / Fine / Long，例如物体进篮在表 9 里归为 Sem.）。差别的来源论文没解释，未核实。另外 A.4 的标题说“包括叠毛巾”，但表 9 里没有叠毛巾这一行。</p></div>
+
+<h3 id="appA5">A.5 评测任务描述和评分规则</h3>
+<p>本报告的真机评测共 31 个任务，统一按步骤计分：每个任务满分 10 分，按关键操作阶段累加。任务进度 = 实际得分 / 满分 × 100。每个任务评 10 条轨迹；成功率定义为完整完成全部步骤的轨迹占比（正文只报告任务进度，没有报告成功率）。</p>
+<div class="tablewrap"><table class="t-rub"><caption class="tcap">表 10（原文第 32–33 页）：真机评测任务描述和评分规则</caption>
+<thead><tr><th>任务</th><th>描述</th><th>评分规则</th></tr></thead><tbody>
+<tr><td>方块分拣</td><td>把 5 个彩色方块按颜色放进对应托盘</td><td>每放对一个 2 分，共 5 个</td></tr>
+<tr><td>水果分拣</td><td>按指令抓指定水果放进指定托盘</td><td>抓取 4，放对托盘 5，收手 1</td></tr>
+<tr><td>数字排序</td><td>按规律把数字卡片排成正确顺序</td><td>每张对 1 分（共 7 张），全对再加 3</td></tr>
+<tr><td>按开关</td><td>手臂移到电灯开关并按下</td><td>到位 3，按下 4，收手 3</td></tr>
+<tr><td>套圈</td><td>把圈套到竖杆上</td><td>抓圈 3，移到杆 3，套上 3，收手 1</td></tr>
+<tr><td>放杯子</td><td>把杯子放到盘子上，要先把盘子推到中间</td><td>推盘 3，扶正杯子 2，拿起 2，放下 2，收手 1</td></tr>
+<tr><td>叠毛巾</td><td>依次拿起、铺开、折叠、放好 2 条毛巾</td><td>每条：拿起 1，铺开 1.5，折叠 1.5，放好 1</td></tr>
+<tr><td>摆餐桌</td><td>摆西餐桌：叠餐巾、放盘子、餐具等</td><td>叠餐巾 2，每步 1 分（7 步）</td></tr>
+<tr><td>碎纸</td><td>从架上取纸送进碎纸机</td><td>每张：抓 1 + 送入 2；3 张，收手 1</td></tr>
+<tr><td>插充电器</td><td>拿起充电插头插进插座，需亚厘米级对准</td><td>拿起 2，握持 3，插入 4，收手 1</td></tr>
+<tr><td>插花</td><td>拿起 3 枝花插进花瓶</td><td>每枝：抓 1.5 + 放 1.5；3 枝，收手 1</td></tr>
+<tr><td>包裹分拣</td><td>取出包裹，条码朝上，放到区域内</td><td>每个：拿起、放下、条码朝上；6 个包裹</td></tr>
+<tr><td>玩具放进篮子</td><td>拿起 4 个玩具放进篮子，不能弄翻</td><td>每个玩具 2 分（4 个），篮子稳 1，收手 1</td></tr>
+<tr><td>拉紧绳子</td><td>双臂：抓住松弛的绳子拉紧</td><td>每只手接近 2，抓绳 4，拉紧 2</td></tr>
+<tr><td>倒豆子</td><td>把豆子从袋子倒进盆里；双臂</td><td>移盆 2，袋子到盆上方 2，抓袋底 3，倒出 3</td></tr>
+<tr><td>擦桌子</td><td>拿起布擦掉油渍</td><td>接近 2，拿起 2，全部擦掉 5，放回 1</td></tr>
+<tr><td>盖锅盖</td><td>拿起锅盖盖到锅上</td><td>接近 2，拿起锅盖 3，盖上 4，放回 1</td></tr>
+<tr><td>杯子三角堆叠</td><td>倒扣 3 个杯子摆成三角：下 2 上 1</td><td>每个：拿起 1 + 摆放 1–3；顶上 3，收手 1</td></tr>
+<tr><td>勺子进碗</td><td>把碗移到中间，勺子放进碗里</td><td>碗 2，移动 2，勺子 2，放进碗 3，收手 1</td></tr>
+<tr><td>眼镜放上架</td><td>拿起眼镜，调整，放上架子</td><td>拿起 2，居中 2，调整 2，上架 3，收手 1</td></tr>
+<tr><td>整理抽屉</td><td>按类别把物品放进对应层的抽屉</td><td>每层：打开 1 + 放入 1 + 关上 1；3 层，收手 1</td></tr>
+<tr><td>颜色方块分拣</td><td>把 RGB 方块放到同色色块上</td><td>每个对 3 分，3 个，收手 1</td></tr>
+<tr><td>倒水</td><td>从水壶往杯子里倒水</td><td>移杯 2，水壶 2，倒 3，放下 2，收手 1</td></tr>
+<tr><td>插电源线</td><td>双臂：左手拿线递给右手，右手插入</td><td>左手抓 3，右手接 3，插入 3，收手 1</td></tr>
+<tr><td>物体进篮</td><td>拿起 4 个物体放进篮子</td><td>每个：拿起 1 + 放入 1.25；4 个，收手 1</td></tr>
+<tr><td>收拾笔袋</td><td>双臂：拉开拉链，放入物品，拉上</td><td>打开 3.5，每件 1 分（3 件），拉上 1.5，收手 1</td></tr>
+<tr><td>耳机分拣</td><td>在杂物中找到耳机放进篮子</td><td>识别 2，拿起 3，放入 4，收手 1</td></tr>
+<tr><td>形状分拣</td><td>按形状把 3 个物体放到对应位置</td><td>每个对 3 分，3 个，收手 1</td></tr>
+<tr><td>按顺序按按钮</td><td>按指令顺序按 3 个按钮</td><td>每按对一次 3 分，3 个，收手 1</td></tr>
+<tr><td>物体配对</td><td>把成对的物体配好放到位置</td><td>每对：抓 2 + 放 2.5；2 对，收手 1</td></tr>
+<tr><td>水果放进篮子</td><td>把指定水果放进篮子</td><td>每个对 3 分，3 个，收手 1</td></tr>
+</tbody></table></div>
+
+<h2 id="w10">关于 WALL-OSS 1.0</h2>
+<p><b>先回答问题：按目前公开的模型卡，WALL-OSS 1.0 不是世界模型，是 VLA。</b>它没有论文，以下全部来自 Hugging Face 模型卡和配置文件（2026-11-23 用 curl 核对），我没有下载权重、没有运行。</p>
+<div class="tablewrap"><table class="t-w10"><thead><tr><th>HF 仓库</th><th>是什么（模型卡原话的意思）</th><th>日期</th></tr></thead><tbody>
+<tr><td><a href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo">wall-oss-1.0-lite-robodojo</a></td><td>“基于 Qwen3.5 的 VLA 策略”，在 RoboDojo 示范上微调，用于 <a class="ds" href="https://robodojo-benchmark.com/LeaderBoard">RoboDojo</a> 基准评测（经 <a href="https://github.com/XPolicyLab/XPolicyLab">XPolicyLab</a>）。预测双臂 <span class="cv">arx_x5</span> 机器人的 <b>32 步原生末端位姿动作块</b>（末端位姿 + 夹爪），再由残差精修器连续精修 4 次；有<b>关键帧记忆</b>：重读最近一段头部相机帧，决定保留哪些。只支持 arx_x5 的末端位姿动作，只在 RoboDojo 仿真里训练，“没有在真机上验证”。Apache-2.0</td><td>2026-10-23 创建</td></tr>
+<tr><td><a href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo-base">wall-oss-1.0-lite-robodojo-base</a></td><td>上面那个 RoboDojo 训练的起点预训练模型，“Wall-OSS-1.0-lite 的预览，先于正式版发布，和正式版不完全相同，主要差在训练迭代数”。分词器和对话模板用 Qwen/Qwen3.5-4B 的。5,323,759,872 个参数（F32）。Apache-2.0</td><td>2026-11-02 创建</td></tr>
+</tbody></table></div>
+<p><b>核实了题目里那几条说法：</b></p>
+<ul>
+<li>“基于 Qwen3.5 的 VLA”：成立。两个仓库的 <span class="cv">config.json</span> 都是 <span class="cv">Qwen3_5ForConditionalGeneration</span>，文本部分 hidden 2560、32 层（每 4 层一层全注意力，其余是线性注意力）。</li>
+<li>“RoboDojo 微调”：成立，指 lite-robodojo；base 是它的起点。</li>
+<li>“32 步末端位姿动作块”：成立。<span class="cv">config.yml</span> 的 <span class="cv">action_horizon: 32</span>，动作键是左右臂 <span class="cv">ee_cartesian_pos_relative / ee_rotation_6D_relative / gripper</span>，外加底盘、升降、头部，和 0.5 的 26 维布局相同（实际只用到 arx_x5 的双臂部分）。</li>
+<li>“关键帧记忆”：成立。配置里有 <span class="cv">keyframe_memory</span> 窗口（<span class="cv">memory_capacity: 22</span>、<span class="cv">chunk_size: 48</span>）和新增特殊 token <span class="cv">&lt;|kf_write|&gt; &lt;|kf_skip|&gt; &lt;|kf_end|&gt;</span>，模型配置有 <span class="cv">kf_interval_loss: true</span>。</li>
+<li>“世界模型”：<b>不成立</b>。配置里 <span class="cv">future_length: 0</span>，没有预测未来画面的头或损失；动作仍由流匹配生成（<span class="cv">noise_scheduler</span> Beta(1.5, 1)、s = 0.999、10 步，加 <span class="cv">refiner</span> 4 次）。同公司的世界模型是另一条线（HF 上另有 <span class="cv">wall-wm-2.0-robodojo</span>，见 <a href="wall-ss.html">wall-ss</a> 页）。</li>
+</ul>
+<p><b>和 0.5 的关系。</b>相同：同属 wall-x 体系（serving 代码在 wall-x 的 PR #128“Qwen3.5 VLA release with RoboDojo serving and CUDA operators”，截至 2026-11-23 仍未合并，模型卡让用户先用一个个人分支）；MoT（<span class="cv">use_mot</span>、<span class="cv">mlp_moe</span>、<span class="cv">norm_moe</span>）；26 维动作布局；本体按文本数字 token 表示；流匹配时间步采样参数相同；用 DMuon。不同：主干从 Qwen2.5-VL-3B 换成 Qwen3.5（4B 级）；动作专家宽 1280、用 adaRMS 注入时间；<b><span class="cv">use_x_loss: false</span></b>，也就是 1.0-lite 没有用 0.5 的动作空间监督（式 5）；RoboDojo 微调配置里 <span class="cv">ar_loss_weight: 0.0</span>、<span class="cv">action_tokenizer_type: null</span>，微调时不用离散动作 CE；加了关键帧记忆和残差精修。关键帧记忆正好回应 0.5 §7 的局限“只用单帧图像”，换更大主干回应“只在 3B 上验证”。</p>
+<p><b>只有模型卡来源。</b>1.0 的训练数据、预训练配方、评测成绩都没有公开文档；RoboDojo 排行榜上的数我没有核对。上面所有判断都只依据模型卡和配置文件，不代表正式的 1.0 版本。</p>
+
+<h2 id="code">代码对照表</h2>
+<p>论文每个设计点在 wall-x（ce2a1ae）和 HF 检查点里的位置。路径省略前缀 <span class="cv">wall_x/</span>。“一致”指数值或公式对得上；“缺失”指公开代码里没有。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>论文</th><th>原文说法</th><th>代码 / 配置</th><th>对照</th></tr></thead><tbody>
+<tr><td>§2.1.1 主干</td><td>Qwen2.5-VL-3B-Instruct 初始化，MoT，&gt; 4B</td><td>HF <span class="cv">config.json</span>：36 层，VL 专家 2048 / 11008，动作专家 1024 / 2048；共 4.162B 参数</td><td>一致</td></tr>
+<tr><td>§2.1.1 路由</td><td>视觉 / 语言 / 本体 / 离散动作 → VL 专家；连续动作 → 动作专家</td><td><span class="cv">model/core/action/moe.py:9-26</span>；<span class="cv">data/backends/lerobot/loader.py:654</span></td><td>一致</td></tr>
+<tr><td>§2.1.1 掩码</td><td>离散和连续动作 token 互相看不见；梯度不截断</td><td><span class="cv">model/core/attention/mask.py:53-155</span>（<span class="cv">:100-110</span> 对离散预测位置置零）</td><td>一致；另有 <span class="cv">ar_visible</span> 开关可让两者互看（<span class="cv">:131</span>）</td></tr>
+<tr><td>§5.1 梯度截断</td><td>知识隔离式 stop-gradient</td><td><span class="cv">model/core/attention/joint.py:788-925</span> <span class="cv">flash_mask_ki</span>，调用外部 <span class="cv">flashmask_attn_func_stop_gradient</span></td><td>有实现，默认不用</td></tr>
+<tr><td>§2.1.2 RVQ 分词器</td><td>视觉对齐 RVQ，替代 FAST</td><td><span class="cv">model/qact/tokenizer_mixin.py:938-941</span> 只有 fast、spatialvla</td><td><b>缺失</b>（读者注 12）</td></tr>
+<tr><td>式 (1)</td><td>λ_act = λ_mm = 0.01</td><td><span class="cv">model/core/vla_mixin.py:655, 702</span>；示例 yml <span class="cv">ar_loss_weight: 0.01</span></td><td>一致（同一个旋钮，读者注 11）</td></tr>
+<tr><td>§3.2 9 : 1 混合</td><td>动作 : 多模态 = 9 : 1</td><td>无（只见 <span class="cv">x2_multimodal</span> 名字，<span class="cv">normalizer.py:286</span>）</td><td>缺失</td></tr>
+<tr><td>式 (2)</td><td>线性高斯路径</td><td><span class="cv">model/core/action/processor.py:169-172</span></td><td>一致</td></tr>
+<tr><td>式 (3)</td><td>Beta(1.5, 1)，τ = s(1 − u)，s = 0.999</td><td><span class="cv">data/backends/lerobot/loader.py:664-692</span>；HF <span class="cv">noise_scheduler</span></td><td>一致</td></tr>
+<tr><td>式 (4)(5)</td><td>速度输出，动作空间损失</td><td><span class="cv">processor.py:288-302</span>；HF <span class="cv">use_x_pred: false, use_x_loss: true</span></td><td>一致；代码默认关（读者注 10）</td></tr>
+<tr><td>§2.2.3 接口</td><td>具身系统提示；Observation / Instruction / Proprioception</td><td><span class="cv">data/backends/lerobot/utils.py:356-404</span>，系统提示固定为“helpful assistant”</td><td>格式一致，系统提示不同</td></tr>
+<tr><td>§2.2.3 本体</td><td>离散成文本数字 token，随机丢弃 / 扰动</td><td><span class="cv">utils.py:541-561</span>；HF <span class="cv">state_bins: 512</span>；示例 yml 改为连续投影</td><td>部分一致（读者注 19）</td></tr>
+<tr><td>§2.2.3 动作空间</td><td>26 维，6D 相对旋转，1 秒时域</td><td>HF <span class="cv">config.yml</span> 26 维，<span class="cv">action_horizon 32</span></td><td>一致</td></tr>
+<tr><td>§2.2.4 优化器</td><td>Muon（专家二维参数）+ AdamW；DMuon</td><td><span class="cv">trainer/optimizer/dmuon/utils.py:54</span>；核心在外部包 dmuon</td><td>接入层有，算法在别的仓库</td></tr>
+<tr><td>§2.2.4 预训练超参</td><td>批 8192，峰值 1e-4，余弦 + 预热，裁剪 1.0，bf16</td><td>模板 yml：1e-4、余弦、预热 1000、裁剪 1.0、bf16；批大小随 GPU 数</td><td>可配置</td></tr>
+<tr><td>§2.2.4 微调</td><td>5e-5，全参数，保留联合目标</td><td>示例 yml：AdamW 5e-5；无分词器</td><td>学习率一致，目标不同（读者注 13）</td></tr>
+<tr><td>§2.3 推理</td><td>10 步；CUDA Graph；融合 RoPE、RMSNorm</td><td><span class="cv">modeling_qwen2_5_vl_act.py:2064-2160</span>；<span class="cv">utils/cudagraph_wrapper.py:14</span>（未调用）；<span class="cv">ops/csrc/binding.cu:49-68</span>（无 RMSNorm）</td><td>部分缺失（读者注 14）</td></tr>
+<tr><td>§3.1.3 预处理、平方根采样</td><td>统一动作、对齐、静止帧过滤、p = 0.5</td><td>无；只有 <span class="cv">x2robot2lerobot.py</span>、<span class="cv">rotation_layout.py</span></td><td>缺失</td></tr>
+</tbody></table></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>以下按 wall-x 的 <span class="cv">README.md</span>、<span class="cv">workspace/README.md</span>、<span class="cv">scripts/README.md</span> 和 HF 模型卡整理，提交 ce2a1ae。我没有运行任何命令。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<ul>
+<li><span class="cv">wall_x/model/qact/qwen2_5/</span>：<span class="cv">modeling_qwen2_5_vl_act.py</span>（3065 行，VLA 主类 <span class="cv">Qwen2_5_VLMoEForAction</span>，前向、损失、<span class="cv">generate_flow_action</span>）、<span class="cv">modeling_qwen2_5_vl.py</span>（Qwen2.5-VL 主干）、<span class="cv">configuration_qwen2_5_vl.py</span>。</li>
+<li><span class="cv">wall_x/model/core/</span>：<span class="cv">action/</span>（MoT 的 FFN 专家、流匹配投影与损失、归一化器）、<span class="cv">attention/</span>（联合注意力、掩码）、<span class="cv">ops/</span>（RoPE / M-RoPE / MoE 置换等 CUDA 算子，安装时编译）、<span class="cv">vla_mixin.py</span>（损失组合）。</li>
+<li><span class="cv">wall_x/model/qact/tokenizer_mixin.py</span>：离散动作分词器（FAST、SpatialVLA）。</li>
+<li><span class="cv">wall_x/data/backends/lerobot/</span>：LeRobot 数据加载、提示构造、时间步采样。</li>
+<li><span class="cv">wall_x/trainer/</span>：FSDP 训练器、DMuon 接入、调度器。</li>
+<li><span class="cv">wall_x/_vendor/harrix/</span>：评测和 WebSocket 服务运行时（LIBERO 环境、适配器、<span class="cv">launch_serving.py</span>）。</li>
+<li><span class="cv">scripts/</span>：<span class="cv">compute_norm_stats.py</span>、<span class="cv">fake_inference.py</span>、<span class="cv">run_libero.sh</span>、<span class="cv">run_serving.sh</span>、<span class="cv">draw_openloop_plot.py</span>、<span class="cv">merge_sharded_weights.py</span>。</li>
+<li><span class="cv">workspace/</span>：示例配置（LIBERO、ManipArena、插花）、RTX 5090 部署说明。</li>
+</ul>
+<h3 id="repro-what">能复现什么、不能复现什么</h3>
+<ul>
+<li><b>预训练：不能。</b>自采数据、多模态语料、RVQ 分词器、9 : 1 混合、平方根采样和预处理都没公开。仓库只能“从 Qwen2.5-VL-3B 开始训”，而且没有 RVQ，离散通路只能用 FAST。</li>
+<li><b>零样本真机（§4.1）、真机微调对比（§4.2）：不能。</b>任务、机器人和数据都没有公开。</li>
+<li><b>多模态评测（§4.3）：部分。</b>Embodied Grounding 是内部基准；其他四个是公开基准，但仓库里没有对应的评测脚本。</li>
+<li><b>§5.2 的 LIBERO 对照：大体可以。</b>改 <span class="cv">use_x_loss</span> 开关、从 Qwen2.5-VL 开训、批 128，就是论文的设置；但论文没有给步数以外的超参数和评测口径（读者注 9）。</li>
+<li><b>用 0.5 检查点在自己的数据上微调：可以</b>，这是仓库的主要用途；注意读者注 13：默认是只用流匹配。</li>
+</ul>
+<h3 id="repro-env">环境</h3>
+<pre class="cmd">conda create --name wallx python=3.10 &amp;&amp; conda activate wallx
+pip install -r requirements.txt
+export FLASH_ATTN_CUDA_ARCHS=$(python -c 'import torch; print(f"{torch.cuda.get_device_capability()[0]}{torch.cuda.get_device_capability()[1]}")')
+MAX_JOBS=4 pip install flash-attn==2.8.3 --no-build-isolation
+pip install "dmuon @ git+https://github.com/X-Square-Robot/dmuon.git"
+git clone https://github.com/huggingface/lerobot.git &amp;&amp; (cd lerobot &amp;&amp; pip install --no-deps -e .)
+pip install -r requirements-libero.txt        # 只有 LIBERO 评测需要
+git clone https://github.com/Lifelong-Robot-Learning/LIBERO.git third_party/LIBERO
+MAX_JOBS=8 pip install --no-build-isolation -e .   # 安装时编译 CUDA 算子</pre>
+<p>权重：<span class="cv">huggingface-cli download X-Square-Robot/wall-oss-0.5</span>（含 <span class="cv">config.json</span>、<span class="cv">model.safetensors</span>、归一化器），另需 <span class="cv">Qwen/Qwen2.5-VL-3B-Instruct</span> 作处理器。单卡训练至少 48 GB 显存（<span class="cv">workspace/README.md:188</span>）。也可以走 LeRobot 原生实现：<span class="cv">pip install "lerobot[wall_oss_05]"</span>，<span class="cv">--policy.path=lerobot/wall-oss-0.5</span>，模型卡说要用 <a href="https://github.com/huggingface/lerobot/pull/4200">LeRobot PR #4200</a> 的代码，26 维状态 / 动作、32 步块、10 步流采样，前缀只算一次。</p>
+<h3 id="repro-libero">LIBERO 微调和评测</h3>
+<pre class="cmd">huggingface-cli download lerobot/libero --repo-type dataset --local-dir /path/to/libero_all
+cp workspace/example/libero.yml my_libero.yml      # 改 config_path / processor_path / repo_id / norm_stats_path / resume_from
+python scripts/compute_norm_stats.py --train_config my_libero.yml --data_root /path/to/libero_all --output_path libero_norm.json
+torchrun --nproc_per_node=4 wall_x/trainer/fsdp_trainer/train_fsdp.py --config my_libero.yml
+python scripts/merge_sharded_weights.py /path/to/sharded /path/to/merged     # FSDP 分片时
+CHECKPOINT_PATH=... TRAIN_CONFIG_PATH=my_libero.yml TASK_SUITE_NAME=libero_spatial NUM_TRIALS_PER_TASK=50 bash scripts/run_libero.sh
+# ALL_SUITES=1 跑四个标准套件；SMOKE=1 每任务 1 次冒烟测试</pre>
+<p>示例配置要点（<span class="cv">workspace/example/libero.yml</span>）：7 维动作（3 位置 + 3 ZYX 欧拉 + 1 夹爪）加 19 维零填充到 26，8 维状态加 18 维填充；<span class="cv">action_horizon 10</span>；两路相机 256；AdamW 5e-5、余弦 20 万步、预热 1000；每卡批 4 × 梯度累积 4；<span class="cv">resume_from</span> 指向 0.5 的 <span class="cv">model.safetensors</span>。数据集 <a class="ds" href="https://huggingface.co/datasets/lerobot/libero">lerobot/libero</a>。论文没有报告 0.5 的 LIBERO 微调成绩，所以没有官方数字可对。</p>
+<h3 id="repro-real">真机</h3>
+<p>数据转成 LeRobot v3，照 <span class="cv">workspace/example/maniparena_example.yml</span>（双臂、6D 相对动作、448、3 路相机）改配置；<span class="cv">dof_config</span> 和 <span class="cv">agent_pos_config</span> 的总和要和 <span class="cv">norm_stats.json</span> 一致，不足 26 维用 <span class="cv">action_padding</span> 补。推理起 WebSocket 服务 <span class="cv">bash scripts/run_serving.sh --checkpoint-path ... --train-config-path ... --port 32195</span>，默认返回原始动作块，<span class="cv">--serialize-actions</span> 返回机器人格式；开环对比用 <span class="cv">scripts/draw_openloop_plot.py</span>。RTX 5090 的部署说明在 <span class="cv">workspace/rtx5090/DEPLOY.md</span>。最小可跑的例子是 <span class="cv">python scripts/fake_inference.py --checkpoint-path ...</span>（假输入，验证输出形状）。</p>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">“比 π0.5 高 17.5%”是百分点</a>：相对 40.7%；全文的“%”差值都是绝对差。</li>
+<li><a href="#n2">表 4 和表 8 逐项对得上</a>；推理子集只领先 0.4，统计上脆弱。</li>
+<li><a href="#n3">表 2 和图 6b 能由表 5、6 重算</a>；“精细”只有 1 个任务。</li>
+<li><a href="#n4">图 1 有三处对不上</a>：“3 个没见过”实为 1 个；曲线省掉了 300k 回落；雷达图无出处。</li>
+<li><a href="#n5">图 7 的 65.59 重算是 66.50</a>；蓝柱图例应是 10 个共享任务。</li>
+<li><a href="#n6">“零样本已经很高”的例子不是同一个任务</a>；整理抽屉没有零样本分数。</li>
+<li><a href="#n7">梯度分析没有给数据</a>；7.4–25.1 pp 对得上，36.6 应为 36.7。</li>
+<li><a href="#n8">“不侵蚀 VL 能力”要打折扣</a>：通用 VQA 相对降 25.3% 和 14.4%。</li>
+<li><a href="#n9">正文的数字和图 11 小有出入</a>：95.8 对 95.7、96.5 对约 96.3；图 12 的 +18.9 对 18.8。</li>
+<li><a href="#n10">式 (4)–(6) 和代码一致</a>：HF 配置 use_x_loss 为真，代码默认为假。</li>
+<li><a href="#n11">代码里两个 λ 是同一个旋钮</a>，按 token 平均。</li>
+<li><a href="#n12">公开代码里没有 RVQ 分词器</a>；X-Tokenizer 可能是它（推断）。</li>
+<li><a href="#n13">公开的微调示例实际是只用流匹配</a>，和论文的推荐相反。</li>
+<li><a href="#n14">CUDA Graph 没接上，RMSNorm 融合核缺失</a>。</li>
+<li><a href="#n15">评分规则有两三个任务满分凑不到 10</a>；31 个任务对得上。</li>
+<li><a href="#n16">三档分类漏了 20–40 这一段</a>。</li>
+<li><a href="#n17">模型卡的数据键比图 4 多</a>。</li>
+<li><a href="#n18">参数量核对</a>：4,162,224,832。</li>
+<li><a href="#n19">26 维逐项对上</a>；系统提示、本体表示、LIBERO 旋转三处不同。</li>
+<li><a href="#n20">同一批 9 个任务，表 8 和表 9 差得不少</a>。</li>
+<li><a href="#n21">图 10b 和图 7、表 9 是同几次运行</a>。</li>
+</ol>
+<div class="note" id="n18"><span class="lab">读者注 18 · 参数量</span><p>HF API 报 x-square-robot/wall-oss-0.5 的 safetensors 共 4,162,224,832 个参数（BF16 4,158,769,152，F32 3,455,680）；lerobot/wall-oss-0.5 的转换版是 4,162,219,008，少 5,824 个 F32 参数，模型卡说 837 个神经网络张量完全保留，差的应是归一化统计之类的非网络张量（我的推断）。“4B VLA、3B 主干”的说法和总数相符；主干和动作专家各占多少我没有逐张量统计，未核实。</p></div>
+<p>论文没写、我也没找到的：RVQ 分词器的码本大小、级数和各项损失权重；预训练总步数之外的训练时长和算力；多模态 9 : 1 混合的实现；零样本和微调评测里机器人的具体型号；每个结果的方差或重复次数。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的数据集、基准、模型和代码。2026 年 11 月 23 日用脚本核对，除 FAST 项目页（返回 429，改链 arXiv）外全部返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://x2robot.com/en/oss">Wall-OSS</a></td><td>本文项目页（只链接）</td><td><a href="https://github.com/X-Square-Robot/wall-x">wall-x</a></td><td><a href="https://arxiv.org/abs/2605.30877">2605.30877</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-0.5">wall-oss-0.5</a></td><td>官方权重</td><td>HF</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/lerobot/wall-oss-0.5">lerobot/wall-oss-0.5</a></td><td>LeRobot 原生转换版</td><td><a href="https://github.com/huggingface/lerobot/pull/4200">PR #4200</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo">wall-oss-1.0-lite-robodojo</a></td><td>1.0-lite 的 RoboDojo 微调版</td><td>HF</td><td>无</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo-base">…-robodojo-base</a></td><td>1.0-lite 预览基座</td><td>HF</td><td>无</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/x-square-robot/X-Tokenizer">X-Tokenizer</a></td><td>同公司的 RVQ 动作分词器</td><td><a href="https://github.com/X-Square-Robot/X-Tokenizer">代码</a></td><td><a href="https://arxiv.org/abs/2606.14752">2606.14752</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/X-Square-Robot/dmuon">DMuon</a></td><td>分布式 Muon</td><td>GitHub</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct">Qwen2.5-VL-3B-Instruct</a></td><td>0.5 的主干</td><td>HF</td><td><a href="https://arxiv.org/abs/2502.13923">2502.13923</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/Qwen/Qwen3.5-4B">Qwen3.5-4B</a></td><td>1.0-lite 的分词器来源</td><td>HF</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://agibot-world.com/">AgiBot World</a></td><td>开源数据 24.6%</td><td>agibot-world.com</td><td><a href="https://arxiv.org/abs/2503.06669">2503.06669</a></td></tr>
+<tr><td><a class="ds" href="https://x-humanoid-robomind.github.io/">RoboMIND</a></td><td>v2.0 21.7%、v1 3.8%</td><td>项目页</td><td><a href="https://arxiv.org/abs/2412.13877">2412.13877</a> / <a href="https://arxiv.org/abs/2512.24653">2512.24653</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer1.github.io/">Fractal（RT-1）</a></td><td>12.3%</td><td>项目页</td><td><a href="https://arxiv.org/abs/2212.06817">2212.06817</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/genrobot2025/10Kh-RealOmin-OpenData">RealOmin</a></td><td>10.9%</td><td>HF 数据集</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://droid-dataset.github.io/">DROID</a></td><td>10.7%</td><td>项目页</td><td><a href="https://arxiv.org/abs/2403.12945">2403.12945</a></td></tr>
+<tr><td><a class="ds" href="https://flagopen.github.io/RoboCOIN/">RoboCOIN</a></td><td>7.3%</td><td>项目页</td><td><a href="https://arxiv.org/abs/2511.17441">2511.17441</a></td></tr>
+<tr><td><a class="ds" href="https://robochallenge.ai/">RoboChallenge</a></td><td>3.6%</td><td>robochallenge.ai</td><td><a href="https://arxiv.org/abs/2510.17950">2510.17950</a></td></tr>
+<tr><td><a class="ds" href="https://rail-berkeley.github.io/bridgedata/">BridgeData V2</a></td><td>2.7%</td><td>项目页</td><td>CoRL 2023</td></tr>
+<tr><td><a class="ds" href="https://opengalaxea.github.io/G0/">Galaxea Open-World</a></td><td>2.4%</td><td>项目页</td><td><a href="https://arxiv.org/abs/2509.00576">2509.00576</a></td></tr>
+<tr><td><a class="ds" href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></td><td>多具身数据集合</td><td>项目页</td><td>ICRA 2024</td></tr>
+<tr><td><a class="ds" href="https://libero-project.github.io/">LIBERO</a></td><td>§5.2 的仿真基准；<a href="libero.html">本站精读</a></td><td>项目页</td><td><a href="https://arxiv.org/abs/2306.03310">2306.03310</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/lerobot/libero">lerobot/libero</a></td><td>LeRobot 格式的 LIBERO</td><td>HF 数据集</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/xai-org/RealworldQA">RealWorldQA</a></td><td>通用 VQA</td><td>HF 数据集</td><td>xAI 博客</td></tr>
+<tr><td><a class="ds" href="https://github.com/embodiedreasoning/ERQA">ERQA</a></td><td>具身推理问答</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2503.20020">2503.20020</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/EO-Robotics/EO1">EO-Bench / EO-Data</a></td><td>具身场景理解</td><td>GitHub</td><td><a href="https://arxiv.org/abs/2508.21112">2508.21112</a></td></tr>
+<tr><td><a class="ds" href="https://robo-point.github.io/">RoboPoint / Where2Place</a></td><td>放置推理</td><td>项目页</td><td>CoRL 2024</td></tr>
+<tr><td><a class="ds" href="https://robodojo-benchmark.com/LeaderBoard">RoboDojo</a></td><td>1.0-lite 的评测基准</td><td>排行榜</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2504.16054">π0.5</a></td><td>基线</td><td>–</td><td><a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2602.15922">DreamZero</a></td><td>WAM 基线</td><td>–</td><td><a href="https://arxiv.org/abs/2602.15922">2602.15922</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2505.23705">知识隔离</a></td><td>梯度截断的来源</td><td>–</td><td><a href="https://arxiv.org/abs/2505.23705">2505.23705</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2501.09747">FAST</a></td><td>被替代的规则式分词器</td><td>–</td><td><a href="https://arxiv.org/abs/2501.09747">2501.09747</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2604.13001">XRZero-G0</a></td><td>无具身采集设备</td><td>–</td><td><a href="https://arxiv.org/abs/2604.13001">2604.13001</a></td></tr>
+<tr><td><a class="ds" href="https://arxiv.org/abs/2509.11766">WALL-OSS 原版</a></td><td>前作；<a href="wall-oss.html">本站精读</a></td><td>–</td><td><a href="https://arxiv.org/abs/2509.11766">2509.11766</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2605.30877 后的整理，不是作者的官方内容。原文：X Square Robot Team（Ryan Yu、Pushi Zhang 等 27 人），《Wall-OSS-0.5 Technical Report: Pretrain Once, Act Anywhere》，2026，以 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 发布。图 1 到 12 从原文 PDF 裁切，只做了裁切和格式转换。表 1 到 10 照录原文数字。代码引用 X-Square-Robot/wall-x（Apache-2.0）提交 ce2a1ae（对应 0.5 的版本从 72834e7 起），只引文件名、行号和配置键；WALL-OSS 1.0 一节只依据 Hugging Face 模型卡。读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

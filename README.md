@@ -8,6 +8,13 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
+| Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。 | 19 条 |
+| Wall-OSS-0.5 Technical Report（[arXiv 2605.30877](https://arxiv.org/abs/2605.30877)，2026-06，CC BY 4.0） | [wall-oss-05 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss-05.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss-05/index.html) | 零样本可执行的 4B VLA。“高 17.5%”是百分点；图 1、图 7 和附录表对不上；公开代码没有 RVQ 分词器。含 WALL-OSS 1.0 模型卡小节。 | 21 条 |
+| WALL-SS: Scaling Long-horizon World Models via Next-Scale Autoregression（[arXiv 2608.26239](https://arxiv.org/abs/2608.26239)，2026-08） | [wall-ss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-ss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-ss/index.html) | 按尺度自回归的动作可控世界模型。闭环评估数字能复算；“排第一”只对平均成立；代码未发布。非独占许可，仓库图 MIT。 | 20 条 |
+| Sharpa CraftNet（无论文；[公告](https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation) + DQ 部署报道，© 保留） | [craftnet 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/craftnet.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/craftnet/index.html) | System 2/1/0 = 1/10/100 Hz；公告说 CraftNet 只是 System 0+1。DQ 案例页不提 CraftNet，没有公开介入率。 | 16 条 |
+| WM-Craftnet: World Synesthesia Model for Dexterous In-Hand Manipulation（[arXiv 2609.07002](https://arxiv.org/abs/2609.07002)，2026-09，CC BY 4.0） | [wm-craftnet 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wm-craftnet.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wm-craftnet/index.html) | 世界模型潜变量作策略条件。论文没提 System 0/1/2；代码奖励预测权重为 0；多处配置和表 7 不同。 | 24 条 |
+| FTP-1: A Generalist Foundation Tactile Policy Across Tactile Sensors（[arXiv 2606.13102](https://arxiv.org/abs/2606.13102)，v4，CoRL 2026，CC BY-SA 4.0） | [ftp1 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/ftp1.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/ftp1/index.html) | 跨 21 种传感器的触觉策略。+17.2% 是百分点且基线平均算错；公开触觉专家约 99M 不是 300M；没提 CraftNet。 | 14 条 |
 | DiffMimic: Efficient Motion Mimicking with Differentiable Physics（[arXiv 2304.03274](https://arxiv.org/abs/2304.03274)，ICLR 2023） | [diffmimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/diffmimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/diffmimic/index.html) | Brax 可微仿真里整段 BPTT 做动作模仿 + Demonstration Replay。替换参考状态同时截断梯度；发布配置和论文不同；表 2 两个百分比算错。非独占许可，图用文字描述。 | 20 条 |
 | DaXBench: Benchmarking Deformable Object Manipulation with Differentiable Physics（[arXiv 2210.13066](https://arxiv.org/abs/2210.13066)，ICLR 2023 oral） | [daxbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/daxbench.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/daxbench/index.html) | JAX 可微仿真（MPM + 质点-弹簧），9 个可变形物体任务。表 4 不是图 3 的终值；发布的 SHAC 实际没有短窗口；倒汤目标路径缺失。 | 21 条 |
 | Learning Sim-to-Real Humanoid Locomotion in 15 Minutes（[arXiv 2512.01996](https://arxiv.org/abs/2512.01996)，2025-12） | [holosoma-15min 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/holosoma-15min.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/holosoma-15min/index.html) | FastSAC / FastTD3 一张 4090 约 15 分钟训出 G1 / T1 行走。对照 holosoma 78aeb23：目标 Q 各用各的、演员 8 次只更新 2 次、AdamW；FastTD3 不在 holosoma 里。含复现要点。 | 20 条 |
@@ -74,6 +81,14 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+## VLA、世界模型与触觉（自变量 WALL 三篇 + Sharpa 三篇 + ∇Mimic，2026-11-23）读后要点
+
+- **WALL-OSS 不是世界模型**：原版和 0.5 都是 VLA，1.0 目前只有模型卡（Qwen3.5 底座的 VLA）。同公司的世界模型是 WALL-SS，两条线只有引用关系。
+- **WALL-SS**：观测与动作交错、按尺度由粗到细生成、远处历史按尺度压缩；评估数字能复算，但代码和超参都没公开。
+- **CraftNet 没有论文**：公告原话 CraftNet = System 0 + System 1，System 2 是外接开源 VLM。WM-Craftnet 和 FTP-1 是 Sharpa 相关的正式论文，但都没提 System 0/1/2。
+- **几篇摘要的百分比都是百分点**（Wall-OSS-0.5 的 17.5、FTP-1 的 17.2 和 31），读数字时注意。
+- **∇Mimic** 回答“仿真器可微时还要不要世界模型”：直接穿过打了补丁的 MuJoCo Warp 求梯度；效率倍数要看 GPU 和口径。
 
 ## 可微物理两篇（Siwei Chen 等，2026-11-21）读后要点
 
@@ -376,6 +391,13 @@ papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbe
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
+papers/nablamimic.html     ∇Mimic 精读（无 PDF 原图，仓库图和重画图在 papers/nablamimic/；11 幕动画在 interactives/nablamimic/）
+papers/wall-oss.html       WALL-OSS 精读（原图在 papers/wall-oss/，11 幕动画在 interactives/wall-oss/）
+papers/wall-oss-05.html    Wall-OSS-0.5 精读（原图在 papers/wall-oss-05/，11 幕动画在 interactives/wall-oss-05/）
+papers/wall-ss.html        WALL-SS 精读（无 PDF 原图，仓库图和重画图在 papers/wall-ss/；11 幕动画在 interactives/wall-ss/）
+papers/craftnet.html       CraftNet 精读（无论文、无原图；10 幕动画在 interactives/craftnet/）
+papers/wm-craftnet.html    WM-Craftnet 精读（原图在 papers/wm-craftnet/，11 幕动画在 interactives/wm-craftnet/）
+papers/ftp1.html           FTP-1 精读（原图在 papers/ftp1/，11 幕动画在 interactives/ftp1/）
 papers/diffmimic.html      DiffMimic 精读（无原图，重画图在 papers/diffmimic/；11 幕动画在 interactives/diffmimic/）
 papers/daxbench.html       DaXBench 精读（原图在 papers/daxbench/，11 幕动画在 interactives/daxbench/）
 papers/holosoma-15min.html 15 分钟人形行走精读（原图在 papers/holosoma-15min/，11 幕动画在 interactives/holosoma-15min/）

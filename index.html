@@ -20,6 +20,62 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/nablamimic.html">∇Mimic：仿真器本身可微时，直接用解析梯度训练人形动作跟踪</a></p>
+<p class="en">∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation</p>
+<div class="meta"><span>arXiv 2610.41654v1</span><span>UC Davis</span><span>2026-11-23 读</span></div>
+<p class="d">给 MuJoCo Warp 的反向打补丁、自写 NablaEngine，让梯度穿过接触，用一阶梯度代替 PPO 训练 G1 动作跟踪。核算：“20 分钟对 SuperMimic 1.2 小时”两边 GPU 不同，同为 H100 时约 2.9 倍；11.5× 是引擎微基准；20 分钟是均值曲线第一次越过 0.82。对照 OamIcs/NablaMimic bfbb2a6：默认配置不是论文配方，优化器前还有论文没写的两级裁剪。含和 DiffMimic、SHAC、SuperMimic 的对比。</p>
+<div class="tags"><span class="pill">可微仿真 · 人形跟踪</span><span class="pill">arXiv 非独占 · 文字描述图</span><span class="pill rn">20 条读者注</span></div>
+<div class="links"><a class="go" href="papers/nablamimic.html">读精读 →</a><a href="interactives/nablamimic/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2610.41654">原文</a><a href="https://github.com/OamIcs/NablaMimic">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/wall-oss.html">WALL-OSS：把 VLM 扩到具身空间的 VLA（不是世界模型）</a></p>
+<p class="en">Igniting VLMs toward the Embodied Space（WALL-OSS）</p>
+<div class="meta"><span>arXiv 2509.11766v1</span><span>X Square Robot</span><span>2026-11-23 读</span></div>
+<p class="d">Qwen2.5-VL-3B 加一套动作专用前馈层，静态路由，流匹配与 FAST 两种动作头，统一的跨层级思维链。核算：图 7 和正文数字对不上（DP“80%”实为 74.1%）；参数量可精确拆成底座 + 4.53 亿动作 FFN。对照 X-Square-Robot/wall-x 86f70a3：冻结范围比论文说的大，论文时期流匹配的时间采样能取到负数。</p>
+<div class="tags"><span class="pill">VLA</span><span class="pill">自变量机器人</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">19 条读者注</span></div>
+<div class="links"><a class="go" href="papers/wall-oss.html">读精读 →</a><a href="interactives/wall-oss/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2509.11766">原文</a><a href="https://github.com/X-Square-Robot/wall-x">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/wall-oss-05.html">Wall-OSS-0.5：预训练完不微调就能直接执行吗</a></p>
+<p class="en">Wall-OSS-0.5 Technical Report: Pretrain Once, Act Anywhere</p>
+<div class="meta"><span>arXiv 2605.30877v2</span><span>X Square Robot</span><span>2026-11-23 读</span></div>
+<p class="d">4B VLA，零样本 17 个真机任务 + 微调 15 个任务，RVQ 动作分词与动作空间损失。核算：“比 π0.5 高 17.5%”是百分点（相对 40.7%）；图 1 说“3 个未见任务 ≥80%”附录只有 1 个；图 7 的 65.59 按表 9 应为 66.50。对照 wall-x：公开代码没有 RVQ 分词器。页内单列 WALL-OSS 1.0（只有模型卡，是 VLA，不是世界模型）。</p>
+<div class="tags"><span class="pill">VLA</span><span class="pill">自变量机器人</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">21 条读者注</span></div>
+<div class="links"><a class="go" href="papers/wall-oss-05.html">读精读 →</a><a href="interactives/wall-oss-05/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2605.30877">原文</a><a href="https://github.com/X-Square-Robot/wall-x">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/wall-ss.html">WALL-SS：按尺度由粗到细逐级自回归的长时程机器人世界模型</a></p>
+<p class="en">WALL-SS: Scaling Long-horizon World Models via Next-Scale Autoregression</p>
+<div class="meta"><span>arXiv 2608.26239v1</span><span>X Square Robot</span><span>2026-11-23 读</span></div>
+<p class="d">从 InfinityStar 初始化，观测与动作交错成因果序列，远处历史按尺度压缩，dream forcing 加在策略 RL 对齐。核算：闭环评估的 MAE、ρ、排序准确率都能复算；“排第一”只对平均 69.1 成立；完整 KV 记忆三项都略好于有界记忆。仓库 04951f5 只有 README，代码未发布，超参几乎没给。和 WALL-OSS 只有引用关系。</p>
+<div class="tags"><span class="pill">世界模型</span><span class="pill">自变量机器人</span><span class="pill">arXiv 非独占 · 仓库图 MIT</span><span class="pill rn">20 条读者注</span></div>
+<div class="links"><a class="go" href="papers/wall-ss.html">读精读 →</a><a href="interactives/wall-ss/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2608.26239">原文</a><a href="https://github.com/X-Square-Robot/wall-ss">官方仓库</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/craftnet.html">Sharpa CraftNet：System 0/1/2 分层 VTLA 和 DQ 冰激凌店（无论文）</a></p>
+<p class="en">CraftNet: a hierarchical VTLA model for fine manipulation（公司公告 + 部署报道）</p>
+<div class="meta"><span>无论文</span><span>Sharpa</span><span>2026-11-23 读</span></div>
+<p class="d">按公告逐段读：System 2 约 1 Hz（外接开源 VLM）、System 1 约 10 Hz、System 0 约 100 Hz 触觉闭环。公告原话 CraftNet 只是 System 0 + System 1。DQ 门店：Sharpa 自己的案例页不提 CraftNet；店址、24 小时、遥操作与全自主的说法分别出自谁，没有公开介入率和成功率。附 Sharpa 研究与各层的可能对应表。</p>
+<div class="tags"><span class="pill">VTLA · 触觉</span><span class="pill">Sharpa</span><span class="pill">版权保留 · 不放图</span><span class="pill rn">16 条读者注</span></div>
+<div class="links"><a class="go" href="papers/craftnet.html">读精读 →</a><a href="interactives/craftnet/index.html">10 幕 3D 框架动画</a><a href="https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation">原始公告</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/wm-craftnet.html">WM-Craftnet：用世界模型的潜变量作策略条件做灵巧手手内旋转</a></p>
+<p class="en">WM-Craftnet: World Synesthesia Model for Generalizable and Robust Dexterous In-Hand Manipulation</p>
+<div class="meta"><span>arXiv 2609.07002v1</span><span>Sharpa</span><span>2026-11-23 读</span></div>
+<p class="d">从本体、深度、触觉和动作学动作条件潜在动力学，不用来想象，而是把潜变量喂给 PPO 策略。论文没提 System 0/1/2，控制 10 Hz，不能当 System 0 的论文。对照 sharpa-robotics/WM-Craftnet a1e825a：奖励预测损失权重是 0；演员投影层、深度噪声、初始位姿噪声与表 7 不同；PDF 页脚“版权保留”和 arXiv CC BY 矛盾。</p>
+<div class="tags"><span class="pill">世界模型 · 灵巧手</span><span class="pill">Sharpa</span><span class="pill">CC BY 4.0 · 放原图</span><span class="pill rn">24 条读者注</span></div>
+<div class="links"><a class="go" href="papers/wm-craftnet.html">读精读 →</a><a href="interactives/wm-craftnet/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2609.07002">原文</a><a href="https://github.com/sharpa-robotics/WM-Craftnet">官方代码</a></div>
+</article>
+<article class="paper">
+<p class="t"><a href="papers/ftp1.html">FTP-1：一个策略吃 21 种触觉传感器的触觉基础策略</a></p>
+<p class="en">FTP-1: A Generalist Foundation Tactile Policy Across Tactile Sensors for Contact-Rich Manipulation</p>
+<div class="meta"><span>arXiv 2606.13102v4</span><span>CoRL 2026</span><span>2026-11-23 读</span></div>
+<p class="d">形态感知的触觉 token 空间（MTTS）加功能区嵌入，在 π0.5 上加触觉专家，26 个来源预训练。核算：“+17.2%”是百分点，且 π0.5 平均应为 45.83 不是 45.3；“未见传感器 +31%”只有 60 次试验；公开权重的触觉专家约 9900 万参数而非 3 亿；图 7 有一根柱子画错。论文和代码都没提 CraftNet。和 LingBot-Touch 逐项对比。</p>
+<div class="tags"><span class="pill">触觉 · VLA</span><span class="pill">清华 / Sharpa 等</span><span class="pill">CC BY-SA 4.0 · 放原图</span><span class="pill rn">14 条读者注</span></div>
+<div class="links"><a class="go" href="papers/ftp1.html">读精读 →</a><a href="interactives/ftp1/index.html">11 幕 3D 框架动画</a><a href="https://arxiv.org/abs/2606.13102">原文</a><a href="https://github.com/michaelyuancb/ftp1-policy">官方代码</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/diffmimic.html">DiffMimic：穿过可微仿真器反传梯度做动作模仿，跑偏太远就换回参考状态</a></p>
 <p class="en">DiffMimic: Efficient Motion Mimicking with Differentiable Physics</p>
 <div class="meta"><span>arXiv 2304.03274v2</span><span>ICLR 2023</span><span>2026-11-21 读</span></div>
@@ -496,6 +552,13 @@
 <thead><tr><th>路径</th><th>内容</th></tr></thead>
 <tbody>
 <tr><td><code>index.html</code></td><td>本页：论文列表和写法约定</td></tr>
+<tr><td><code>papers/nablamimic.html</code></td><td>∇Mimic 精读（无 PDF 原图；仓库图和重画图在 <code>papers/nablamimic/</code>），11 幕动画在 <code>interactives/nablamimic/</code></td></tr>
+<tr><td><code>papers/wall-oss.html</code></td><td>WALL-OSS 精读，原图在 <code>papers/wall-oss/</code>，11 幕动画在 <code>interactives/wall-oss/</code></td></tr>
+<tr><td><code>papers/wall-oss-05.html</code></td><td>Wall-OSS-0.5 精读，原图在 <code>papers/wall-oss-05/</code>，11 幕动画在 <code>interactives/wall-oss-05/</code></td></tr>
+<tr><td><code>papers/wall-ss.html</code></td><td>WALL-SS 精读（无 PDF 原图；仓库图和重画图在 <code>papers/wall-ss/</code>），11 幕动画在 <code>interactives/wall-ss/</code></td></tr>
+<tr><td><code>papers/craftnet.html</code></td><td>CraftNet 精读（无论文、无原图），10 幕动画在 <code>interactives/craftnet/</code></td></tr>
+<tr><td><code>papers/wm-craftnet.html</code></td><td>WM-Craftnet 精读，原图在 <code>papers/wm-craftnet/</code>，11 幕动画在 <code>interactives/wm-craftnet/</code></td></tr>
+<tr><td><code>papers/ftp1.html</code></td><td>FTP-1 精读，原图在 <code>papers/ftp1/</code>，11 幕动画在 <code>interactives/ftp1/</code></td></tr>
 <tr><td><code>papers/diffmimic.html</code></td><td>DiffMimic 精读（无原图，重画图在 <code>papers/diffmimic/</code>），11 幕动画在 <code>interactives/diffmimic/</code></td></tr>
 <tr><td><code>papers/daxbench.html</code></td><td>DaXBench 精读，原图在 <code>papers/daxbench/</code>，11 幕动画在 <code>interactives/daxbench/</code></td></tr>
 <tr><td><code>papers/holosoma-15min.html</code></td><td>15 分钟人形行走（FastSAC）精读，原图在 <code>papers/holosoma-15min/</code>，11 幕动画在 <code>interactives/holosoma-15min/</code></td></tr>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WM-Craftnet：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2609.07002（WM-Craftnet，Sharpa，CoRL 2026）做成 11 幕 3D 动画：手内旋转任务、三路输入、深度加噪和干净目标、RSSM 展开、七个预测头、h 怎样喂给演员、PPO 和 WSM 交替训练、z 轴结果表、可复用先验和压力测试、真机。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="wm-craftnet.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/wm-craftnet.html">返回精读</a><a href="../../papers/wm-craftnet.html#s3-3">原文 §3.3</a><a href="../../papers/wm-craftnet.html#code">代码对照表</a><a href="../../papers/wm-craftnet.html#repro">复现要点</a><a href="https://arxiv.org/abs/2609.07002">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2609.07002 · WM-Craftnet · 灵巧手手内旋转</p>
+<h1>把世界模型当成策略的“传感器”：WM-Craftnet 一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2 幕是手内旋转任务；第 3、4 幕是输入和深度噪声；第 5、6 幕是 RSSM 和七个预测头（<b>第 6 幕：奖励头在代码里乘 0</b>）；第 7、8 幕是 h 怎样喂给演员、两条训练路径怎样交替；第 9 到 11 幕是结果：z 轴表格、可复用先验和压力测试、真机。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。结果柱子是原文表格的数字；超参数来自官方代码 a1e825a。手、深度图、缓存抽样是示意或玩具，都标了。没有任何 WSM 或策略网络在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 sharpa-robotics/WM-Craftnet 提交 a1e825a（2026-10-29），只读未运行，Apache-2.0。路径相对仓库根目录。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（a1e825a）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入</td></tr>
+<tr><td>I1</td><td>本体 + 触觉</td><td>各自 MLP 分支</td><td>73 维单帧向量一个 MLP（5 × 1024），含指令轴 24 维</td></tr>
+<tr><td>I2</td><td>深度</td><td>96 × 72，裁剪 + 丢点 0.02 + 高斯 + ±0.3°</td><td>96 × 72，不裁剪，丢点 0.01，无高斯，±0.3°</td></tr>
+<tr><td>I3</td><td>演员观测</td><td>堆叠本体 / 触觉 + 深度 + 上一步指令</td><td>4 × 73 = 292 维；深度只经 WSM</td></tr>
+<tr class="grp"><td colspan="4">世界模型</td></tr>
+<tr><td>W1</td><td>RSSM</td><td>512 / 32 / 32，隐层 512</td><td>同（wsm/configs.yaml）</td></tr>
+<tr><td>W2</td><td>损失</td><td>深度 + 本体 + λc 触觉 + λr 奖励 + KL + 辅助</td><td>奖励 loss_scale 0.0；触觉 17 连杆 BCE 1.0；位姿 0.05/0.5；价值 100；形状 100</td></tr>
+<tr><td>W3</td><td>回放</td><td>256 行，预热 10,000，16 × 32，10 次 / epoch</td><td>同（world_model.py）</td></tr>
+<tr><td>W4</td><td>想象</td><td>不用</td><td>imagine_with_action 只在未被调用的 video_pred 里</td></tr>
+<tr class="grp"><td colspan="4">策略</td></tr>
+<tr><td>P1</td><td>投影 ψ</td><td>512 → 64 → 32 → 16</td><td>512 → 256 → 128 → 32（任务配置覆盖）</td></tr>
+<tr><td>P2</td><td>演员</td><td>[512, 256, 256] ELU</td><td>同；324 维输入，22 维输出，固定 σ</td></tr>
+<tr><td>P3</td><td>评论家</td><td>额外看仿真状态</td><td>212 维特权状态，[512, 512, 256, 256]，不看 h</td></tr>
+<tr><td>P4</td><td>动作</td><td>q ← q + αu，之后平滑</td><td>先 0.8 指数平滑，再 q += 0.2(1 ± 5%)ũ，截到 0.9 倍限位</td></tr>
+<tr class="grp"><td colspan="4">环境和部署</td></tr>
+<tr><td>E1</td><td>频率</td><td>物理 60 Hz，控制 10 Hz</td><td>dt 0.01667 × 6</td></tr>
+<tr><td>E2</td><td>重置噪声</td><td>[0.035, 0.02, 0.0025] m / 10°</td><td>z：[0.03, 0.015, 0.001] / 5°；x、y：[0.01, 0.005, 0.0025] / 5°</td></tr>
+<tr><td>E3</td><td>相机</td><td>RealSense L515</td><td>部署脚本写 D405，并加 SDK 空间 + 时间滤波</td></tr>
+<tr><td>E4</td><td>检查点</td><td>完整 WSM</td><td>只发布 z 轴，只开深度和本体两个头</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>手。</b>5 根三节手指加手掌的简化模型，步态是我设的正弦，指尖变绿表示“有接触”的示意。物体是方块、十字块或圆柱，不是论文的网格。</li>
+<li><b>第 3、4 幕的深度图。</b>两个高斯团叠成的玩具高度场，24 × 18 格代表 96 × 72。坏点按“新坏点概率 p、保持 0.95”的马尔可夫链用固定种子当场抽；“WSM 重建”是我把干净图稍加模糊画的，不是网络输出。</li>
+<li><b>第 5 幕的 z。</b>32 个 32 类画成 8 × 8 格，亮哪格是固定种子抽的。</li>
+<li><b>第 8 幕的缓存。</b>256 行画成 64 格，每格 4 行；抽样位置固定种子。计数（每 epoch 16,384 条、WSM 每 epoch 5,120 条）按配置算。</li>
+<li><b>第 10 幕的外力。</b>方向和时刻用固定种子抽，只表示“训练时有随机外力”。</li>
+<li><b>柱状图</b>都是论文表格里的数（表 1、2、3、6、9、10 和 §4.3 正文）。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2609.07002 后的理解，不是作者的官方图。原图见<a href="../../papers/wm-craftnet.html">精读页</a>（arXiv 登记 CC BY 4.0，只做裁切；PDF 第 1 页另有 Sharpa 版权声明，见精读页读者注 1）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

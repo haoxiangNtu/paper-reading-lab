@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wall-OSS-0.5：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2605.30877（Wall-OSS-0.5 技术报告）的框架做成 11 幕 3D 动画：预训练即可执行、26 维统一动作空间与跨具身填充、对话式输入和注意力掩码、MoT 路由、RVQ 分层量化、三个损失和四种训练策略、动作空间监督、数据配方和平方根采样、10 步去噪推理、零样本随检查点变化、微调对比和多模态变化。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="wall-oss-05.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/wall-oss-05.html">返回精读</a><a href="../../papers/wall-oss-05.html#s2">原文 §2</a><a href="../../papers/wall-oss-05.html#code">代码对照表</a><a href="../../papers/wall-oss-05.html#repro">复现要点</a><a href="https://arxiv.org/abs/2605.30877">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2605.30877 · Wall-OSS-0.5 · VLA</p>
+<h1>Wall-OSS-0.5：预训练出来就能上真机，配方一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是动作空间和输入接口；第 4、5 幕是结构（MoT 路由、RVQ 分词）；第 6、7 幕是训练配方（<b>第 6 幕三个损失和四种策略</b>、第 7 幕动作空间监督）；第 8 幕是数据；第 9 幕是推理；第 10、11 幕是评测。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。结构尺寸、噪声调度、动作布局来自 wall-x 提交 ce2a1ae 和 HF 的 wall-oss-0.5 配置；第 6、10、11 幕的柱子是原文图 10 和表 4–9 的数字；第 7 幕右图是图 11 的读图值；第 5、8、9 幕有玩具数字，都标了“玩具”。这里没有运行任何网络。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件</h2>
+<p class="sub">“论文”和“代码 / 配置”分开写。代码是 X-Square-Robot/wall-x 提交 ce2a1ae（对应 0.5 的版本从 72834e7 起），Apache-2.0，只读未运行；配置是 HF x-square-robot/wall-oss-0.5 的 config.json / config.yml。路径省略前缀 wall_x/。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / 配置</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">结构</td></tr>
+<tr><td>M1</td><td>主干</td><td>Qwen2.5-VL-3B-Instruct 初始化，&gt; 4B</td><td>36 层，hidden 2048，共 4,162,224,832 参数</td></tr>
+<tr><td>M2</td><td>VL 专家</td><td>原 3B VLM</td><td>FFN 11008；视觉、语言、本体、离散动作 token</td></tr>
+<tr><td>M3</td><td>动作专家</td><td>新加，流匹配</td><td>hidden 1024，FFN 2048；连续动作 token（model/core/action/moe.py:9-26）</td></tr>
+<tr><td>M4</td><td>联合注意力</td><td>共享上下文；离散与连续互不可见</td><td>model/core/attention/mask.py:53-155；flow 行内部因果</td></tr>
+<tr><td>M5</td><td>RVQ 分词器</td><td>视觉对齐，替代 FAST</td><td>公开代码里没有（tokenizer_mixin.py:938-941 只有 fast、spatialvla）</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>总损失</td><td>L_flow + 0.01 L_act-CE + 0.01 L_mm-CE</td><td>同一个 ar_loss_weight 乘全部 CE（model/core/vla_mixin.py:655, 702）</td></tr>
+<tr><td>T2</td><td>时间步</td><td>u ~ Beta(1.5, 1)，τ = 0.999 (1 − u)</td><td>data/backends/lerobot/loader.py:664-692</td></tr>
+<tr><td>T3</td><td>动作空间损失</td><td>Â = Aτ + (1 − τ) f，‖Â − A‖²</td><td>model/core/action/processor.py:288-302；use_x_loss: true</td></tr>
+<tr><td>T4</td><td>优化器</td><td>Muon + AdamW（DMuon），批 8192，1e-4</td><td>trainer/optimizer/dmuon/utils.py:54；核心在外部包</td></tr>
+<tr><td>T5</td><td>数据</td><td>自采 ~60% + 开源 ~40%，多模态 9000 万，9 : 1</td><td>预训练数据管线未公开</td></tr>
+<tr class="grp"><td colspan="4">动作和推理</td></tr>
+<tr><td>A1</td><td>动作空间</td><td>26 维：两臂 (3 + 6 + 1)，底盘 3，升降 1，头 2</td><td>config.yml dof_config，合计 26</td></tr>
+<tr><td>A2</td><td>时域</td><td>1 秒，按控制频率定帧数</td><td>action_horizon_flow 32、ar 32；LIBERO 示例 10</td></tr>
+<tr><td>A3</td><td>本体</td><td>离散成文本数字 token</td><td>state_bins 512（data/backends/lerobot/utils.py:541-547）</td></tr>
+<tr><td>A4</td><td>去噪</td><td>T = 10</td><td>num_inference_timesteps 10；欧拉积分（modeling_qwen2_5_vl_act.py:2064-2160）</td></tr>
+<tr><td>A5</td><td>加速</td><td>CUDA Graph + 融合 RoPE / RMSNorm，448 下 15 Hz</td><td>cudagraph_wrapper.py 未被调用；csrc 里没有 RMSNorm 核</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1 幕。</b>方块的大小只表示“有这几部分”，不按参数量画；数据流动的小球是示意。</li>
+<li><b>第 3 幕。</b>每路 448 × 448 图像按 Qwen2.5-VL 的 14 像素 patch、2 × 2 合并算是 256 个视觉 token，画成 8 个方块；离散动作 token 的个数论文没给，画 8 个是示意；本体 26 维画 26 个小方块，每维实际占几个文本 token 没有核实。掩码矩阵按 mask.py 的规则画成分块示意，不是逐 token 的真实矩阵。</li>
+<li><b>第 4 幕。</b>36 层只画 6 层。FFN 方块的宽度按 11008 和 2048 的比例画。梯度箭头只是示意方向，不代表大小。</li>
+<li><b>第 5 幕。</b>一维动作曲线、码本（每级均匀网格，步长逐级减半）、8 个潜在步都是玩具；论文没给码本大小和级数。</li>
+<li><b>第 6 幕。</b>“流匹配约占主干更新 5%”是论文的说法，没有对应的图表（精读页读者注 7），箭头粗细是示意。</li>
+<li><b>第 7 幕。</b>左图是式 (3)(6) 当场算的曲线；右图是图 11 的读图值（位图，约 ±0.2），标了数的点照抄原图。</li>
+<li><b>第 8 幕。</b>平方根采样的五个组大小是玩具。</li>
+<li><b>第 9 幕。</b>32 帧二维轨迹和噪声是玩具，用“完美速度”做欧拉积分；eager 的赫兹数是按“快 4 倍”反推的，不是论文给的数。</li>
+<li><b>第 10、11 幕。</b>数字全部来自原文表 5–9 和表 7；检查点之间的过渡是线性插值，只是动画效果。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2605.30877 后的理解，不是作者的官方图。原图见<a href="../../papers/wall-oss-05.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

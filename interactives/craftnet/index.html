@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CraftNet 三层拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="Sharpa CraftNet（没有论文，依据 2026-01 公告）的三层控制架构做成 10 幕 3D 动画：三层总览、1/10/100 Hz 节拍、异步、接触前、控制权交接、System 0 触觉闭环、失败回传、三类数据、DQ 暴风雪四个工位、来源时间线。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="craftnet.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/craftnet.html">返回精读</a><a href="../../papers/craftnet.html#a2">公告 · 三层</a><a href="../../papers/craftnet.html#dq">DQ 部署</a><a href="../../papers/craftnet.html#ev">宣称与证据</a><a href="https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation">公告原文</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · 无论文 · Sharpa CraftNet 公告（2026-01-06/07）</p>
+<h1>CraftNet：三层、三个频率，接触前后换人管</h1>
+<p class="lead">一共 10 幕。第 1 幕总览；<b>第 2 幕把 1/10/100 Hz 三条节拍放在同一条时间轴上</b>；第 3 幕是异步；第 4、5 幕是接触前和接触瞬间的控制权交接；第 6 幕是 System 0 的触觉闭环；第 7 幕是失败回传；第 8 幕是三类数据；第 9 幕是 DQ 门店做暴风雪的四个工位；第 10 幕是各来源的时间线。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点；第 2、10 幕左上角有开关。CraftNet 没有论文、没有代码，三层的名字、频率和数据流来自公告的文字；DQ 的步骤来自 Sharpa 到店指南和案例页，用时来自第一财经。手、杯子、触觉读数、曲线都是示意或玩具，没有任何模型在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">10 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">三层的全部公开信息</h2>
+<p class="sub">只有公告（sharpa.com 2026-01-07，PR Newswire 01-06 同文）的文字。“没写”的格子就是没写，不是我漏了。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>项目</th><th>公告怎么说</th><th>没写的</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">三层</td></tr>
+<tr><td>L2</td><td>System 2 · 推理脑</td><td>VLM，开源；约 1 Hz；理解指令、拆子任务、感知规划、长程决策；机器人和人的接口</td><td>用哪个 VLM；输入几路相机</td></tr>
+<tr><td>L1</td><td>System 1 · 运动脑</td><td>“基础模型”；约 10 Hz；运动规划、粗动作、上身动作、接触前手型；应用相关训练主要在这层</td><td>网络结构、参数量、动作块长度</td></tr>
+<tr><td>L0</td><td>System 0 · 交互脑</td><td>“超高频模型”；约 100 Hz；实时用触觉持续调整手和手指</td><td>网络结构、输入格式、延迟</td></tr>
+<tr><td>C</td><td>CraftNet</td><td>System 0 和 System 1 的组合，构成 VTLA 模型</td><td>“端到端”具体指什么</td></tr>
+<tr class="grp"><td colspan="4">数据流</td></tr>
+<tr><td>F1</td><td>S2 → S1</td><td>语义意图和/或明确的语言指令</td><td>格式</td></tr>
+<tr><td>F2</td><td>S1 → S0</td><td>潜在物理意图和/或粗动作，加触觉和本体信号（力、力矩）</td><td>潜在意图是什么</td></tr>
+<tr><td>F3</td><td>S0 → S1</td><td>精细执行失败时回传状态向量，S1 调整意图或粗动作</td><td>失败判据、向量内容</td></tr>
+<tr><td>F4</td><td>S1 → S2</td><td>进度向量，持续更新任务状态</td><td>内容、频率</td></tr>
+<tr class="grp"><td colspan="4">数据</td></tr>
+<tr><td>D1</td><td>真实遥操作</td><td>CraftNet 在环控制接触，人在环；后训练联合微调 S1、S0</td><td>数据量</td></tr>
+<tr><td>D2</td><td>仿真</td><td>CraftNet 放进仿真回路，修正接触后的行为、力和柔顺</td><td>用什么仿真器</td></tr>
+<tr><td>D3</td><td>互联网</td><td>S2 的 VLM 已在互联网文本图像上预训练；CraftNet 给互联网数据补触觉，用来预训练 S1</td><td>怎么补、怎么验证</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、7 幕的三层方块</b>按公告的层名和频率画；箭头上的词是公告原词。</li>
+<li><b>第 2 幕</b>的方块个数按标称频率当场数出来，是这一套里唯一“当场算”的部分。</li>
+<li><b>第 3 幕</b>“两次推理之间保持上一次输出”是我按“异步”画的；三条曲线是固定种子的玩具。</li>
+<li><b>第 4、5 幕</b>的路径、路标、手型、控制权柱子都是示意；公告没说交接方式。</li>
+<li><b>第 6 幕</b>触觉阵列只画 100 个点（真实 Wave 指尖 1,000 多个）；打滑和加力规则是玩具。</li>
+<li><b>第 7 幕</b>“滑出阈值就算失败”“退开再接近”是示意。</li>
+<li><b>第 8 幕</b>“补触觉”那条线上的“方法未公开”是我加的。</li>
+<li><b>第 9 幕</b>工位顺序和内容按到店指南、案例页；工位布置和每站时长是示意；6 分钟和 2–3 分钟来自第一财经。</li>
+<li><b>第 10 幕</b>的日期都来自原文；X 博主一条只见过转述，未核实。</li>
+</ul>
+</section>
+<footer><p>图解是我读 Sharpa CraftNet 公告（2026-01-06/07）和所列材料后的理解，不是 Sharpa 的官方图；CraftNet 没有论文。Sharpa 页面 © Sharpa Pte Ltd，本页没有使用任何原图。逐段内容和核对在<a href="../../papers/craftnet.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

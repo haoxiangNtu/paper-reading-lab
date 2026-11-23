@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WALL-OSS：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2509.11766（WALL-OSS，X Square Robot）的框架做成 11 幕 3D 动画：它输出什么、三种耦合范式、共享注意力和两个 FFN、token 序列和注意力掩码、FAST 离散化、融合阶段的冻结、流匹配训练和采样、Uni-CoT、数据配方、图 7 结果。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.info dd,.info dt,.shapes td{font-variant-ligatures:none}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="wall-oss.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/wall-oss.html">返回精读</a><a href="../../papers/wall-oss.html#s3">原文 §3</a><a href="../../papers/wall-oss.html#code">代码对照表</a><a href="../../papers/wall-oss.html#repro">复现要点</a><a href="https://arxiv.org/abs/2509.11766">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2509.11766 · WALL-OSS · X Square Robot</p>
+<h1>WALL-OSS：一个 VLM 怎样长出动作</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览（它输出什么，不输出什么）；第 2 到 4 幕是结构（三种耦合范式、一层里的共享注意力和两个 FFN、token 序列和注意力掩码）；第 5 到 8 幕是训练和推理（FAST 离散化、融合阶段冻结谁、流匹配训练、采样步数）；第 9 幕是 Uni-CoT；第 10、11 幕是数据配方和结果。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。大多数幕左上角有开关。层宽、词表、参数量来自 HF 权重 x-square-robot/wall-oss-flow 的配置和文件头；路由、掩码、冻结、流匹配细节来自 wall-x 论文时期的提交 86f70a3；第 11 幕是原文图 7 的矢量读数和表 2。第 5、7、8 幕的数字是页面当场算的玩具。没有任何模型在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。代码是 X-Square-Robot/wall-x 提交 86f70a3（2025-09-11，arXiv v1 之前最后一个），只读未运行，Apache-2.0；HF 指 x-square-robot/wall-oss-flow 的 config.json 和 safetensors 文件头。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码 / HF</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">输入</td></tr>
+<tr><td>I1</td><td>视觉</td><td>第一人称和腕部相机</td><td>Qwen2.5-VL 视觉塔，32 层、1280 维，合并后 2048 维；示例分辨率 256</td></tr>
+<tr><td>I2</td><td>文本</td><td>指令（可含子任务）</td><td>“Observation: … Instruction: … Predict the next action in robot action / language.”</td></tr>
+<tr><td>I3</td><td>机器人状态</td><td>图 3 的 Robot State</td><td>一个 &lt;|propri|&gt; token，嵌入 = propri_proj([状态 20, 掩码 20])，2048 维</td></tr>
+<tr><td>I4</td><td>加噪动作</td><td>Integration 阶段的 Noise</td><td>32 个 &lt;|action|&gt;，嵌入 = w3(SiLU(w2([w1([动作 20, 掩码 20]), 时间嵌入])))</td></tr>
+<tr class="grp"><td colspan="4">主干</td></tr>
+<tr><td>B1</td><td>层数</td><td>Qwen2.5-VL-3B</td><td>36 层，隐藏 2048，16 个查询头、2 个 KV 头</td></tr>
+<tr><td>B2</td><td>注意力</td><td>共享</td><td>共享；因果，动作 token 之间双向</td></tr>
+<tr><td>B3</td><td>VL FFN</td><td>继承自 VLM</td><td>SwiGLU，中间维 11008，36 层共 24.3 亿</td></tr>
+<tr><td>B4</td><td>动作 FFN</td><td>新加</td><td>SwiGLU，中间维 2048，36 层共 4.53 亿</td></tr>
+<tr><td>B5</td><td>路由</td><td>静态，不是 top-k</td><td>token_type = (id == &lt;|action|&gt;)；状态、FAST token 走 VL FFN</td></tr>
+<tr class="grp"><td colspan="4">输出</td></tr>
+<tr><td>O1</td><td>文本</td><td>CoT、子任务（LM 头）</td><td>lm_head，词表 153,715 行（含 2048 个 FAST token）</td></tr>
+<tr><td>O2</td><td>离散动作</td><td>FAST：DCT → 量化 → BPE</td><td>physical-intelligence/fast，scale 10，2048 个 token</td></tr>
+<tr><td>O3</td><td>连续动作</td><td>流头，式 (2)</td><td>action_proj_back 2048 → 20；32 步一块</td></tr>
+<tr><td>O4</td><td>未来画面</td><td>不输出</td><td>没有解码器</td></tr>
+<tr class="grp"><td colspan="4">训练</td></tr>
+<tr><td>T1</td><td>Inspiration</td><td>具身 VQA + FAST，式 (1)</td><td>一个交叉熵，没有 λ_VQA / λ_D；预训练代码未公开</td></tr>
+<tr><td>T2</td><td>Integration 1</td><td>冻结 VLM，只训流头</td><td>freeze_vlm：只训 moe.experts.1，流头投影也冻结</td></tr>
+<tr><td>T3</td><td>Integration 2</td><td>全部解冻</td><td>AdamW wd 0.1，余弦学习率</td></tr>
+<tr><td>T4</td><td>流匹配</td><td>x_t = (1−ρ)x₀ + ρε，目标 ε − x₀</td><td>x_t = (1−t)ε + t·a，目标 a − ε，t = (0.999 − u)/0.999，u ~ Beta(1.5, 1)</td></tr>
+<tr><td>T5</td><td>采样</td><td>没写</td><td>Euler，linspace(0, 1, 10) → 9 步（之后修成 10 步）</td></tr>
+<tr><td>T6</td><td>Uni-CoT</td><td>指令 → CoT → 子任务 → 动作，路径丢弃</td><td>两种样本：子任务生成 / 以子任务为指令出动作；默认比例 0</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>第 1、2 幕的方块和流动的小球。</b>只是示意结构，36 层画成 12 片。</li>
+<li><b>第 3 幕。</b>16 个 token 的种类和顺序是我挑的；FFN 方块的宽度按中间维的比例（11008 : 2048）画。</li>
+<li><b>第 4 幕。</b>32 个动作 token 和几百个图像 token 都画成几个格子；掩码规则按代码当场算。</li>
+<li><b>第 5 幕。</b>那条动作曲线是我设的玩具；DCT、×10 量化当场算；“BPE”只示意合并，没有跑真的 BPE。</li>
+<li><b>第 7 幕。</b>二维“动作分布”是我设的两团高斯；时间的直方图按代码的采样公式用固定种子抽 4000 次。</li>
+<li><b>第 8 幕。</b>噪声和目标动作块是玩具；假设学到的速度场恰好是直线路径的速度，所以只示意步数，不示意误差。</li>
+<li><b>第 10 幕。</b>24 个小方块代表表 1 的 24 个开源数据集，不按大小。</li>
+<li><b>第 11 幕。</b>柱高是原文图 7 的矢量读数（重画），表 2 照录。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2509.11766 后的理解，不是作者的官方图。原图见<a href="../../papers/wall-oss.html">精读页</a>（CC BY 4.0，只做裁切）。逐节内容和核算也在精读页。</p></footer>
+</div>
+</body>
+</html>

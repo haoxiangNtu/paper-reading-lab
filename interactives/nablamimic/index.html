@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>∇Mimic 框架拆开看：3D 分步动画 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.41654 ∇Mimic（用可微仿真器的精确梯度训练人形动作跟踪）的框架做成 11 幕 3D 动画：总览、零阶和一阶梯度、64 步窗口里的反传、接触处的无界导数、SHAC 的单样本爆炸、逐样本中位数裁剪、动作目标和多步回归、NablaEngine 的内核、并行吞吐、训练曲线、评测（没有真机）。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../../assets/site.css">
+<link rel="stylesheet" href="../3dws/style.css">
+<style>
+.ctl{position:absolute;left:10px;top:108px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;font-size:12.5px;color:var(--muted);max-width:min(74%,700px)}
+.ctl[hidden]{display:none}
+.ctl .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ctl button{font:inherit;color:var(--fg);background:color-mix(in srgb,var(--bg2) 88%,transparent);border:1px solid var(--line);border-radius:7px;padding:2px 8px;cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:#06121e;font-weight:600}
+.below table{width:100%}
+body.embed.ae .cap{font-size:13px;max-width:94%;line-height:1.4}
+body.embed .ctl{top:118px;font-size:12px;max-width:96%}
+.arch .grp td{background:var(--panel);font-weight:600;font-family:var(--font-body);font-size:13.5px;color:var(--fg)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="../../assets/lab3d.js" defer></script>
+<script src="nablamimic.js" defer></script>
+</head>
+<body class="ae">
+<div class="shell">
+<header class="top"><a class="brand" href="../../index.html">Paper Reading Lab</a>
+<nav><a href="../../papers/nablamimic.html">返回精读</a><a href="../../papers/nablamimic.html#s5">原文 §5</a><a href="../../papers/nablamimic.html#code">代码对照</a><a href="https://arxiv.org/abs/2610.41654">arXiv</a></nav></header>
+
+<div class="intro">
+<p class="eyebrow">交互图解 · arXiv 2610.41654 · ∇Mimic / NablaEngine · 可微仿真人形跟踪</p>
+<h1>从“黑箱采样”到“穿过仿真器求导”：∇Mimic 一步步拆开看</h1>
+<p class="lead">一共 11 幕。第 1 幕是总览；第 2、3 幕是零阶和一阶梯度的差别、64 步窗口里的反传；第 4、5 幕是接触处的无界导数和 SHAC 的单样本爆炸；第 6、7 幕是 ∇Mimic 的两个组件（逐样本中位数裁剪、动作目标和多步回归）；第 8、9 幕是 NablaEngine 的内核和并行吞吐；第 10 幕是训练曲线；第 11 幕是评测（论文没有真机实验）。</p>
+<p class="howto">每一幕自动循环。可以暂停、拖进度条、拖动画面旋转、滚轮缩放，第 1 幕的方块可以点。多数幕左上角有开关。第 2、3、6、7 幕的数字是页面当场算的玩具；第 5、10 幕的曲线来自原文图 2(b)、图 1(a)、图 5(a) 的矢量读数；柱子和格子是原文表格数字。小人是手工做的示意，没有任何 ∇Mimic 策略在这里运行。</p>
+</div>
+
+<div class="lab">
+  <div class="stagebox">
+    <div id="stage" class="stage" aria-label="3D 动画，可拖动旋转"></div>
+    <div class="bar top-left"><div class="seg scenes" role="group" aria-label="选择一幕" id="sceneBtns"></div></div>
+    <p id="cap" class="cap" aria-live="polite"></p>
+    <div id="ctl" class="ctl" hidden></div>
+    <div class="bar bottom-left">
+      <button id="prev" aria-label="上一幕">‹ 上一幕</button>
+      <button id="play" aria-label="暂停">❚❚ 暂停</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="进度">
+      <span id="stepNo" class="mono">—</span>
+      <button id="next" aria-label="下一幕">下一幕 ›</button>
+    </div>
+    <p id="nogl" class="nogl" hidden>这个浏览器没有开启 WebGL，3D 动画画不出来。下面每一幕的文字说明和结构表内容相同。</p>
+  </div>
+  <aside id="info" class="info" aria-live="polite"><p class="tag mono" id="infoTag">—</p><h2 id="infoTitle">—</h2><div id="infoBody"></div></aside>
+</div>
+
+<section class="below">
+<h2 id="list">11 幕</h2>
+<p class="sub">点一行跳到那一幕。不开 WebGL 时，这里和右侧的文字一样能读。</p>
+<ol id="steps" class="steps"></ol>
+
+<h2 id="arch">完整结构：每个部件和每一步</h2>
+<p class="sub">“论文”和“代码”分开写。论文是 arXiv v1；代码是 OamIcs/NablaMimic 提交 bfbb2a6（2026-11-03，Apache-2.0），只读未运行。论文数字对应的是 <code>configs/base/ours_v1.args</code>，默认的 <code>configs/ours.args</code> 是 0.2.0 配方。行号见精读页的代码对照表。</p>
+<div class="tablewrap"><table class="shapes arch">
+<thead><tr><th>#</th><th>部件</th><th>论文</th><th>代码（bfbb2a6）</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">环境</td></tr>
+<tr><td>E1</td><td>机器人</td><td>mjlab 的 Unitree G1，29 关节，502 个接触对</td><td>robot.py 按 mjlab 改 Menagerie G1；测试断言 npair = 502</td></tr>
+<tr><td>E2</td><td>控制</td><td>50 Hz，4 个 5 ms 子步；残差动作</td><td>--residual-action：设定点 = 下一帧参考关节角 + action_scale × a</td></tr>
+<tr><td>E3</td><td>观测</td><td>10 帧本体感觉（93 维）+ 10 帧参考（68 维）+ 锚点朝向 6 维</td><td>env.py；--anchor-to-decoder</td></tr>
+<tr><td>E4</td><td>奖励 / 终止</td><td>BeyondMimic 跟踪奖励，每步至多 0.1；高度 0.25 m、倾斜 0.8</td><td>倾斜是重力 z 分量差；训练加终止惩罚 --term-penalty 2 0.08 0.10</td></tr>
+<tr class="grp"><td colspan="4">梯度</td></tr>
+<tr><td>G1</td><td>后端</td><td>NablaEngine（手推伴随，一个世界一个 warp）</td><td>--physics engine（默认）；另可 --physics warp（打补丁的 MuJoCo Warp）</td></tr>
+<tr><td>G2</td><td>无界导数</td><td>自接触法向 &lt; 1 mm 冻结；近平行胶囊 &lt; 约 2° 固定线段参数</td><td>make_engine(clamp_kv=0, normal=3)；MuJoCo Warp 用补丁 0001、0002</td></tr>
+<tr><td>G3</td><td>窗口</td><td>4096 个 64 步窗口，起点来自回放；TD(λ) 评论家自举</td><td>jax.lax.scan 64 步；--replay-steps 1000 --collect-envs 4096 --utd 0.4</td></tr>
+<tr><td>G4</td><td>逐样本裁剪</td><td>式 (4)：κ = 3 × 批中位数，反向每步 + 窗口梯度</td><td>nets.clip_rows_to_median（custom_vjp）；优化器前还有全局 1.0 + 逐元素 0.1</td></tr>
+<tr class="grp"><td colspan="4">更新</td></tr>
+<tr><td>U1</td><td>动作目标</td><td>式 (5)：y = a + δ g / RMS(g)，δ = 0.03 rad → 0.009</td><td>--action-target 8 1 0.03 --action-target-delta-floor 0.3</td></tr>
+<tr><td>U2</td><td>多步回归</td><td>8 步，每步 16,384 样本，单独 Adam 6e-4</td><td>AT_BATCH = 16384；--action-target-lr 6e-4</td></tr>
+<tr><td>U3</td><td>评论家</td><td>MLP 256–128，TD(λ = 0.95)，转移前状态</td><td>--critic-pre-state；默认 5 轮 × 4 小批</td></tr>
+<tr class="grp"><td colspan="4">速度与评测</td></tr>
+<tr><td>S1</td><td>引擎</td><td>前向 1.21 ms、前向 + 梯度 1.78 ms（4096 世界，RTX PRO 6000）</td><td>NablaEngine 是另一个仓库，固定在 c61a6fe（v0.1.0），本页没有读它的源码</td></tr>
+<tr><td>S2</td><td>训练</td><td>每次更新 0.37 s；3,235 次、0.34 h 到 0.82</td><td>—</td></tr>
+<tr><td>S3</td><td>评测</td><td>MuJoCo Warp 前向，40 段各一次，确定性</td><td>evaluate.py；0.2.0 默认对 Polyak 平均的演员打分</td></tr>
+<tr><td>S4</td><td>真机</td><td>没有（§8）</td><td>没有部署代码</td></tr>
+</tbody></table></div>
+
+<h2 id="mine">哪些是示意</h2>
+<ul class="mine">
+<li><b>小人。</b>圆柱拼的，动作是手写的，只为看出阶段。不是 G1 模型，不是策略输出。</li>
+<li><b>第 1 幕的流程方块。</b>示意；数字来自表 10 和代码配置。</li>
+<li><b>第 2 幕。</b>二维动作上的玩具目标 J(a) = −‖a − a*‖²，在 a = 0 处估计梯度；PPO 式估计用 N 个高斯扰动（σ = 0.3）和均值基线的似然比，重复 24 次；一阶就是解析梯度。当场算。</li>
+<li><b>第 3 幕的尾巴柱子。</b>256 个样本，每步乘一个对数正态因子，再以小概率乘一个“接触事件”大因子；画的是累计后最大值和 99.9 分位相对中位数的倍数。当场算，固定种子，只为说明“尾巴随反传步数长”，和图 3 的数值无关。</li>
+<li><b>第 4 幕的曲线。</b>自接触法向导数按 1/d、近平行胶囊按 1/sin²θ 画的示意形状；冻结阈值 1 mm、约 2° 和标注的数字来自论文附录 B。</li>
+<li><b>第 5 幕的曲线。</b>原文图 2(b) 的矢量读数（每 20 次更新一箱，再除以中位数）。下方 40 根柱子是玩具批次，最大那根取图注的 2.2 × 10⁹ 倍。</li>
+<li><b>第 6、7 幕。</b>玩具批次（重尾分布，固定种子），按式 (4)、(5)、(6) 当场算；论文规模下的 0.13 rad 和 15 rad 用公式另算并标出。</li>
+<li><b>第 8 幕的内核方块。</b>示意；内核个数、磁带大小和各 GPU 的耗时来自 §6 和附录 B、表 3。</li>
+<li><b>第 9 幕的 4096 个小方块。</b>只表示数量；吞吐柱子是表 15 的数。</li>
+<li><b>第 10 幕的曲线。</b>原文图 1(a) 和图 5(a) 的矢量读数，读数误差约 ±0.003。</li>
+<li><b>第 11 幕的 40 个格子。</b>只有“摔倒片段数”是表 4 的数，哪几段摔倒是我随便放的（论文没有逐段列）。</li>
+</ul>
+</section>
+<footer><p>图解是我读 arXiv 2610.41654 后的理解，不是作者的官方图。原文许可是 arXiv 非独占分发，这里没有用任何原图。逐节内容和核算在<a href="../../papers/nablamimic.html">精读页</a>。</p></footer>
+</div>
+</body>
+</html>

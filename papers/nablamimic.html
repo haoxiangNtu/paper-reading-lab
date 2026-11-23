@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>∇Mimic 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.41654 ∇Mimic（NablaMimic）的中文精读：用可微仿真器的精确梯度训练 Unitree G1 全身动作跟踪。逐节整理正文和附录 A 到 H，含全部编号公式、结果表、图的文字描述、从矢量图读数重画的图 1、图 2(b)，官方代码 OamIcs/NablaMimic（bfbb2a6）逐项对照和复现要点，和 DiffMimic / SHAC / SuperMimic 等页的对比，11 幕 3D 框架动画和 20 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r1{min-width:560px}.t-r2{min-width:640px}.t-r4{min-width:820px}.t-r11{min-width:980px}.t-r15{min-width:900px}.t-small{min-width:380px}
+.t-code{min-width:820px}.t-cmp{min-width:1180px}.t-links{min-width:640px}.t-rep{min-width:640px}.t-hp{min-width:600px}.t-acc{min-width:760px}
+.t-cmp td,.t-cmp th{font-size:13.5px}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.viz{--viz-surface:#121a2b;--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;--series-5:#7d8597;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#b07a00;--series-5:#8b93a3} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#b07a00;--series-5:#8b93a3}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 4px;max-width:none}
+.viz svg{display:block;width:100%;height:auto}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.6}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz .note2{font-size:13.5px;color:var(--muted);margin:6px 0 0;max-width:none}
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;overflow-x:auto;font:12.5px/1.55 var(--font-mono);max-width:100%;margin:8px 0}
+.alg{border:1px dashed var(--line);border-radius:10px;padding:8px 14px;margin:14px 0;max-width:74ch;font-size:14.5px}
+.alg ol{margin:4px 0}
+figure.pfig img.dark{background:#000}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/nablamimic/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="shac.html">SHAC</a><a href="diffmimic.html">DiffMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2610.41654 · cs.RO · v1 2026 年 10 月 30 日 · 预印本 · 中文精读</p>
+<h1>∇Mimic：不学世界模型，直接用可微仿真器的精确梯度训练人形动作跟踪</h1>
+<p class="orig">∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation</p>
+<p>作者 Weyl Lu、Yubei Chen（加州大学戴维斯分校）。∇Mimic 读作 NablaMimic，配套引擎叫 NablaEngine。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2610.41654">arXiv 原文</a><a href="https://arxiv.org/html/2610.41654v1">网页版</a><a href="https://arxiv.org/pdf/2610.41654v1">PDF</a><a href="https://github.com/OamIcs/NablaMimic">代码 OamIcs/NablaMimic</a><a href="https://github.com/OamIcs/NablaEngine">引擎 OamIcs/NablaEngine</a><a href="https://sailab.ai/nablamimic/">项目页（README 里的地址）</a><span>PDF 共 26 页：正文 12 页，参考文献第 12 到 18 页，附录 A 到 H 第 18 到 26 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 上这篇登记的是默认的非独占分发许可（arXiv.org perpetual non-exclusive license），没有授权翻译或转载。所以这里不逐字翻译，不放 PDF 里的任何原图，本地也没有存裁切图。正文第 1 到 9 节和附录 A 到 H 按原文顺序用自己的话覆盖，公式按原文编号，主要结果表照录数字。每张原图用文字说明画了什么，“看原图”打开 arXiv 网页版的对应位置。标“按原图读数重画”的图 1(a)、图 1(b)、图 2(b) 不是原图：图 1(a)、图 2(b) 是我从 PDF 第 2、6 页的矢量路径读出点后画的，图 1(b) 用的是正文和表 3、表 5、表 6 写明的数字。</p>
+<p>读的是 arXiv v1（2026-10-30）。论文脚注里的项目页 oamics.github.io/NablaMimic/ 我在 2026-11-23 访问时返回 404；仓库 README 给的项目页是 sailab.ai/nablamimic/（能打开，我只链接，没有抓取内容）。README 还链接了作者站点上一份<b>更新过的 PDF</b>（29 页，2026-11-03 生成），摘要的主要数字已经改了：到 0.82 是 8 分钟，平台约 0.91，并加了一个开源世界模型跟踪器 InstantTrack 的对照。这份精读只按 arXiv v1 写，新版我只核对了摘要和几处数字，没有逐节对照（<a href="#n10">读者注 13</a>）。</p>
+<p>官方代码 <a href="https://github.com/OamIcs/NablaMimic/tree/bfbb2a6773b4776c17402a34a93ec7589d9c7c18">OamIcs/NablaMimic</a> 提交 bfbb2a6（2026-11-03，版本 0.2.0），许可 <b>Apache-2.0</b>，带 NOTICE 和 THIRD_PARTY_NOTICES.md。我只读没跑。页面里引用文件名、行号和配置键为主，不大段复制代码。仓库 <code>assets/</code> 里的三张 GIF 属于仓库内容（Apache-2.0），我只把格式从 GIF 转成了 WebP，没有缩放或裁切，图注里写明出处。物理引擎 NablaEngine 是另一个仓库（Apache-2.0，NablaMimic 固定在它的提交 c61a6fe，即 v0.1.0），我没有读它的源码，引擎内部只按论文附录 B 写。数据集 LAFAN1（CC BY-NC-ND 4.0）不在仓库里，也没有下载。</p>
+<p>标成“读者注”的框是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 背景</a><a href="#s4">4 精确梯度与替代梯度</a><a href="#s5">5 ∇Mimic</a><a href="#s6">6 NablaEngine</a><a href="#i3d">3D 框架动画</a><a href="#s7">7 实验</a><a href="#s8">8 局限</a><a href="#s9">9 结论</a><a href="#apx">附录 A–H</a><a href="#code">代码对照</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>人形机器人的动作跟踪：给一段参考动作，学一个策略，让仿真里的机器人把它做出来。主流做法是 PPO 这类<b>零阶</b>方法：把仿真器当黑箱，只拿每一步的标量奖励，靠海量样本估计梯度。<b>一阶</b>方法穿过动力学求导，每一步都直接给出“动作往哪改、改多少”，但在接触多的全身控制上一直不好用：梯度会爆炸。</p>
+<p><a href="supermimic.html">SuperMimic</a> 学了一个可微的世界模型，再穿过它求导，在人形跟踪上比 PPO 快得多。这篇换了个读法：快的原因是用了导数，世界模型只是为了让导数“有界、便宜”付出的代价。仿真器本身的导数是精确的，但有两个问题：</p>
+<ul>
+<li><b>少数样本的梯度无界。</b>接触不是处处可微。双脚快要碰上时，自接触法向的导数按距离的倒数增长；两根胶囊几乎平行（脚交叉）时，最近点的导数按 1/sin²θ 增长。这类样本很少，但一个就能主导整个批次的平均梯度。</li>
+<li><b>贵。</b>仿真器的伴随（adjoint）要把接触求解再算一遍。现成的 MuJoCo Warp 伴随（一个还没合并的 PR）每步梯度 20.5 ms。</li>
+</ul>
+<p>论文分两部分解决：</p>
+<ul>
+<li><b>∇Mimic（算法）。</b>在反传的每一步，把每个样本的动作余切（cotangent）裁到批次中位数的 3 倍（式 4）；再把裁过的梯度变成“动作目标”，目标的步长按弧度固定（式 5），用 8 步回归把策略拉过去。其余部分沿用 SHAC 和 SuperMimic：64 步窗口、TD(λ) 评论家、从回放缓存里取窗口起点。</li>
+<li><b>NablaEngine（引擎）。</b>只为 Unitree G1 写的可微 GPU 引擎，算的是 MuJoCo 的完整接触动力学（502 个接触对、牛顿法约束求解）。一个世界占一个 warp，一个控制步的伴随是一个大内核。梯度和 float64 有限差分相差 10<sup>−5</sup> 量级。一步加梯度 1.78 ms，比 MuJoCo Warp 的伴随快 11.5 倍，比再走一步前向（1.21 ms）只多 0.57 ms。</li>
+</ul>
+<p><b>结果。</b>LAFAN1 全部 40 段、一个策略、一张 RTX PRO 6000：0.34 小时（约 20 分钟）第一次到 SuperMimic 报告的 0.82，1.8 小时到 0.874，1.5 小时后三个种子没有一段摔倒。同一引擎上的 PPO 6 小时只到 0.695；SHAC 照原样跑几分钟就因梯度爆炸被自己的守卫停掉。没有真机实验。</p>
+<p>读完我认为最值得记住的四点：</p>
+<ul>
+<li><b>“ultra-efficient”的倍数要分开看。</b>“20 分钟对 1.2 小时”是跨 GPU 的比较（RTX PRO 6000 对 SuperMimic 自报的 H100），1.2 小时还是一个“以内”的上界；同为 H100 时作者只跑了绝对动作版，0.41 小时，对应约 2.9 倍。11.5 倍是引擎微基准，训练层面同一算法换引擎是每次更新 4.4 倍（<a href="#n13">读者注 1</a>、<a href="#n11">9</a>）。</li>
+<li><b>“20 分钟”是均值曲线第一次越线。</b>按图 1(a) 的矢量读数，均值曲线 0.34 小时过 0.82 后又掉到 0.79，约 0.5 小时以后才一直在线上（<a href="#n1">读者注 2</a>）。</li>
+<li><b>代码默认配方不是论文配方。</b>仓库 0.2.0 的 <code>configs/ours.args</code> 换了三处（不再截掉窗口内回合结束后的步、评测打分用 Polyak 平均的策略、预热 100 次），README 的“8 分钟、约 0.91”对应作者站点上的新版 PDF；论文 v1 的数字要用 <code>configs/base/ours_v1.args</code> 加 <code>--residual-action</code>（<a href="#n12">读者注 19</a>）。</li>
+<li><b>补丁只打在 MuJoCo Warp 上。</b>仓库里 4 个补丁都是 MuJoCo Warp 伴随的反向开关，把 NablaEngine 的梯度约定移植过去；Newton 和 Warp 没有补丁。论文引的 Newton PR #2164 只是相关工作里的一个例子：Newton 的可微接触把法向当常数（<a href="#n17">读者注 15</a>）。</li>
+</ul>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p>这一篇正好接在本站几条线的交叉点上：<a href="diffmimic.html">DiffMimic</a> 和 <a href="shac.html">SHAC</a> 是“穿过可微仿真器做 BPTT”的前辈；<a href="supermimic.html">SuperMimic</a> 和 <a href="superdyno.html">SuperDyno</a> 是“学一个可微世界模型再做 BPTT”；<a href="beyondmimic.html">BeyondMimic</a>、<a href="sonic.html">SONIC</a> 是 PPO 跟踪；<a href="holosoma-15min.html">holosoma 15 分钟</a>是离策略的 FastSAC；<a href="daxbench.html">DaXBench</a> 是可变形物体上的可微强化学习基准。下表是我对照各页（各页又对照了各自原文）整理的，不是任何一篇作者的说法。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>∇Mimic（本文）</th><th>DiffMimic</th><th>SHAC</th><th>SuperMimic</th><th>SuperDyno</th><th>DaXBench 里的 APG / SHAC</th><th>BeyondMimic / SONIC</th><th>holosoma（FastSAC）</th></tr></thead><tbody>
+<tr><td>策略梯度从哪来</td><td>可微仿真器 NablaEngine 的解析伴随（精确梯度）</td><td>可微仿真器 Brax（JAX 自动微分）</td><td>可微仿真器 dFlex</td><td>学到的世界模型（替代梯度）</td><td>学到的神经动力学（只预测速度）</td><td>可微仿真器 DaX（JAX）</td><td>PPO：似然比，零阶</td><td>评论家 Q 的重参数化梯度，无模型</td></tr>
+<tr><td>仿真器本身要不要可微</td><td>要，而且为 G1 手写了伴随</td><td>要</td><td>要</td><td>不要，仿真器只产数据</td><td>不要</td><td>要</td><td>不要</td><td>不要</td></tr>
+<tr><td>反传多长</td><td>H = 64 步（1.28 s）</td><td>代码 59 步，论文 4 s 全程；示范回放处断开</td><td>h = 32</td><td>H = 32（想象步）</td><td>T<sub>π</sub> = 32</td><td>APG 默认 10 步；发布的 SHAC 是整个回合</td><td>不反传</td><td>不反传</td></tr>
+<tr><td>窗口之外</td><td>TD(λ) 评论家自举</td><td>没有评论家</td><td>评论家 V</td><td>评论家 V</td><td>没有评论家</td><td>APG 无；SHAC 有但最后一步被清零</td><td>价值函数 + GAE</td><td>分布式评论家</td></tr>
+<tr><td>怎样防梯度爆炸</td><td>每步逐样本裁到中位数 × 3；引擎冻结两类无界几何导数；动作目标按弧度定步长</td><td>全局范数裁剪（论文 0.3，代码 0.4）；示范回放</td><td>短窗口；全局范数 1.0（代码）</td><td>模型本身光滑有界；全局 1.0 + 逐元素 0.1</td><td>模型光滑；没有评论家</td><td>每步 NaN 清零 + 归一化；全局 0.3</td><td>不涉及</td><td>不涉及</td></tr>
+<tr><td>一份数据用几次</td><td>每个窗口回归 8 步（PODS 式）</td><td>一次</td><td>一次</td><td>世界模型摊销；想象窗口用一次</td><td>每 epoch 4 次策略更新</td><td>一次</td><td>5 轮 × 4 小批</td><td>回放缓存，平均约 16 次</td></tr>
+<tr><td>任务与规模</td><td>LAFAN1 40 段，一个策略，4096 个窗口/次</td><td>每个动作单独训，200–300 环境</td><td>6 个连续控制任务</td><td>LAFAN1；BONES-SEED 12.9 万段</td><td>AMASS 11313 段，1024 环境</td><td>9 个可变形物体任务</td><td>BeyondMimic 每段单独训；SONIC 700 h 动捕</td><td>行走为主；跟踪做单段</td></tr>
+<tr><td>算力（各自报告）</td><td>1 × RTX PRO 6000，0.34 h 到 0.82</td><td>1 × V100</td><td>1 × GPU</td><td>1 × H100，1.2 h 内到 0.82；3 h 超过 SONIC</td><td>1 × A6000 约 3 天</td><td>—</td><td>SONIC 128 GPU × 7 天</td><td>1 × 4090 × 15 min（行走）</td></tr>
+<tr><td>真机</td><td>没有（§8）</td><td>没有</td><td>没有</td><td>G1</td><td>没有</td><td>推绳（CEM-MPC）</td><td>G1</td><td>G1、T1</td></tr>
+</tbody></table></div>
+<p><b>和 SuperMimic：仿真器可微时还要不要世界模型？</b>这是本文明确在答的问题，下面按论文原话的意思转述，不替作者下更大的结论。</p>
+<ul>
+<li>论文的读法（§1、§4）：SuperMimic 的成功证明的是“用导数”有效，而不是“用世界模型”有效。世界模型给的是替代梯度：光滑、有界、便宜，但它是另一个系统的导数，所以有偏。仿真器给的是精确梯度：没有模型误差，但少数样本无界，而且贵。</li>
+<li>论文的账（§4 “Bias versus cost”）：按每次策略更新算，精确梯度需要的更新少得多（3.2k 对约 41k）；但按每秒算，在当时可用的仿真器成本下，替代梯度进展更快。原话的意思是“世界模型赢在价格”。</li>
+<li>论文的结论（§4 末、§9）：∇Mimic 用逐样本裁剪把“有界”单独买下（只在被裁的少数样本上有偏），NablaEngine 用工程把“便宜”买下（不引入偏差）。在 G1、平地、LAFAN1 跟踪上，这样就不需要世界模型，并且比 SuperMimic 自报的时间快。</li>
+<li>它没说的：论文没有说世界模型在别处没用。§4.2 自己写了，奖励稀疏、要隔几秒才拿到回报的任务，一阶方法“可能不划算”；§8 写了 NablaEngine 只支持 G1 和平地，换机器人要重写内核。SuperMimic 页<a href="supermimic.html#qa-story">问 2</a>、<a href="supermimic.html#qa-bptt">问 1</a> 讲的正是另一面：梯度不经过仿真器，所以仿真器可以有不光滑的接触、不可微的代码，任何现成的刚体仿真器都能用。两边并不冲突：∇Mimic 回答的是“如果有人愿意为这台机器人写一个快的可微引擎”，SuperMimic 回答的是“如果没有”。这一句是我的归纳。</li>
+<li>一个限定：§4 的梯度对比和 ∇Mimic 组件在世界模型上的试验，用的是第三方复现 CuboiLeo/SuperMimic-Reproduced，不是 SuperMimic 的官方实现（未公开）。复现 2.88 小时到 0.789（附录 E）。本站 SuperMimic 页读者注 10 记过另外两个复现到过 0.904 和 0.829（<a href="#n20">读者注 17</a>）。</li>
+</ul>
+<p><b>和 SHAC。</b>∇Mimic 的骨架就是 SHAC 的“短窗口 + 评论家”。区别有三：梯度处理（SHAC 只有一个全局范数裁剪和一个范数超过 10<sup>6</sup> 就停机的守卫，∇Mimic 改成逐样本、按中位数）；用法（SHAC 每个窗口走一步 Adam，∇Mimic 回归 8 步到动作目标）；数据路径（SHAC 窗口接着上一个窗口的末态，∇Mimic 从回放缓存取起点，这一点沿用 SuperMimic）。§4.1 把 SHAC 失败的原因定位到单个样本：中位数和 99.9 分位都平稳，只有最大值突然到中位数的 10<sup>9</sup> 倍以上。本站 SHAC 页记过它代码里的梯度范数裁剪是 1.0；10<sup>6</sup> 守卫我没有在本站 SHAC 页里核实到。</p>
+<p><b>和 DiffMimic。</b>同为“穿过可微仿真器做动作模仿”，但 DiffMimic 每个动作单独训、没有评论家，靠示范回放在跑偏处断开梯度；∇Mimic 一个策略跟 40 段、有评论家，靠逐样本裁剪处理接触处的极端梯度。∇Mimic 在 §2 只用一句提到 DiffMimic：“在 Brax 里跟踪单段动作，没有评论家”。DiffMimic 页的读者注 3 说示范回放本质上也是按误差决定位置的截断，可以和本文 §5.4 的窗口长度权衡对照着看。</p>
+<p><b>和 SuperDyno、DaXBench。</b>SuperDyno（∇Mimic 参考文献 [37]，引用时注明 SuperMimic 管它叫 SuperDyno）是世界模型路线在人形跟踪上的前身，∇Mimic 在 §2 把它列在“穿过学到的模型求梯度”一类。DaXBench 不在本文的参考文献里；放在这里是因为它的结论正好是本文 §4.2 说的反面例子：可变形物体上很多任务用宏动作、短视野、稀疏信号，可微强化学习多数不如 PPO。DaXBench 页读者注 15 记录的“每步 NaN 清零 + 归一化”，和本文的“逐样本裁剪 + 冻结无界导数”是同一类工程补救，粒度不同。这段对比是我的看法。</p>
+<p><b>和 BeyondMimic、SONIC、holosoma。</b>本文的奖励是 BeyondMimic 的跟踪奖励（权重取 SuperMimic 表 A.2），PPO 基线用 BeyondMimic 的配置，两段 PPO 都跑在 NablaEngine 的前向上（同一引擎、同一 GPU）。SONIC 只在相关工作里作为“PPO 放大到 2.1 万 GPU 小时”的例子出现，本文没有和它比。holosoma 15 分钟（FastSAC）不在本文参考文献里；它和本文都说“比 PPO 快”，但 holosoma 的倍数是同一任务、同一硬件下的时间比（行走约 2.7 倍，Dance 跟踪约 2 倍，见该页），本文对 PPO 是“6 小时没到 0.82”，对 SuperMimic 是跨 GPU 的时间比，口径不同，不能并排比大小。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p>动作跟踪已经是人形学习的核心任务：只要人的动作能重定向到机器人上，跟踪策略就能把它做出来。这条线从角色动画里的 DeepMimic 一路到真机人形。两件事让它从“一个技能”变成“地基”：更大、更好的动作数据集（AMASS、LAFAN1、BONES-SEED）和它们的机器人重定向版本；以及一个通用跟踪器可以当更大系统的底层策略，它的编码器-解码器结构给遥操作、动作生成和下游任务提供了接口。</p>
+<p>这些跟踪器几乎都用零阶策略梯度训练，主要是 PPO：只要黑箱仿真器给的奖励，代价是巨大的样本量。GPU 大规模并行让样本便宜了，但一个全身跟踪策略仍然要几小时到几天，这限制了能扩多大。</p>
+<p>一阶方法穿过动力学对回报求导，每一步都贡献一个更新方向而不只是一个标量。但在接触多的全身控制上，穿过刚性接触的梯度会爆炸。SHAC 也不例外：在 G1 全身跟踪上，每一次 SHAC 都在几分钟内撞上梯度爆炸停下（§4.1）。</p>
+<p>穿过学到的动力学模型求导也有很长的历史（随机值梯度、MAAC、Dreamer、角色动画里的跟踪控制器）。SuperMimic 把它带到了大规模人形全身跟踪：穿过学到的世界模型而不是仿真器求导，比 PPO 快得多。作者对此的读法上面已经写了：增益来自导数本身，世界模型是让导数有界且便宜的代价。那么这个代价买到了什么、是否必须付？世界模型给替代梯度（光滑、有界、便宜，但是另一个系统的导数）；仿真器给精确梯度（就是被仿真系统的导数，但少数样本无界，且伴随要重算接触求解，所以贵）。</p>
+<p>本文同时去掉这两个障碍：∇Mimic 处理样本，按样本限住少数极端梯度，其余的变成步长按物理单位固定的动作目标，让任何单个样本都主导不了一次更新（§5）；NablaEngine 处理成本，伴随写成一个大内核，精确梯度比多走一步前向还便宜（§6）。</p>
+<p>结果：40 段 LAFAN1、一个策略、一张 GPU，20 分钟到 SuperMimic 的 0.82（SuperMimic 报告 1.2 小时），1.8 小时到 0.874，1.5 小时后没有任何种子在任何片段上摔倒（图 1）。同引擎的 PPO 6 小时内一直低于 0.82。引擎每秒墙钟仿真 18.8 小时的机器人运动。动作跟踪适合精确梯度，因为奖励稠密，几乎处处指向参考；稀疏奖励时，窗口长短要在“更依赖评论家”和“累积更多极端梯度”之间权衡（§4.2）。</p>
+<p><b>贡献。</b>(1) 对精确梯度和替代梯度的分析：接触事件附近的无界导数沿长窗口累积，能解释以往一阶方法在全身控制上的失败；世界模型便宜，能解释替代梯度的成功。(2) ∇Mimic：在几千个并行环境的规模上，对精确接触梯度稳定的一阶方法，每个组件都有消融。(3) NablaEngine：开源的 G1 可微仿真引擎，解析梯度和 float64 有限差分一致。(4) 不用世界模型、一张 GPU，在人形跟踪上达到世界模型方法的水平：LAFAN1 上 20 分钟到 0.82，而不是 1.2 小时。</p>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 2 页 · <a href="https://arxiv.org/html/2610.41654v1#S1.F1">看原图 ↗</a></span><p>两栏。(a) 横轴是单张 RTX PRO 6000 上的训练墙钟（线性，0 到 6 小时），纵轴是 LAFAN1 归一化回报。蓝色 ∇Mimic（3 个种子的均值 ± 标准差）开局几分钟就冲到 0.5 以上，20 分钟左右碰到虚线 0.82，之后在 0.87 附近走平；虚线旁标着“SuperMimic within 1.2 h”。灰紫色是同一引擎上的 PPO，6 小时还在 0.7 左右。(b) 横向条形图，对数横轴，每 20 ms 控制步、4096 个世界的耗时：前向一步 NablaEngine 1.21 ms，MuJoCo Warp 5.84 ms（4.8 倍），Isaac Lab（PhysX，用它自己的 G1 资产和任务默认值）27.5 ms（22.7 倍），MJX 255 ms（211 倍）；一步的梯度 NablaEngine 1.78 ms，MuJoCo Warp 加 PR #1535 20.5 ms（11.5 倍）。</p></div>
+<div class="viz" id="fig1a-r"><p class="cap">图 1(a) · 按原图读数重画（PDF 第 2 页矢量路径；只画均值线，标准差带略去）</p><svg viewBox="0 0 640 300" role="img" aria-label="图 1(a) 重画：∇Mimic 与 PPO 的回报-墙钟曲线"><line class="viz-grid" x1="56" x2="622" y1="256.0" y2="256.0"/><text class="viz-tick" x="50" y="260.0" text-anchor="end">0.0</text><line class="viz-grid" x1="56" x2="622" y1="202.7" y2="202.7"/><text class="viz-tick" x="50" y="206.7" text-anchor="end">0.2</text><line class="viz-grid" x1="56" x2="622" y1="149.3" y2="149.3"/><text class="viz-tick" x="50" y="153.3" text-anchor="end">0.4</text><line class="viz-grid" x1="56" x2="622" y1="96.0" y2="96.0"/><text class="viz-tick" x="50" y="100.0" text-anchor="end">0.6</text><line class="viz-grid" x1="56" x2="622" y1="42.7" y2="42.7"/><text class="viz-tick" x="50" y="46.7" text-anchor="end">0.8</text><line class="viz-grid" x1="56.0" x2="56.0" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="56.0" y="272" text-anchor="middle">0</text><line class="viz-grid" x1="150.3" x2="150.3" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="150.3" y="272" text-anchor="middle">1</text><line class="viz-grid" x1="244.7" x2="244.7" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="244.7" y="272" text-anchor="middle">2</text><line class="viz-grid" x1="339.0" x2="339.0" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="339.0" y="272" text-anchor="middle">3</text><line class="viz-grid" x1="433.3" x2="433.3" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="433.3" y="272" text-anchor="middle">4</text><line class="viz-grid" x1="527.7" x2="527.7" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="527.7" y="272" text-anchor="middle">5</text><line class="viz-grid" x1="622.0" x2="622.0" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="622.0" y="272" text-anchor="middle">6</text><text class="viz-lab" x="339" y="294" text-anchor="middle">训练墙钟（小时，单张 RTX PRO 6000）</text><text class="viz-lab" transform="translate(14,136) rotate(-90)" text-anchor="middle">LAFAN1 归一化回报</text><line x1="56" x2="622" y1="37.3" y2="37.3" stroke="var(--muted)" stroke-dasharray="5 4"/><text class="viz-tick" x="618" y="32.3" text-anchor="end">0.82</text><polyline fill="none" stroke="var(--series-2)" stroke-width="2.2" stroke-linejoin="round"  points="56.0,255.5 59.1,254.1 62.3,231.5 65.4,207.5 68.5,214.7 71.8,204.5 74.9,173.9 78.0,186.7 81.2,171.5 84.3,152.5 87.4,153.3 90.6,137.3 93.7,148.5 96.8,130.4 100.1,120.3 103.2,132.0 106.3,122.1 109.5,125.9 112.6,120.5 115.7,111.7 118.9,124.3 122.0,116.0 125.1,120.5 128.4,111.5 131.5,115.5 134.6,111.7 137.8,114.1 140.9,114.7 144.0,115.2 147.2,116.3 150.3,114.9 173.9,102.7 197.5,98.4 221.1,82.9 244.7,85.1 268.2,84.5 291.8,84.5 315.4,83.5 339.0,85.9 362.6,63.7 386.2,69.9 409.8,79.5 433.3,71.7 456.9,81.3 480.5,67.5 504.1,66.4 527.7,67.7 551.2,62.9 574.8,61.3 598.4,55.7 622.0,70.7"/><polyline fill="none" stroke="var(--series-1)" stroke-width="2.6" stroke-linejoin="round"  points="58.5,189.9 61.1,114.4 63.5,81.1 68.5,68.8 71.0,54.9 73.5,59.5 76.1,54.7 78.5,46.9 81.1,48.8 83.2,48.3 85.5,52.8 85.7,52.8 86.1,50.7 88.2,37.3 88.6,37.1 90.6,41.6 91.2,41.1 93.1,37.9 95.5,37.9 96.2,38.7 98.0,44.5 98.6,44.5 101.2,39.7 103.6,35.5 106.2,32.8 108.6,32.0 110.4,31.2 111.1,31.2 113.6,32.5 115.3,31.2 116.1,31.5 117.9,32.8 119.9,31.7 120.3,31.5 122.3,31.7 123.5,31.7 125.3,31.5 127.8,29.1 129.7,29.1 131.1,30.1 132.1,31.2 132.8,31.2 133.5,31.2 134.6,30.4 135.2,30.9 136.0,30.7 137.0,31.2 138.5,29.6 139.5,28.8 141.9,28.5 143.4,28.3 145.9,27.7 149.3,28.3 150.1,28.3 175.7,25.6 185.7,24.3 205.4,24.3 215.4,23.2 225.2,22.9 235.1,22.7 245.0,23.5 264.9,23.5 274.8,22.9 284.7,23.7 294.6,23.2 304.5,22.7 314.4,22.9 324.3,23.2 334.2,22.7 344.7,22.7"/><line x1="88.2" x2="88.2" y1="37.3" y2="256.0" stroke="var(--series-1)" stroke-dasharray="2 3"/><text class="viz-lab" x="93.2" y="242.7" fill="var(--series-1)">0.34 h</text><path d="M169.2,31.3 l6,6 l-6,6 l-6,-6z" fill="none" stroke="var(--series-4)" stroke-width="2"/><text class="viz-lab" x="178.2" y="57.3" fill="var(--series-4)">SuperMimic：自称 1.2 h 内（H100）</text><text class="viz-lab" x="348.4" y="15.7" fill="var(--series-1)">∇Mimic（3 种子均值）</text><text class="viz-lab" x="376.7" y="96.0" fill="var(--series-2)">PPO，BeyondMimic 配置（1 种子）</text></svg><p class="note2">∇Mimic 70 个点、PPO 51 个点，读数误差约 ±0.003。蓝色竖虚线是均值第一次过 0.82 的位置（0.341 h）。黄色菱形不是数据点，只标出 SuperMimic 自己说的“1.2 小时以内”，硬件是 H100，不是同一张卡。</p></div>
+<div class="viz" id="fig1b-r"><p class="cap">图 1(b) · 按原图数字重画（数字见正文和表 3、表 5、表 6，RTX PRO 6000）</p><svg viewBox="0 0 640 260" role="img" aria-label="图 1(b) 重画：各引擎单步耗时"><line class="viz-grid" x1="200.0" x2="200.0" y1="10" y2="224"/><text class="viz-tick" x="200.0" y="240" text-anchor="middle">1</text><line class="viz-grid" x1="333.3" x2="333.3" y1="10" y2="224"/><text class="viz-tick" x="333.3" y="240" text-anchor="middle">10</text><line class="viz-grid" x1="466.7" x2="466.7" y1="10" y2="224"/><text class="viz-tick" x="466.7" y="240" text-anchor="middle">100</text><line class="viz-grid" x1="600.0" x2="600.0" y1="10" y2="224"/><text class="viz-tick" x="600.0" y="240" text-anchor="middle">1000</text><text class="viz-lab" x="6" y="22" font-weight="600">前向一步</text><text class="viz-tick" x="194" y="44" text-anchor="end">NablaEngine</text><rect x="200" y="32" width="11.0" height="16" rx="3" fill="var(--series-1)"/><text class="viz-tick" x="216.0" y="44">1.21 ms</text><text class="viz-tick" x="194" y="68" text-anchor="end">MuJoCo Warp</text><rect x="200" y="56" width="102.2" height="16" rx="3" fill="var(--series-5)"/><text class="viz-tick" x="307.2" y="68">5.84 ms</text><text class="viz-tick" x="194" y="92" text-anchor="end">Isaac Lab（PhysX）</text><rect x="200" y="80" width="191.9" height="16" rx="3" fill="var(--series-5)"/><text class="viz-tick" x="396.9" y="92">27.5 ms</text><text class="viz-tick" x="194" y="116" text-anchor="end">MJX</text><rect x="200" y="104" width="320.9" height="16" rx="3" fill="var(--series-5)"/><text class="viz-tick" x="525.9" y="116">255 ms</text><text class="viz-lab" x="6" y="132" font-weight="600">一步的梯度</text><text class="viz-tick" x="194" y="154" text-anchor="end">NablaEngine</text><rect x="200" y="142" width="33.4" height="16" rx="3" fill="var(--series-1)"/><text class="viz-tick" x="238.4" y="154">1.78 ms</text><text class="viz-tick" x="194" y="178" text-anchor="end">MuJoCo Warp + PR #1535</text><rect x="200" y="166" width="174.9" height="16" rx="3" fill="var(--series-5)"/><text class="viz-tick" x="379.9" y="178">20.5 ms</text><text class="viz-lab" x="400" y="256" text-anchor="middle">每 20 ms 控制步的耗时，4096 个世界（ms，对数轴）</text></svg></div>
+<div class="note" id="n1"><span class="lab">读者注 1 · “ultra-efficient”的倍数是怎么算出来的，口径是否一致</span>
+<p>论文里出现的“快多少倍”至少有六个，口径各不相同：</p>
+<div class="tablewrap"><table class="t-r4"><thead><tr><th>说法</th><th>算式</th><th>比的是什么</th><th>同一 GPU？</th></tr></thead><tbody>
+<tr><td>“20 分钟而不是 1.2 小时”（摘要、§1、§7.2）</td><td>1.2 / 0.34 = 3.5；按 20 分钟算 72/20 = 3.6</td><td>到 0.82 的训练墙钟</td><td><b>否</b>：∇Mimic 是 RTX PRO 6000，SuperMimic 是它论文自报的 H100；而且 1.2 小时是“以内”，是上界</td></tr>
+<tr><td>同为 H100 的参照（附录 H 表 11）</td><td>1.2 / 0.41 = 2.9</td><td>∇Mimic 绝对动作版（单种子）在 H100 上 0.41 h 到 0.82</td><td>是（都 H100），但用的是绝对动作版，主结果的残差动作版没在 H100 上跑</td></tr>
+<tr><td>11.5 倍（摘要、§6）</td><td>20.5 / 1.78 = 11.5（表 6）</td><td>一个控制步“前向 + 梯度”的引擎耗时</td><td>是，但只在 RTX PRO 6000 上是 11.5；H100 9.2、RTX 3090 8.2、V100 6.0</td></tr>
+<tr><td>4.8 倍（§6）</td><td>5.84 / 1.21 = 4.83</td><td>只算前向</td><td>是</td></tr>
+<tr><td>4.4 / 4.7 倍（§7.3）</td><td>1.63 / 0.37 = 4.4；2.03 / 0.43 = 4.7</td><td>同一算法换引擎：每次更新的耗时、到 4k 次更新的墙钟</td><td>是。这是训练层面真正的引擎收益，比 11.5 小，因为策略网络、评论家、回归、数据收集都不变</td></tr>
+<tr><td>“约 1/13 的更新次数”（§4）</td><td>41,000 / 3,235 = 12.7</td><td>到 0.82 所需的策略更新次数</td><td>不涉及硬件；但 41k 是从 SuperMimic 的另一条曲线（BONES-SEED）推算的，换一种计数是 16k，比值约 5（<a href="#n9">读者注 4</a>）</td></tr>
+</tbody></table></div>
+<p>所以：“同一 GPU、同一任务、同一评测”的对 SuperMimic 比较，论文里没有，因为 SuperMimic 没有公开实现（§7.1、§8 自己承认）。能严格比的是同引擎上的 PPO（6 小时到不了 0.82）和 SHAC（3 小时到不了），以及 §7.3 的同算法换引擎（4.4 倍）。样本数口径：∇Mimic 到 0.82 用了 8.81 × 10<sup>8</sup> 次仿真转移（表 12），SuperMimic 没报这个数，无法对比。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · “20 分钟”是均值曲线第一次越线，之后又掉下来</span>
+<p>附录 G 定义“到某分数的时间”是 3 种子均值曲线的<b>第一次越线</b>，评测点之间线性插值。按图 1(a) 蓝线的矢量读数：0.319 h 是 0.770，0.341 h 是 0.820（越线），0.367 h 回到 0.804，0.445 到 0.452 h 低到 0.793，0.479 h 0.811，0.505 h 0.827，此后一直在 0.82 以上。所以“均值曲线稳定在 0.82 之上”大约从 0.5 小时开始，表 4 里 0.5 h 的 0.824 ± 0.008 也说明那时刚过线。逐种子看，表 11 写的是 0.36 ± 0.05 h。这不影响结论的量级，但“20 分钟”是最乐观的读法。</p>
+<p>其余可核对的读数都对得上：∇Mimic 1.794 h 0.874（正文“1.8 h 到 0.874”）；PPO 6.0 h 0.695、5.75 h 0.751（表 11 的 6 h 回报和“最好 0.751”）；PPO 的点在第一小时每 0.033 h 一个，对应 <code>configs/base/ppo.args</code> 的“第一小时每 2 分钟存一次”。</p></div>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>零阶动作跟踪。</b>DeepMimic 用 RL 建立了物理动作模仿；PHC 这类通用跟踪器一个策略模仿 AMASS 的几千段动作。真机上 H2O、OmniH2O、ASAP、GMT 等在 G1 上跟踪重定向后的人体动作。BeyondMimic 用一套紧凑的 PPO 配方和共享超参数跟踪敏捷的 LAFAN1 动作；SONIC 把 PPO 跟踪放大到 700 小时动捕和 2.1 万 GPU 小时（128 卡 7 天）。本文用 BeyondMimic 的 PPO 配置做零阶基线。</p>
+<p><b>可微仿真器里的一阶策略学习。</b>穿过可微仿真器做全视野 BPTT 会遇到混沌和梯度爆炸（Metz 等），穿过刚性接触的梯度可能有偏或方差大（Suh 等）。PODS 把策略回归到梯度改进过的动作上；SHAC 引入短窗口和 TD(λ) 评论家；后续工作自适应视野（AHAC）、加最大熵（SAPO）、把解析梯度和 PPO 结合（GI-PPO、RPO）、把渲染和梯度解耦（D.Va）。腿足机器人上能上真机的策略，用的是平滑过的足端接触、反向时用简化替代，或前向精确、反向用平滑的接触灵敏度。DiffMimic 在 Brax 里跟踪单段动作，没有评论家。BCG 在 Schwarke 等的平滑接触仿真器上结合 SHAC 和 ADD 模仿奖励，用 64 个环境训了 4 段 LAFAN1 的 G1 跟踪器。这些工作用 32 到 1024 个环境；本文每次更新用 4096 个 BPTT 窗口，且是完整接触动力学。</p>
+<p><b>穿过学到的模型求梯度。</b>SVG、MAAC、Dreamer 穿过学到的动力学优化策略。PWM 和 Ma 等报告学到的模型可以比真实动力学给出更平滑的优化地形；Amigo 等在仿真器里滚动、穿过学到的模型反传。物理角色方面有 SuperTrack、ControlVAE、Lei 等（即 SuperDyno）。SuperMimic 和策略一起在线训一个世界模型，在 LAFAN1 和 BONES-SEED 上报告了最好成绩。它们的梯度来自学到的替代；本文的来自仿真器本身。</p>
+<p><b>可微和 GPU 仿真器。</b>GPU 仿真让零阶方法的样本变便宜。可微引擎里，DiffTaichi 和 Warp 自动生成伴随内核；dflex 和 Rewarped 用罚函数接触；Brax 和 MJX 用 JAX 自动微分，但 MJX 在本文的模型上只有前向模式（求解器里的 <code>while_loop</code> 挡住了反向，MuJoCo issue #2259）。Nimble 解析地对 LCP 接触求导；Dojo、Simple、Ostrich 在接触解处用隐函数定理；DiffMJX 研究 MuJoCo 软接触的梯度。MuJoCo Warp 的任何正式版本都不可微，伴随只存在于一个开着的 PR（#1535）里。Newton 和 Genesis 有可微模式，分别把接触法向当常数（Newton PR #2164），或让部分碰撞操作没有梯度。NablaEngine 给出单个机器人、高吞吐、精确且确定性的 MuJoCo 动力学伴随。</p>
+<p><b>裁剪和回归到动作目标。</b>BPTT 的范数裁剪始于 Pascanu 等。逐样本裁剪是差分隐私 SGD 的标准做法，有按中位数和按分位数的阈值；裁剪在重尾噪声下有帮助，但一般是有偏的。本文把它用在 BPTT 内部的动作余切上，作者明说这是一种超出这些理论保证的启发式。回归到改进过的动作沿用轨迹优化教师、MPO、AWR 等的思路。本文保留 PODS 的目标回归，不同在两点：BPTT 内部逐样本按中位数裁剪；步长按裁剪后梯度的批次 RMS 固定成弧度（§5.2）。</p>
+
+<h2 id="s3"><span class="no">3</span>背景</h2>
+<p><b>任务。</b>Unitree G1（29 个驱动关节）的全身动作跟踪，用 mjlab 的模型。控制 50 Hz，每步 4 个 5 ms 的物理子步。策略看到 10 帧带噪声的本体感觉（关节位置、速度、基座角速度、重力方向、上一步动作）、接下来 10 帧参考，以及参考锚点（躯干）相对机器人锚点的朝向；最后这项要 IMU，不要全局位置。奖励是 BeyondMimic 的跟踪奖励，权重按 SuperMimic 的设置：14 个刚体的位置、朝向、速度，以及锚点位姿上的指数核，外加动作变化率和关节限位惩罚。根高度误差超过 0.25 m 或倾斜误差超过 0.8 时回合终止。附录 A 给全部定义。</p>
+<p><b>一阶策略学习。</b>从状态 \(s_0\) 出发、长 \(H\) 步的窗口回报是</p>
+<div class="eq" id="eq1"><div class="m">\[J(\theta)=\sum_{t&lt;H}\gamma^{t}\,r(s_t,a_t)+\gamma^{H}V_\phi(s_H),\qquad a_t=\pi_\theta(o_t),\quad s_{t+1}=f(s_t,a_t).\]</div><span class="no">(1)</span></div>
+<p>\(f\) 可微时，\(\nabla_\theta J\) 由沿时间反传（BPTT）得到，是路径梯度。它不同于 PPO 的似然比梯度，直接用到 \(f\) 的导数，所以梯度的质量取决于这些导数（§4）。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · “倾斜误差超过 0.8”在代码里是重力 z 分量之差</span><p><code>src/nablamimic/env.py</code> 开头的说明（第 18 行）和 <code>terminated</code>（第 428–433 行）：终止条件是 \(|z_\text{root}-z_\text{ref}|&gt;0.25\) m，或骨盆坐标系里重力方向 z 分量与参考之差大于 0.8。这和本站 BeyondMimic 页读者注 16 说的情况一样：BeyondMimic 论文写“旋转误差 0.8 rad”，代码是重力分量差 0.8（直立时约相当于 78° 的倾斜）。本文正文写“tilt error exceeds 0.8”，没有单位，和代码一致。式 (3) 的 \(d_\theta\) 也是这个量（<code>env.py</code> 第 437–447 行的 <code>hazard_features</code>）。</p></div>
+
+<h2 id="s4"><span class="no">4</span>精确梯度与替代梯度</h2>
+<p>一阶方法用了零阶方法忽略的动力学导数，所以通常认为每个样本能提取更多信息，只要有导数就该用。但记录恰好相反：用仿真器自己导数的方法在全身控制上失败了，而用“学来的仿真器仿制品”的导数的方法成功了。本节解释这个反差：接触丰富的动力学的导数原样不能用；让它们变得规整的系统描述的又不是目标动力学；而且算导数要花时间。</p>
+<p><b>两种梯度。</b>作者定义：梯度里包含“策略被训练和评测所在的那个系统”的解析导数，叫<b>精确</b>梯度（这里就是式 (1) 里的 \(f\) 是仿真器本身）；把 \(f\) 换成另一个更好处理的系统，梯度里是那个系统的导数，叫<b>替代</b>梯度。替代可以是学到的动力学模型 \(\hat f\)，也可以是把接触软化的简化可微仿真器（例如用有限刚度的罚弹簧代替刚性接触）。两者是一条轴的两端，不是二分：软化接触的仿真器在中间，NablaEngine 训练用的梯度在它冻结无界项的地方也偏离了精确导数（§6）。下面比较两端：NablaEngine 的精确梯度和世界模型的替代梯度。</p>
+<p>作者强调：学习需要的既不是精确也不是有界，而是<b>学习信号</b>，即在一次策略更新的尺度上能改善回报的那部分梯度。每单位算力能拿到多少信号，由两个权衡决定（表 1）。</p>
+<div class="tablewrap"><table class="t-small" id="t1"><caption class="tcap">表 1 · 精确梯度与替代梯度：偏差、无界导数、成本（第 4 页）</caption><thead><tr><th></th><th>精确梯度（仿真器）</th><th>替代梯度（世界模型）</th></tr></thead><tbody>
+<tr><td>偏差</td><td>没有模型误差：被仿真系统的导数</td><td>另一个学到的系统的导数</td></tr>
+<tr><td>无界导数</td><td>在不可微事件附近</td><td>没有（光滑网络）</td></tr>
+<tr><td>每次更新的成本</td><td>高（仿真器伴随）</td><td>低（一次网络前向反向）</td></tr>
+</tbody></table></div>
+<p><b>精确无界，替代有界。</b>精确梯度没有偏差，但接触动力学不是处处可微：接触出现或消失、执行器饱和、求解器的有效集改变时，导数跳变或无定义；在某些事件附近它无界，忠实地算出来可以是无穷。作者在 G1 上测到（附录 B）：</p>
+<ul>
+<li>双脚快碰上时，自接触法向的导数按距离的倒数增长；在训练窗口上，梯度穿过一个窗口最多放大 4.9 × 10<sup>21</sup> 倍，有 32 行不是有限值；</li>
+<li>两根胶囊几乎平行（脚交叉）时，一个控制步就把梯度放大最多 3.6 × 10<sup>8</sup> 倍，172 个这样的状态里有 40 个在重复多步后溢出成非有限值。</li>
+</ul>
+<p>替代梯度处处有界。对一个权重矩阵 \(W_1,\dots,W_n\)、激活函数 Lipschitz 常数为 \(c\) 的多层感知机世界模型（SuperMimic 用的 SiLU，\(c\approx1.1\)），一步预测的雅可比满足</p>
+<div class="eq" id="eq2"><div class="m">\[\left\|\frac{\partial \hat f}{\partial (s,a)}\right\|_2\le L=c^{\,n-1}\prod_{l=1}^{n}\|W_l\|_2\]</div><span class="no">(2)</span></div>
+<p>在任何状态都成立，所以 \(H\) 步窗口的动作梯度被一个只依赖 \(L\)、\(H\) 和奖励的常数限住。这个界可能很松，随 \(H\) 增长，但它是一致的：没有哪个状态让它变成无穷。仿真器的一步雅可比没有这样的界。代价是替代梯度描述的是另一个系统，所以有偏。</p>
+<p><b>主体相同，尾巴不同。</b>两种梯度在批次的主体上一致，只在极端处分开。各自在自己的滚动上，尾巴差不多：用一个 SuperMimic 复现的策略、同样的目标、32 步窗口，逐样本动作梯度范数的 99.9 分位在两条路线上都是中位数的 25 到 37 倍，最大值是几百到约 1350 倍，没有一致的谁大谁小。沿同一条轨迹的配对比较更能说明差别：同一个策略在 NablaEngine 里跑，在每个记录的状态和动作上，动作梯度分别用引擎的雅可比和世界模型在该状态的雅可比各算一次，其余完全相同。多数样本上两者很接近（范数的 Spearman 相关 0.94–0.95，余弦中位数 0.90–0.91，两个检查点），小梯度上几乎完全一致（最小 10% 的余弦 0.96–0.98）。精确梯度越大，一致性越低：最大的 0.1% 精确梯度上，世界模型的梯度范数只有它的 0.35–0.43（中位数），余弦中位数 0.39–0.67，有些样本方向相反。世界模型不会自己造出大梯度：它梯度大的地方，精确梯度也大。</p>
+<p>所以差别在尾巴，不在偏差。沿同一轨迹，世界模型把精确梯度的尾巴压低了（99.9 分位 16–21 倍中位数，对精确的 24–31 倍）。而用精确导数时，无界事件又会出现：不用 NablaEngine 对它们的处理规则，单个样本能到中位数的 6.5 × 10<sup>24</sup> 倍，有些不是有限值。这种样本很少，但一个就能主导批次平均梯度。少数样本数值巨大或无穷、没有学习信号；其余部分和替代梯度一样好，而且无偏。</p>
+<p><b>更精确不等于更多信号。</b>把力饱和执行器的导数改成精确的，改变了约 20% 的逐状态梯度，但没有改善学习：1 小时后 −0.023（3 个种子，在两个种子标准差以内）；和下面的自接触规则一起用，或到 3 小时，都没有差别。</p>
+<p><b>偏差对成本。</b>世界模型算和求导都便宜：一次网络前向，和接触复杂度无关。SuperMimic 报告它的世界模型在实际用的批量下比 MuJoCo Warp 快 10 倍以上、在 64k 并行环境时快 62 倍，训练比 SONIC 的集群 PPO 少用 1000 倍以上 GPU 小时。机器人学习常用的仿真器在这台机器人上更慢：4096 个 G1 世界的一个控制步，MuJoCo Warp 5.8 ms，Isaac Lab 用 Newton 12.9 ms、用 PhysX 27.5–54.1 ms，16 线程 CPU 上的 MuJoCo C 34.7 ms，MJX 255 ms，全部只是前向（一张 RTX PRO 6000，表 5）。其中很少能给出完整接触动力学的梯度：PhysX 不行，MuJoCo C 只有有限差分，MJX 在这个模型上只有前向模式，MuJoCo Warp 只能通过一个开着的 PR。</p>
+<p>按每次策略更新算：SuperMimic 一次迭代在 H100 上约 0.1 s（从它的论文估计，附录 E）。同样的一阶配方放在 MuJoCo Warp 的伴随上，一次更新 1.63 s，是它的 16 倍。即使在 NablaEngine 上也要 0.37 s，仍比世界模型贵。精确梯度靠更新次数补回来：∇Mimic 3.2k 次更新到 0.82，约为 SuperMimic 所需约 41k 次迭代的 1/13（附录 E 给出估计和另一种读法）。作者这样读 SuperMimic 的结果：按每次更新算，精确梯度需要的少得多；按每秒算，在当时仿真器的成本下，替代梯度进展更快。世界模型赢在价格。</p>
+<p><b>精确梯度需要什么。</b>两个权衡指向同两件事，作者打算用不同于世界模型的方式满足它们。替代梯度在每个样本上付一份偏差，同时买到有界导数和便宜的更新；本文把两者分开买。有界的代价是只在被裁掉的少数样本上有偏，主体部分保持精确，这是 ∇Mimic 的事（§5）。便宜的代价是工程而不是偏差：伴随要快到“每次更新信号更多”能在墙钟上兑现，这是 NablaEngine 的事（§6）。把 ∇Mimic 的组件用到一个公开 SuperMimic 复现的世界模型梯度上，没有持续的收益：加逐样本裁剪，2.7 小时后 0.80 对不加的 0.79；裁剪和动作目标一起用，1.5 小时后训练崩溃（各一个种子）。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · “3.2k 对约 41k 次更新”的估算链条</span><p>附录 E 的算式，我逐步核了一遍：SuperMimic 说训练 320,000 次迭代，BONES-SEED 曲线每 4000 次一个检查点，最后一个点在 9.37 小时（本站 SuperMimic 页也从图 A.1 读出过 9.37 小时、80 个检查点）。320,000 / 9.37 = 34,152 次/小时，即每次 0.105 s。假设 LAFAN1 上每次迭代一样贵，1.2 小时 × 34,152 = 40,982 ≈ 41k。∇Mimic 到 0.82 是 3,235 次（表 12），41,000 / 3,235 = 12.7，即“约 1/13”。另一种读法：按 SuperMimic 的更新数据比 0.4 只数策略更新，40,982 × 0.4 = 16,393 ≈ 16k，每次约 0.105 / 0.4 = 0.26 s，16,393 / 3,235 = 5.1，即“约 1/5”。两点要注意：一是“1.2 小时以内”是上界，按它算出的 41k 也是上界；二是 BONES-SEED 和 LAFAN1 的每次迭代成本是否相同，作者是假设的，没有数据。</p></div>
+
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 6 页 · <a href="https://arxiv.org/html/2610.41654v1#S4.F2">看原图 ↗</a></span><p>标题“爆炸的梯度集中在单个样本上”。SHAC 在精确梯度上（一个种子，原始值，没有任何裁剪）的逐样本动作梯度范数。(a) 一次更新批次（131,072 个样本）里，范数除以批中位数的直方图，横轴对数从 10<sup>−2</sup> 到 10<sup>10</sup>，纵轴样本数对数。两条直方图：第 1000 次更新（普通）和第 1403 次更新（SHAC 守卫停机的那一次）。两者主体都在 10<sup>−2</sup> 到 10<sup>2</sup> 之间；停机那次在右边很远处有一个孤立样本，标注“one sample: 2.2e9× median”。竖线标出“clip at 3× median”。(b) 每次更新的中位数、99.9 分位和最大值，横轴 0 到约 1400 次更新，纵轴对数。中位数和 99.9 分位一路平直；最大值上下跳动，最后一次冲到最高。</p></div>
+<div class="viz" id="fig2b-r"><p class="cap">图 2(b) · 按原图读数重画（PDF 第 6 页；每 20 次更新分一箱，最大值取箱内最大、分位数取箱内平均，再除以同箱中位数）</p><svg viewBox="0 0 640 300" role="img" aria-label="图 2(b) 重画：SHAC 每次更新的样本梯度范数分位数"><line class="viz-grid" x1="56" x2="622" y1="234.2" y2="234.2"/><text class="viz-tick" x="50" y="238.2" text-anchor="end">10⁰</text><line class="viz-grid" x1="56" x2="622" y1="190.5" y2="190.5"/><text class="viz-tick" x="50" y="194.5" text-anchor="end">10²</text><line class="viz-grid" x1="56" x2="622" y1="146.9" y2="146.9"/><text class="viz-tick" x="50" y="150.9" text-anchor="end">10⁴</text><line class="viz-grid" x1="56" x2="622" y1="103.3" y2="103.3"/><text class="viz-tick" x="50" y="107.3" text-anchor="end">10⁶</text><line class="viz-grid" x1="56" x2="622" y1="59.6" y2="59.6"/><text class="viz-tick" x="50" y="63.6" text-anchor="end">10⁸</text><line class="viz-grid" x1="56" x2="622" y1="16.0" y2="16.0"/><text class="viz-tick" x="50" y="20.0" text-anchor="end">10¹⁰</text><line class="viz-grid" x1="56.0" x2="56.0" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="56.0" y="272" text-anchor="middle">0</text><line class="viz-grid" x1="155.6" x2="155.6" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="155.6" y="272" text-anchor="middle">250</text><line class="viz-grid" x1="255.3" x2="255.3" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="255.3" y="272" text-anchor="middle">500</text><line class="viz-grid" x1="354.9" x2="354.9" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="354.9" y="272" text-anchor="middle">750</text><line class="viz-grid" x1="454.6" x2="454.6" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="454.6" y="272" text-anchor="middle">1000</text><line class="viz-grid" x1="554.2" x2="554.2" y1="16" y2="256" opacity=".35"/><text class="viz-tick" x="554.2" y="272" text-anchor="middle">1250</text><text class="viz-lab" x="339" y="294" text-anchor="middle">SHAC 策略更新次数</text><text class="viz-lab" transform="translate(14,136) rotate(-90)" text-anchor="middle">相对本次中位数（log₁₀）</text><line x1="56" x2="622" y1="234.2" y2="234.2" stroke="var(--series-1)" stroke-width="2"/><polyline fill="none" stroke="var(--series-3)" stroke-width="2.2" stroke-linejoin="round"  points="60.0,209.1 68.0,207.3 75.9,210.0 83.9,209.7 91.9,207.1 99.8,206.3 107.8,205.4 115.8,205.6 123.8,206.0 131.7,206.0 139.7,206.7 147.7,207.6 155.6,206.3 163.6,206.3 171.6,206.7 179.6,206.7 187.5,207.6 195.5,207.1 203.5,207.8 211.5,206.0 219.4,205.2 227.4,204.1 235.4,206.3 243.3,205.8 251.3,204.3 259.3,203.9 267.3,203.9 275.2,203.6 283.2,203.4 291.2,203.4 299.1,204.5 307.1,203.4 315.1,204.1 323.1,203.4 331.0,203.2 339.0,201.9 347.0,201.7 354.9,201.7 362.9,201.9 370.9,201.5 378.9,201.2 386.8,197.3 394.8,201.0 402.8,200.8 410.7,200.1 418.7,199.9 426.7,199.3 434.7,198.6 442.6,199.5 450.6,199.5 458.6,199.1 466.5,198.2 474.5,198.2 482.5,198.0 490.5,198.2 498.4,194.9 506.4,197.3 514.4,197.3 522.4,196.7 530.3,198.4 538.3,196.4 546.3,196.7 554.2,197.3 562.2,196.9 570.2,197.3 578.2,195.8 586.1,196.7 594.1,195.8 602.1,194.7 610.0,196.7 618.0,194.9"/><polyline fill="none" stroke="var(--series-2)" stroke-width="1.8" stroke-linejoin="round"  points="60.0,177.9 68.0,88.2 75.9,83.4 83.9,160.4 91.9,179.2 99.8,177.9 107.8,154.3 115.8,165.9 123.8,168.1 131.7,174.2 139.7,183.8 147.7,164.4 155.6,169.2 163.6,150.4 171.6,83.0 179.6,125.7 187.5,105.2 195.5,129.2 203.5,165.0 211.5,152.8 219.4,169.2 227.4,176.6 235.4,176.4 243.3,99.3 251.3,176.8 259.3,171.3 267.3,126.4 275.2,164.4 283.2,164.1 291.2,173.1 299.1,180.1 307.1,164.8 315.1,180.5 323.1,168.5 331.0,161.7 339.0,164.6 347.0,153.7 354.9,155.9 362.9,140.4 370.9,148.2 378.9,137.1 386.8,139.1 394.8,155.9 402.8,151.1 410.7,163.3 418.7,105.5 426.7,158.3 434.7,154.1 442.6,136.9 450.6,146.5 458.6,155.6 466.5,86.9 474.5,109.8 482.5,156.3 490.5,158.7 498.4,141.9 506.4,156.9 514.4,157.4 522.4,151.9 530.3,153.9 538.3,136.9 546.3,142.8 554.2,150.4 562.2,150.8 570.2,89.3 578.2,155.4 586.1,146.9 594.1,157.2 602.1,158.3 610.0,59.4 618.0,30.4"/><text class="viz-lab" x="68.0" y="228.2" fill="var(--series-1)">中位数（=1）</text><text class="viz-lab" x="279.2" y="219.5" fill="var(--series-3)">第 99.9 百分位</text><text class="viz-lab" x="279.2" y="112.0" fill="var(--series-2)">最大值</text><text class="viz-lab" x="611.2" y="25.1" text-anchor="end" fill="var(--series-2)">第 1403 次：约 2×10⁹ 倍，守卫停机</text></svg><p class="note2">原图纵轴是绝对范数（对数），中位数约在 10<sup>−5</sup>。这里换成“相对中位数”，好直接看倍数。最后一箱的最大值是中位数的 10<sup>9.3</sup> ≈ 2.2 × 10<sup>9</sup> 倍，和图注一致；99.9 分位一直在中位数的 10 到 60 倍之间。</p></div>
+
+<h3 id="s4-1">4.1 以往的一阶方法会爆炸</h3>
+<p>SHAC 用精确梯度的方式和替代梯度方法用它们的方式一样：一个全局梯度范数裁剪，加一个“范数超过 10<sup>6</sup> 就停止训练”的守卫。在本文规模的 G1 全身跟踪上，每次 SHAC 都撞上梯度爆炸、触发守卫：在 NablaEngine 上 3 个种子全部在 0.06 小时内停下（746 到 1568 次更新），回报 0.37 ± 0.09；在 MuJoCo Warp 上 0.36 小时内停下。爆炸来自单个样本而不是整个批次，所以全局范数裁剪救不了：一个是中位数 10<sup>9</sup> 倍的样本，要么触发守卫，要么全局裁剪时把其余所有样本的梯度缩到几乎为零。直到停机，逐样本动作梯度范数的中位数、99 和 99.9 分位都平稳；停机那次更新里最大的逐样本梯度在三次插桩运行中分别是中位数的 2.2 × 10<sup>9</sup> 到 1.8 × 10<sup>10</sup> 倍，就是这一个样本触发了守卫。它什么时候出现是随机的：插桩运行在 326 到 8361 次更新后停下。图 2 是一个种子的情况。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · “0.06 小时内（746–1568 次更新）”和表 15 的速度对不上上界</span><p>表 15：SHAC 在 NablaEngine 上每次更新的中位耗时 0.196 s，墙钟斜率每小时 18,365 次。按此，746 次约 746 × 0.196 = 146 s = 0.041 h，1568 次约 307 s = 0.085 h（按斜率 1568 / 18,365 = 0.085 h）。所以“0.06 小时内”对 746 次成立，对 1568 次不成立。可能是开头几百次更新比中位数快，或者 0.06 h 是表 11 里 3 个种子最后一次评测的时间（表 11 写“0.373 ± 0.093 (0.06 h)”）。原因未核实。另外 §4.1 说插桩运行在 326 到 8361 次后停下，8361 次约 0.46 h，这是另外几次运行，不和“3 个种子 0.06 h 内”矛盾。</p></div>
+
+<h3 id="s4-2">4.2 一阶方法什么时候合适</h3>
+<p><b>稠密奖励。</b>奖励稠密、对状态光滑时精确梯度最有用。动作跟踪正是这样：每一步奖励是跟踪误差的指数核之和，梯度几乎处处指向参考，例外是接触事件，而那正是逐样本裁剪要处理的。</p>
+<p><b>视野权衡。</b>奖励稀疏、依赖长时间时情况就变了，窗口长度 \(H\) 构成第二个权衡。长窗口让梯度够得到远处的奖励，少依赖有偏的评论家 \(V_\phi\)；但梯度的尾巴每多反传一步就长一点（图 3）：32 步内 99.9 分位涨几倍，SHAC 原始梯度的最大值涨八九个数量级。同一个策略下，精确梯度和世界模型梯度涨得一样，所以这种累积是长雅可比链的性质，不只是接触的性质。世界模型逃不出这个权衡，只是起点的尾巴轻一些。短窗口梯度干净，但更多交给评论家。§5.4 在跟踪任务上量了这个权衡。对奖励在几秒之外的任务，能不能利用可微性取决于这个权衡，一阶方法可能不划算。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 7 页 · <a href="https://arxiv.org/html/2610.41654v1#S4.F3">看原图 ↗</a></span><p>两栏，横轴都是“从窗口末端往回反传的步数”0 到 32。(a) 99.9 分位除以中位数，纵轴对数 3 到 100；(b) 最大值除以中位数，纵轴对数到 10<sup>10</sup>。三组线：SHAC 的精确梯度（3 个种子，所有记录的更新）、同一策略的精确梯度、同一策略的世界模型梯度（策略来自 SuperMimic 复现，32 步窗口，不裁剪）。两栏里所有线都随反传步数往上走；(b) 里 SHAC 那条从 10<sup>2</sup> 左右一路涨到 10<sup>10</sup> 附近；“同一策略”的精确和世界模型两条贴得很近。</p></div>
+
+<h2 id="s5"><span class="no">5</span>∇Mimic</h2>
+<p>∇Mimic 的设计目标是直接从精确梯度学，接受它们少数极端样本和跨好几个数量级的尺度（§4）。它是一个带窗口的一阶演员-评论家，围绕两个组件：<b>逐样本裁剪</b>和<b>多步回归到梯度导出的动作目标</b>。两者成对：动作目标把每次更新的大小固定成弧度，裁剪保证没有哪个样本独占这个预算。不裁剪时，一个极端样本会把它的目标推出约 15 rad，其余样本几乎不动；裁剪后，没有样本移动超过 0.13 rad（§5.3）。每次更新在 NablaEngine 上模拟一批 \(H\) 步的 BPTT 训练窗口，用解析伴随反传窗口回报（式 1），再用得到的动作梯度更新演员。算法 1 概括一次更新，每个组件有自己的小节和消融（图 4、表 2）。</p>
+<p><b>继承下来的部分。</b>数据路径照搬 SHAC 和 SuperMimic，让比较只隔离“梯度来源和处理方式”：窗口起点从回放缓存里取，缓存里是一个单独的数据收集器（跑当前策略）访问过的状态；收集器的重置按 BeyondMimic 的回报分箱采样；评论家 \(V_\phi\) 用 TD(λ) 拟合，为窗口回报自举。作者顺带指出，精确梯度其实不需要回放：每个窗口接着上一个窗口的末态继续，两种配方的回报都高约 0.02（表 2）。论文仍保留回放，是为了和 SHAC、SuperMimic 的比较只差在梯度上；作者明说更简单的数据路径也是更好的那个。</p>
+<p><b>摔倒的处理。</b>回合在窗口中途结束时，它之后不再贡献，这是 SuperMimic 生存权重的硬终止版本；评论家在每个转移的起始状态上拟合；还有一个平滑的终止惩罚，在到达终止阈值（高度误差 \(h\)、倾斜 \(\theta_\text{max}\)）之前就开始生效，让梯度提前“看到”快要摔倒：</p>
+<div class="eq" id="eq3"><div class="m">\[r_\text{pen}=-W\,\Delta t\left[\left(\frac{\operatorname{relu}(d_z-d_{z,0})}{h-d_{z,0}}\right)^{2}+\left(\frac{\operatorname{relu}(d_\theta-d_{\theta,0})}{\theta_\text{max}-d_{\theta,0}}\right)^{2}\right]\]</div><span class="no">(3)</span></div>
+<p>其中 \(W=2\)，\(d_{z,0}=0.08\)，\(d_{\theta,0}=0.10\)。代码是 <code>train.py</code> 第 70–76 行的 <code>termination_penalty</code>，配置键 <code>--term-penalty 2 0.08 0.10</code>，和论文一致。</p>
+
+<div class="alg" id="alg1"><b>算法 1 · ∇Mimic 的一次更新</b>（第 8 页，<a href="https://arxiv.org/html/2610.41654v1#algorithm1">看原文 ↗</a>）
+<p>输入：演员 \(\pi_\theta\)、评论家 \(V_\phi\)、先进先出回放 \(\mathcal D\)、收集器环境、窗口长度 \(H\)、裁剪系数 \(\kappa\)、步长 \(\delta\)、回归步数 \(M\)（取值见表 10）。</p>
+<ol>
+<li><i>数据收集（只前向）</i>：用 \(\pi_\theta\) 加动作噪声推进收集器；按回报分箱采样收集器的重置；把访问过的状态推进 \(\mathcal D\)。</li>
+<li><i>NablaEngine 上的 BPTT 窗口</i>：从 \(\mathcal D\) 采一批窗口起点 \(s_0\)。</li>
+<li>对 \(t=0,\dots,H-1\)：\(a_t\leftarrow\pi_\theta(o_t)\) 加动作噪声；\(s_{t+1}\leftarrow f(s_t,a_t)\)（带磁带的前向）；\(r_t\leftarrow r(s_t,a_t)+r_\text{pen}\)（式 3），回合结束后该环境不再贡献（生存掩码）。</li>
+<li>\(J\leftarrow\sum_{t&lt;H}\gamma^t r_t+\gamma^H V_\phi(s_H)\)（式 1）。</li>
+<li><i>带裁剪的反向</i>：对 \(t=H-1,\dots,0\)，用解析伴随把余切穿过第 \(t\) 步；在它继续往前传之前，把每个样本的动作余切裁到批中位数范数的 \(\kappa\) 倍（式 4）。</li>
+<li>对窗口的动作梯度 \(g_t=\partial J/\partial a_t\) 再按式 (4) 裁一次。</li>
+<li><i>梯度导出的动作目标</i>：\(y_t\leftarrow a_t+\delta\,g_t/\mathrm{RMS}(g)\)（式 5）。</li>
+<li>对 \(m=1,\dots,M\)：采一个 \((o_t,y_t)\) 小批，用单独的 Adam 在 \(\|\pi_\theta(o_t)-y_t\|^2\) 上走一步。</li>
+<li><i>评论家</i>：在转移前的状态上用 TD(λ) 拟合 \(V_\phi\)。</li>
+</ol></div>
+
+<div class="fig" id="fig4"><span class="lab">图 4 · 第 7 页 · <a href="https://arxiv.org/html/2610.41654v1#S5.F4">看原图 ↗</a></span><p>四个小图，每个对应 ∇Mimic 的一个组件：蓝色是对照，灰色是只改这一个组件的版本；横轴训练墙钟 0 到约 1.6 小时，纵轴归一化回报 0.2 到 0.8 以上，3 个种子均值 ± 标准差。(a) 不裁剪：灰线标“diverged”，一个种子发散，其余明显更低。(b) 每个窗口只走一步 Adam：灰线一路低于蓝线。(c) \(H=32\)：灰线更早走平，平台更低。(d) 残差动作：这次灰线是残差版，比绝对动作的蓝色对照学得更快、平台更高。</p></div>
+
+<h3 id="s5-1">5.1 逐样本、按中位数的裁剪</h3>
+<p>§4 的极端精确梯度落在单个样本上：接触事件附近的少数环境带着比其余大几个数量级的动作余切，主导批次平均梯度。SHAC 那样的全局范数裁剪会整体缩放批次，毁掉其他样本的信号。∇Mimic 改为把每个样本的动作余切（窗口回报对某个环境某一步动作 \(a_t\) 的梯度）裁到批中位数范数的 \(\kappa\) 倍。这在反向的每一步都做，在余切流进策略、再从策略流到更早的状态之前；窗口的动作梯度上再做一次。直接穿过动力学从一个状态流到前一个状态的那部分余切不在这里裁，交给引擎对无界导数的规则（§6）：</p>
+<div class="eq" id="eq4"><div class="m">\[g_i\leftarrow g_i\cdot\min\!\left(1,\ \frac{\kappa\cdot\operatorname{median}_j\|g_j\|}{\|g_i\|}\right),\qquad\kappa=3.\]</div><span class="no">(4)</span></div>
+<p>用中位数做参照，是因为它是爆炸唯一挪不动的统计量：图 2(b) 里，直到 SHAC 停机那次，中位数和 99.9 分位都平稳，只有最大值飞出去。按中位数定阈值，就能跟着训练中梯度尺度的变化走，不需要调一个绝对值，也从不切断反向链。每次更新裁剪会碰到 9% 到 21% 的样本（即“步 × 环境”对），去掉图 2(a) 的尾巴，其余不变。尾巴不会随训练消失：一次插桩的 ∇Mimic 运行里，最大的逐样本动作梯度在每个阶段通常是批中位数的 10<sup>4</sup> 到 10<sup>5</sup> 倍，最多 1.9 × 10<sup>6</sup> 倍；约 92,000 次更新（3 个种子）里没有出现非有限梯度。裁剪不是免费的：被裁样本的梯度有偏，用这份偏差换稳定。</p>
+<p>不裁剪时，3 个种子里一个在 0.54 小时发散，另外两个到 0.562，对照是 0.855（图 4a）。作者的话是：裁剪让精确梯度变得可用。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 式 (4) 在代码里怎么做，以及论文没写的另外两层裁剪</span>
+<ul>
+<li><b>反向里逐步裁。</b><code>src/nablamimic/nets.py</code> 第 114–142 行 <code>clip_rows_to_median</code>：一个 <code>jax.custom_vjp</code> 的恒等函数，前向不变，反向把每一行（一个环境的 29 维动作余切）的范数裁到 κ × 中位数。中位数只在“有梯度的行”（范数 &gt; 0）上取，注释说明这是为了不让回合结束后被掩掉的全零行把阈值拉低。它插在 <code>train.py</code> 第 131 行，紧跟在策略输出加动作噪声之后、进物理之前，所以被裁的余切既流进策略参数，也经过观测流回更早的状态，和论文描述一致。</li>
+<li><b>窗口动作梯度再裁一次。</b><code>train.py</code> 第 495–531 行 <code>action_target_update</code>：先拿未裁的 \(\partial J/\partial a_t\)（第 132–133 行用一个零偏移 <code>delta</code> 取出），非有限值置零，再按 κ × 中位数裁（第 508–513 行），然后算 η 和目标（第 529–531 行）。</li>
+<li><b>优化器里还有两层。</b>演员的 Adam 和回归用的 Adam 前面都串了 <code>clip_by_global_norm(1.0)</code> 和逐元素 <code>clip(0.1)</code>（<code>train.py</code> 第 415–421 行），Adam 的 β 是 (0.9, 0.95)，回归 Adam 的 ε 是 10<sup>−8</sup>（第 65 行）。这几项表 10 没写。附录 F 说“SHAC（改过的守卫）”加的逐元素 0.1 是“照 SuperMimic”，代码里对 ∇Mimic 也是一样。</li>
+<li><b>评论家。</b><code>critic_step</code>（第 621 行起）用 <code>nets.td_lambda</code>，默认 5 轮 × 4 个小批（<code>--critic-epochs</code>、<code>--critic-minibatches</code>），也是表 10 没写的。</li>
+</ul></div>
+
+<h3 id="s5-2">5.2 多步回归到梯度导出的动作目标</h3>
+<p>每个精确梯度都贵：它要一个模拟窗口和它的伴随。世界模型方法可以把每个想象窗口只用来走一步梯度然后扔掉；本文想从每个模拟窗口里榨出尽量多的东西。但在同一个窗口上走好几步梯度，会把策略推到那个梯度失效的区域之外，而且梯度的尺度（随训练和批次跨几个数量级）会决定步长。所以作者采用 PODS 的做法：梯度定义动作空间里的目标，策略用几步回归去拟合。∇Mimic 把每个窗口步裁剪后的动作梯度 \(g_t\) 变成目标动作</p>
+<div class="eq" id="eq5"><div class="m">\[y_t=a_t+\delta\cdot\frac{g_t}{\mathrm{RMS}(g)},\]</div><span class="no">(5)</span></div>
+<p>这样整个批次上设定点的 RMS 变化就是 \(\delta\)，单位是弧度，并随学习率调度衰减；再用单独的 Adam 做 \(M\) 个小批的回归（设置见表 10）。多步回归让每个模拟窗口被用好几次，而策略一到 \(y\) 回归就不再拉，有界的目标按物理单位约束每次更新，不需要线搜索或 KL 项（§5.3）。只回归一步、学习率匹配时，这个更新退化成直接的梯度步（PODS 式 10；D.Va 定理 1）；区别在多步回归、物理步长和单独的优化器状态。</p>
+<p>把多步回归换成“每个窗口在原始梯度上走一步 Adam”，回报降到 0.806（−0.049），整个过程都学得更慢（图 4b）。</p>
+
+<h3 id="s5-3">5.3 裁剪和多步回归一起：有界的目标</h3>
+<p>两个组件以互补的方式限住更新。设 \(g_i\) 是样本 \(i\)（一个窗口的一步，\(d=29\) 个关节）裁剪后的动作梯度，\(m\) 是 \(\|g_i\|\) 的批中位数，\(N\) 是样本数。样本 \(i\) 的目标把它的设定点移动 \(\delta g_i/\mathrm{RMS}(g)\)（式 5），RMS 对所有样本和关节取，所以样本 \(i\) 的逐关节 RMS 变化是</p>
+<div class="eq" id="eq6"><div class="m">\[\frac{\delta\,\|g_i\|}{\sqrt d\;\mathrm{RMS}(g)}.\]</div><span class="no">(6)</span></div>
+<p>有裁剪时 \(\|g_i\|\le\kappa m\)，且至少一半样本 \(\|g_i\|\ge m\)，所以 \(\mathrm{RMS}(g)\ge m/\sqrt{2d}\)。于是每个样本的逐关节 RMS 变化至多 \(\sqrt2\,\kappa\,\delta\)（按本文设置 0.13 rad），和梯度尺度无关：每个样本的目标都离当前动作不远。这个界对策略要回归的目标成立，回归继承它，起正则作用。实际上策略动得少得多：一次更新的回归步之后，典型环境的设定点变化 0.002 到 0.01 rad（逐关节 RMS），整个训练过程中任一环境的最大变化 0.11 rad。不裁剪时，一个范数 \(G\) 远大于其他的样本使 \(\mathrm{RMS}(g)\approx G/\sqrt{Nd}\)，它的目标移动约 \(\delta\sqrt N\)（按本文批量约 15 rad），其余样本几乎不动：整个批次的步长预算给了一个样本，其余的学习信号丢了。多步回归固定步长，裁剪防止单个样本独占它。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 0.13 rad 和 15 rad 的算术，以及 δ 衰减后的界</span>
+<ul>
+<li><b>下界。</b>RMS 对 \(Nd\) 个分量取：\(\mathrm{RMS}^2=\sum_i\|g_i\|^2/(Nd)\)。至少 \(N/2\) 个样本 \(\|g_i\|\ge m\)，所以 \(\sum_i\|g_i\|^2\ge Nm^2/2\)，\(\mathrm{RMS}\ge m/\sqrt{2d}\)。代入式 (6) 且 \(\|g_i\|\le\kappa m\)：\(\delta\kappa m/(\sqrt d\cdot m/\sqrt{2d})=\sqrt2\kappa\delta\)。</li>
+<li><b>0.13 rad。</b>\(\sqrt2\times3\times0.03=0.127\)。表 10 说 δ 随学习率衰减到 0.3 倍，所以训练后期的界是 \(\sqrt2\times3\times0.009=0.038\) rad。代码在 <code>train.py</code> 第 497–501 行按余弦把 δ 从 0.03 降到 0.009（<code>--action-target-delta-floor 0.3</code>，衰减长度用 <code>--lr-decay-steps 16000</code>）。</li>
+<li><b>15 rad。</b>每次更新的样本数 \(N=4096\times64=262{,}144\)，\(\sqrt N=512\)，\(0.03\times512=15.4\) rad。</li>
+<li><b>单位。</b>代码里 η 用 <code>env.action_scale</code> 把策略输出换算成设定点弧度（第 527–530 行）；G1 的 <code>action_scale = 0.25 × effort / kp</code>（<code>env.py</code> 第 161 行，BeyondMimic 的约定）。回归损失也乘了同一个比例（第 537 行），所以“0.03 rad”确实是关节设定点的弧度，不是策略输出空间的单位。</li>
+<li><b>“至少一半样本 ≥ m”的前提。</b>中位数只在有梯度的行上取（<a href="#n6">读者注 6</a>），被掩掉的全零行不计入 RMS 的分母（第 528–529 行用 <code>live</code> 计数），所以这个前提在代码里成立。</li>
+</ul></div>
+
+<h3 id="s5-4">5.4 窗口长度</h3>
+<p>窗口长度落在 §4.2 的视野权衡上：长窗口少依赖评论家，短窗口累积的极端梯度少（图 3）。窗口减半到 \(H=32\)，在相同墙钟下回报降到 0.818（−0.036），在相同更新数下降 0.043（3 个种子，图 4c）。对跟踪任务，长窗口更好。作者把原因归于评论家：裁剪限住了长链的极端梯度之后，少依赖评论家的有偏估计比多出来的尾巴更重要；但作者也说没有直接测评论家的误差。</p>
+
+<h3 id="s5-5">5.5 残差动作</h3>
+<p>策略输出相对参考关节姿态的偏移，PD 设定点等于参考加偏移。未训练的策略已经在跟参考姿态，学习只需细化一个修正。动作变化率惩罚加在实际下发的设定点上，所以奖励和任务都和预测绝对设定点完全一样，只是参数化不同。残差动作学得更快（图 4d），平台更高：到 0.82 用 0.34 小时（绝对动作 0.50 小时），1.8 小时到 0.874，之后保持在这个平台上（表 4）。代码里是 <code>--residual-action</code>，设定点 = 下一帧参考的关节角 + 缩放后的动作（<code>env.py</code> 第 319–330 行）；动作变化率的换算在第 337–353 行。</p>
+
+<div class="tablewrap"><table class="t-r2" id="t2"><caption class="tcap">表 2 · 组件消融（LAFAN1，一次只改一处，各 3 个种子，与 3 种子对照在相同墙钟约 1.6 小时比较，单张 RTX PRO 6000）· 第 9 页</caption><thead><tr><th>改动</th><th class="n">绝对动作（对照 0.855）</th><th class="n">残差动作 ∇Mimic（对照 0.867）</th></tr></thead><tbody>
+<tr><td>不做逐样本裁剪</td><td class="n">−0.293（3 个种子中 1 个发散）</td><td class="n">3 个种子全部发散</td></tr>
+<tr><td>不做多步回归（每个窗口一步 Adam）</td><td class="n">−0.049</td><td class="n">−0.044</td></tr>
+<tr><td>\(H=32\) 而不是 64</td><td class="n">−0.036</td><td class="n">−0.042<sup>a</sup></td></tr>
+<tr><td>残差动作代替绝对动作</td><td class="n">+0.009</td><td class="n">—</td></tr>
+<tr><td>不从回放取起点（窗口接着上一个）</td><td class="n">+0.019</td><td class="n">+0.018</td></tr>
+</tbody></table></div>
+<p class="tcap">a：3 个种子的均值；第 4 个种子崩溃，单列在表 14。完整表见附录 H 表 13、表 14。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 2 和表 13、表 14 逐格对照</span>
+<ul>
+<li>绝对动作（表 13）：0.855 − 0.806 = 0.049 ✓；0.855 − 0.562 = 0.293 ✓；0.864 − 0.855 = 0.009 ✓；0.874 − 0.855 = 0.019 ✓；\(H=32\)：0.855 − 0.818 = 0.037，表 2 写 −0.036（两位小数取整前的差，正常）。</li>
+<li>残差动作（表 14）：0.866 − 0.822 = 0.044 ✓；0.884 − 0.866 = 0.018 ✓；\(H=32\)：0.867 − 0.824 = 0.043，表 2 写 −0.042（同上）。表 2 标题说残差对照 0.867，但表 14 各行的对照是 0.866 或 0.867（匹配的检查点不同），不矛盾。</li>
+<li><b>表 2 没列的一行。</b>“均匀重置代替按回报分箱的重置”：绝对动作 +0.005，残差动作 −0.055 ± 0.065（表 14 注 a：平均窗口里有一次暂时崩溃，三个种子最后都在 0.86–0.87）。</li>
+<li><b>回放反而拖后腿。</b>两种配方里“不用回放起点”都更好（+0.019、+0.018），论文 §5 自己承认，但为了和 SHAC、SuperMimic 只差在梯度上仍然保留。所以主结果是在一个作者自己认为次优的数据路径上得到的。</li>
+</ul></div>
+
+<h2 id="s6"><span class="no">6</span>NablaEngine</h2>
+<p>NablaEngine 是为 Unitree G1 写的可微仿真引擎，目的是让精确梯度变便宜。它算的是 MuJoCo 的动力学，包括全部 502 个接触对的完整接触模型和牛顿法约束求解，以及它们的解析导数。设计有三个要点。</p>
+<p><b>一个世界一个 warp，伴随一个大内核。</b>步进专门为一台机器人写，每个世界映射到一个 warp（32 个线程）。在内核里，世界的状态留在共享内存和寄存器里。前向每个子步两个融合内核，一个 20 ms 控制步共 8 个物理内核。一个控制步的伴随是单个大内核（megakernel）：每个世界一个 warp 读磁带，倒着把四个子步的导数全部算完，不出内核。（前向拆成每子步两个内核是为了占用率，见附录 B。）</p>
+<p><b>手推的伴随。</b>每一级的反向都是手推的：运动学、碰撞、约束求解、积分。约束求解通过它的最优性条件求导，而不是穿过求解器的迭代；离散决定（接触集、有效约束、执行器限幅）保持固定。前向写一份紧凑的磁带，伴随倒着重放。结果是离散步的导数：和 MuJoCo 的 float64 有限差分在中位相对误差上相差 10<sup>−5</sup> 量级，前向和 float64 MuJoCo 相差 8.5 × 10<sup>−7</sup>（附录 C）；前向逐位确定。</p>
+<p><b>导数无界的地方让它有界。</b>G1 几何上有两种不可微事件附近的精确导数无界（§4）：距离趋于零的自接触，以及几乎平行的胶囊。训练时 NablaEngine 在一个小阈值以下（1 mm、约 2°）冻结对应的几何导数；在力饱和的执行器上保留执行器阻尼项，而精确导数会去掉它。后者改成精确的也不改善学习（§4）。远离这些事件时，训练梯度和精确梯度逐位相同。附录 B 给细节。</p>
+<p><b>速度。</b>表 3 比较 NablaEngine 和 MuJoCo Warp（同一套动力学的 GPU 实现）。在 RTX PRO 6000 上前向快 4.8 倍；“一步加梯度”比给 MuJoCo Warp 加伴随的那个开着的 PR 快 11.5 倍。在 NablaEngine 上，梯度比再走一步前向还便宜：一步加梯度 1.78 ms，只走一步 1.21 ms，整个伴随（含接触求解）只多 0.57 ms。一张 RTX PRO 6000 每秒模拟 339 万个控制步，约合每秒墙钟 18.8 小时的机器人运动。其他引擎和 GPU 见附录 B。</p>
+<div class="tablewrap"><table class="t-r2" id="t3"><caption class="tcap">表 3 · 4096 个 G1 世界、每 20 ms 控制步的耗时，ms（三个进程的中位数）· 第 10 页</caption><thead><tr><th></th><th class="n">RTX PRO 6000</th><th class="n">H100</th><th class="n">RTX 3090</th><th class="n">V100</th></tr></thead><tbody>
+<tr class="grp"><th colspan="5">前向一步</th></tr>
+<tr><td>NablaEngine</td><td class="n">1.21</td><td class="n">1.70</td><td class="n">3.28</td><td class="n">5.79</td></tr>
+<tr><td>MuJoCo Warp</td><td class="n">5.84</td><td class="n">8.65</td><td class="n">12.5</td><td class="n">18.4</td></tr>
+<tr class="grp"><th colspan="5">一步加梯度</th></tr>
+<tr><td>NablaEngine</td><td class="n">1.78</td><td class="n">2.73</td><td class="n">5.26</td><td class="n">10.6</td></tr>
+<tr><td>MuJoCo Warp 加伴随 PR</td><td class="n">20.5</td><td class="n">25.0</td><td class="n">43.0</td><td class="n">63.2</td></tr>
+</tbody></table></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 4.8、11.5、0.57 ms、18.8 h/s 各自量的是什么</span>
+<ul>
+<li>5.84 / 1.21 = 4.83；20.5 / 1.78 = 11.52；1.78 − 1.21 = 0.57 ✓。其余 GPU 上，前向倍数 H100 5.1、3090 3.8、V100 3.2；梯度倍数 9.2、8.2、6.0（表 6）。“11.5 倍”是四张卡里最大的一个。</li>
+<li>“每秒 339 万控制步”= 4096 / 1.21 ms = 3.385 × 10<sup>6</sup>；乘 0.02 s = 67,700 s = 18.8 h ✓。这是<b>只算前向</b>的引擎吞吐。训练时的实际吞吐看表 15：∇Mimic 每秒 72.9 万个仿真步（可微窗口步和收集器步合计），约合每秒 72.9 万 × 0.02 s = 4.05 小时机器人运动，约为 18.8 的 1/4.6。差距来自反向、策略和评论家网络、回归、数据收集。</li>
+<li>训练层面换引擎的收益是 §7.3 的 4.4 倍（每次更新 1.63 s 对 0.37 s），不是 11.5 倍。</li>
+<li>MuJoCo Warp 的版本：表 5 写的前向是 “MuJoCo Warp 3.17.0”；而梯度用的伴随 PR 和仓库里打补丁的分支，<code>patches/mujoco_warp/README.md</code> 写的是“MuJoCo Warp 3.12 with an analytic adjoint”（etaoxing/mujoco_warp 提交 357a75d）。所以表 3 同一列里，前向行和梯度行的 MuJoCo Warp 不是同一个版本。论文附录 B 说梯度时间是“那个 PR 原样发布的版本”，没写它的基线版本号。这一点论文没有提，影响多大我没法核实。</li>
+</ul></div>
+
+<div class="i3d" id="i3d">
+<p class="lab">3D 框架动画 · 11 幕</p>
+<p>从零阶和一阶梯度的差别（当场算一个玩具的估计方差），到 64 步窗口里余切沿时间反传、接触处的无界导数和 1 mm 冻结、SHAC 的单样本爆炸（图 2(b) 读数）、逐样本中位数裁剪和动作目标（当场算 0.13 rad 和 15 rad）、NablaEngine 的内核结构、4096 个并行世界和吞吐、训练曲线（图 1(a)、图 5(a) 读数），最后是评测：没有真机，40 段在 MuJoCo Warp 上回放。玩具和示意部分都有标注。</p>
+<iframe src="../interactives/nablamimic/index.html?embed=1" title="∇Mimic 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/nablamimic/index.html">新窗口打开，看结构表和“哪些是示意” ↗</a></p>
+</div>
+
+<h2 id="s7"><span class="no">7</span>实验</h2>
+<p>组件消融放在 §5 各组件旁边；本节报告和其他梯度来源的主要比较，并把引擎的贡献和算法的贡献分开。</p>
+<h3 id="s7-1">7.1 设置</h3>
+<p>一个策略训练全部 40 段 <a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LAFAN1</a>（<a href="https://doi.org/10.1145/3386569.3392480">论文</a>），用的是 <a class="ds" href="https://huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset">LAFAN1 Retargeting Dataset</a> 里的 G1 重定向版本（264,705 帧，2.45 小时动作）。每段从第一帧开始在 MuJoCo Warp 上评测一次，确定性演员，没有随机化或噪声。分数是 SuperMimic §4 定义的整段归一化回报：跟踪奖励减动作变化率和关节限位惩罚，在整段上求和，再除以它的最大值，所以一次摔倒等于放弃这段剩下的部分；在 40 段上平均（附录 G）。墙钟只算训练，不含启动编译和评测。除非注明，每次运行一张 RTX PRO 6000，每个配置三个种子（均值 ± 标准差）。发散或崩溃的种子单独报告，不参与平均。</p>
+<p>基线覆盖了梯度来源的其他选择。SuperMimic（替代梯度的最好方法）用它论文里写的数字（一张 H100），因为它的实现没有公开；§4 梯度分析用的复现见附录 E，不当作基线。NablaEngine 上的 PPO 是零阶参照，一次用 BeyondMimic 的配置，一次用 SuperMimic 的演员和重置采样。SHAC 是一阶参照（§4.1）。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 训练在 NablaEngine 上，评测在 MuJoCo Warp 上</span><p>附录 G 和 <code>src/nablamimic/evaluate.py</code> 开头的说明一致：评测用 MuJoCo Warp 的前向，10 次牛顿迭代，确定性均值动作，没有随机化和噪声；<code>scripts/evaluate_run.sh</code> 调 <code>eval_plan</code> 选检查点再调 <code>evaluate</code>。所以 ∇Mimic 的分数自带一次“仿真到仿真”的检验：训练和评测是两套独立实现的同一 MuJoCo 动力学（表 8 里两者前向相差 10<sup>−6</sup> 量级）。两个注意点：<code>patches/mujoco_warp/README.md</code> 说 MuJoCo Warp 因为浮点原子操作，运行之间不逐位可复现；表 11 注说评测 GPU 是 A40 或 RTX PRO 6000，跨 GPU 可能有小的浮点差异。这不是真机迁移，论文 §8 明说没上真机。</p></div>
+
+<h3 id="s7-2">7.2 主要结果：分钟而不是小时</h3>
+<p>∇Mimic 在一张 GPU 上 20 分钟到 SuperMimic 的 LAFAN1 分数 0.82（图 1a）。SuperMimic 报告一张 H100 上 1.2 小时以内到 0.82，而 PPO-Sim 在 1、4、8 张 GPU 上 18 小时内都没到；在 H100 上，绝对动作版 0.41 小时到 0.82（一个种子，附录 H）。SuperMimic 没有给最终分数，所以“到 0.82 的时间”是它的论文唯一允许的比较。</p>
+<p>训练并不停在那里：1.8 小时到 0.874，1.5 小时起没有种子在任何片段摔倒，2 小时和 3 小时时三个种子的标准差低于 10<sup>−3</sup>。</p>
+<p>同一引擎上的其他梯度来源远远落后。BeyondMimic 配置的 PPO 3 小时 0.64、6 小时 0.70，尽管 NablaEngine 让 PPO 每次迭代比原版 MuJoCo Warp 快 2.9 倍（0.123 对 0.355 s）：作者的话是，便宜的样本补不上差距，梯度才行。SHAC 在 0.06 小时被自己的梯度守卫停下；把守卫放宽成“爆炸的更新被裁剪而不是停机”，它能继续学，但 3 小时内一直略低于 0.82（0.816；单个种子在 2.4 到 3.1 小时之间越线）。数字见表 4；全部曲线和到 0.82 的成本见附录 H。</p>
+<div class="tablewrap"><table class="t-r4" id="t4"><caption class="tcap">表 4 · LAFAN1 全部 40 段：相同训练墙钟下的归一化回报、到 SuperMimic 0.82 的时间（均值曲线第一次越线）、训练结束时摔倒的片段数。本文的运行每次一张 RTX PRO 6000，除注明外 3 个种子均值 ± 标准差；除 SuperMimic 外都在 NablaEngine 上训练 · 第 11 页</caption><thead><tr><th>方法</th><th class="n">0.5 h</th><th class="n">1 h</th><th class="n">2 h</th><th class="n">3 h</th><th class="n">到 0.82</th><th class="n">摔倒（/40）</th></tr></thead><tbody>
+<tr><td>∇Mimic</td><td class="n">0.824 ± 0.008</td><td class="n">0.854 ± 0.005</td><td class="n">0.872 ± 0.001</td><td class="n">0.875 ± 0.001</td><td class="n">0.34 h</td><td class="n">0.0</td></tr>
+<tr><td>∇Mimic，绝对动作</td><td class="n">0.821 ± 0.007</td><td class="n">0.844 ± 0.004</td><td class="n">0.861 ± 0.001</td><td class="n">0.864 ± 0.001</td><td class="n">0.50 h</td><td class="n">0.0</td></tr>
+<tr><td>PPO，BeyondMimic 配置<sup>a</sup></td><td class="n">0.465</td><td class="n">0.529</td><td class="n">0.641</td><td class="n">0.638</td><td class="n">未到</td><td class="n">8</td></tr>
+<tr><td>PPO，SuperMimic 演员和重置<sup>a</sup></td><td class="n">0.428</td><td class="n">0.489</td><td class="n">0.586</td><td class="n">0.658</td><td class="n">未到</td><td class="n">3</td></tr>
+<tr><td>SHAC（改过的守卫）</td><td class="n">0.724 ± 0.019</td><td class="n">0.790 ± 0.019</td><td class="n">0.807 ± 0.008</td><td class="n">0.816 ± 0.005</td><td class="n">未到</td><td class="n">2.0</td></tr>
+<tr><td>SHAC（原版守卫）</td><td colspan="4">0.06 h 被梯度守卫停下（回报 0.373 ± 0.093）</td><td class="n">未到</td><td class="n">23.0</td></tr>
+<tr><td>SuperMimic（自报）<sup>b</sup></td><td class="n">未报</td><td class="n">未报</td><td class="n">未报</td><td class="n">未报</td><td class="n">1.2 h 以内</td><td class="n">未报</td></tr>
+</tbody></table></div>
+<p class="tcap">a：一个种子，6 小时预算；摔倒数是 6 小时时的。b：一张 H100，按 Liao 等 §4.1 的说法。</p>
+
+<h3 id="s7-3">7.3 同一算法，两个仿真器</h3>
+<p>加速是引擎的还是算法的？把 ∇Mimic 的绝对动作版放到 MuJoCo Warp 的伴随上训练（NablaEngine 的无界导数规则移植过去）就能回答：按更新次数，两条曲线重合（图 5a）；按小时，NablaEngine 领先 4.7 倍（到 4k 次更新 2.03 h 对 0.43 h；按每次更新 4.4 倍，1.63 对 0.37 s）。作者的结论：引擎改变的是速度，不是学习。</p>
+<div class="fig" id="fig5"><span class="lab">图 5 · 第 12 页 · <a href="https://arxiv.org/html/2610.41654v1#S7.F5">看原图 ↗</a></span><p>标题“引擎改变速度，不改变学习”。∇Mimic 绝对动作版在 NablaEngine（蓝，3 个种子均值 ± 标准差）和带引擎梯度规则的 MuJoCo Warp 伴随（灰，1 个种子）上。(a) 横轴策略更新次数（对数，300 到 30k），两条线几乎重合。按我的矢量读数，蓝线约 4750 次更新到 0.821，灰线 5000 次到 0.823，和表 12 的 4,650、4,918 次相符；灰线只画到 6000 次。(b) 横轴训练墙钟（对数，0.05 到 3 小时），蓝线整体在左边，灰线晚一个数量级不到。</p></div>
+<div class="note" id="n11"><span class="lab">读者注 11 · 表 12、表 15 的步数和吞吐，逐项核算</span>
+<ul>
+<li>每次更新的可微窗口步 4096 × 64 = 262,144；收集器只前向的步 4096 / 0.4 = 10,240（表 12 注）。∇Mimic 到 0.82 用 3,235 次：3,235 × 262,144 = 8.480 × 10<sup>8</sup> ✓，3,235 × 10,240 = 3.31 × 10<sup>7</sup> ✓，合计 8.81 × 10<sup>8</sup> ✓。绝对动作版 4,650 次：1.219 × 10<sup>9</sup> ✓ 和 4.76 × 10<sup>7</sup> ✓。</li>
+<li>吞吐（表 15）：(262,144 + 10,240) / 0.374 s = 72.8 万步/秒 ✓（表写 729k）；SHAC 131,072 / 0.196 = 66.9 万 ✓；PPO（BeyondMimic）98,304 / 0.126 = 78.0 万 ✓；PPO（SuperMimic 演员）196,608 / 0.549 = 35.8 万 ✓；∇Mimic 在 MuJoCo Warp 上 272,384 / 1.633 = 16.7 万 ✓。</li>
+<li>墙钟斜率：∇Mimic 每小时 9,503 次更新，3,235 / 9,503 = 0.340 h ✓（和“0.34 h 到 0.82”一致）。9,503 × 0.374 s = 3,554 s，略小于一小时，说明斜率里还有每次更新中位数之外的开销，量级合理。</li>
+<li>§7.2 说 PPO 每次迭代 NablaEngine 0.123 s、原版 MuJoCo Warp 0.355 s（2.9 倍）；表 15 写 PPO（BeyondMimic）0.126 s。两个数差 2%，可能来自不同的计时运行，未核实。</li>
+<li>§7.3 的 4.7 倍：4,000 × 0.37 = 1,480 s = 0.41 h（论文 0.43 h），4,000 × 1.63 = 6,520 s = 1.81 h（论文 2.03 h），实际墙钟都比“中位数 × 次数”多一点，比值 2.03 / 0.43 = 4.72 ✓。</li>
+<li>表 15 的 H100 行：∇Mimic 在 H100 上 0.382 s / 次，比 RTX PRO 6000 的 0.373 s 略慢，但表 11 里 H100 的绝对动作版单种子到 0.82 只用 0.41 h，比 RTX PRO 6000 三种子均值 0.50 h 快。表 11 给的 RTX PRO 6000 逐种子时间是 0.46 ± 0.09 h，所以 0.41 h 在种子波动范围内，不能读成“H100 更快”。</li>
+</ul></div>
+
+<h2 id="s8"><span class="no">8</span>局限与后续</h2>
+<p>NablaEngine 目前只支持一台机器人：平地上的 Unitree G1。其他机器人要各自的专用内核，不平的地形需要高度场和更多碰撞类型。结果只在仿真里的 LAFAN1 上：还没在更大的动作库上训练，也没有把策略部署到真机。梯度固定了接触求解的离散决定，所以它是“几乎处处”的精确步导数，而不是跨越接触变化的平滑梯度。逐样本裁剪让被裁的梯度有偏，偏差没有量化。PPO 基线和 ∇Mimic 在 MuJoCo Warp 上的运行都是单种子。SuperMimic 的实现没有公开，所以和它论文写的数字比，GPU 也不同；仿真器之间的速度比较都在同一种 GPU 内做。把 NablaEngine 扩到更多机器人和地形、把 ∇Mimic 扩到大动作库、把策略迁移到真机，是自然的下一步。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · BONES-SEED 的配置在仓库里，论文里没有结果</span><p><code>configs/bones.args</code> 是一个 6 小时的 BONES-SEED 配置（SuperMimic 过滤后的 129,418 段，8 个分片轮换，学习率衰减 52,000 次，加了评论家值上界 <code>--v-bound</code> 和片段结束时的自举方式 <code>--clip-end-boot pre</code>），注释说没有值上界时评论家的值越界、训练发散。<code>src/nablamimic/bones/</code> 有转换、基准和评测计划。数据集 <a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a> 是门控的学术非商业许可，<code>scripts/download_bones_seed.sh</code> 要用户自己的访问权限。arXiv v1 §8 明说“还没在更大的动作库上训练”，所以这部分代码没有对应的论文数字。我没有看作者站点上的新版 PDF 是否补了 BONES-SEED 结果。</p></div>
+
+<h2 id="s9"><span class="no">9</span>结论</h2>
+<p>一阶策略学习一直承诺比零阶方法信息量大得多的更新，但在接触丰富的全身控制上有两件事拖住它：梯度里少数无界的样本，以及算梯度的成本。NablaEngine 为 Unitree G1 去掉了第二个：它算出这台机器人完整的 MuJoCo 动力学（含全部 502 个接触对），解析梯度和 float64 有限差分一致，伴随比再走一步前向还便宜。∇Mimic 去掉了第一个：逐样本按中位数裁剪限住少数极端样本，多步回归到梯度导出的动作目标让每个昂贵样本被多次使用，目标的大小不依赖梯度尺度。两者合起来，一个策略跟踪全部 40 段 LAFAN1，在一张 GPU 上 20 分钟达到世界模型最好方法的分数。作者最后说：把跟踪策略的成本从小时降到分钟，会让在大得多、更多样的动作语料上训练变得可行，从而可能加快人形基础模型的扩展。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 版本：arXiv v1、作者站点的新版 PDF、项目页</span>
+<ul>
+<li><b>项目页。</b>论文第 1 页脚注写的是 oamics.github.io/NablaMimic/，2026-11-23 访问返回 404。仓库 README 的项目页链接是 sailab.ai/nablamimic/，能打开。</li>
+<li><b>新版 PDF。</b>README（提交 bfbb2a6 的说明是“paper links to the current PDF”）指向 sailab.ai/nablamimic/assets/nablamimic.pdf：29 页，PDF 元数据生成时间 2026-11-03。我只对照了摘要、引言第 4 段和几处数字：到 0.82 从“20 分钟”改成“8 分钟”，平台从 0.874 改成“约 0.91”，“1.5 小时后不摔倒”改成“31 分钟后”；新加了一个开源世界模型跟踪器 InstantTrack（Huy-Quang-Dao/instantTrack）在同一物理、同一 GPU 上的对照（到 0.82 慢一倍，最终 0.882）；还写了 SuperMimic “3 小时报告 0.866”。最后这句和 arXiv v1 §7.2 的“SuperMimic 没有给最终分数”相反，0.866 出自 SuperMimic 哪里我没有核实（本站 SuperMimic 页没有记这个数）。新版表 4 的 ∇Mimic 行是 0.866 / 0.885 / 0.899 / 0.910，到 0.82 0.13 h。</li>
+<li><b>和代码的关系。</b>新版的数字对应仓库 0.2.0 的默认配方（<a href="#n19">读者注 19</a>）：README 的“8 分钟”“约 0.91”和 <code>assets/results_levels.gif</code> 里的 0.910 都是这一版。arXiv v1 的数字对应 <code>configs/base/ours_v1.args</code>。</li>
+<li>这份精读只按 arXiv v1 写。新版截至 2026-11-23 没有出现在 arXiv 上（arXiv 页面只有 v1），我没有逐节对照两版。</li>
+</ul></div>
+
+<h2 id="apx">附录 A–H</h2>
+<h3 id="apA">A 任务细节</h3>
+<p><b>数据。</b>40 段 LAFAN1 是 LAFAN1 Retargeting Dataset 里 <code>g1/</code> 目录的 G1 重定向版本，不做修改。载入时把 30 FPS 的片段重采样到 50 Hz 控制频率（根位置和关节角线性插值，根朝向球面插值），各刚体的位姿和速度用机器人模型做正运动学算出。代码：<code>src/nablamimic/motion.py</code> 第 64–89 行（<code>_slerp</code>、<code>_resample</code>）、第 101–142 行；<code>scripts/download_lafan1.sh</code> 固定数据集的修订版并按 <code>scripts/lafan1_g1.sha256</code> 校验 40 个 CSV。</p>
+<p><b>奖励。</b>照 BeyondMimic，权重和宽度取 SuperMimic 表 A.2。跟踪项形如 \(w\exp(-e/\sigma^2)\)，\(e\) 是平方误差（朝向用旋转角的平方），刚体项在刚体上平均。刚体项在 14 个刚体上算，参考在水平位置和偏航上重新锚定到机器人的躯干；锚点项用躯干本身。</p>
+<div class="tablewrap"><table class="t-small"><caption class="tcap">附录 A 的奖励项（第 18 页）</caption><thead><tr><th>项</th><th class="n">σ</th><th class="n">w</th></tr></thead><tbody>
+<tr><td>刚体位置</td><td class="n">0.3</td><td class="n">1.0</td></tr>
+<tr><td>刚体朝向</td><td class="n">0.4</td><td class="n">1.0</td></tr>
+<tr><td>刚体线速度</td><td class="n">1.0</td><td class="n">1.0</td></tr>
+<tr><td>刚体角速度</td><td class="n">3.14</td><td class="n">1.0</td></tr>
+<tr><td>锚点位置</td><td class="n">0.3</td><td class="n">0.5</td></tr>
+<tr><td>锚点朝向</td><td class="n">0.4</td><td class="n">0.5</td></tr>
+<tr><td>动作变化率（惩罚）</td><td class="n">–</td><td class="n">−0.1</td></tr>
+<tr><td>关节限位（惩罚）</td><td class="n">–</td><td class="n">−2.0</td></tr>
+</tbody></table></div>
+<p>每项都乘控制周期 \(\Delta t=0.02\) s，所以每步跟踪奖励至多 0.1（正项权重和 1 + 1 + 1 + 1 + 0.5 + 0.5 = 5，乘 0.02）。只在训练时，∇Mimic 加上表 10 的终止惩罚；评测用上面的奖励。本站 SuperMimic 页<a href="supermimic.html#qa-reward">问 7</a> 解释过这张表的每一项。</p>
+<p><b>观测。</b>演员看最近 10 个本体感觉向量（每个 93 维）：29 个相对默认姿态的关节位置、29 个关节速度、基座角速度、基座系里的重力方向、上一步动作（29 + 29 + 3 + 3 + 29 = 93）。训练时加 SuperMimic 表 A.1 的均匀噪声。目标是接下来 10 帧参考，每帧 68 维，在参考自己的坐标系里表示（关节位置和速度、重力方向、根角速度、航向系里的根线速度、根高度；29 + 29 + 3 + 3 + 3 + 1 = 68），再加参考锚点相对机器人锚点的朝向（6 维，旋转矩阵的两列），对应 BeyondMimic 不用状态估计的那个变体。评论家有特权输入：无噪声本体感觉、目标、根误差和随机化参数。</p>
+<p><b>域随机化。</b>每个回合按 SuperMimic 表 A.3：脚的摩擦 U[0.3, 1.2]，关节编码器偏置 U[−0.01, 0.01] rad，躯干质心偏移。评测时都不加。</p>
+
+<h3 id="apB">B 引擎细节</h3>
+<p><b>模型。</b>NablaEngine 模拟 mjlab 的 Unitree G1：一个自由基座加 29 个驱动铰链关节，31 个刚体，胶囊、球和地面之间 502 个接触对（含自碰撞）。动力学照 MuJoCo：递归牛顿-欧拉和组合刚体算法；MuJoCo 的软约束接触模型（solref/solimp）加棱锥摩擦锥；关节限位、自由度摩擦损失、执行器力限；带精确线搜索的牛顿法，10 次迭代，容差 10<sup>−8</sup>；implicitfast 积分器，每 20 ms 控制步 4 个 5 ms 子步，控制量保持；PD 位置执行器。每个世界可以有自己的脚摩擦和躯干质心偏移，用于域随机化。仓库里对应的模型设置在 <code>src/nablamimic/robot.py</code>（照 mjlab 抄的每只脚 7 根鞋底胶囊、接触对和排除对、solref/solimp、关节参数）。</p>
+<p><b>内核结构。</b>一个世界对应一个 32 线程的线程块（一个 warp）。每个内核里世界状态留在共享内存和寄存器里（两个前向内核每世界 6.9 kB 和 8.2 kB），模型常量放在 GPU 常量内存里。每个子步两个前向内核：第一个算运动学、偏置力和质量项、执行器力、碰撞和约束行；第二个做牛顿求解和积分。所以一个控制步对所有世界共 8 个物理内核；两个内核之间的交接（质量矩阵、力、约束行和接触雅可比，每世界约 33 kB）以及子步之间的状态经过全局内存。RTX PRO 6000 和 H100 上每个 SM 最多驻留 11–12 个世界。整个控制步也能跑成一个内核，但要把每世界 31.9 kB 的完整状态放进共享内存，每个 SM 放得下的世界更少，反而更慢（带磁带前向、4096 世界的内核时间：RTX PRO 6000 2.76 对 1.23 ms，H100 4.37 对 1.76 ms，RTX 3090 6.79 对 3.13 ms，V100 10.88 对 5.98 ms）。伴随是一个内核：每个世界一个 warp 读磁带、倒着算完四个子步，伴随状态放在共享内存里。</p>
+<p><b>磁带和伴随。</b>为了求梯度，前向还写一份磁带：每世界每子步 1,472 个 float32，每世界每控制步 23.6 kB，4096 个世界 96.5 MB。伴随从磁带重放接触集、约束行和求解器状态，倒着跑每一级：积分；约束求解（在离散决定固定的条件下，通过最优性条件求导）；碰撞；运动学和动力学。</p>
+<p><b>约束求解的伴随。</b>每个子步，状态 \((q,v)\)、控制 \(u\)，记质量矩阵 \(M(q)\)、偏置力 \(c(q,v)\)、执行器力 \(\tau(q,v,u)\)，无约束加速度 \(a_0=M^{-1}(\tau-c)\)。约束求解返回</p>
+<div class="eq" id="eq7"><div class="m">\[a^\star=\arg\min_a\ \tfrac12(a-a_0)^\top M(a-a_0)+\sum_e s_e(J_e a-r_e),\]</div><span class="no">(7)</span></div>
+<p>求和遍历约束行 \(e\)（关节限位和棱锥接触锥的各条棱），雅可比 \(J_e(q)\)，参考加速度 \(r_e(q,v)=-b_eJ_ev-k_e\iota_ed_e\)，罚函数 \(s_e(x)=\tfrac12D_ex^2\) 在行 \(e\) 的有效一侧、另一侧为 0（\(D_e\) 来自阻抗 \(\iota_e(d_e)\)）。有效集 \(\mathcal A\) 固定时，最优性条件</p>
+<div class="eq" id="eq8"><div class="m">\[F(a,\theta)=M(a-a_0)+\sum_{e\in\mathcal A}D_eJ_e^\top(J_ea-r_e)=0,\qquad\theta=(q,v,u),\]</div><span class="no">(8)</span></div>
+<p>对两个参数都光滑，且 \(\partial F/\partial a=H=M+\sum_{e\in\mathcal A}D_eJ_e^\top J_e\) 对称正定。由隐函数定理 \(\mathrm da^\star/\mathrm d\theta=-H^{-1}\partial F/\partial\theta\)，所以对输出余切 \(\bar a\)</p>
+<div class="eq" id="eq9"><div class="m">\[\lambda=H^{-1}\bar a,\qquad\bar\theta=-\nabla_\theta\big[\lambda^\top F(a^\star,\theta)\big]\quad(a^\star,\lambda\ \text{视为常数}).\]</div><span class="no">(9)</span></div>
+<p>因为 \(Ma_0=\tau-c\)，</p>
+<div class="eq" id="eq10"><div class="m">\[\lambda^\top F=\lambda^\top\mathrm{ID}(q,v,a^\star)-\lambda^\top\tau(q,v,u)+\sum_{e\in\mathcal A}D_e\,(J_e\lambda)\,(J_ea^\star-r_e),\]</div><span class="no">(10)</span></div>
+<p>其中 \(\mathrm{ID}(q,v,a)=M(q)a+c(q,v)\) 是逆动力学。所以 \(\bar\theta\) 是三个标量的梯度之和：与 \(\lambda\) 缩并的逆动力学（一次递归牛顿-欧拉的反向）；与 \(\lambda\) 缩并的执行器律（精确模式下对力被限幅的执行器为零）；约束项，它通过 \(J_e\)、\(d_e\) 和接触坐标系依赖 \(q\)，要穿过碰撞几何（接触点、法向、距离）求导。implicitfast 积分器（\(Qa_\text{adv}=Ma^\star\)，\(Q=M+hK_v\)，\(v'=v+ha_\text{adv}\)，\(q'=q\oplus hv'\)）直接求导：\(y=Q^{-1}\bar a_\text{adv}\)，\(\bar a^\star=My\)，再加上 \(M\) 对 \(q\) 的依赖 \(\nabla_q[y^\top M(q)(a^\star-a_\text{adv})]\)。一个控制步把 4 个子步倒着串起来，\(u\) 保持，\(\bar u\) 累加。固定不动的有：接触集和碰撞分支；有效集 \(\mathcal A\)（棱锥的每条棱分别判断）；执行器限幅。求的是返回的迭代点 \(a^\star\) 处最优性条件的导数，不是求解器迭代的导数；热启动不接收梯度。</p>
+<p><b>梯度模式。</b>精确模式（<code>clamp_kv = 1, normal = 0</code>）是离散步的导数。训练默认（<code>clamp_kv = 0, normal = 3</code>）在力限幅的执行器上保留执行器阻尼项；两个几何体核心距离（球心之间或胶囊轴之间）小于 1 mm 时冻结自接触法向的导数；近平行（小于约 2°）的胶囊对固定线段参数。在留出状态上两种模式在 G0、G5、G6 组的中位梯度误差相同；在 G4（执行器被限幅的状态）上，真值没有 <code>clamp_kv = 0</code> 的对应物。代码里训练调用 <code>sim.make_engine(env, sizes, clamp_kv=0, normal=3, clamp_soft=None)</code>（<code>train.py</code> 第 383 行），和论文的训练默认一致。</p>
+<p><b>无界导数。</b>G1 的两种几何事件让步导数无界。</p>
+<ul>
+<li><b>距离趋零的自接触。</b>接触法向的导数按两个几何体核心距离的倒数增长。一个双脚几乎碰上的状态，步雅可比范数约 3 × 10<sup>8</sup>。在 24 个 \(H=64\) 的训练窗口上（每个 2048 个环境），梯度穿过 5 个窗口时放大超过 10<sup>6</sup> 倍，最多 4.9 × 10<sup>21</sup> 倍，有 32 行不是有限值。小于 1 mm 时冻结法向导数后，24 个窗口里只有 1 个放大超过 10<sup>6</sup>（最多 2.2 × 10<sup>6</sup>），没有非有限行。</li>
+<li><b>近平行胶囊。</b>两根胶囊线段的最近点病态，约按 \(1/\sin^2\theta\)。在 172 个人为构造的交叉脚状态上，精确规则让一次向量-雅可比积每控制步最多放大 3.6 × 10<sup>8</sup> 倍（中位数 29）；重复 64 步，172 个里有 40 个溢出成非有限值。小于约 2° 时固定线段参数后，放大最多 109 倍，没有溢出；普通留出状态最多 273 倍。</li>
+</ul>
+<p>其他事件（接触开或关、约束行在区域边缘、执行器饱和、求解器到达迭代上限）让导数跳变而不是发散。训练默认去掉两个无界项，并在力饱和执行器上保留执行器阻尼项；在没有这些事件的留出状态上，它和精确梯度逐位相同。</p>
+<p><b>确定性。</b>每个世界的整步在一个 warp 里跑，线程分工固定，世界之间不交互。归约用固定顺序的 warp shuffle，没有浮点原子操作。伴随从磁带重放的运算用显式舍入，所以重放和前向逐位相同。输出和梯度在运行之间逐位相同：V100 上三个进程在 8192 个留出状态上，以及验证套件里同一进程的重复调用（V100、H100）。</p>
+<p><b>计时规程。</b>每 20 ms 控制步、4096 个世界、留出状态，取三个进程的中位数。每个仿真器用它自己的标准配置，加速比都只在同一种 GPU 内算。Isaac Lab 各行用 Isaac Lab 自己的 G1 资产和任务默认值；Isaac Sim 需要带 RT 核心的 GPU，所以 H100 和 V100 上没有。MuJoCo C 参照在一颗 AMD EPYC 9555 上用 16 线程。MuJoCo Warp 的梯度时间是那个开着的伴随 PR 原样发布的版本；它公开的后续修复（etaoxing/mujoco_warp#1，精度表也报告了）改变耗时不到 2%。§7.3 的 MuJoCo Warp 训练用的是带这些修复、并移植了 NablaEngine 训练梯度规则的 PR。</p>
+<div class="tablewrap"><table class="t-r4" id="t5"><caption class="tcap">表 5 · 每控制步前向时间，4096 个世界，ms（进程中位数，留出状态）。n/s：不支持（Isaac Sim 需要 RT 核心 GPU）· 第 21 页</caption><thead><tr><th>引擎</th><th class="n">RTX PRO 6000</th><th class="n">H100</th><th class="n">RTX 3090</th><th class="n">V100</th></tr></thead><tbody>
+<tr><td>NablaEngine</td><td class="n">1.21</td><td class="n">1.70</td><td class="n">3.28</td><td class="n">5.79</td></tr>
+<tr><td>MuJoCo Warp 3.17.0</td><td class="n">5.84</td><td class="n">8.65</td><td class="n">12.5</td><td class="n">18.4</td></tr>
+<tr><td>Genesis 1.4.5</td><td class="n">13.45</td><td class="n">16.36</td><td class="n">36.73</td><td class="n">139.11</td></tr>
+<tr><td>MJX 3.17（同一模型）</td><td class="n">255</td><td class="n">216</td><td class="n">510</td><td class="n">710</td></tr>
+<tr><td>MJX 3.17（Menagerie G1，接触更少）</td><td class="n">50.7</td><td class="n">58.4</td><td class="n">129.2</td><td class="n">150.7</td></tr>
+<tr><td>Isaac Lab 3.0，Newton（3 个盒子碰撞体）</td><td class="n">12.9</td><td class="n">n/s</td><td class="n">35.15</td><td class="n">n/s</td></tr>
+<tr><td>Isaac Lab 3.0，PhysX（3 个盒子碰撞体）</td><td class="n">27.5</td><td class="n">n/s</td><td class="n">45.16</td><td class="n">n/s</td></tr>
+<tr><td>Isaac Lab 3.0，PhysX（38 个形状，自碰撞）</td><td class="n">54.1</td><td class="n">n/s</td><td class="n">87.45</td><td class="n">n/s</td></tr>
+<tr><td>MuJoCo C 3.17（CPU，float64；EPYC 9555，16 线程）</td><td class="n" colspan="4">34.7</td></tr>
+</tbody></table></div>
+<div class="tablewrap"><table class="t-r2" id="t6"><caption class="tcap">表 6 · 从输入状态出发的一个控制步及其梯度，4096 个世界，ms · 第 21 页</caption><thead><tr><th></th><th class="n">RTX PRO 6000</th><th class="n">H100</th><th class="n">RTX 3090</th><th class="n">V100</th></tr></thead><tbody>
+<tr><td>NablaEngine（带磁带前向 + 伴随）</td><td class="n">1.78</td><td class="n">2.73</td><td class="n">5.26</td><td class="n">10.6</td></tr>
+<tr><td>MuJoCo Warp + PR #1535（伴随图）</td><td class="n">20.5</td><td class="n">25.0</td><td class="n">43.0</td><td class="n">63.2</td></tr>
+<tr><td>加速比</td><td class="n">11.5×</td><td class="n">9.2×</td><td class="n">8.2×</td><td class="n">6.0×</td></tr>
+</tbody></table></div>
+<div class="fig" id="fig6"><span class="lab">图 6 · 第 21 页 · <a href="https://arxiv.org/html/2610.41654v1#A2.F6">看原图 ↗</a></span><p>四组横向堆叠条，每组上一条 NablaEngine、下一条 MuJoCo Warp + PR #1535；深色是带磁带的前向，浅色是反向；横轴 0 到 70 ms。条上写的数：RTX PRO 6000 1.30 + 0.56 和 6.58 + 14.27；H100 1.78 + 0.93 和 9.28 + 15.77；RTX 3090 3.40 + 1.46 和 13.88 + 28.46；V100 6.02 + 4.53 和 21.06 + 42.20。图注说两部分分开计时，和可能不等于表 6 的单次调用时间。MuJoCo Warp 一侧反向约是前向的两倍，NablaEngine 一侧反向不到前向的一半（V100 上约 0.75 倍）。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 磁带大小、图 6 和表 6 的加和</span>
+<ul>
+<li>磁带：1,472 × 4 B = 5,888 B 每子步，× 4 子步 = 23,552 B = 23.6 kB ✓；× 4096 = 96.47 × 10<sup>6</sup> B = 96.5 MB ✓（十进制 MB）。64 步窗口要存 64 份，约 6.2 GB，这和 README 说配置要约 50 GB 显存（还有回放缓存和网络激活）不矛盾；我没有核实显存的具体分布。</li>
+<li>图 6 两段之和对表 6：NablaEngine 1.86 / 2.71 / 4.86 / 10.55 对 1.78 / 2.73 / 5.26 / 10.6；MuJoCo Warp 20.85 / 25.05 / 42.34 / 63.26 对 20.5 / 25.0 / 43.0 / 63.2。最大偏差是 RTX 3090 上 NablaEngine 的 4.86 对 5.26（差 8%），图注已说明分开计时的和可能不同。</li>
+<li>§6 的“伴随只多 0.57 ms”用的是表 3 的 1.78 − 1.21；图 6 里 RTX PRO 6000 的反向是 0.56 ms，而带磁带的前向是 1.30 ms（比不带磁带的 1.21 多 0.09）。两种说法量的东西不同，都对得上。</li>
+</ul></div>
+<div class="note" id="n15"><span class="lab">读者注 15 · 仓库给 MuJoCo Warp、Newton、Warp 打了什么补丁，PR #1535 和 #2164 是什么</span>
+<ul>
+<li><b>MuJoCo Warp：4 个补丁，全在反向。</b><code>patches/mujoco_warp/</code>：基线是 etaoxing/mujoco_warp 的 <code>adjoint</code> 分支提交 357a75d（“MuJoCo Warp 3.12 with an analytic adjoint”，即 google-deepmind/mujoco_warp PR #1535 的代码），再加 etaoxing/mujoco_warp PR #1 的两个提交（c8c8890：棱锥接触只在所有棱都满足时跳过；4af093f：力被限幅的自由度上乘子置零），再按顺序 <code>git apply</code> 0001–0004。每个开关在 <code>import mujoco_warp</code> 时从环境变量读，默认关（原行为），README 强调“前向在任何设置下都不变”。
+<div class="tablewrap"><table class="t-r2"><thead><tr><th>补丁</th><th>开关</th><th>作用</th><th>对应论文</th></tr></thead><tbody>
+<tr><td>0001</td><td><code>MJW_CLAMP_KV_FIX</code></td><td>力被限幅的自由度不在 qvel 的 VJP 里带执行器阻尼</td><td>精确模式 <code>clamp_kv = 1</code></td></tr>
+<tr><td>0001</td><td><code>MJW_ADJ_NORMAL</code>、<code>_EPS</code>（1e-3 m）</td><td>球/胶囊自接触法向 \(v/|v|\) 的导数：0 精确，1 常数，2 正则化 \(1/\max(|v|,\epsilon)\)，3 在 \(|v|&lt;\epsilon\) 时常数</td><td>训练默认 <code>normal = 3</code>，1 mm</td></tr>
+<tr><td>0002</td><td><code>MJW_ADJ_PARALLEL</code>、<code>_EPS</code>（1.2e-3）</td><td>两轴夹角 \(\sin^2\) 小于阈值（约 \(\sin^2 2°\)）时，反向里固定线段参数</td><td>“约 2°”</td></tr>
+<tr><td>0003</td><td><code>MJW_CLAMP_SOFT</code></td><td>执行器限幅的软替代导数（提供的配置都不用）</td><td>论文没提</td></tr>
+<tr><td>0004</td><td><code>MJW_IFT_SOLVE</code></td><td>伴随里隐函数求解的右端按 2 的幂缩放，避免分块 Cholesky 带 1e30 角元的增广边界在右端很大时变成 NaN</td><td>论文没提</td></tr>
+</tbody></table></div>
+MuJoCo Warp 的训练配置（<code>configs/*_mjw.args</code>）用 <code>--mjw-adj-normal 3 --mjw-adj-parallel 1 --mjw-ift-solve 1</code>，即和 NablaEngine 训练默认相同的梯度约定，外加 0004。补丁 0004 是论文没写、但让 MuJoCo Warp 那条线能跑通的一个数值修补。<code>tree.sha256</code> 校验打完补丁后的源码树。</li>
+<li><b>Warp：没有补丁。</b>用的是 NVIDIA warp 1.18.0 的官方 CUDA 12 轮子（<code>scripts/setup_env.sh</code>）。仓库里另有一处运行时替换：<code>src/nablamimic/g1_fast/adjoint_patch.py</code> 在运行时把 MuJoCo Warp 的 <code>smooth_qvel_backward</code> 换成一个用代码生成的融合 RNE 内核做反向 VJP 的版本（<code>g1_fast/smooth_gen.py</code> 生成），注释说“梯度在浮点舍入内相同”；只在 MuJoCo Warp 训练路径上安装（<code>warp_physics.py</code> 第 191–193 行，<code>rne_vjp=True</code>）。</li>
+<li><b>Newton：没有补丁，也没有用到。</b>Newton 只出现在相关工作和表 5（Isaac Lab 3.0 用 Newton 做前向计时）里。论文引的 Newton PR #2164（“Improve the contact differentiability”，2026-03-30 合并）给刚体接触加了对位姿可微的后处理：从窄相冻结的几何重建世界坐标量，梯度经过接触<b>点</b>和<b>距离</b>，接触<b>法向</b>当作窄相给出的常数。论文用它说明 Newton 的可微模式“固定法向”；NablaEngine 的训练默认只在核心距离小于 1 mm 时冻结法向导数，其余时候法向是可导的，这是两者的区别。</li>
+<li><b>PR #1535。</b>google-deepmind/mujoco_warp 的 “hybrid analytic differentiability”（etaoxing，2026-07-19 开，截至 2026-11-23 仍开着、未合并）。表 7 里它原样发布的版本梯度误差很大（位置 0.29、速度 0.34），加上 etaoxing/mujoco_warp#1 的修复后降到 10<sup>−5</sup> 量级（<a href="#n16">读者注 16</a>）。</li>
+</ul></div>
+
+<h3 id="apC">C 完整精度表</h3>
+<p>留出基准：四个语料、每个 4096 个状态（共 16,384）。真值是 float64 的 MuJoCo 3.17 C，模型和逐世界随机化相同，牛顿求解器容差 10<sup>−13</sup>、最多 2000 次迭代，每个状态走一个控制步。梯度误差是向量-雅可比积的相对误差，每个状态三个存好的随机输出方向（独立标准正态，固定种子，不归一化），对比步长 10<sup>−6</sup> 的 float64 中心有限差分；按状态设下限为真值本身的精度（步长 10<sup>−7</sup> 和 10<sup>−6</sup> 的有限差分之差，通常约 10<sup>−7</sup>）。</p>
+<div class="tablewrap"><table class="t-acc" id="t7"><caption class="tcap">表 7 · 留出状态上对比 float64 MuJoCo C 3.17 的精度。前向：qvel 相对误差中位数。梯度：VJP 相对误差中位数（位置 / 速度 / 动作）。真值本身约到 10<sup>−7</sup> · 第 22 页</caption><thead><tr><th>引擎</th><th class="n">位置</th><th class="n">速度</th><th class="n">动作</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">梯度</th></tr>
+<tr><td>NablaEngine</td><td class="n">3.6 × 10<sup>−5</sup></td><td class="n">1.0 × 10<sup>−5</sup></td><td class="n">1.9 × 10<sup>−6</sup></td></tr>
+<tr><td>MJX，前向模式雅可比</td><td class="n">9.6 × 10<sup>−5</sup></td><td class="n">2.1 × 10<sup>−5</sup></td><td class="n">2.9 × 10<sup>−6</sup></td></tr>
+<tr><td>MuJoCo C 有限差分（步长 10<sup>−6</sup>）</td><td class="n">6.7 × 10<sup>−4</sup></td><td class="n">1.5 × 10<sup>−4</sup></td><td class="n">7.8 × 10<sup>−6</sup></td></tr>
+<tr><td>Genesis（只有速度）</td><td class="n">—</td><td class="n">2.3 × 10<sup>−1</sup></td><td class="n">—</td></tr>
+<tr><td>MuJoCo Warp，开着的 PR</td><td class="n">0.29</td><td class="n">0.34</td><td class="n">0.015</td></tr>
+<tr><td>MuJoCo Warp，加后续修复（etaoxing/mujoco_warp#1）</td><td class="n">5.3 × 10<sup>−5</sup></td><td class="n">1.0 × 10<sup>−5</sup></td><td class="n">2.1 × 10<sup>−6</sup></td></tr>
+<tr class="grp"><th colspan="4">前向（qvel 相对误差中位数）</th></tr>
+<tr><td>NablaEngine</td><td class="n" colspan="3">8.5 × 10<sup>−7</sup></td></tr>
+<tr><td>MuJoCo Warp</td><td class="n" colspan="3">1.3 × 10<sup>−6</sup></td></tr>
+<tr><td>MJX</td><td class="n" colspan="3">2.9 × 10<sup>−6</sup></td></tr>
+<tr><td>Genesis</td><td class="n" colspan="3">5.5 × 10<sup>−2</sup></td></tr>
+</tbody></table></div>
+<p><b>分组。</b>组别只按 MuJoCo C 判断，按控制步（任一子步）。一个状态是“光滑”的，如果下面都不发生：自接触核心距离小于 5 mm；接触翻转（接触集改变，或距离小于 10<sup>−6</sup> m）；折点（一条约束行在区域边缘，\(|x_e|/(|J_ea|+|r_e|)&lt;10^{-4}\)）；接触坐标系接近基底切换；求解器到迭代上限。G0：光滑，无限幅执行器。G4：光滑，有限幅执行器（PD 力达到或超过范围）。G5：光滑，有效关节限位行，无限幅执行器。G6：光滑，两个机器人几何体之间有接触（自接触），无限幅执行器。G5、G6 是 G0 的子集。前向误差用一组里模型有效的每个状态；梯度误差每组每语料最多 64 个状态（种子 0），合并为每组 256 个。§6 报告的是所有状态的前向误差和 G0 上的梯度误差。两种梯度模式下 NablaEngine 在 16,384 个状态上都没有非有限的输出或梯度。两种模式共用同一个逐位相同的前向。</p>
+<div class="tablewrap"><table class="t-acc" id="t8"><caption class="tcap">表 8 · 每组前向误差，10 次求解迭代：qvel 相对误差的中位数 / 99 分位，括号里是 qpos 误差的 99 分位（rad）。各组状态数 G0 13,480、G4 476、G5 5,645、G6 5,668。float64 MuJoCo C 10 次迭代在每组的中位数为 0、99 分位至多 1.9 × 10<sup>−15</sup> · 第 22 页</caption><thead><tr><th></th><th>G0</th><th>G4</th><th>G5</th><th>G6</th></tr></thead><tbody>
+<tr><td>NablaEngine</td><td>8.6e-7 / 4.7e-6 (5.4e-7)</td><td>4.6e-7 / 6.6e-6 (1.8e-6)</td><td>8.4e-7 / 5.5e-6 (6.5e-7)</td><td>9.4e-7 / 6.9e-6 (1.0e-6)</td></tr>
+<tr><td>MuJoCo Warp</td><td>1.3e-6 / 8.8e-6 (1.1e-6)</td><td>6.3e-7 / 7.2e-6 (1.5e-6)</td><td>1.2e-6 / 6.8e-6 (9.2e-7)</td><td>1.3e-6 / 8.8e-6 (9.9e-7)</td></tr>
+<tr><td>MuJoCo Warp，开着的 PR</td><td>1.3e-6 / 9.3e-6 (1.2e-6)</td><td>6.4e-7 / 1.0e-5 (3.4e-6)</td><td>1.2e-6 / 8.6e-6 (1.2e-6)</td><td>1.4e-6 / 1.1e-5 (1.4e-6)</td></tr>
+<tr><td>MJX（float32）</td><td>2.7e-6 / 6.3e-4 (7.2e-5)</td><td>1.3e-6 / 4.2e-4 (1.1e-4)</td><td>2.6e-6 / 5.1e-4 (6.1e-5)</td><td>5.5e-6 / 6.6e-4 (7.3e-5)</td></tr>
+<tr><td>Genesis（float32）</td><td>4.9e-2 / 4.8e-1 (6.0e-2)</td><td>5.7e-2 / 5.4e-1 (1.4e-1)</td><td>4.9e-2 / 4.8e-1 (6.1e-2)</td><td>1.0e-1 / 5.1e-1 (7.1e-2)</td></tr>
+<tr><td>参照：MuJoCo Warp 自己运行之间</td><td>3.1e-7 / 3.2e-6 (4.3e-7)</td><td>3.0e-7 / 2.2e-6 (8.0e-7)</td><td>3.4e-7 / 3.3e-6 (3.8e-7)</td><td>3.4e-7 / 3.5e-6 (3.9e-7)</td></tr>
+</tbody></table></div>
+<p>MuJoCo C 的有限差分是步长 10<sup>−6</sup> 的前向差分，串过四个子步。版本：MuJoCo Warp 和 MJX 3.17.0，Genesis 1.4.5。</p>
+<div class="tablewrap"><table class="t-acc" id="t9"><caption class="tcap">表 9 · 每组、每个输入块的梯度误差，10 次求解迭代，每组 256 个状态：设下限后的 VJP 相对误差中位数，位置 / 速度 / 动作。“exact”“default”是 NablaEngine 的两种梯度模式；n/c：不可比；—：不支持 · 第 23 页</caption><thead><tr><th></th><th>G0</th><th>G4</th><th>G5</th><th>G6</th></tr></thead><tbody>
+<tr><td>NablaEngine，精确</td><td>3.6e-5 / 1.0e-5 / 1.9e-6</td><td>4.3e-5 / 1.3e-5 / 2.0e-6</td><td>3.8e-5 / 1.1e-5 / 1.8e-6</td><td>3.1e-5 / 1.0e-5 / 2.3e-6</td></tr>
+<tr><td>NablaEngine，默认</td><td>同精确</td><td>n/c</td><td>同精确</td><td>同精确</td></tr>
+<tr><td>MJX，前向模式雅可比</td><td>9.6e-5 / 2.1e-5 / 2.9e-6</td><td>1.2e-4 / 2.3e-5 / 3.0e-6</td><td>9.4e-5 / 2.0e-5 / 3.1e-6</td><td>1.0e-4 / 2.5e-5 / 4.8e-6</td></tr>
+<tr><td>MuJoCo C，有限差分</td><td>6.7e-4 / 1.5e-4 / 7.8e-6</td><td>7.1e-4 / 1.8e-4 / 7.2e-6</td><td>6.6e-4 / 1.5e-4 / 7.9e-6</td><td>5.5e-4 / 1.3e-4 / 7.8e-6</td></tr>
+<tr><td>Genesis（只有速度）</td><td>— / 2.3e-1 / —</td><td>— / 3.4e-1 / —</td><td>— / 2.7e-1 / —</td><td>— / 3.4e-1 / —</td></tr>
+<tr><td>MuJoCo Warp，开着的 PR</td><td>2.9e-1 / 3.4e-1 / 1.5e-2</td><td>5.0e-1 / 4.8e-1 / 8.9e-2</td><td>3.1e-1 / 3.5e-1 / 1.8e-2</td><td>3.5e-1 / 4.0e-1 / 1.9e-2</td></tr>
+<tr><td>MuJoCo Warp，后续修复</td><td>5.3e-5 / 1.0e-5 / 2.1e-6</td><td>n/c</td><td>5.1e-5 / 1.1e-5 / 1.9e-6</td><td>4.5e-5 / 1.0e-5 / 2.3e-6</td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 精度表之间、正文和表之间</span>
+<ul>
+<li>表 7 的梯度三行等于表 9 的 G0 列（NablaEngine、MJX、MuJoCo C、两种 MuJoCo Warp、Genesis 都逐格相同），和“§6 报告 G0 上的梯度误差”一致。表 7 前向 NablaEngine 8.5e-7 是全部状态，表 8 是按组（G0 8.6e-7）。</li>
+<li>正文说“和 float64 有限差分在中位相对误差上相差 10<sup>−5</sup>”：位置 3.6e-5、速度 1.0e-5、动作 1.9e-6，所以“10<sup>−5</sup> 量级”是对的，位置稍大一些。注意真值本身的有限差分精度约 10<sup>−7</sup>，而 MuJoCo C 自己的有限差分（表 7 第三行）误差是 10<sup>−4</sup> 量级：NablaEngine 的解析梯度比 MuJoCo 自带的有限差分准一个数量级以上。</li>
+<li>11.5 倍比的是表 7 里误差 0.29 / 0.34 的那个 PR 版本；附录 B 说后续修复（误差降到和 NablaEngine 同量级）只改变耗时不到 2%，所以速度比在“梯度同样准”的条件下也基本成立。</li>
+<li>G4 组 NablaEngine 默认模式标 n/c，因为默认模式在限幅执行器上故意保留阻尼项，不再是精确导数；§4 说改成精确的“没有改善学习”。</li>
+</ul></div>
+
+<h3 id="apD">D 超参数和基线</h3>
+<div class="tablewrap"><table class="t-hp" id="t10"><caption class="tcap">表 10 · ∇Mimic 超参数（第 23 页），右列是代码 <code>configs/base/ours_v1.args</code> 的对应键</caption><thead><tr><th>项目</th><th>论文</th><th>代码键（v0.1.0 配方）</th></tr></thead><tbody>
+<tr><td>环境</td><td>每次更新 4096 个 BPTT 训练窗口</td><td><code>--num-envs 4096</code></td></tr>
+<tr><td>窗口长度</td><td>\(H=64\) 步（1.28 s）</td><td><code>--horizon 64</code></td></tr>
+<tr><td>折扣、TD</td><td>γ = 0.99，λ = 0.95</td><td>默认 <code>--gamma 0.99 --lam 0.95</code></td></tr>
+<tr><td>演员</td><td>编码器-解码器 MLP 2048–1024–512–256；锚点朝向进解码器</td><td><code>nets.py</code> 第 70 行；<code>--anchor-to-decoder --enc-hoist on</code></td></tr>
+<tr><td>评论家</td><td>MLP 256–128，在转移前状态上拟合</td><td><code>--critic-pre-state</code></td></tr>
+<tr><td>动作</td><td>残差：相对参考关节姿态的偏移</td><td><code>--residual-action</code>（v1 基础文件里没有，要另加）</td></tr>
+<tr><td>学习率</td><td>2 × 10<sup>−4</sup>，500 次预热，余弦衰减到 0.1 倍，16,000 次</td><td><code>--lr 2e-4 --lr-warmup-steps 500 --lr-decay-to 0.1 --lr-decay-steps 16000</code></td></tr>
+<tr><td>动作目标</td><td>RMS 设定点变化 0.03 rad（随学习率衰减到 0.3 倍）；8 步回归，每步 16,384 个样本；单独的 Adam，学习率 6 × 10<sup>−4</sup></td><td><code>--action-target 8 1 0.03 --action-target-lr 6e-4 --action-target-delta-floor 0.3</code>；<code>AT_BATCH = 16384</code>（<code>train.py</code> 第 65 行）</td></tr>
+<tr><td>逐样本裁剪</td><td>κ = 3 × 动作余切范数的批中位数</td><td><code>--act-cot-clip 3</code></td></tr>
+<tr><td>终止惩罚</td><td>W = 2，d<sub>z0</sub> = 0.08，d<sub>θ0</sub> = 0.10</td><td><code>--term-penalty 2 0.08 0.10</code></td></tr>
+<tr><td>窗口动作噪声</td><td>0.05</td><td><code>--act-noise 0.05</code></td></tr>
+<tr><td>起点</td><td>数据收集器的 1000 × 4096 个状态的回放（动作噪声 0.1，更新数据比 0.4）</td><td><code>--replay-steps 1000 --collect-envs 4096 --collect-noise 0.1 --utd 0.4</code></td></tr>
+<tr><td>重置采样</td><td>按回报分箱</td><td><code>--reset-sampling supermimic --uniform-over bins</code>；1 s 一箱，softmax(−25 G/G<sub>max</sub>)（<code>train.py</code> 第 446–449 行）</td></tr>
+<tr><td>物理</td><td>NablaEngine，10 次求解迭代，FP32；网络矩阵乘 TF32</td><td><code>--physics engine --solver-iterations 10</code>；<code>FIXED["matmul_precision"]="nets_tf32"</code></td></tr>
+<tr><td>每次更新耗时</td><td>一张 RTX PRO 6000 上 0.37 s</td><td>—</td></tr>
+</tbody></table></div>
+<p><b>网络结构。</b>演员照 SuperMimic 的编码器-解码器设计。动作编码器把接下来 10 帧参考（每帧 68 维）经过隐藏宽度 2048–1024–512–256 的 MLP 映射成 32 维、tanh 输出的潜码。同样宽度的解码器把潜码、10 帧本体感觉历史（每帧 93 维）和 6 维锚点朝向映射成 29 个关节偏移。评论家是隐藏宽度 256–128、输入特权信息的 MLP。作者说保留这种结构（而不是一个整块 MLP）是为了让 ∇Mimic 训出的策略能像 SONIC、BeyondMimic 那样，通过潜码接动作生成、遥操作或下游策略。</p>
+<p><b>基线。</b>PPO（BeyondMimic 配置）：NablaEngine 只前向，每次迭代 4096 环境 × 24 步，5 轮 × 4 小批，学习率 10<sup>−3</sup>（自适应，KL 0.01），裁剪 0.2，熵 0.005，γ = 0.99，λ = 0.95，MLP 512–256–128，BeyondMimic 的自适应采样；6 小时预算。PPO（SuperMimic 演员和重置采样）：同上但 8192 环境、SuperMimic 的编码器-解码器演员（2048–1024–512–256）和评论家（256–128）、按回报的重置采样；6 小时预算。SHAC 见附录 F。所有基线用和 ∇Mimic 相同的环境、观测和评测奖励。平滑终止惩罚（式 3）是本文配方的一部分，不是差距的来源：去掉全部摔倒处理（含惩罚），∇Mimic 在相同墙钟下回报变化不到 0.01（3 个种子，两种配方）。代码：<code>src/nablamimic/ppo.py</code> 开头的说明逐条列了它和 rsl_rl 的差别（正交初始化、逐关节 log-std、归一化器、超时自举方式等）。</p>
+
+<h3 id="apE">E SuperMimic 复现和成本估算</h3>
+<p><b>复现。</b>§4 的梯度分析用一个公开的 SuperMimic 复现（CuboiLeo/SuperMimic-Reproduced），超参数按 SuperMimic 论文：每次更新 4096 条、每条 32 个想象步的窗口，更新数据比 0.4，世界模型是三层 2048 宽、SiLU 的 MLP，从状态、动作和仿真上下文预测规范化状态的变化量。它的策略和本文一样能看到参考的锚点朝向。作者在一张 RTX PRO 6000 上训了一次，按本文的评测规程，2.88 小时到 0.789。它只用于梯度测量，不当基线；0.44、1.14、1.83、2.88 小时四个检查点提供 §4 用的策略和世界模型。</p>
+<p><b>成本估算。</b>见 <a href="#n9">读者注 4</a> 的逐步核算。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · §4 的“世界模型梯度”来自一个第三方复现</span><p>§4 里关于世界模型梯度的所有数字（尾巴 25–37 倍、配对余弦 0.90–0.91、最大 0.1% 上范数只有 0.35–0.43 倍，以及“∇Mimic 组件用在世界模型上没有持续收益”）都来自 CuboiLeo/SuperMimic-Reproduced 这一个复现、单次训练，2.88 小时 0.789，没到 SuperMimic 自报的 0.82。本站 SuperMimic 页的读者注 10 记过：有第三方复现按论文观测只得到 0.56 到 0.59，加了相对锚点的观测后到 0.904，另一个报告 0.829（那一条我在那一页也标了未核实）。所以“世界模型梯度和精确梯度主体一致、尾巴更轻”这个结论，严格说是对这个复现的世界模型成立。作者在附录 E 也明确说它不是基线。新版 PDF 改用 InstantTrack 做同物理、同 GPU 的世界模型对照（<a href="#n13">读者注 13</a>），我没有核实那部分。</p></div>
+
+<h3 id="apF">F SHAC 细节</h3>
+<p>两个 SHAC 变体和 ∇Mimic 用相同的环境、演员、评论家、4096 个环境、学习率调度和窗口噪声。SHAC 的算法：\(H=32\) 的窗口跨更新接续，没有回放起点也没有收集器；演员自己的窗口梯度，每个窗口一步 Adam；没有逐样本裁剪，没有终止惩罚；TD(λ = 0.95) 评论家、经验观测归一化、均匀重置采样。“SHAC（原版守卫）”把演员梯度按全局范数裁到 1.0，第一次遇到裁剪前范数非有限或超过 10<sup>6</sup> 时停止训练，和已发布的代码一样。“SHAC（改过的守卫）”先按全局范数裁到 1.0，再逐元素裁到 0.1（照 SuperMimic），遇到非有限的更新就跳过而不是停机。两个变体都跑在 NablaEngine 上；原版守卫变体也跑了带引擎梯度规则的 MuJoCo Warp。它们和 ∇Mimic 同时差好几个组件，所以是基线，不是单组件消融。代码：<code>configs/base/shac.args</code>、<code>configs/shac.args</code>（<code>--shac-strict</code>）、<code>configs/shac_guard_changes.args</code>；守卫在 <code>train.py</code> 第 66 行 <code>SHAC_GUARD = 1e6</code> 和 <code>actor_step</code> 里的 <code>finite</code> 判断。</p>
+
+<h3 id="apG">G 评测规程</h3>
+<p>40 段 LAFAN1 每段从第一帧参考播放一次。播放用 MuJoCo Warp、10 次求解迭代、确定性演员（均值动作），没有域随机化，没有观测或动作噪声。一段的回报是每步奖励的和，直到片段结束或第一次终止（高度误差超过 0.25 m 或倾斜超过 0.8）。每步奖励是六个跟踪项减动作变化率和关节限位惩罚。和除以这段能拿到的最大跟踪奖励，分数是 40 段的不加权平均。所以有摔倒的片段保留摔倒前的奖励，之后为零。这和 Liao 等（SuperMimic）定义的归一化回报一致（本站 SuperMimic 页<a href="supermimic.html#qa-score">问 6</a>）。“失败片段”就是有摔倒的片段。训练第一小时的每个检查点都评测（每 250 次更新），之后每 1000 次一次，外加最后一个。训练墙钟不含启动编译和全部评测。到某个分数的时间是 3 种子均值曲线的第一次越线，在评测点之间线性插值。</p>
+
+<h3 id="apH">H LAFAN1 的更多结果</h3>
+<div class="fig" id="fig7"><span class="lab">图 7 · 第 25 页 · <a href="https://arxiv.org/html/2610.41654v1#A8.F7">看原图 ↗</a></span><p>所有 LAFAN1 运行的整段归一化回报对训练墙钟，横轴对数（0.05 到 18 小时）。线是种子均值，至少两个种子时有 ±1 标准差带。所有运行都在 NablaEngine、一张 RTX PRO 6000 上。∇Mimic（3 个种子）最靠左上；绝对动作版紧随其后；SHAC 原版守卫的线很短，停在 0.06 小时左右；两条 PPO（各 1 个种子）一路缓慢爬到 6 小时。图上还画了 SuperMimic 论文里的数字：“0.82 within 1.2 h”的标记，以及 PPO-Sim 18 小时的终点 1、4、8 GPU 三个点（右边缘标着 1 GPU、4 GPUs、8 GPUs）。顶部虚线标“SuperMimic's score 0.82”。</p></div>
+<div class="tablewrap"><table class="t-r11" id="t11"><caption class="tcap">表 11 · LAFAN1 相同训练墙钟下的整段归一化回报（第 25 页；略去“算子”列，硬件栏除注明外都是 RTX PRO 6000）。‡ 单种子</caption><thead><tr><th>方法</th><th>硬件</th><th class="n">种子</th><th class="n">预算 h</th><th class="n">@0.5 h</th><th class="n">@1 h</th><th class="n">@2 h</th><th class="n">@3 h</th><th class="n">@6 h</th><th class="n">到 0.82（h）</th><th class="n">逐种子到 0.82</th><th class="n">最终回报（h）</th><th class="n">结束时失败片段</th></tr></thead><tbody>
+<tr><td>∇Mimic（NablaEngine）</td><td></td><td class="n">3</td><td class="n">3</td><td class="n">0.824 ± 0.008</td><td class="n">0.854 ± 0.005</td><td class="n">0.872 ± 0.001</td><td class="n">0.875 ± 0.001</td><td class="n">—</td><td class="n">0.34</td><td class="n">0.36 ± 0.05</td><td class="n">0.875 ± 0.001（3.10）</td><td class="n">0.0 ± 0.0</td></tr>
+<tr><td>∇Mimic，绝对动作</td><td></td><td class="n">3</td><td class="n">3</td><td class="n">0.821 ± 0.007</td><td class="n">0.844 ± 0.004</td><td class="n">0.861 ± 0.001</td><td class="n">0.864 ± 0.001</td><td class="n">—</td><td class="n">0.50</td><td class="n">0.46 ± 0.09</td><td class="n">0.865 ± 0.003（3.14）</td><td class="n">0.0 ± 0.0</td></tr>
+<tr><td>∇Mimic，绝对动作‡</td><td>H100</td><td class="n">1</td><td class="n">3</td><td class="n">0.816</td><td class="n">0.848</td><td class="n">0.861</td><td class="n">0.862</td><td class="n">—</td><td class="n">0.41</td><td class="n">0.41</td><td class="n">0.858（3.10）</td><td class="n">0</td></tr>
+<tr><td>∇Mimic，绝对动作（MuJoCo Warp）‡</td><td></td><td class="n">1</td><td class="n">3</td><td class="n">0.625</td><td class="n">0.764</td><td class="n">0.783</td><td class="n">0.825</td><td class="n">—</td><td class="n">2.49</td><td class="n">2.49</td><td class="n">0.826（3.05）</td><td class="n">1</td></tr>
+<tr><td>SHAC，原版守卫（NablaEngine）</td><td></td><td class="n">3</td><td class="n">3</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">未到（最好 0.373）</td><td class="n">—</td><td class="n">0.373 ± 0.093（0.06）</td><td class="n">23.0 ± 3.6</td></tr>
+<tr><td>SHAC，原版守卫（MuJoCo Warp）‡</td><td></td><td class="n">1</td><td class="n">3</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">未到（最好 0.484）</td><td class="n">—</td><td class="n">0.484（0.36）</td><td class="n">17</td></tr>
+<tr><td>SHAC，改过的守卫（NablaEngine）</td><td></td><td class="n">3</td><td class="n">3</td><td class="n">0.724 ± 0.019</td><td class="n">0.790 ± 0.019</td><td class="n">0.807 ± 0.008</td><td class="n">0.816 ± 0.005</td><td class="n">—</td><td class="n">均值曲线未到</td><td class="n">2.64 ± 0.34</td><td class="n">0.809 ± 0.018（3.13）</td><td class="n">2.0 ± 2.0</td></tr>
+<tr><td>SHAC，改过的守卫（MuJoCo Warp）‡</td><td></td><td class="n">1</td><td class="n">3</td><td class="n">0.478</td><td class="n">0.572</td><td class="n">0.680</td><td class="n">0.756</td><td class="n">—</td><td class="n">未到（最好 0.760）</td><td class="n">—</td><td class="n">0.760（3.13）</td><td class="n">4</td></tr>
+<tr><td>PPO，BeyondMimic（NablaEngine 只前向）‡</td><td></td><td class="n">1</td><td class="n">6</td><td class="n">0.465</td><td class="n">0.529</td><td class="n">0.641</td><td class="n">0.638</td><td class="n">0.695</td><td class="n">未到（最好 0.751）</td><td class="n">—</td><td class="n">0.695（6.00）</td><td class="n">8</td></tr>
+<tr><td>PPO，SuperMimic 演员和重置（只前向）‡</td><td></td><td class="n">1</td><td class="n">6</td><td class="n">0.428</td><td class="n">0.489</td><td class="n">0.586</td><td class="n">0.658</td><td class="n">0.692</td><td class="n">未到（最好 0.692）</td><td class="n">—</td><td class="n">0.692（6.00）</td><td class="n">3</td></tr>
+<tr><td>SuperMimic（论文，1 × H100）</td><td>H100</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">1.2 以内（自述）</td><td class="n">—</td><td class="n">—</td><td class="n">未报</td></tr>
+<tr><td>PPO-Sim（SuperMimic 论文）</td><td>H100（1 / 4 / 8）</td><td class="n">—</td><td class="n">18</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">18 h 内未到（自述）</td><td class="n">—</td><td class="n">0.60 / 0.70 / 0.72（18 h）</td><td class="n">未报</td></tr>
+<tr class="grp"><th colspan="13">附录行（更早的配方）</th></tr>
+<tr><td>∇Mimic，绝对动作，早期配方（锚点不进解码器）‡</td><td></td><td class="n">1</td><td class="n">3</td><td class="n">0.797</td><td class="n">0.842</td><td class="n">0.859</td><td class="n">0.863</td><td class="n">—</td><td class="n">0.47</td><td class="n">0.47</td><td class="n">0.865（3.13）</td><td class="n">0</td></tr>
+</tbody></table></div>
+<p class="tcap">表 11 的注（摘要）：∇Mimic（3 种子）从第 14,000 次更新（1.47 h）起，所有评测点上没有种子摔倒，最后一次摔倒在第 13,000 次（1 个种子 1 段）；第 6,000 次（0.63 h）是第一个三个种子都 0/40 的检查点。绝对动作版从第 27,000 次（2.88 h）起没有摔倒，第 7,000 次（0.74 h）第一次全 0。种子噪声参照（不同规程）：1 小时筛选（5 次求解迭代，MuJoCo Warp）上 3 种子标准差 0.0138；NablaEngine 相同更新数下的名义评测 0.0075。评测 GPU 是 A40 或 RTX PRO 6000。</p>
+<div class="tablewrap"><table class="t-r4" id="t12"><caption class="tcap">表 12 · 到 SuperMimic LAFAN1 分数 0.82 的成本（第 25 页）</caption><thead><tr><th>方法</th><th>硬件</th><th class="n">n</th><th class="n">到 0.82（h）</th><th class="n">策略更新</th><th class="n">可微窗口步</th><th class="n">只前向步</th><th class="n">仿真转移合计</th><th class="n">逐种子（h）</th></tr></thead><tbody>
+<tr><td>∇Mimic</td><td>RTX PRO 6000</td><td class="n">3</td><td class="n">0.34</td><td class="n">3,235</td><td class="n">8.48e8</td><td class="n">3.31e7</td><td class="n">8.81e8</td><td class="n">0.36 ± 0.05</td></tr>
+<tr><td>∇Mimic，绝对动作</td><td>RTX PRO 6000</td><td class="n">3</td><td class="n">0.50</td><td class="n">4,650</td><td class="n">1.22e9</td><td class="n">4.76e7</td><td class="n">1.27e9</td><td class="n">0.46 ± 0.09</td></tr>
+<tr><td>∇Mimic，绝对动作‡</td><td>H100</td><td class="n">1</td><td class="n">0.41</td><td class="n">3,719</td><td class="n">9.75e8</td><td class="n">3.81e7</td><td class="n">1.01e9</td><td class="n">0.41</td></tr>
+<tr><td>∇Mimic，绝对动作（MuJoCo Warp）‡</td><td>RTX PRO 6000</td><td class="n">1</td><td class="n">2.49</td><td class="n">4,918</td><td class="n">1.29e9</td><td class="n">5.04e7</td><td class="n">1.34e9</td><td class="n">2.49</td></tr>
+<tr><td>SHAC，原版守卫（NablaEngine / MuJoCo Warp‡）</td><td>RTX PRO 6000</td><td class="n">3 / 1</td><td class="n" colspan="6">未到（最好 0.373 @ 0.06 h；0.484 @ 0.36 h）</td></tr>
+<tr><td>PPO，BeyondMimic‡ / SuperMimic 演员‡</td><td>RTX PRO 6000</td><td class="n">1</td><td class="n" colspan="6">未到（最好 0.751 @ 5.75 h；0.692 @ 6.00 h）</td></tr>
+<tr><td>SuperMimic（论文）</td><td>H100</td><td class="n">—</td><td class="n">1.2 以内</td><td class="n">未报</td><td class="n">—</td><td class="n">未报</td><td class="n">未报</td><td class="n">—</td></tr>
+</tbody></table></div>
+<p class="tcap">每次更新的步数：∇Mimic 4096 × 64 = 262,144 可微窗口步 + 4096 / 0.4 = 10,240 收集器只前向步；SHAC 4096 × 32，无收集器；PPO 每次迭代 4096 × 24（BeyondMimic）或 8192 × 24（SuperMimic 演员）个前向步。</p>
+<div class="tablewrap"><table class="t-r4" id="t13"><caption class="tcap">表 13 · 绝对动作配方上的组件消融（LAFAN1，3 个种子，约 1.5 h）· 第 26 页</caption><thead><tr><th>对最终配方的改动</th><th>来源</th><th>种子</th><th>匹配点</th><th class="n">对照</th><th class="n">变体</th><th class="n">Δ</th><th class="n">失败片段：对照 / 变体</th></tr></thead><tbody>
+<tr><td>不用 PODS 动作目标（每窗口一步 Adam）</td><td>本文</td><td>3</td><td>1.64 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.806 ± 0.011</td><td class="n">−0.049</td><td class="n">0.1 / 1.9</td></tr>
+<tr><td>不做逐样本梯度裁剪<sup>a</sup></td><td>本文</td><td>3 中 2（s0 在 0.54 h、第 5,060 次发散）</td><td>1.65 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.562 ± 0.079</td><td class="n">−0.293</td><td class="n">0.1 / 10.9</td></tr>
+<tr><td>残差动作代替绝对设定点<sup>b</sup></td><td>动作参数化</td><td>3</td><td>1.64 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.864 ± 0.001</td><td class="n">+0.009</td><td class="n">0.1 / 0.0</td></tr>
+<tr><td>均匀重置代替按回报分箱</td><td>继承自 SuperMimic</td><td>3</td><td>1.65 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.861 ± 0.003</td><td class="n">+0.005</td><td class="n">0.1 / 0.1</td></tr>
+<tr><td>不从回放取起点</td><td>继承自 SuperMimic</td><td>3</td><td>1.62 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.874 ± 0.002</td><td class="n">+0.019</td><td class="n">0.1 / 0.0</td></tr>
+<tr><td>\(H=32\)</td><td>本文</td><td>3</td><td>1.64 h</td><td class="n">0.855 ± 0.001</td><td class="n">0.818 ± 0.019</td><td class="n">−0.036</td><td class="n">0.1 / 0.2</td></tr>
+<tr><td>\(H=32\)，相同更新数</td><td>本文</td><td>3</td><td>第 26,000 次</td><td class="n">0.862 ± 0.002</td><td class="n">0.818 ± 0.019</td><td class="n">−0.043</td><td class="n">0.1 / 0.2</td></tr>
+</tbody></table></div>
+<p class="tcap">a：3 种子臂之外另跑了两个种子，不参与平均：s3 在 0.40 h 发散，s4 跑完。b：另两个种子 s3、s4 都跑完。</p>
+<div class="tablewrap"><table class="t-r4" id="t14"><caption class="tcap">表 14 · 残差动作配方上的组件消融（LAFAN1，3 个种子，约 1.5 h）· 第 26 页</caption><thead><tr><th>改动</th><th>来源</th><th>种子</th><th>匹配点</th><th class="n">对照</th><th class="n">变体</th><th class="n">Δ</th><th class="n">失败片段：对照 / 变体</th></tr></thead><tbody>
+<tr><td>不用 PODS 动作目标</td><td>本文</td><td>3</td><td>1.63 h</td><td class="n">0.866 ± 0.002</td><td class="n">0.822 ± 0.012</td><td class="n">−0.044</td><td class="n">0.1 / 1.3</td></tr>
+<tr><td>不做逐样本梯度裁剪</td><td>本文</td><td>3 中 0（s0 0.59 h、s1 0.31 h、s2 0.37 h 发散，第 5,510 / 2,930 / 3,500 次）</td><td>—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>均匀重置<sup>a</sup></td><td>继承自 SuperMimic</td><td>3</td><td>1.64 h</td><td class="n">0.866 ± 0.002</td><td class="n">0.811 ± 0.065</td><td class="n">−0.055</td><td class="n">0.1 / 2.8</td></tr>
+<tr><td>不从回放取起点</td><td>继承自 SuperMimic</td><td>3</td><td>1.64 h</td><td class="n">0.866 ± 0.002</td><td class="n">0.884 ± 0.006</td><td class="n">+0.018</td><td class="n">0.1 / 0.0</td></tr>
+<tr><td>\(H=32\)<sup>b</sup></td><td>本文</td><td>4 中 3（s2 在 1.10 h、第 17,080 次崩溃：评论家值失控）</td><td>1.65 h</td><td class="n">0.867 ± 0.002</td><td class="n">0.824 ± 0.010</td><td class="n">−0.042</td><td class="n">0.1 / 0.4</td></tr>
+<tr><td>\(H=32\)，相同更新数<sup>c</sup></td><td>本文</td><td>4 中 3</td><td>第 25,583 次</td><td class="n">0.873 ± 0.002</td><td class="n">0.824 ± 0.010</td><td class="n">−0.048</td><td class="n">0.0 / 0.4</td></tr>
+</tbody></table></div>
+<p class="tcap">a：平均窗口里有一次暂时崩溃，三个种子最后的检查点都在 0.86–0.87。b、c：另一个种子 s3 跑完，不参与平均。“发散”指损失非有限；“崩溃”指数值有限但评论家值失控（评论家损失超过 10<sup>3</sup>，回报跌到接近零）。两张表的种子噪声参照同表 11。</p>
+<div class="tablewrap"><table class="t-r15" id="t15"><caption class="tcap">表 15 · 每次策略更新的训练循环成本（第 26 页）</caption><thead><tr><th>方法</th><th>算子</th><th>硬件</th><th class="n">每次更新秒数（中位）</th><th class="n">每小时更新数</th><th class="n">每次可微步</th><th class="n">每次只前向步</th><th class="n">仿真步/秒</th><th class="n">相对 MuJoCo Warp</th></tr></thead><tbody>
+<tr><td>∇Mimic（残差）</td><td>NablaEngine</td><td>RTX PRO 6000</td><td class="n">0.374</td><td class="n">9,503</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">729k</td><td class="n">4.4×</td></tr>
+<tr><td>∇Mimic，绝对动作（最终配方）</td><td>NablaEngine</td><td>RTX PRO 6000</td><td class="n">0.373</td><td class="n">9,383</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">729k</td><td class="n">4.4×</td></tr>
+<tr><td>∇Mimic，绝对动作，编码器外提（计时运行，70 次）</td><td>NablaEngine</td><td>RTX PRO 6000</td><td class="n">0.369</td><td class="n">—</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">738k</td><td class="n">4.4×</td></tr>
+<tr><td>∇Mimic，绝对动作</td><td>MuJoCo Warp</td><td>RTX PRO 6000</td><td class="n">1.633</td><td class="n">1,966</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">167k</td><td class="n">—</td></tr>
+<tr><td>∇Mimic，绝对动作</td><td>NablaEngine</td><td>H100</td><td class="n">0.382</td><td class="n">9,275</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">712k</td><td class="n">5.9×§</td></tr>
+<tr><td>∇Mimic，绝对动作（另一配方，30 次计时）</td><td>MuJoCo Warp</td><td>H100</td><td class="n">2.258</td><td class="n">—</td><td class="n">262,144</td><td class="n">10,240</td><td class="n">121k</td><td class="n">—</td></tr>
+<tr><td>SHAC</td><td>NablaEngine</td><td>RTX PRO 6000</td><td class="n">0.196</td><td class="n">18,365</td><td class="n">131,072</td><td class="n">0</td><td class="n">669k</td><td class="n">4.3×</td></tr>
+<tr><td>SHAC</td><td>MuJoCo Warp</td><td>RTX PRO 6000</td><td class="n">0.839</td><td class="n">3,455</td><td class="n">131,072</td><td class="n">0</td><td class="n">156k</td><td class="n">—</td></tr>
+<tr><td>PPO，BeyondMimic（每次迭代）</td><td>NablaEngine 只前向</td><td>RTX PRO 6000</td><td class="n">0.126</td><td class="n">28,240</td><td class="n">0</td><td class="n">98,304</td><td class="n">781k</td><td class="n">—</td></tr>
+<tr><td>PPO，SuperMimic 演员和重置（每次迭代）</td><td>NablaEngine 只前向</td><td>RTX PRO 6000</td><td class="n">0.549</td><td class="n">6,542</td><td class="n">0</td><td class="n">196,608</td><td class="n">358k</td><td class="n">—</td></tr>
+</tbody></table></div>
+<p class="tcap">§：MuJoCo Warp 那一行的计时来自另一个配方（无锚点进解码器的 O64 配方），所以这个 5.9 倍混了算子和配方的差别。表注还说：论文的引擎运行固定一个引擎版本，更早的计时运行用的是当时的引擎构建，所以不同行的每次更新时间混合了引擎版本和配方变化。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · 表 11 和正文、和本站 SuperMimic 页</span>
+<ul>
+<li>表 4 是表 11 的子集，逐格相同 ✓（∇Mimic、绝对动作、两条 PPO、SHAC 改过的守卫在 0.5/1/2/3 h 的值，以及摔倒数 0.0 / 0.0 / 8 / 3 / 2.0 / 23.0）。</li>
+<li>§7.2 “单个种子 2.4 到 3.1 小时越线”对表 11 的“逐种子 2.64 ± 0.34 h”：均值 2.64、标准差 0.34，三个值落在 2.4–3.1 之间是可能的（例如 2.4、2.45、3.1，样本标准差约 0.39），我没有原始逐种子数据，不能精确核对。</li>
+<li>PPO-Sim 的 0.60 / 0.70 / 0.72（1 / 4 / 8 GPU，18 h）和“1.2 小时以内到 0.82”，与本站 SuperMimic 页<a href="supermimic.html#qa-score">问 6</a> 记的数字一致。那一页从 SuperMimic 图 4(a) 读到 1.19 小时那个点是 0.834。</li>
+<li>“失败片段”在表 4 叫“Falls”，在表 11 叫“Failed clips”，按表 11 注是同一个东西（名义评测下有摔倒的片段）。</li>
+<li>表 15 里两行 ∇Mimic 都写“4.4×”，但只有绝对动作版有同配方的 MuJoCo Warp 对照（1.633 / 0.373 = 4.38）；残差版那一行的 4.4× 是借用的（1.633 / 0.374 = 4.37），残差版没有在 MuJoCo Warp 上的计时。SHAC 4.3× = 0.839 / 0.196 = 4.28 ✓。</li>
+</ul></div>
+
+<h2 id="code">代码对照</h2>
+<p>下表左列是论文 arXiv v1 的设定，中列是代码 bfbb2a6 里对应的实现，右列是文件和行号（行号按 bfbb2a6）。论文配方对应 <code>configs/base/ours_v1.args</code>（v0.1.0），不是默认的 <code>configs/ours.args</code>（0.2.0），见<a href="#n12">读者注 19</a>。</p>
+<div class="tablewrap"><table class="t-code"><thead><tr><th>项目</th><th>论文</th><th>代码</th><th>出处</th></tr></thead><tbody>
+<tr class="grp"><th colspan="4">环境</th></tr>
+<tr><td>机器人</td><td>mjlab 的 G1，29 关节，502 个接触对</td><td>Menagerie G1 再按 mjlab 改：每只脚 7 根鞋底胶囊、接触对、solref/solimp；测试断言 <code>npair == 502</code>、<code>nu == 29</code></td><td><code>robot.py</code>；<code>tests/test_model.py</code></td></tr>
+<tr><td>控制</td><td>50 Hz，4 × 5 ms 子步</td><td>同；<code>SUBSTEPS = 4</code>（MuJoCo Warp 路径）</td><td><code>env.py</code> 第 8 行；<code>warp_physics.py</code> 第 31 行</td></tr>
+<tr><td>PD 增益</td><td>没写</td><td>mjlab 规则：k<sub>p</sub> = 电枢 × (2π·10 Hz)²，k<sub>d</sub> = 2·2·电枢·ω</td><td><code>env.py</code> 第 5 行、第 127–136 行</td></tr>
+<tr><td>动作</td><td>残差：参考关节姿态 + 偏移</td><td>设定点 = 下一帧参考关节角 + <code>action_scale</code> × 动作，裁到设定点范围；<code>action_scale = 0.25 × effort / kp</code></td><td><code>env.py</code> 第 161、319–330 行</td></tr>
+<tr><td>终止</td><td>高度误差 &gt; 0.25 m，倾斜 &gt; 0.8</td><td>倾斜是重力 z 分量之差</td><td><code>env.py</code> 第 71–72、428–433 行（<a href="#n2">注 3</a>）</td></tr>
+<tr><td>参考数据</td><td>LAFAN1 G1 重定向 40 段，30 → 50 Hz</td><td>下载脚本固定修订版并校验 SHA-256；线性插值 + slerp</td><td><code>scripts/download_lafan1.sh</code>；<code>motion.py</code> 第 64–142 行</td></tr>
+<tr class="grp"><th colspan="4">梯度</th></tr>
+<tr><td>可微仿真后端</td><td>NablaEngine；§7.3 另用 MuJoCo Warp 伴随</td><td><code>--physics</code> 默认 <code>engine</code>；<code>warp</code> 走打过补丁的 MuJoCo Warp</td><td><code>train.py</code> 第 238、381–395 行；<code>sim.py</code> 第 62–90 行</td></tr>
+<tr><td>引擎梯度模式</td><td>训练默认 <code>clamp_kv = 0, normal = 3</code></td><td><code>make_engine(env, sizes, clamp_kv=0, normal=3, clamp_soft=None)</code></td><td><code>train.py</code> 第 383 行</td></tr>
+<tr><td>MuJoCo Warp 梯度约定</td><td>移植引擎的规则（附录 B）</td><td><code>--mjw-adj-normal 3 --mjw-adj-parallel 1 --mjw-ift-solve 1</code></td><td><code>configs/*_mjw.args</code>；<code>patches/mujoco_warp/</code>（<a href="#n17">注 15</a>）</td></tr>
+<tr><td>BPTT</td><td>式 (1)，H = 64</td><td><code>jax.lax.scan</code> 64 步，<code>--no-remat</code> 保留每步残差；窗口末端和超时/片段结束时用评论家自举，终止时不自举</td><td><code>train.py</code> 第 79–191 行</td></tr>
+<tr><td>回合中途结束</td><td>之后不再贡献（生存掩码）</td><td>v1：<code>--mask-after-done</code>；0.2.0 默认去掉</td><td><code>train.py</code> 第 156–158 行</td></tr>
+<tr><td>逐样本裁剪</td><td>式 (4)，κ = 3，反向每步 + 窗口梯度一次</td><td><code>custom_vjp</code> 恒等函数在反向里裁；窗口动作梯度再裁一次；中位数只在有梯度的行上取</td><td><code>nets.py</code> 第 114–142 行；<code>train.py</code> 第 131、508–513 行（<a href="#n7">注 6</a>）</td></tr>
+<tr><td>其他裁剪</td><td>没写</td><td>演员 Adam 和回归 Adam 前都有全局范数 1.0 + 逐元素 0.1；评论家 Adam 前全局范数 1.0</td><td><code>train.py</code> 第 415–423 行</td></tr>
+<tr class="grp"><th colspan="4">更新</th></tr>
+<tr><td>动作目标</td><td>式 (5)，δ = 0.03 rad 衰减到 0.3 倍</td><td>η = δ / RMS（设定点弧度），目标 = a<sub>π</sub> + η g；δ 余弦退火</td><td><code>train.py</code> 第 495–531 行</td></tr>
+<tr><td>多步回归</td><td>M = 8，每步 16,384 样本，单独 Adam 6e-4</td><td><code>--action-target 8 1 0.03</code>（K = 1：只用最近 1 个窗口的目标）；<code>AT_BATCH = 16384</code></td><td><code>train.py</code> 第 65、539–559 行</td></tr>
+<tr><td>评论家</td><td>TD(λ)，转移前状态</td><td><code>nets.td_lambda</code>，默认 5 轮 × 4 小批</td><td><code>train.py</code> 第 621 行起；<code>nets.py</code> 第 53 行</td></tr>
+<tr><td>回放与收集器</td><td>1000 × 4096，噪声 0.1，更新数据比 0.4</td><td>同；每次更新平均 2.5 个收集器步</td><td><code>train.py</code> 第 464、478 行起</td></tr>
+<tr><td>重置采样</td><td>按回报分箱（BeyondMimic / SuperMimic）</td><td>1 s 一箱；softmax(−25 G<sub>b</sub>/G<sub>max</sub>) 混合均匀和慢变历史</td><td><code>train.py</code> 第 426–470 行</td></tr>
+<tr class="grp"><th colspan="4">评测与基线</th></tr>
+<tr><td>评测</td><td>MuJoCo Warp，确定性，40 段各一次</td><td>同；0.2.0 默认对 Polyak 平均的演员打分</td><td><code>evaluate.py</code> 第 1–12、127、158 行</td></tr>
+<tr><td>SHAC</td><td>附录 F</td><td><code>--shac-strict</code>：只全局范数裁剪，范数 &gt; 10<sup>6</sup> 或非有限即停（写 HALTED）</td><td><code>configs/base/shac.args</code>；<code>train.py</code> 第 66 行</td></tr>
+<tr><td>PPO</td><td>附录 D</td><td>独立的 JAX 实现，照 rsl_rl；和 rsl_rl 的差别在模块说明里列出</td><td><code>ppo.py</code> 第 1–30 行</td></tr>
+</tbody></table></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>下面按 README、配置文件和代码整理，没有实际运行过。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<div class="tablewrap"><table class="t-rep"><thead><tr><th>路径</th><th>内容</th></tr></thead><tbody>
+<tr><td><code>src/nablamimic/train.py</code></td><td>∇Mimic 和 SHAC 的训练（903 行）：窗口滚动、反向裁剪、动作目标回归、评论家、收集器和回放、检查点</td></tr>
+<tr><td><code>src/nablamimic/env.py</code></td><td>G1 跟踪环境：观测、奖励、终止、域随机化、残差动作；物理步在外面批量做</td></tr>
+<tr><td><code>src/nablamimic/sim.py</code></td><td>选物理后端：<code>make_engine</code>（NablaEngine 的 JAX FFI）或 <code>make_warp</code>（打补丁的 MuJoCo Warp）</td></tr>
+<tr><td><code>src/nablamimic/warp_physics.py</code></td><td>把 MuJoCo Warp 包成一个可微的 JAX 算子（<code>custom_vjp</code>，前向和反向都捕获成 CUDA 图）</td></tr>
+<tr><td><code>src/nablamimic/g1_fast/</code></td><td>为 G1 生成融合 RNE 内核，并在运行时替换 MuJoCo Warp 伴随里的一段</td></tr>
+<tr><td><code>src/nablamimic/nets.py</code></td><td>演员（编码器-解码器）、评论家、TD(λ)、逐样本裁剪</td></tr>
+<tr><td><code>src/nablamimic/ppo.py</code></td><td>PPO 基线</td></tr>
+<tr><td><code>src/nablamimic/evaluate.py</code>、<code>eval_plan.py</code></td><td>名义评测（MuJoCo Warp）和评测哪些检查点</td></tr>
+<tr><td><code>src/nablamimic/bones/</code></td><td>BONES-SEED 转换和基准（论文里没有结果）</td></tr>
+<tr><td><code>configs/</code></td><td>推荐配置、MuJoCo Warp 版、PPO、SHAC、BONES-SEED；<code>configs/reported/</code> 是论文比较和消融用的配置；<code>configs/base/</code> 是两版配方</td></tr>
+<tr><td><code>patches/mujoco_warp/</code></td><td>4 个反向补丁和源码树哈希</td></tr>
+<tr><td><code>scripts/</code></td><td>环境安装、MuJoCo Warp 构建、Menagerie、数据下载（带 SHA-256）、评测</td></tr>
+<tr><td><code>tests/</code></td><td>配置能否解析（CPU）、动作和动作变化率换算、模型尺寸断言</td></tr>
+</tbody></table></div>
+<h3 id="repro-backend">可微仿真后端：哪个是默认</h3>
+<ul>
+<li><b>默认是 NablaEngine。</b><code>train.py</code> 的 <code>--physics</code> 默认 <code>engine</code>，推荐配置 <code>configs/ours.args</code> 也写了 <code>--physics engine</code>。NablaEngine 是单独的包，<code>scripts/setup_env.sh</code> 和 <code>pyproject.toml</code> 都固定在 OamIcs/NablaEngine 的提交 c61a6fe（“NablaEngine 0.1.0”，2026-10-31）；THIRD_PARTY_NOTICES 写“固定到它的 v0.1.0 发布”，一致。NablaEngine 仓库现在已有 v0.2.0 标签，NablaMimic 没跟。引擎第一次用时要用 <code>nvcc</code> 编译 CUDA 库（Blackwell 要 CUDA 12.8 以上）。</li>
+<li><b>MuJoCo Warp 是第二后端。</b><code>configs/ours_mjw.args</code>、<code>configs/reported/ours_absolute_mjw.args</code> 等。用的是 etaoxing 的伴随分支（PR #1535 的代码）加 PR #1 加本仓库 4 个补丁，<code>scripts/setup_mujoco_warp.sh</code> 构建并校验哈希。评测无论训练用哪个后端，都用 MuJoCo Warp 的前向。</li>
+<li><b>Newton、Genesis、MJX、Isaac Lab</b> 只在论文的计时和精度表里出现，代码里不作为训练后端。MJX 只用来提供模型和数据容器以及重置状态的运动学（<code>env.py</code> 开头说明）。</li>
+</ul>
+<h3 id="repro-contact">梯度怎样穿过接触</h3>
+<ul>
+<li><b>论文（NablaEngine）。</b>约束求解用隐函数定理在返回的解 \(a^\star\) 处求导（式 7–10），接触集、有效集、执行器限幅都固定；碰撞几何（接触点、法向、距离）是可导的；两类无界导数在阈值以下冻结（自接触法向 1 mm，近平行胶囊约 2°）；力限幅执行器保留阻尼项。所以梯度是“离散决定固定时”的精确导数，不平滑跨接触切换（§8 自己说的）。</li>
+<li><b>代码（MuJoCo Warp 路径）。</b><code>warp_physics.py</code> 的 <code>custom_vjp</code> 在反向里用 <code>wp.Tape</code> 重算子步并调用伴随分支的解析伴随；补丁 0001、0002 实现同样的冻结规则，0004 修 IFT 求解里的数值问题。</li>
+<li><b>NablaEngine 的源码我没有读</b>，引擎内部只能按论文附录 B 说。</li>
+</ul>
+<h3 id="repro-window">截断、窗口、梯度裁剪、评论家</h3>
+<ul>
+<li><b>窗口。</b>每次更新 4096 个 64 步窗口，起点从回放里均匀抽；窗口之间不接续（论文配方）。窗口内回合结束：v1 配方之后不计入目标（<code>--mask-after-done</code>），环境照样从重置状态重启，评论家照样在这些步上训练。</li>
+<li><b>截断。</b>除了窗口边界，没有别的截断；回合结束处 <code>select_reset</code> 把状态换成重置状态，梯度在那里自然断开。论文没有用 DiffMimic 那种按误差的替换。</li>
+<li><b>裁剪。</b>三层：反向里每步逐样本（κ = 3）、窗口动作梯度再一次、优化器前的全局 1.0 + 逐元素 0.1（<a href="#n7">读者注 6</a>）。</li>
+<li><b>评论家。</b>有。MLP 256–128，特权输入，TD(λ = 0.95)，在转移前状态上拟合；它在窗口末端和超时、片段结束时为目标自举（终止时不自举）。BONES-SEED 配置另加了值上界。</li>
+</ul>
+<h3 id="repro-ver">两版配方和 README 的数字</h3>
+<div class="note" id="n19"><span class="lab">读者注 19 · 默认配置是 0.2.0 配方，论文是 v0.1.0 配方</span>
+<ul>
+<li>提交 82e13aa（“NablaMimic 0.2.0”，2026-11-03）把默认配方改了三处，提交说明和 <code>configs/base/ours.args</code> 的注释都写了：回合在窗口中途结束后，该环境剩下的步<b>不再</b>从目标里去掉（去掉 <code>--mask-after-done</code>）；保留演员的 Polyak 平均（衰减 0.999，带短预热，<code>--actor-ema 0.999 --actor-ema-warmup</code>），评测打分用这个平均；学习率预热从 500 次改成 100 次。<code>tests/test_configs.py</code> 第 18–19 行把两版差异写成了 <code>V1</code>、<code>V2</code> 两个字典。</li>
+<li>论文表 10 写“500 次预热”，§5 写“回合结束后不再贡献”，没有 Polyak 平均：对应 <code>configs/base/ours_v1.args</code>。论文主结果（残差动作）的配置是 <code>ours_v1.args</code> 加 <code>--physics engine --residual-action</code>；仓库里没有一个现成文件正好是这个组合（<code>configs/ours_mjw.args</code> 是它的 MuJoCo Warp 版，<code>configs/reported/ours_absolute.args</code> 是绝对动作版）。这句是我对比配置文件得出的。</li>
+<li><code>configs/reported/ablations_residual/*.args</code> 的注释写“Ablation of configs/ours.args (residual actions)”，但文件实际包含的是 <code>ours_v1.args</code>：注释是 0.2.0 改名之前留下的，内容按 v1 配方，和论文表 14 一致。</li>
+<li>README 的“8 分钟到 0.82、平台约 0.91、没有片段失败”和下面的 GIF，按 0.2.0 配方，对应作者站点上的新版 PDF（<a href="#n10">读者注 13</a>），不是 arXiv v1 的“20 分钟、0.874”。这些新数字在仓库里没有可以核对的原始数据，我没有核实。</li>
+</ul></div>
+<figure class="pfig" id="gif-results">
+<img class="dark" src="nablamimic/results_levels.webp" width="880" height="645" alt="仓库 README 的结果动图：LAFAN1 整段回报对训练时间，∇Mimic 蓝线 2.9 小时到 0.910，SuperMimic 灰线、两条 PPO 橙线（一条实线标 boosted by NablaEngine，一条虚线标 PPO on MuJoCo Warp, estimated）；下方四个回报水平按钮和到达时间、所需更新数" loading="lazy">
+<figcaption><span class="lab">仓库动图 results_levels · Lu &amp; Chen，取自 GitHub 仓库 OamIcs/NablaMimic（Apache-2.0），只做了格式转换（GIF → WebP），没有缩放或裁切 · <a href="https://github.com/OamIcs/NablaMimic/blob/bfbb2a6773b4776c17402a34a93ec7589d9c7c18/assets/results_levels.gif">看原图 ↗</a></span>黑底折线图，横轴训练时间 0 到 3.5 小时，纵轴 LAFAN1 整段回报。动画在四个回报水平之间切换：0.7（PPO 的水平）、0.82（SuperMimic 的分数）、0.866（标为“SuperMimic's best reported”）、0.910（∇Mimic 的平台）；右侧列出各方法到达该水平的时间和更新数，最后一帧是 ∇Mimic 2.9 小时、27k 次更新到 0.910，其余“未到”。左下大字“+5.1% higher return，0.910 vs. 0.866”。注意三点：这是 0.2.0 配方的结果，不是 arXiv v1；“SuperMimic 0.866”“PPO on MuJoCo Warp, estimated”这两条线在 arXiv v1 里都没有出现，arXiv v1 还明说 SuperMimic 没有给最终分数；SuperMimic 那条灰线是哪里来的数据，图上没写，我没有核实。</figcaption>
+</figure>
+<figure class="pfig" id="gif-8min">
+<img src="nablamimic/demo_8min.webp" width="744" height="434" alt="仓库 README 的动图：四段 LAFAN1 动作（dance、sprint、jumps、fall and get up），各自左边蓝色半透明参考、右边灰色仿真机器人，标注 trained 8 min" loading="lazy">
+<figcaption><span class="lab">仓库动图 demo_8min · Lu &amp; Chen，取自 GitHub 仓库 OamIcs/NablaMimic（Apache-2.0），只做了格式转换（GIF → WebP），没有缩放或裁切 · <a href="https://github.com/OamIcs/NablaMimic/blob/bfbb2a6773b4776c17402a34a93ec7589d9c7c18/assets/demo_8min.gif">看原图 ↗</a></span>2 × 2 四格：dance、sprint、jumps、fall and get up。每格灰色是仿真里的机器人，蓝色是参考动作（往旁边平移了）。README 的说明是“一个策略在一张 RTX PRO 6000 上训练 8 分钟后”。这是仿真回放，不是真机；训练配方是 0.2.0。</figcaption>
+</figure>
+<figure class="pfig" id="gif-conv">
+<img src="nablamimic/demo_converged.webp" width="800" height="310" alt="仓库 README 的动图：左边 ∇Mimic 训练 2.9 小时、右边 PPO（BeyondMimic 配置）训练 6 小时，同一段 dance，下方是锚点漂移和身体动作误差的实时条" loading="lazy">
+<figcaption><span class="lab">仓库动图 demo_converged · Lu &amp; Chen，取自 GitHub 仓库 OamIcs/NablaMimic（Apache-2.0），只做了格式转换（GIF → WebP），没有缩放或裁切 · <a href="https://github.com/OamIcs/NablaMimic/blob/bfbb2a6773b4776c17402a34a93ec7589d9c7c18/assets/demo_converged.gif">看原图 ↗</a></span>两格并排：左 ∇Mimic 训练 2.9 小时，右 PPO（BeyondMimic 配置）训练 6 小时。参考画在机器人身上，下面两根条实时显示锚点漂移和身体动作误差。我截的那一帧（dance）左边是 0.07 m · 2.1° 和 2.6 cm，右边 0.07 m · 2.9° 和 4.2 cm。两个数随帧变化，只是示例。</figcaption>
+</figure>
+<h3 id="repro-cmd">怎么跑（按 README）</h3>
+<pre class="cmd">git clone https://github.com/OamIcs/NablaMimic &amp;&amp; cd NablaMimic
+bash scripts/setup_env.sh      # .venv：固定版本、打补丁的 MuJoCo Warp、Menagerie 的 G1、NablaEngine、nablamimic
+source .venv/bin/activate
+pip install huggingface_hub
+bash scripts/download_lafan1.sh            # 40 个 G1 CSV，按 SHA-256 校验
+export XLA_PYTHON_CLIENT_PREALLOCATE=false
+python -m nablamimic.train --config configs/ours.args --out runs/ours_s0      # 0.2.0 推荐配方，3 h
+bash scripts/evaluate_run.sh runs/ours_s0  # 每段一次，MuJoCo Warp → runs/ours_s0/eval_nominal.json</pre>
+<ul>
+<li><b>复现论文 v1 的主结果。</b>按读者注 10，用 <code>--config configs/base/ours_v1.args --physics engine --residual-action --hours 3</code>（命令行选项覆盖配置文件，README 说明了 <code>--config</code> 之后的选项会覆盖）。绝对动作版直接用 <code>configs/reported/ours_absolute.args</code>。消融在 <code>configs/reported/ablations*/</code>。这些组合是我按配置文件推出来的，没有跑过。</li>
+<li><b>基线。</b>PPO：<code>python -m nablamimic.ppo --config configs/ppo_beyondmimic.args</code> 或 <code>ppo_supermimic_style.args</code>；SHAC：<code>configs/shac.args</code>（原版守卫）、<code>shac_guard_changes.args</code>（改过的守卫），各有 <code>_mjw</code> 版本。</li>
+<li><b>续跑。</b><code>--resume latest</code>，配置和 <code>--out</code> 不变。</li>
+<li><b>测试。</b><code>tests/</code> 三个文件都能在 CPU 上跑（<code>test_model.py</code> 需要 Menagerie）。</li>
+</ul>
+<h3 id="repro-hw">硬件和时间预期</h3>
+<ul>
+<li>环境：Linux x86_64、NVIDIA GPU 和 CUDA 12 驱动、Python 3.12、CUDA 12.x 的 <code>nvcc</code>（Blackwell 要 12.8+）。JAX 0.12.0.1、MuJoCo / MJX 3.17.0、warp-lang 1.18.0（CUDA 12 版，从 GitHub 发布页装，PyPI 轮子是 CUDA 13）。</li>
+<li>显存：README 说配置约用 50 GB，在 RTX PRO 6000 和 H100 上测过；小卡要降 <code>--replay-steps</code>、<code>--collect-envs</code>、<code>--num-envs</code>，但报告的结果用默认值。</li>
+<li>时间：论文每次更新 0.37 s（RTX PRO 6000），到 0.82 约 3,235 次、0.34 小时；跑满 3 小时约 2.8 万次更新。MuJoCo Warp 后端每次 1.63 s。</li>
+</ul>
+<h3 id="repro-pit">已知坑</h3>
+<ul>
+<li><b>配方版本。</b>默认 <code>configs/ours.args</code> 不是论文配方（<a href="#n19">读者注 19</a>）。比数字时先确认用的是哪版，以及评测打分的是 <code>actor</code> 还是 <code>actor_ema</code>（<code>evaluate.py</code> 第 127、158 行，可用 <code>--actor-key</code> 指定）。</li>
+<li><b>两个后端不逐位一致。</b>NablaEngine 前向逐位确定；MuJoCo Warp 因为浮点原子操作，运行之间不逐位一致（补丁 README）。§7.3 说两者按更新数曲线重合，但单种子。</li>
+<li><b>MuJoCo Warp 的版本。</b>训练和梯度计时用的伴随分支基于 MuJoCo Warp 3.12，前向计时写的是 3.17.0（<a href="#n9">读者注 9</a>）。</li>
+<li><b>数据许可。</b>LAFAN1 是 CC BY-NC-ND 4.0（非商业、禁止演绎），重定向数据集的仓库自己又写 BSD-3；BONES-SEED 是门控的学术非商业许可。两者都不能再分发（THIRD_PARTY_NOTICES）。</li>
+<li><b>真机。</b>论文和仓库都没有部署代码（没有 ONNX 导出、没有 sim2real 脚本）。</li>
+<li><b>项目页地址。</b>论文脚注的 oamics.github.io/NablaMimic/ 是 404，用 README 里的 sailab.ai/nablamimic/。</li>
+</ul>
+<div class="note" id="n20"><span class="lab">读者注 20 · 表 5 里“比 Isaac Lab 快 22.7 倍”不是同一个模型</span><p>图 1(b) 写 Isaac Lab（PhysX）27.5 ms、22.7 倍，图注说明是“它自己的 G1 资产和任务默认值”。表 5 进一步写明这一行只有 3 个盒子碰撞体；换成 38 个形状、开自碰撞后是 54.1 ms。NablaEngine 是 502 个接触对的 mjlab 模型。所以 22.7 倍比的是两个碰撞复杂度不同的模型；如果按“碰撞更接近”的 38 形状那一行算，是 54.1 / 1.21 = 44.7 倍，但仍不是同一模型。MJX 那一行作者给了两个版本：同一模型 255 ms（211 倍），Menagerie G1（接触更少）50.7 ms（41.9 倍）。论文对每个引擎都说明了配置，这里只是提醒：这些倍数是“各自标准配置”之间的比较，不全是同模型对比。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">“ultra-efficient”的倍数</a>：3.5 倍跨 GPU 且 1.2 h 是上界；同 H100 约 2.9 倍；训练层面换引擎 4.4 倍；11.5 倍是引擎微基准。</li>
+<li><a href="#n2">“20 分钟”是第一次越线</a>：0.341 h 越线后回落到 0.793，约 0.5 h 才稳定在线上。</li>
+<li><a href="#n3">倾斜 0.8</a>：代码是重力 z 分量之差，和 BeyondMimic 页注 16 同。</li>
+<li><a href="#n4">3.2k 对 41k 次更新</a>：320,000 / 9.37 h → 41k 或 16k；比值 12.7 或 5.1。</li>
+<li><a href="#n5">SHAC 停机时间</a>：1568 次 × 0.196 s = 0.085 h，大于“0.06 h 内”。未核实原因。</li>
+<li><a href="#n6">式 (4) 的实现和另外两层裁剪</a>：<code>custom_vjp</code>；优化器前还有全局 1.0 + 逐元素 0.1，表 10 没写。</li>
+<li><a href="#n7">0.13 rad 和 15 rad</a>：√2·3·0.03 = 0.127；0.03·√262,144 = 15.4；δ 衰减后 0.038。</li>
+<li><a href="#n8">表 2 对表 13、14</a>：逐格对上（取整差 0.001）；表 2 漏了均匀重置一行；去掉回放反而更好。</li>
+<li><a href="#n9">4.8、11.5、0.57 ms、18.8 h/s</a>：18.8 h/s 只算前向；训练实际约 4.05 h/s；MuJoCo Warp 前向和梯度不是同一版本。</li>
+<li><a href="#n10">训练在 NablaEngine、评测在 MuJoCo Warp</a>：自带一次仿真到仿真检验，不是真机。</li>
+<li><a href="#n11">表 12、表 15 的步数和吞吐</a>：全部算得上；H100 0.41 h 在种子波动内。</li>
+<li><a href="#n12">BONES-SEED 配置</a>：仓库有，论文 v1 没有结果。</li>
+<li><a href="#n13">版本</a>：arXiv v1 是 20 分钟 / 0.874；作者站点的新版 PDF 改成 8 分钟 / 约 0.91，加了 InstantTrack；项目页脚注地址 404。</li>
+<li><a href="#n14">磁带和图 6</a>：23.6 kB、96.5 MB 对；图 6 两段之和最多差 8%。</li>
+<li><a href="#n15">补丁</a>：只有 MuJoCo Warp 的 4 个反向补丁；Warp、Newton 无补丁；Newton PR #2164 是“法向当常数”。</li>
+<li><a href="#n16">精度表</a>：表 7 = 表 9 的 G0 列；NablaEngine 比 MuJoCo 自带有限差分准一个数量级以上；原版 PR 梯度误差 0.29。</li>
+<li><a href="#n17">世界模型梯度来自第三方复现</a>：复现 2.88 h 0.789，未到 0.82。</li>
+<li><a href="#n18">表 11 对正文和 SuperMimic 页</a>：表 4 是子集；PPO-Sim 数字一致；残差版的 4.4× 是借用的。</li>
+<li><a href="#n19">两版配方</a>：默认 0.2.0 去掉生存掩码、评测 Polyak 平均、预热 100；论文是 ours_v1。</li>
+<li><a href="#n20">22.7 倍不是同模型</a>：Isaac Lab 那行只有 3 个盒子碰撞体。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 23 日用脚本核对过，除注明的以外都返回 200。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页或代码</th><th>论文</th></tr></thead><tbody>
+<tr><td>∇Mimic</td><td>本文</td><td><a href="https://github.com/OamIcs/NablaMimic">OamIcs/NablaMimic</a> · <a href="https://sailab.ai/nablamimic/">sailab.ai/nablamimic</a> · oamics.github.io/NablaMimic（404）</td><td><a href="https://arxiv.org/abs/2610.41654">2610.41654</a></td></tr>
+<tr><td>NablaEngine</td><td>本文的可微 G1 引擎</td><td><a href="https://github.com/OamIcs/NablaEngine">OamIcs/NablaEngine</a></td><td>同上</td></tr>
+<tr><td><a class="ds" href="https://github.com/ubisoft/ubisoft-laforge-animation-dataset">LAFAN1</a></td><td>动捕数据集（CC BY-NC-ND 4.0）</td><td>github.com/ubisoft/ubisoft-laforge-animation-dataset</td><td><a href="https://doi.org/10.1145/3386569.3392480">Harvey 等 2020</a></td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset">LAFAN1 Retargeting Dataset</a></td><td>LAFAN1 的 G1 重定向（本文用 <code>g1/</code>）</td><td>huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://huggingface.co/datasets/bones-studio/seed">BONES-SEED</a></td><td>大动作库（门控）；仓库有配置，论文无结果</td><td>huggingface.co/datasets/bones-studio/seed</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://amass.is.tue.mpg.de/">AMASS</a></td><td>引言里提到的动捕数据集</td><td>amass.is.tue.mpg.de</td><td>–</td></tr>
+<tr><td><a href="https://github.com/google-deepmind/mujoco_warp">MuJoCo Warp</a></td><td>GPU 版 MuJoCo；第二后端和评测</td><td>github.com/google-deepmind/mujoco_warp · <a href="https://github.com/google-deepmind/mujoco_warp/pull/1535">PR #1535</a>（未合并）· <a href="https://github.com/etaoxing/mujoco_warp/pull/1">etaoxing/mujoco_warp#1</a> · <a href="https://etaoxing.com/reports/diff_mjw/diff_mjw.html">PR 作者的报告</a></td><td>–</td></tr>
+<tr><td><a href="https://github.com/newton-physics/newton">Newton</a></td><td>相关工作；表 5 计时</td><td><a href="https://github.com/newton-physics/newton/pull/2164">PR #2164</a>（2026-03-30 合并）</td><td>–</td></tr>
+<tr><td><a href="https://github.com/NVIDIA/warp">Warp</a></td><td>MuJoCo Warp 的底层</td><td>github.com/NVIDIA/warp</td><td>–</td></tr>
+<tr><td><a href="https://mujoco.readthedocs.io/en/stable/mjx.html">MJX</a></td><td>JAX 版 MuJoCo；表 5、表 7</td><td><a href="https://github.com/google-deepmind/mujoco/issues/2259">issue #2259</a>（只有前向模式的原因）</td><td>–</td></tr>
+<tr><td><a href="https://github.com/Genesis-Embodied-AI/Genesis">Genesis</a> · <a href="https://github.com/isaac-sim/IsaacLab">Isaac Lab</a></td><td>表 5、表 7 的对照引擎</td><td>–</td><td>–</td></tr>
+<tr><td><a href="https://github.com/mujocolab/mjlab">mjlab</a> · <a href="https://github.com/google-deepmind/mujoco_menagerie">MuJoCo Menagerie</a></td><td>G1 模型设置的来源</td><td>–</td><td>–</td></tr>
+<tr><td><a href="supermimic.html">SuperMimic</a></td><td>世界模型路线；本文的主要对照</td><td>未公开；第三方复现 <a href="https://github.com/CuboiLeo/SuperMimic-Reproduced">CuboiLeo/SuperMimic-Reproduced</a></td><td><a href="supermimic.html">本站精读</a> · <a href="https://arxiv.org/abs/2610.28480">2610.28480</a></td></tr>
+<tr><td><a href="shac.html">SHAC</a></td><td>一阶基线</td><td><a href="https://github.com/NVlabs/DiffRL">NVlabs/DiffRL</a></td><td><a href="shac.html">本站精读</a> · <a href="https://arxiv.org/abs/2204.07137">2204.07137</a></td></tr>
+<tr><td><a href="beyondmimic.html">BeyondMimic</a></td><td>奖励和 PPO 配置的来源</td><td><a href="https://github.com/HybridRobotics/whole_body_tracking">HybridRobotics/whole_body_tracking</a> · <a href="https://github.com/leggedrobotics/rsl_rl">rsl_rl</a></td><td><a href="beyondmimic.html">本站精读</a></td></tr>
+<tr><td>InstantTrack</td><td>新版 PDF 里的开源世界模型跟踪器（arXiv v1 没有）</td><td><a href="https://github.com/Huy-Quang-Dao/instantTrack">Huy-Quang-Dao/instantTrack</a></td><td>–</td></tr>
+<tr><td><a href="diffmimic.html">DiffMimic</a> · <a href="superdyno.html">SuperDyno</a> · <a href="sonic.html">SONIC</a> · <a href="daxbench.html">DaXBench</a> · <a href="holosoma-15min.html">holosoma</a></td><td>本站相关页</td><td>–</td><td>本站精读</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2610.41654（v1）和官方代码后的整理，不是作者的官方内容。原文和原图版权归 Weyl Lu、Yubei Chen 所有，arXiv 许可为非独占分发，这里没有复制 PDF 里的原图，也没有逐字翻译；标“重画”的图只用了从原文矢量数据读出的数值或正文写明的数字。三张动图取自 GitHub 仓库 OamIcs/NablaMimic（Apache-2.0），只转换了格式。代码 OamIcs/NablaMimic 提交 bfbb2a6，Apache-2.0，这里以引用文件名、行号和配置键为主。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

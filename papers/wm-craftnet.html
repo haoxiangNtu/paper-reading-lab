@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WM-Craftnet 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2609.07002《WM-Craftnet: World Synesthesia Model for Generalizable and Robust Dexterous In-Hand Manipulation》（Sharpa，CoRL 2026）的中文精读：逐节整理、公式 1–10、表 1–10 照录、裁切原图、和官方代码 a1e825a 逐项对照、复现要点、它和 CraftNet 三层系统的关系、11 幕 3D 框架动画和读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-r5{min-width:780px}.t-r6{min-width:820px}.t-r3{min-width:720px}.t-cfg{min-width:720px}.t-cmp{min-width:720px}.t-links{min-width:640px}.t-io{min-width:640px}.t-wm{min-width:760px}
+.t-r5 td,.t-r5 th,.t-r6 td,.t-r6 th,.t-r3 td,.t-r3 th{white-space:nowrap}
+.t-r5 tr.sep td{border-top:2px solid var(--line)}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.notes li{max-width:74ch}
+pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;overflow-x:auto;max-width:100%;line-height:1.55}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+.ok{color:#4fc98a;font-weight:600}.bad{color:#ff7a59;font-weight:600}
+figure.pfig.mid{max-width:720px}
+figure.pfig.small{max-width:480px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/wm-craftnet/index.html">3D 框架动画</a><a href="supermimic.html">SuperMimic</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2609.07002 · cs.RO · v1 2026 年 9 月 7 日 · CoRL 2026（代码 README 称 Spotlight）· 中文精读</p>
+<h1>WM-Craftnet：用“世界联觉模型”的循环状态当条件，做灵巧手手内旋转</h1>
+<p class="orig">WM-Craftnet: World Synesthesia Model for Generalizable and Robust Dexterous In-Hand Manipulation</p>
+<p>作者 Jie Yin†、Zeyuan Zhao†‡、Xiaojing Tan、Yang Liu‡、Chiyu Wang、Xinyang Gu*（† 共同一作，‡ 在 Sharpa 实习期间完成，* 通讯作者），来自 Sharpa Robotics。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2609.07002">arXiv 原文</a><a href="https://arxiv.org/pdf/2609.07002v1">PDF</a><a href="https://wmcraftnet.github.io">项目主页</a><a href="https://github.com/sharpa-robotics/WM-Craftnet">官方代码</a><a href="https://huggingface.co/SharpaIT/WM-Craftnet">检查点</a><span>正文 9 页，参考文献到第 11 页，附录 A、B 到第 15 页</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 摘要页登记的许可是 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>（2026-11-23 用脚本查摘要页），只有 v1（2026-09-07）。<b>但 PDF 第 1 页页脚印着“© 2026 Sharpa. All rights reserved.”</b>，和 CC BY 4.0 矛盾；其他 14 页没有这句。这和本站 SONIC、GraspGen 两页遇到的情况一样。按用户这次的要求，我仍按 arXiv 登记的 CC BY 4.0 放裁切图，并在这里写明矛盾（<a href="#n1">读者注 1</a>）。如果作者方面提出异议，应撤图改成文字描述。</p>
+<p><b>图的处理。</b>图 1 到图 9、表 1、表 2、表 4、表 5、表 6 旁边的物体图和小曲线，共 12 张，从 arXiv PDF 裁切（<span class="cv">pdftoppm</span> 渲染；原文里的图是高分辨率位图，小图按需要提高渲染分辨率，让宽度在约 1400 px 内），只做了裁切、缩放和格式转换（webp），没有改内容。图 3、4、5 在原文里并排，我裁成一张。版权归作者，署名 Yin 等（Sharpa）。图下的文字是我写的。表格是照录原文数字。原文的曲线都是位图，<b>没法做矢量读数</b>，文中凡是从曲线上读的数都标了“目测”。“读者注”是整理时核算或对照发现的，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>官方代码 <a href="https://github.com/sharpa-robotics/WM-Craftnet">sharpa-robotics/WM-Craftnet</a>，我读的是最新提交 <a href="https://github.com/sharpa-robotics/WM-Craftnet/tree/a1e825acaf50ade298e30b0b13c6671627af3a1e">a1e825a</a>（2026-10-29；首个提交 b29fae1 是 2026-09-11），只读，没有运行。许可是 Apache-2.0，“Copyright 2026 Sharpa Group”，带 <span class="cv">NOTICE</span> 和 <span class="cv">THIRD_PARTY_NOTICES.md</span>。按这两个文件：<span class="cv">isaacgymenvs/</span> 来自 NVIDIA IsaacGymEnvs（BSD-3，任务文件和 <span class="cv">dr_utils.py</span> 保留 NVIDIA 文件头）；<span class="cv">wsm/</span> 改自 NM512 的 dreamerv3-torch（MIT，文件头保留 MIT 全文）；<span class="cv">rl_games/</span> 来自 rl_games（MIT）；“世界模型当条件”的接法参照字节的 WMP（Apache-2.0）；任务结构参照 Robot Synesthesia 的 in-hand-rotation（MIT）。<span class="cv">deploy/sharpa_sdk/</span> 下的二进制是厂商 SDK，另有条款。两份声明里<b>没有提到 HORA</b>（<a href="#n2">读者注 2</a>）。本页对代码只引文件名、行号和配置键，不抄代码。路径相对仓库根目录。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 许可矛盾</span><p>arXiv 摘要页（2026-11-23 用脚本取）给出的许可链接是 creativecommons.org/licenses/by/4.0/。PDF 第 1 页左下脚注区有“10th Conference on Robot Learning (CoRL 2026), Austin TX, USA.”和“© 2026 Sharpa. All rights reserved.”两行（<span class="cv">pdftotext</span> 逐页检索，只有第 1 页有）。两者矛盾：CC BY 允许再分发和改编，“All rights reserved”不允许。本页按 arXiv 登记的许可和用户的要求放了裁切图，并保留署名和原图链接。Sharpa 官网同名研究文章页脚也是“© Sharpa Pte Ltd. All rights reserved.”，本页只链接它，没有用其中的图或视频。</p></div>
+<div class="note" id="n2"><span class="lab">读者注 2 · 第三方声明</span><p>整理说明里提到“基于 HORA / IsaacGymEnvs / rl_games”。我在 <span class="cv">NOTICE</span>、<span class="cv">THIRD_PARTY_NOTICES.md</span>、README 和全部源码里检索“hora”“rapid motor”：<b>没有任何出现</b>。两份声明列的是 IsaacGymEnvs（BSD-3）、WMP（Apache-2.0）、Robot Synesthesia in-hand-rotation（MIT）、DreamerV3 / dreamerv3-torch（MIT）、rl_games（MIT）、Detectron2 的 <span class="cv">flatten.py</span>（Apache-2.0）。我的推断：in-hand-rotation 本身是在 HORA 代码上发展来的，所以 HORA 可能是“间接上游”，但本仓库没有声明，<b>未核实</b>。另外 <span class="cv">NOTICE:62</span> 写“See assets/licenses for license information for assets”，而仓库里没有 <span class="cv">assets/licenses</span> 目录（<span class="cv">assets/</span> 下只有 <span class="cv">urdf/</span>）。<span class="cv">THIRD_PARTY_NOTICES.md</span> 自己也提醒：物体网格和机器人资源的来源和再分发条款需要另行核实。</p></div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#craftnet">和 CraftNet 三层系统的关系</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 框架</a><a href="#s3-1">3.1 问题与观测</a><a href="#s3-2">3.2 编码器</a><a href="#s3-3">3.3 世界模型</a><a href="#i3d">3D 框架动画</a><a href="#s3-4">3.4 先验</a><a href="#s3-5">3.5 策略</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 设置</a><a href="#s4-2">4.2 z 轴</a><a href="#s4-3">4.3 WSM 分析</a><a href="#s4-4">4.4 x / y 轴</a><a href="#s4-5">4.5 压力测试</a><a href="#s5">5 结论</a><a href="#sA">附录 A</a><a href="#sB">附录 B</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>手内操作要从不完整、带噪声的观测里推断物体的位姿、形状、接触和打滑。已有的触觉和视触觉强化学习方法在受控环境里能把物体转得很好，但遇到初始位姿偏移、外力扰动、换物体就不稳。WM-Craftnet 学一个<b>动作条件的紧凑隐动力学模型</b>，输入是本体感觉、腕部深度、触觉和动作，用多模态重建和奖励预测来监督。作者把它叫 World Synesthesia Model（WSM，“世界联觉模型”）。</p>
+<p>关键的选择是：<b>不拿世界模型做想象（imagination），也不拿它优化策略</b>，只把它的循环状态当作非对称演员-评论家（PPO）策略的额外输入。WSM 的输入是加噪的深度，重建目标是干净深度，所以它在真机上相当于一个去噪的几何状态估计器。</p>
+<ul>
+<li><b>机器人：</b>Sharpa Wave，人手大小、22 自由度、五指，指尖有触觉；腕上一台深度相机（论文写 RealSense L515）。控制、相机、触觉都是 10 Hz。</li>
+<li><b>世界模型：</b>DreamerV3 风格的 RSSM，确定性状态 \(h_t\) 512 维，随机状态 32 × 32 类别。演员只看 \(h_t\)，梯度在接口处切断。</li>
+<li><b>任务：</b>绕指令轴连续旋转物体：z 轴 9 个物体、y 轴 9 个工具类物体、x 轴 4 个物体，每个轴单独训一个策略和一个 WSM。</li>
+<li><b>结果：</b>z 轴 9 物体，完整 WSM 回报 753.3，基线 236.1–386.9；LSTM / GRU 历史基线 621.0 / 497.8。真机 4 个物体上 RR 和成功率都最高，20 个物体 200 次试验成功 175 次（基线 33–53 次）。9 物体预训练的 WSM 用到 49 个新物体上，每回合转 9.37 rad，没有先验是 3.28 rad。</li>
+</ul>
+<p>读完我认为最值得记住的几点：</p>
+<ol>
+<li><b>这是“世界模型当条件”这一支。</b>和 Dreamer 在想象里训演员、RWM 在模型里跑 PPO、SuperMimic 穿过模型做 BPTT 都不同；它和 WMP（Lai 等 2024）一样，只把 RSSM 的 \(h_t\) 停梯度后接给 PPO 演员（<a href="#rel">和本站其他页的关系</a>）。代码里 RSSM 的想象函数只在可视化里用到，训练不调用（<a href="#n8">读者注 8</a>）。</li>
+<li><b>“奖励预测监督”在发布的代码里不起作用。</b>奖励头的损失系数在 <span class="cv">wsm/configs.yaml:39</span> 是 <span class="cv">loss_scale: 0.0</span>，任务配置也覆盖不到这个键，所以奖励头的损失乘 0（<a href="#n7">读者注 7</a>）。另有几项论文和代码不一致：演员投影层宽度、WSM 输入里混进了指令轴、深度增强、初始位姿噪声、相机型号（<a href="#code">代码对照表</a>）。</li>
+<li><b>发布的检查点不是论文的“完整 WSM”。</b>它只开本体和深度两个重建头，位姿、触觉、价值、形状四个辅助头全关（<a href="#n24">读者注 24</a>）。49 物体、未见物体、基线方法（Touch Dexterity、In-Hand Rotation）的代码都没有发布。</li>
+<li><b>它和 CraftNet 三层系统的关系，论文一个字没提</b>（下一节）。</li>
+</ol>
+
+<figure class="pfig" id="fig1">
+<img src="wm-craftnet/fig1.webp" width="1425" height="674" alt="图 1：WM-Craftnet 总览。左：世界联觉模型预训练（输入本体、触觉、腕部深度、上一步动作、奖励；多模态 RSSM；重建深度、重建本体触觉、预测奖励、推理物体位姿形状接触）。中：可复用的联觉先验。右：WSM 条件的非对称演员-评论家策略和结果（未见物体、扰动恢复、上真机）。" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 3 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=3">看原图 ↗</a></span>左栏是 WSM 的训练：五种输入（本体 \(q_t\)、触觉 \(s_t\)、腕部深度 \(I_t\)、上一步动作 \(u_{t-1}\)、奖励 \(r_t\)）进多模态 RSSM，上面一排是确定性状态 \(h\)，下面是随机状态 \(z\)；右边四个预测目标：重建深度、重建本体-触觉、预测奖励、推理物体位姿、形状和接触。中栏讲先验可以迁移（深度去噪、扩展到更多物体）。右栏是策略：当前观测、指令轴、WSM 特征三路进非对称演员-评论家，输出相对动作 \(u_t\)，更新目标 \(q^{\rm target}_t=q^{\rm target}_{t-1}+\alpha u_t\)。注意图里把奖励画成 WSM 的“输入”，正文 §3.2 和附录 A.1 说奖励只是训练目标（<a href="#n3">读者注 3</a>）。</figcaption>
+</figure>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · 图 1 把奖励画成 WSM 的输入</span><p>图 1 左下的“Inputs”框里有“Reward. \(r_t\)”，箭头指向 WSM。但 §3.2 说奖励只在回放里当训练目标，部署不需要；附录 A.1 也说“reward is stored only as a prediction target”。代码一致：编码器排除了 <span class="cv">reward</span> 键（<span class="cv">wsm/networks.py:337</span>），RSSM 的 <span class="cv">obs_step</span> 也不接收奖励。图 1 的画法容易误读，以正文为准。</p></div>
+
+<h2 id="craftnet">和 CraftNet 三层系统的关系</h2>
+<p>Sharpa 在 2026-01-07 的公告里介绍过 CraftNet：一个分层的 VTLA（视觉-触觉-语言-动作）模型。System 2 是约 1 Hz 的视觉语言模型，负责理解指令和规划；System 1 是约 10 Hz 的运动基础模型，负责接触前的粗动作；System 0 是约 100 Hz 的“交互脑”，用实时触觉在接触中持续调整手指。公告说“CraftNet 是 System 0 和 System 1 的组合”。CraftNet 本身没有论文；WM-Craftnet 是唯一一篇名字里带 CraftNet 的正式论文。这部分细节见 <a href="craftnet.html">CraftNet 页</a>，这里不展开。</p>
+<p><b>按论文核实的结果：论文没说。</b>我在 PDF 全文里检索了 System 0 / 1 / 2、VTLA、hierarchical、100 Hz：都没有出现。“CraftNet”只作为 WM-Craftnet 这个名字的一部分出现；引言、方法、结论都没有说 WM-Craftnet 属于哪一层，也没有提到上层的语言或视觉语言模型。Sharpa 官网的 WM-Craftnet 研究文章（只读、未抓取图片）和代码 README 也没有提 System 0。</p>
+<p>论文能确定的几个事实：</p>
+<ul>
+<li>控制频率是 <b>10 Hz</b>（附录 A.3、表 7；代码 <span class="cv">sim.dt=0.01667</span> × <span class="cv">controlFrequencyInv=6</span> = 0.1 s；部署脚本 <span class="cv">deploy/examples/wm_craftnet_infer.py:582-585</span> 由同样两个数算出 <span class="cv">control_hz</span>，每周期超过 100 ms 会记一次超时，<span class="cv">:1342-1344</span>）。这比公告里 System 0 的约 100 Hz 慢一个数量级，和 System 1 的约 10 Hz 相同。</li>
+<li>它是一个完整的感知到关节目标的闭环策略：输入本体、触觉、深度，输出 22 个关节的目标增量。没有语言输入，也没有上层给的“意图”或粗动作；唯一的任务指令是旋转轴 \(a\in\{\pm x,\pm y,\pm z\}\)。</li>
+<li>触觉只用了每个指尖一位的二值接触（5 位），远不是公告里 System 0 那种“实时读触觉反馈、连续调整手指”的细粒度用法。</li>
+</ul>
+<p><b>我的推断（未核实）：</b>WM-Craftnet 更像是 CraftNet 产品线上一项“灵巧手内操作”的研究成果，名字借了 CraftNet 的品牌；它的定位比较接近 System 0 想解决的“最后一毫米”接触调整，但实现的频率和接口都对不上公告里描述的 System 0。不能把它当作 System 0 的论文。</p>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<p><b>世界模型的三种用法。</b><a href="supermimic.html#qa-wm">SuperMimic 问 4</a>、<a href="supermimic.html#qa-vs">问 5</a> 比过几种“世界模型”的差别。按“训练时世界模型怎样帮策略”分，本站读过的几篇正好覆盖三种用法，WM-Craftnet 是第三种：</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th>想象（imagination）</th><th>可微模拟器（BPTT）</th><th>作条件（conditioning）</th></tr></thead><tbody>
+<tr><td>代表</td><td><a href="dreamerv3.html">DreamerV3</a>、<a href="daydreamer.html">DayDreamer</a>；<a href="rwm.html">RWM</a> 也在模型里滚轨迹</td><td><a href="supermimic.html">SuperMimic</a></td><td><b>WM-Craftnet</b>；WMP（Lai 等 2024，本站没有精读）</td></tr>
+<tr><td>策略在哪里学</td><td>在模型滚出的想象轨迹里学：Dreamer 训演员和评论家，RWM 跑 PPO</td><td>在模型里滚 32 步，梯度穿过模型回到策略</td><td>在真仿真器里用 PPO 学；模型只提供一个特征</td></tr>
+<tr><td>梯度是否穿过模型</td><td>Dreamer：演员梯度用 REINFORCE（离散）或穿过模型（连续）；RWM：不穿过</td><td>穿过</td><td>不穿过，接口处停梯度</td></tr>
+<tr><td>部署时用不用模型</td><td>一般只用演员（Dreamer 的演员要用编码器 + RSSM 算状态）</td><td>不用</td><td><b>要用</b>：每一步都要跑编码器和 RSSM 的观测更新，算出 \(h_t\)</td></tr>
+<tr><td>模型输入</td><td>DreamerV3：图像或向量；RWM：低维本体</td><td>机器人物理状态</td><td>本体 + 二值触觉 + 96 × 72 腕部深度 + 上一步动作</td></tr>
+<tr><td>模型的作用</td><td>替代环境</td><td>替代环境，还要可微</td><td>带记忆、去噪的状态估计器</td></tr>
+</tbody></table></div>
+<p>对照起来看：<a href="dreamerv3.html#wm">DreamerV3 的 RSSM</a> 和 WSM 结构几乎一样（代码就是 dreamerv3-torch 的移植，连 512 / 32 × 32 / 自由比特 1.0 / dyn 0.5 / rep 0.1 都一样）。区别只在 RSSM 训好以后拿来干什么。DreamerV3 让演员在模型里“做梦”；WM-Craftnet 只取 \(h_t\)，把“世界模型”降成一个有预测目标的循环编码器。表 9 正好检验了这一点：同样的历史输入，不带预测损失的 LSTM / GRU 比 WSM 低（<a href="#sB-1">附录 B.1</a>）。</p>
+<p><b>和 <a href="rwm.html">RWM</a>。</b>WM-Craftnet 的相关工作把 RWM 归为“把学到的动力学当神经模拟器做策略优化”，以此和自己区分。两篇都在 PPO 框架里用了 GRU 类循环模型，但 RWM 是在模型里滚轨迹训 PPO，WM-Craftnet 的 PPO 数据全部来自 Isaac Gym。</p>
+<p><b>和 <a href="lingbot-touch.html">LingBot-Touch</a>。</b>LingBot-Touch 的数据有三分之一来自遥操作的 Sharpa Wave 手，触觉是视触觉阵列。WM-Craftnet 用的是同一只手，但触觉被压成每个指尖一位的“有没有接触”：仿真里是接触力 ≥ 阈值（<span class="cv">TacThresh: 0.3</span>，随机 ±0.05），真机上是 SDK 给的力乘 1/1.5 后 ≥ 0.05（<span class="cv">wm_craftnet_infer.py:805-858</span>）。两篇对触觉的使用粒度差别很大。</p>
+<p><b>同批的 Sharpa 相关页。</b><a href="craftnet.html">CraftNet</a>（三层系统和 DQ 部署）、<a href="ftp1.html">FTP-1</a>（触觉策略，作者含 Sharpa）。这两页由别的整理者并行写，结论以那两页为准。</p>
+
+<h2 id="s1"><span class="no">1</span>引言</h2>
+<p><b>为什么难。</b>和机械臂加夹爪的稳定接触不同，手内操作要靠断续的指尖接触去控制一个只能部分看到的物体，还要适应位姿、形状和外力的变化。</p>
+<p><b>现有方法的问题。</b>基于本体、触觉和视觉的学习方法进展很大，但在窄物体集或固定初始位姿上训的策略，容易记住针对某个物体的固定指法（finger gait），遇到位姿偏移、外力和物体漂移就脆。有的方法加物体 ID 或形状编码，又把部署绑在已知标注上。</p>
+<p><b>本文的想法。</b>位姿鲁棒的调整需要在部分可观下推断几何、位姿、接触状态和打滑风险。深度和触觉互补，但简单把传感器拼起来，策略就得自己从带噪的融合观测里学接触的时序动力学；真机腕部深度又常常损坏或偏离仿真。作者受人类“联觉式”物理推理启发：视觉给全局几何，触觉给局部接触，动作历史告诉你接触在控制下怎样演化。WM-Craftnet 用这个想法预判接触切换、物体漂移和打滑，在扰动下做调整，而不是重复固定指法。</p>
+<p><b>做法概述。</b>从本体、带噪深度、触觉和最近的动作学一个 Dreamer 式循环状态，奖励只作为训练时的预测目标。策略以这个循环特征为条件。WSM 训练时输入加噪深度、用干净深度当重建目标。</p>
+<p><b>贡献。</b>（1）提出基于 WSM 的框架；（2）用循环历史基线、辅助头和模态头消融、隐状态诊断、干净深度重建、预训练来分析 WSM，说明它能当 49 物体下游控制的可复用先验；（3）仿真和真机的定量评测，22 自由度五指手上实现 sim-to-real。</p>
+
+<h2 id="s2"><span class="no">2</span>相关工作</h2>
+<p><b>基于学习的手内操作。</b>RMA 从本体历史在线推断物体属性做 z 轴旋转；DeXtreme 把域随机化的重定向策略和视觉位姿估计器结合；Touch Dexterity 用分布式二值接触做“看不见也能转”；AnyRotate 用稠密触觉做与重力无关的多轴旋转。更复杂的重定向可以组合预训练的单轴技能，或在形状专家之间路由（DexReMoE）。还有用真机转笔轨迹适配、从硬件数据学逐关节执行器修正（DexNDM）、随机化 3D 高斯做单目位姿估计（ViserDex）的。相邻的抓取工作有目标辅助的演员-评论家、DextrAH-G。这些多是抓取获取；本文学的是持续手内控制的循环交互状态。</p>
+<p><b>视触觉灵巧操作。</b>RotateIt 把特权的形状和物理属性蒸馏进一个视觉、触觉、本体、动作历史驱动的时序 Transformer。Robot Synesthesia（本文表里的 In-Hand Rotation 基线 [6]）把相机、手和触觉点投到同一个三维点云，再做教师-学生蒸馏。NeuralFeels 用在线神经场融合视触觉估物体状态；带法向和剪切的触觉皮肤做手内平移；ViTacFormer 学跨模态特征。本文的不同：学动作条件的循环动力学、用多模态预测目标，把确定性状态停梯度后给 PPO，而不是回归一个固定的特权编码，也不把感知和控制分开。</p>
+<p><b>机器人控制的世界模型。</b>World Models 提出紧凑的学到的动力学；Dreamer 在循环状态空间模型的想象轨迹里优化行为；DayDreamer 直接上物理机器人；MoDem-V2 用视觉世界模型做真机接触操作。RWM 把学到的动力学当神经模拟器做策略优化。在“表征当条件”这一支，WMP 给腿足策略一个停梯度的循环状态，不做想象里的 PPO；DreamMimic 用世界模型的预测特征做视觉全身策略蒸馏。WM-Craftnet 把这一支扩展到视触觉手内操作，加了“带噪到干净”的深度重建和跨物体分布复用预测模型。</p>
+<p>注：DreamMimic（[25]，arXiv 2608.22278）的作者是本文一作 Jie Yin 和 X. Lai；WMP 的一作是 H. Lai。代码 README 的致谢里明确写了“建立在 WMP 之上”。</p>
+
+<h2 id="s3"><span class="no">3</span>WM-Craftnet 框架</h2>
+<p>任务对象是 22 自由度五指手上部分可观的手内操作。论文把 WSM 定义为：用多模态重建和奖励预测训练的 Dreamer 式循环隐动力学模型，它停梯度的确定性状态作为可部署的策略上下文。“联觉”一词指它的跨模态预测作用：视觉几何、触觉接触、本体和动作历史一起约束隐交互状态。这个预测状态让策略不需要物体 ID，并为演员充当循环状态估计。</p>
+
+<h3 id="s3-1"><span class="no">3.1</span>问题和观测</h3>
+<p>任务是把抓着的物体绕指令轴 \(\mathbf a\in\{\pm x,\pm y,\pm z\}\) 连续旋转。时刻 \(t\) 的可部署观测是</p>
+\[\mathbf o_t=\big(\mathbf p_t^{\rm stack},\ \mathbf c_t^{\rm stack},\ \mathbf D_t,\ \mathbf u_{t-1}\big)\tag{1}\]
+<p>\(\mathbf p^{\rm stack}_t\)、\(\mathbf c^{\rm stack}_t\) 是几帧堆叠的归一化本体和二值触觉 / 接触；\(\mathbf D_t\) 是当前的带噪腕部深度流；\(\mathbf u_{t-1}\) 是上一步的关节目标指令。\(\mathbf o_t\) 只含机器人上的传感器和控制历史，不含仿真里的干净深度，也不含 WSM 解码器重建出的深度。演员以 \(\mathbf o_t\)、指令轴 \(\mathbf a\) 和投影后的 WSM 特征 \(\psi(\mathbf w_t)\) 为条件，输出 22 个关节的相对目标指令 \(\mathbf u_t\)，经平滑后交给底层控制器。</p>
+<p>目标是在稳定抓握的前提下绕目标轴有符号地转动。设物体姿态 \(\mathbf R^o_t\in SO(3)\)，一步进度为</p>
+\[\Delta\theta_t=\operatorname{proj}_{\mathbf a}\!\Big(\log\big(\mathbf R^o_{t+1}(\mathbf R^o_t)^{-1}\big)\Big)\tag{2}\]
+<p>\(\log\) 把旋转变成轴角，\(\operatorname{proj}_{\mathbf a}\) 投到指令轴上。仿真训练时，物体位姿、速度和接触力用于算奖励、训评论家和诊断。表 8 列出了完整的观测 / 动作接口。</p>
+<p>代码：式 2 在 <span class="cv">isaacgymenvs/utils/spin_reward_utils.py:63-78</span>，相对旋转取 \(R_{\rm cur}R_{\rm prev}^\top\)，转轴角后点乘指令轴，<b>再乘 20</b>（<span class="cv">SPIN_DELTA_SCALE = 20.0</span>，<span class="cv">:7</span>）。偏轴分量取轴角向量减去轴向分量后的模，同样乘 20。观测里的堆叠帧数是 <span class="cv">obs_stack: 4</span>。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 演员和评论家各看什么、多少维（代码）</span><p>单帧向量 <span class="cv">n_obs_dim</span> = 22（关节位置，归一化到 [−1, 1]，加 ±0.06 均匀噪声）+ 22（上一步关节目标）+ 5（五个指尖的二值接触）+ 24（指令轴的三维向量重复 8 次）= <b>73 维</b>（<span class="cv">wm_craftnet_rotation.py:423-425, 1632-1683</span>）。演员看 4 帧堆叠 = 292 维，再拼上 WSM 投影特征（配置里 32 维，见读者注 10），共 324 维，经 MLP [512, 256, 256]（ELU）输出 22 维动作均值。深度图<b>不直接进演员</b>：<span class="cv">network_builder.py:197-213</span> 只把 <span class="cv">obs</span> 和 <span class="cv">wm_feature</span> 拼起来，深度只通过 WSM 影响策略。这和式 1 把 \(\mathbf D_t\) 写进 \(\mathbf o_t\) 的说法不同：按代码，演员的“深度”信息全部来自 \(h_t\)。评论家（<span class="cv">central_value</span>）看 212 维特权状态：关节位置、速度、力矩、物体位姿和线角速度、动作、指令轴、各刚体接触力、上一步目标（<span class="cv">:1601-1630</span>），网络 [512, 512, 256, 256]（<span class="cv">WMCraftnetPPO.yaml:104-110</span>），不看 WSM 特征（<span class="cv">network_builder.py:198-199</span> 的注释）。</p></div>
+
+<h3 id="s3-2"><span class="no">3.2</span>多模态预测状态编码器</h3>
+<p>世界模型每步接收：单步本体向量 \(\mathbf p_t\)、触觉 / 接触向量 \(\mathbf c_t\)、带噪的归一化深度图 \(\mathbf I_t\)、上一步动作 \(\mathbf u_{t-1}\)、回合开始标志 \(m_t\)。回放记录里另存干净深度和奖励，只当训练目标，部署时不需要。演员看堆叠的本体和触觉，世界模型用不堆叠的低维向量，保持动力学紧凑。给定回放数据</p>
+\[\mathcal D=\{(\mathbf p_t,\mathbf c_t,\mathbf I_t,\mathbf I_t^{\rm clean},\mathbf u_{t-1},r_t,m_t)\}_{t=1}^{T}\tag{3}\]
+<p>本体和触觉各用 MLP 分支编码，深度用 CNN 分支，再由 Dreamer 式多模态编码器融合：</p>
+\[\mathbf e_t=f_{\rm enc}(\mathbf p_t,\mathbf c_t,\mathbf I_t)\tag{4}\]
+<p>深度在手-物工作区附近截断和裁剪。WSM 的输入深度加时间相关的丢点、高斯噪声和小角度随机旋转；重建目标是只裁剪、不加噪的干净深度。部署时演员用带噪传感器流和循环 WSM 特征。WSM 学会从损坏的观测重建干净的手-物几何，它的循环动力学则从每步紧凑的编码提供时间记忆。</p>
+<div class="note" id="n5"><span class="lab">读者注 5 · 代码里触觉和本体不分支，指令轴也进了 WSM</span><p>WSM 的观测只有两个键：<span class="cv">prop</span> 和 <span class="cv">image</span>（<span class="cv">isaacgymenvs/utils/world_model.py:135, 197-201</span>）。<span class="cv">prop</span> 就是读者注 4 里的 73 维单帧向量（<span class="cv">wm_craftnet_camera_rotation.py:358-362, 2109</span>），里面<b>同时含本体、5 位触觉和 24 维指令轴</b>。编码器 <span class="cv">wsm/networks.py:319-377</span> 把所有一维键拼起来过<b>一个</b> MLP（5 层 × 1024，<span class="cv">wsm/configs.yaml:31</span>），深度过一个 CNN。所以：</p><ul><li>式 4 和正文“本体和触觉各用 MLP 分支”在代码里是同一个 MLP；</li><li>表 8 说指令轴只给演员（“Commanded axis · Actor”），代码里 WSM 也看得到指令轴，而且本体解码器还要重建它；</li><li>“本体重建”（\(\mathcal L_{\rm prop}\)）的目标里包含了 5 位触觉，等于同时在重建触觉输入。</li></ul><p>这几条不影响方法的大意，但复现时要知道 WSM 的输入并不只有“传感器”。</p></div>
+<div class="note" id="n6"><span class="lab">读者注 6 · 深度预处理：论文和代码三处不一样</span><p>代码的深度流水线在 <span class="cv">wm_craftnet_camera_rotation.py:2075-2093</span>：归一化 → 裁剪（干净目标取在这一步）→ 加噪 → 取反（近处为 1）。配置 <span class="cv">WMCraftnetRotation.yaml:143-170</span>：</p><ul><li><b>裁剪</b>：<span class="cv">crop.enabled: False</span>。论文说“在手-物工作区附近裁剪”；代码默认不裁，96 × 72 整张进 WSM。发布检查点的配置同样是 False（<span class="cv">example_ckpt/wm_craftnet_set_z.yaml:194-195</span>）。</li><li><b>高斯噪声</b>：<span class="cv">gaussian_noise_enabled: False</span>。论文说加了高斯噪声；代码和检查点都关着。</li><li><b>时间丢点</b>：代码 <span class="cv">temporal_noise_p_dropout: 0.01</span>、相关 0.95；表 7 写 0.02 / 0.95。相关系数一致，丢点率差一倍。我的推断：0.02 可能和触觉丢失率 <span class="cv">sensorNoise: 0.02</span> 弄混了，未核实。</li></ul><p>随机旋转 ±0.3°、最大深度 0.4 m、96 × 72 三项一致。另外相机外参每次还有 ±5 mm、±0.3° 的抖动（<span class="cv">position_jitter</span>、<span class="cv">rotation_jitter_deg</span>，<span class="cv">:177-178</span>），论文没写。</p></div>
+
+<h3 id="s3-3"><span class="no">3.3</span>用于手内操作的世界模型</h3>
+<p>世界模型是 Dreamer 式循环状态空间模型（RSSM）。它的优化和 PPO 的梯度路径分开，演员拿到的是停梯度的确定性隐特征。设 \(\mathbf z_t\) 为随机隐状态、\(\mathbf h_t\) 为确定性循环状态，后验更新是</p>
+\[\mathbf z_t,\mathbf h_t=f_{\rm wm}\big(\mathbf z_{t-1},\mathbf h_{t-1},\mathbf u_{t-1},\mathbf e_t,m_t\big)\tag{5}\]
+<p>演员侧的特征取确定性部分</p>
+\[\mathbf w_t=\mathbf h_t\tag{6}\]
+<p>它在进入策略网络之前被停梯度。“当前实现里，512 维的 \(\mathbf h_t\) 经一个小 MLP 投影到 16 维，再和策略观测拼接。”</p>
+<p>世界模型用 PPO 采样时填的回放缓存训练。每行存 \((\mathbf p_t,\mathbf c_t,\mathbf I_t,\mathbf I^{\rm clean}_t,\mathbf u_{t-1},r_t,m_t)\)，\(\mathbf I_t\) 是加噪 / 增强后的输入，\(\mathbf I^{\rm clean}_t\) 是解码器的干净目标。训练采连续的片段，优化 Dreamer 式目标</p>
+\[\mathcal L_{\rm wm}=\mathcal L_{\rm img}+\mathcal L_{\rm prop}+\lambda_c\mathcal L_{\rm tac}+\lambda_r\mathcal L_{\rm reward}+\lambda_{\rm dyn}\mathcal L_{\rm dyn\text{-}KL}+\lambda_{\rm rep}\mathcal L_{\rm rep\text{-}KL}+\mathcal L_{\rm aux}\tag{7}\]
+<p>\(\mathcal L_{\rm img}\) 从带噪输入推出的隐状态重建干净深度；\(\mathcal L_{\rm prop}\) 重建本体；\(\mathcal L_{\rm reward}\) 预测采样时的奖励；两个 KL 项约束后验 / 先验动力学。受旋转和抓取工作的启发，完整 WSM 用深度、本体、触觉接触、奖励、物体位姿、价值、物体形状几个辅助头来学任务相关的预测状态。仿真训练时，位姿和形状头用仿真器标签，形状用“基点集（BPS）到网格的位移向量”表示。附录 B.1 分析各头的贡献。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 发布代码里奖励预测的损失权重是 0</span><p>奖励头的定义在 <span class="cv">wsm/models.py:87-98</span>，损失缩放在 <span class="cv">:169-173</span>：<span class="cv">self._scales = dict(reward=config.reward_head["loss_scale"], image=1.0)</span>；<span class="cv">wsm/configs.yaml:38-39</span> 写的是 <span class="cv">reward_head: {layers: 2, dist: 'symlog_disc', loss_scale: 0.0, outscale: 0.0}</span>。训练时每个头的负对数似然乘这个缩放后相加（<span class="cv">models.py:240-244</span>），所以奖励项是 \(0\times\mathcal L_{\rm reward}\)，对编码器和 RSSM 没有梯度；<span class="cv">outscale: 0.0</span> 还把输出层初始化为零。任务配置能覆盖的键在 <span class="cv">world_model.py:63-83</span> 有白名单，<b>不含 <span class="cv">reward_head</span></b>，所以从 Hydra 也改不了。</p><p>论文摘要、引言、§3.3、图 1、README 都把“奖励预测”列为监督信号之一；式 7 写了 \(\lambda_r\) 但没给值，表 7 也没有。按发布代码，\(\lambda_r=0\)。这一项是否在论文实验里开着，我无法从仓库判断（<b>未核实</b>）；如果论文实验也是 0，那么“奖励监督预测模型”这句话不成立，WSM 的任务信息只来自价值头（读者注 9）。</p></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 代码确认：训练不做想象</span><p>RSSM 的想象函数 <span class="cv">imagine_with_action</span>（<span class="cv">wsm/networks.py:172</span>）在整个仓库里只被 <span class="cv">wsm/models.py:384</span> 的 <span class="cv">video_pred</span> 调用，而 <span class="cv">video_pred</span> 没有调用方（<span class="cv">grep</span> 全仓库）。WSM 的训练 <span class="cv">WorldModel._train</span>（<span class="cv">models.py:196-347</span>）只做后验 <span class="cv">observe</span>、KL 和各头损失；DreamerV3 原配置里的演员、评论家、继续头（<span class="cv">configs.yaml:34-41</span>）在 <span class="cv">WorldModel</span> 里没有构建。所以“不用世界模型做想象或策略优化”这句话，代码和论文一致。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · 七个头在代码里各是什么</span><div class="tablewrap"><table class="t-wm"><thead><tr><th>头</th><th>目标</th><th>损失</th><th>系数（任务配置）</th><th>出处</th></tr></thead><tbody>
+<tr><td>深度 image</td><td>干净深度 <span class="cv">image_clean</span></td><td>MSE 负对数似然</td><td>1.0</td><td><span class="cv">models.py:236-237</span></td></tr>
+<tr><td>本体 prop</td><td>73 维单帧向量（含触觉和指令轴）</td><td>symlog MSE</td><td>1.0</td><td><span class="cv">configs.yaml:33</span></td></tr>
+<tr><td>奖励 reward</td><td>采样时的奖励</td><td>symlog 离散分布</td><td><b>0.0</b></td><td>读者注 7</td></tr>
+<tr><td>触觉 tac</td><td>17 个连杆的接触（仿真接触力 ≥ 0.01 N），不是输入的 5 位</td><td>带正样本加权的 BCE</td><td>1.0</td><td><span class="cv">yaml:214-244</span>、<span class="cv">models.py:264-296</span></td></tr>
+<tr><td>位姿 pose</td><td>物体位置 3 + 旋转 6D（仿真标签）</td><td>MSE + 测地角</td><td>位置 0.05、旋转 0.5</td><td><span class="cv">yaml:207-212</span></td></tr>
+<tr><td>价值 value</td><td>PPO 评论家的价值估计</td><td>平滑 L1</td><td>100.0</td><td><span class="cv">wm_continuous.py:68-75</span></td></tr>
+<tr><td>形状 obj</td><td>64 个基点到网格的位移 × 100（cm），192 维</td><td>平滑 L1</td><td>100.0</td><td><span class="cv">yaml:249-258</span></td></tr>
+</tbody></table></div><p>KL：自由比特 1.0、dyn 0.5、rep 0.1，和表 7 一致。注意价值头的目标来自看特权状态的评论家，形状、位姿、17 连杆接触都是仿真标签：“特权信息”通过这些辅助头进入了 WSM 的表征，但部署时 WSM 只吃可部署的输入。配置注释里 BPS 基点“在 8 cm 球内采样”，而键值 <span class="cv">wm_obj_bps_radius_m: 0.06</span> 是 6 cm（<span class="cv">yaml:253-257</span>），注释和值对不上。</p></div>
+<div class="note" id="n10"><span class="lab">读者注 10 · 演员投影层：论文 512→64→32→16，配置 512→256→128→32</span><p>正文 §3.3 和表 7 都写投影是 512 → 64 → 32 → 16。代码里网络默认值正好是这个（<span class="cv">rl_games/algos_torch/network_builder.py:578-579</span>：<span class="cv">wm_latent_dim</span> 默认 16、<span class="cv">wm_feature_hidden</span> 默认 [64, 32]），但任务配置覆盖成 <span class="cv">wm_latent_dim: 32</span>、<span class="cv">wm_feature_hidden: [256, 128]</span>（<span class="cv">WMCraftnetRotation.yaml:185-186</span>，经 <span class="cv">isaacgymenvs/train.py:143-145</span> 传给网络），发布检查点的配置也是 32 和 [256, 128]（<span class="cv">example_ckpt/wm_craftnet_set_z.yaml:279-282</span>）。所以实际跑的是 512 → 256 → 128 → 32（中间 ELU，最后一层线性，<span class="cv">network_builder.py:203-213</span>）。参数量：论文版 512·64 + 64·32 + 32·16 加偏置 ≈ 3.5 万；配置版 512·256 + 256·128 + 128·32 加偏置 ≈ 16.8 万。论文实验用的是哪一种，<b>未核实</b>。</p></div>
+
+<figure class="pfig small" id="t2curve">
+<img src="wm-craftnet/t2curve.webp" width="910" height="840" alt="表 2 左侧的训练奖励曲线：WM ablation，四条线：ours、noisy depth supervision、no h_{t-1} in recurrent input、no recurrent state" loading="lazy">
+<figcaption><span class="lab">表 2 左侧小图 · 原文第 6 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=6">看原图 ↗</a></span>§4.2 表 2 旁的训练奖励曲线，横轴 0 到 3000 个 epoch。目测终点：蓝色 ours 最高（约 790），橙色带噪深度监督、绿色去掉 \(h_{t-1}\) 次之，红色“no recurrent state”最低。图例的“no recurrent state”在表 2 里叫“Encoder–decoder \(z_t\) policy”，指的应是同一个变体（我的推断）。放在这里是因为它直接对应式 5、6 里两个设计：\(h_{t-1}\) 的循环输入，以及演员取 \(h_t\) 而不是 \(z_t\)。</figcaption>
+</figure>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 11 幕 3D 框架动画</p>
+<p>总览、手内旋转任务和重置条件、三路输入（73 维单帧向量、96 × 72 深度、4 帧堆叠）、深度加噪和干净目标、RSSM 一步、七个预测头（论文 / 代码 / 发布检查点三种开关）、\(h_t\) 怎样喂给策略（停梯度、投影宽度两种写法、相对目标和平滑）、PPO 和 WSM 的交替训练、z 轴结果表、预训练先验和压力测试、真机。数字来自论文表格和代码配置；示意的部分有橙色“示意”框。</p>
+<iframe src="../interactives/wm-craftnet/index.html?embed=1&amp;scene=5" title="WM-Craftnet 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/wm-craftnet/index.html">全屏打开，还有完整结构表（论文和代码并列）↗</a></p>
+</div>
+
+<h3 id="s3-4"><span class="no">3.4</span>多物体控制的预训练联觉先验</h3>
+<p>把一个灵巧策略从少量物体扩展到很多新物体，需要推断几何、接触、打滑和动作条件运动怎样相互作用。WM-Craftnet 让 WSM 可以跨物体分布复用：先在 9 物体 z 轴设置的接触丰富数据上预训练，然后用来初始化 49 物体实验，并继续在新数据上适应；同时用强化学习学一个任务专用的控制器。这样学到的世界模型充当可复用的物理先验：它刻画了深度、本体、动作、奖励、物体运动和接触证据怎样共变，给下游 PPO 一个关于接触切换、物体运动和打滑的结构化循环表征。</p>
+<p>代码：<span class="cv">worldModel.resume_body_from</span>（<span class="cv">WMCraftnetRotation.yaml:192-195</span>）从一个智能体检查点只加载 <span class="cv">encoder.</span>、<span class="cv">dynamics.</span>、<span class="cv">heads.decoder.</span>、<span class="cv">heads.reward.</span> 四组前缀的权重，形状不符的跳过（<span class="cv">world_model.py:34-39, 416-453</span>）；PPO 策略、辅助头、优化器都重新初始化。这和附录 A.1“迁移编码器、多模态 RSSM、深度 / 本体解码器和奖励预测器”逐项对得上。49 物体集和它的物体资源没有发布。</p>
+
+<h3 id="s3-5"><span class="no">3.5</span>以世界模型为条件的操作策略</h3>
+<p>演员接收当前策略观测、指令轴和投影后的 WSM 特征：</p>
+\[\mathbf u_t=\pi_\theta\big(\mathbf o_t,\mathbf a,\psi(\mathbf w_t)\big)\tag{8}\]
+<p>动作是关节目标的相对更新</p>
+\[\mathbf q^{\rm target}_t=\mathbf q^{\rm target}_{t-1}+\alpha\mathbf u_t\tag{9}\]
+<p>之后做信号级平滑和硬件限位截断。策略在仿真里用 PPO 训练，所有基线用同一个奖励。奖励鼓励稳定、像人、符合目标的旋转，抑制偏轴、物体漂移、过大用力、大动作和不稳定接触；完整表达式、重置规则和权重在附录 A.2。演员输入是可部署观测和 WSM 特征，评论家训练时另看仿真状态。每个 PPO epoch 之后，用回放片段更新 RSSM；演员接口处的停梯度把两条优化路径分开。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 式 9 在代码里：平滑在积分之前</span><p><span class="cv">wm_craftnet_rotation.py:1894-1911</span>：先做指数平滑 \(\tilde u_t=0.8\,u_t+0.2\,\tilde u_{t-1}\)（<span class="cv">actionsMovingAverage: 0.8</span>），再 \(q_t=q_{t-1}+\alpha\,\tilde u_t\)，\(\alpha\) = <span class="cv">relScale: 0.2</span>，训练时每步再乘 \(1\pm5\%\) 的随机因子，最后按关节限位（全局缩到 0.9，四个外展关节另有单边覆盖，<span class="cv">yaml:282-298</span>）截断。动作先截到 [−1, 1]（<span class="cv">clipActions</span>），所以每步关节目标最多变 0.2 rad（约 11.5°）。部署脚本完全照搬：<span class="cv">wm_craftnet_infer.py:1433-1434</span>。论文写“式 9 之后再平滑”，顺序和代码相反；对一阶线性系统两种写法结果相同（平滑和累加可交换），只是 \(\alpha\) 的随机化没写。表 7 和正文都没给 \(\alpha\) 的值。</p></div>
+
+<h2 id="s4"><span class="no">4</span>实验与评测</h2>
+<p>四个问题：Q1 能否学到鲁棒的多物体旋转并上真机；Q2 WSM 改进了什么、怎样起作用、能否当可复用的先验；Q3 能否学支撑更少、接触重排更复杂的 x、y 轴旋转；Q4 能否转未见物体，并从困难初始位姿和外力扰动中恢复。</p>
+
+<h3 id="s4-1"><span class="no">4.1</span>实验设置</h3>
+<p><b>硬件和仿真。</b>仿真和硬件用同样的可部署观测 / 动作和控制频率。每个仿真数字是每个方法 128 个评测回合的平均，评测种子随机。为缩小 sim-to-real 差距，结合关节级系统辨识和对动力学、传感、重置、扰动的域随机化（附录 A.3）。</p>
+<p><b>基线。</b>z 轴评测比较：开环回放（Open-loop Replay）、盲 RL 策略（无深度无触觉）、<a href="https://arxiv.org/abs/2303.10880">Touch Dexterity</a>（有触觉）[1]、RL 策略（有深度无触觉）、<a href="https://arxiv.org/abs/2312.01853">In-Hand Rotation</a>（Robot Synesthesia，深度 + 触觉）[6]，以及 WM-Craftnet 的各种 WSM 变体。x、y 轴用精简的基线集合。所有基线都为 22 自由度 Sharpa Wave 手重新实现，奖励、随机化范围、初始化分布、重置策略相同。</p>
+<p><b>指标。</b>仿真报告回报（Return）、回合长度（EpLen）、旋转速率（RotR），以及在有意义时的偏轴运动（OffAxis）和角速度波动（AngVar）；默认是 128 个回合的均值 ± 95% 置信区间，表中高亮标出每个指标方向的前三名（本页用加粗和绿底标第一名）。硬件上 RR 是 20 秒回合里转过的弧度，SR 是成功率，成功要求转过半圈以上；四个标注者独立看同步视频打分，取平均。</p>
+<div class="note" id="n12"><span class="lab">读者注 12 · RotR、OffAxis、AngVar 没有定义单位</span><p>论文没写 RotR 的单位和算法。几个可以对照的数：奖励里的一步转角乘了 20，再截到上限 2.0（<span class="cv">wm_craftnet_rotation.py:2315</span>），即每步最多 0.1 rad、10 Hz 下 1 rad/s 才拿满；真机 WM-Craftnet 转鸭子 16.179 rad / 20 s ≈ 0.81 rad/s。如果 RotR 是 rad/s，仿真 1.293 × 43.5 s（EpLen 435.2 步 × 0.1 s）≈ 56 rad/回合；而 §4.3 的 49 物体实验报告“每回合 9.37 rad”，量级差很多。所以 RotR 要么不是 rad/s，要么 49 物体实验的“回合”口径不同。代码里评测指标在 <span class="cv">isaacgymenvs/utils/recorders/metrics.py</span>，我没有把它和表 1 的定义逐项对上，<b>未核实</b>。复现比较时建议直接用该文件的输出，而不是自己按名字理解。</p></div>
+
+<figure class="pfig small" id="t1obj">
+<img src="wm-craftnet/t1obj.webp" width="939" height="917" alt="表 1 左侧的 9 个 z 轴训练物体：corner block、duck、apple、piggy bank、strawberry、cross block、coca can、bulb、cylinder axis" loading="lazy">
+<figcaption><span class="lab">表 1 左侧物体图 · 原文第 6 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=6">看原图 ↗</a></span>z 轴的 9 个训练物体，每个画了物体坐标系：角块、鸭子、苹果、存钱罐、草莓、十字块、可乐罐、灯泡、轴向圆柱。代码里的 <span class="cv">set_z</span> 正是这 9 个（<span class="cv">wm_craftnet_rotation.py:344-346</span>）。图 3 的图例把角块、十字块、圆柱叫 corner cube、cross cube、cylinder，是同一组物体换了叫法。苹果、存钱罐等来自 <a class="ds" href="https://contactdb.cc.gatech.edu/">ContactDB</a>，鸭子、草莓、灯泡等放在 <span class="cv">assets/urdf/objects/ycb/</span> 下（目录名指向 <a class="ds" href="http://ycb-benchmarks.s3-website-us-east-1.amazonaws.com/">YCB</a>，是否都出自 YCB 物体集未核实）。</figcaption>
+</figure>
+
+<h3 id="s4-2"><span class="no">4.2</span>鲁棒的多物体 z 轴旋转</h3>
+<p>先看一个策略能不能在随机起点下转多种日常物体。9 物体集覆盖不同形状、质心分布、纹理和接触可供性，需要在线推断状态和接触，而不是记物体专用的指法。</p>
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 1：z 轴 9 物体旋转和 WSM 分析，含测试时触觉遮蔽和模态对照（照录；128 回合均值 ± 95% CI）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">OffAxis↓</th><th class="n">AngVar↓</th></tr></thead><tbody>
+<tr><td>开环回放</td><td class="n">306.3 ± 48.3</td><td class="n">320.2 ± 35.0</td><td class="n">0.332 ± 0.080</td><td class="n">1.789 ± 0.295</td><td class="n">2.241 ± 0.679</td></tr>
+<tr><td>盲 RL 策略（无深度无触觉）</td><td class="n">304.1 ± 3.8</td><td class="n">295.8 ± 2.3</td><td class="n">0.944 ± 0.004</td><td class="n">1.539 ± 0.007</td><td class="n">1.810 ± 0.011</td></tr>
+<tr><td>Touch Dexterity（有触觉）[1]</td><td class="n">386.9 ± 3.1</td><td class="n">362.5 ± 2.3</td><td class="n">1.018 ± 0.004</td><td class="n">1.601 ± 0.008</td><td class="n">1.764 ± 0.053</td></tr>
+<tr><td>RL 策略（有深度无触觉）</td><td class="n">362.2 ± 4.7</td><td class="n">351.0 ± 3.6</td><td class="n">0.978 ± 0.004</td><td class="n">1.806 ± 0.009</td><td class="n">2.222 ± 0.065</td></tr>
+<tr><td>In-Hand Rotation（深度 + 触觉）[6]</td><td class="n">236.1 ± 2.7</td><td class="n">272.5 ± 2.8</td><td class="n">0.882 ± 0.003</td><td class="n">1.986 ± 0.009</td><td class="n">2.487 ± 0.074</td></tr>
+<tr><td>WM-Craftnet（从头训练）</td><td class="n">414.3 ± 15.7</td><td class="n">264.2 ± 8.8</td><td class="n">0.742 ± 0.012</td><td class="n">1.285 ± 0.010</td><td class="n">1.735 ± 0.052</td></tr>
+<tr class="sep"><td>WM-Craftnet（触觉全置零）</td><td class="n">724.9 ± 4.4</td><td class="n">428.8 ± 2.8</td><td class="n">1.252 ± 0.004</td><td class="n">1.224 ± 0.006</td><td class="n">1.388 ± 0.031</td></tr>
+<tr><td>WM-Craftnet（触觉丢失 75%）</td><td class="n">735.2 ± 4.1</td><td class="n">429.8 ± 2.7</td><td class="n">1.272 ± 0.004</td><td class="n">1.224 ± 0.006</td><td class="n">1.390 ± 0.031</td></tr>
+<tr><td>WM-Craftnet（触觉丢失 50%）</td><td class="n">737.8 ± 4.4</td><td class="n">425.1 ± 3.6</td><td class="n">1.276 ± 0.004</td><td class="n">1.279 ± 0.006</td><td class="n">1.511 ± 0.061</td></tr>
+<tr><td>WM-Craftnet（触觉丢失 25%）</td><td class="n">743.4 ± 4.2</td><td class="n">427.9 ± 3.2</td><td class="n">1.287 ± 0.004</td><td class="n">1.243 ± 0.006</td><td class="n">1.434 ± 0.032</td></tr>
+<tr class="sep"><td>WM-Craftnet（WSM 预训练，只用本体）</td><td class="n">684.5 ± 4.3</td><td class="n">424.0 ± 2.2</td><td class="n">1.191 ± 0.003</td><td class="n">1.310 ± 0.007</td><td class="n best">1.234 ± 0.013</td></tr>
+<tr><td>WM-Craftnet（WSM 预训练，本体 + 触觉）</td><td class="n">698.9 ± 4.3</td><td class="n best">435.4 ± 1.9</td><td class="n">1.192 ± 0.002</td><td class="n best">1.165 ± 0.006</td><td class="n">1.373 ± 0.024</td></tr>
+<tr><td><b>WM-Craftnet（完整 WSM）</b></td><td class="n best">753.3 ± 3.6</td><td class="n">435.2 ± 1.9</td><td class="n best">1.293 ± 0.004</td><td class="n">1.225 ± 0.006</td><td class="n">1.324 ± 0.027</td></tr>
+</tbody></table></div>
+<p>基线回报在 236.1 到 386.9 之间。从头训练的 WM-Craftnet 回报 414.3，OffAxis 和 AngVar 降到 1.285 和 1.735，但 RotR 0.742 低于一些基线。预训练的完整 WSM 回报 753.3、RotR 1.293、OffAxis 1.225、AngVar 1.324。图 2(a) 是 z 轴各方法的训练奖励，顺序和表 1 相同。触觉从完整输入降到丢 25%、全置零，回报从 753.3 降到 743.4 和 724.9。模态对照从只用本体 684.5，到本体 + 触觉 698.9，再到深度 + 触觉的完整输入 753.3；本体 + 触觉的 OffAxis 最低（1.165），但 RotR 低于完整 WSM。图 2(b) 是这些对照。</p>
+<div class="note" id="n13"><span class="lab">读者注 13 · 触觉在测试时只值 3.8%，深度贡献更大</span><p>测试时把触觉全置零，回报 724.9 / 753.3 = 0.962，只降 3.8%；四档（0、25%、50%、75% 丢失、全零）是单调的：753.3 &gt; 743.4 &gt; 737.8 &gt; 735.2 &gt; 724.9。<b>触觉全零的完整 WSM（724.9）仍高于训练时就有触觉、但没有深度的“本体 + 触觉”WSM（698.9）</b>，后者又只比“只用本体”（684.5）高 14.4。所以按表 1，三种输入里深度的贡献（698.9 → 753.3，+54.4）远大于触觉（684.5 → 698.9，+14.4）。测试时遮蔽怎么做，论文没写，仓库里也没有对应脚本。代码里现成的两个开关是丢失概率 <span class="cv">sensorNoise</span> 和把指定传感器置零的 <span class="cv">disableSet</span>（<span class="cv">wm_craftnet_rotation.py:517, 1644-1658</span>），两者都改的是同一个 <span class="cv">sensed_contacts</span>，它同时进演员的堆叠观测和 WSM 的 <span class="cv">prop</span>；所以如果用的是它们，演员和 WSM 是一起被遮的（我的推断）。<span class="cv">disableTacObs</span> 会把触觉维数直接删掉（<span class="cv">:288-289</span>），和训练好的检查点维数不符，不会是表 1 用的办法。训练时 WSM 还有 17 连杆接触的辅助头，这一部分不受测试遮蔽影响。另外这几行的“完整 WSM”指的是哪个预训练设置，见读者注 14。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · 表 1 的“从头训练”和“预训练”差在哪里，论文没交代清楚</span><p>§4.2 说“从头训练的 WM-Craftnet 414.3”“预训练的完整 WSM 753.3”。§3.4 说 WSM 在 9 物体 z 轴数据上预训练，再用于 49 物体。那么在<b>同一个</b> 9 物体 z 轴基准上，“预训练”的 WSM 是用什么数据预训练的？论文没写。可能是先跑一轮完整训练得到 WSM，再拿它初始化第二轮（相当于 WSM 多训了一轮）；如果是这样，753.3 和 414.3 的差距里有很大一部分来自“多训一轮”，而不只是方法本身。<b>未核实</b>。</p><p>还有两个疑点：从头训练的 RotR 0.742 低于除开环回放以外的所有基线，EpLen 264.2 也是全表最短，但回报 414.3 又高于所有基线；置信区间 ±15.7 是其他 WSM 行的 3 倍以上。图 2(b) 里蓝色“WM-Craftnet”曲线（目测）后半段在 380 到 450 之间大幅抖动。我的推断：从头训练时 WSM 在 PPO 前期还没学好，\(h_t\) 是一个不断漂移的输入，策略学得不稳。</p></div>
+
+<figure class="pfig" id="fig2">
+<img src="wm-craftnet/fig2.webp" width="1457" height="352" alt="图 2：四格训练奖励曲线，(a) Z 轴基线，(b) WSM 消融，(c) X 轴，(d) Y 轴；横轴 epoch 0 到 3000" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 7 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=7">看原图 ↗</a></span>横轴都是 0 到 3000 个 epoch，纵轴是训练奖励；纵轴刻度只标了最小、中间、最大三个值（如 (a) 是 −60.7、244.7、550.1），是位图，不能矢量读数。(a) z 轴：紫色 WM-Craftnet 和橙色 Touch Dexterity、绿色仅深度 RL 终点接近，红色 In-Hand Rotation 最低。(b) WSM 消融：红色“预训练、本体 + 触觉 + 深度”最高，蓝色“WM-Craftnet”（我理解是从头训练）最低且抖动大，绿色“本体 + 触觉”在约 2100 和 2500 epoch 有两次深跌。(c) x 轴：只有紫色 WM-Craftnet 和红色 In-Hand Rotation 爬升，其余三条贴在底部，和表 5 一致。(d) y 轴：紫色最高但方差大。</figcaption>
+</figure>
+<div class="note" id="n15"><span class="lab">读者注 15 · 图 2(a) 的“顺序和表 1 相同”只能说大致成立</span><p>目测图 2(a) 终点（约 3000 epoch）：WM-Craftnet 约 420–470（末段在抖），RL（仅深度）约 440，Touch Dexterity 约 450，盲策略约 330，In-Hand Rotation 约 210。表 1 的评测顺序是 WM（753.3 或 414.3）&gt; TD 386.9 &gt; RL 深度 362.2 &gt; 盲 304.1 &gt; IHR 236.1。曲线里 WM-Craftnet 和 TD、RL 深度挤在一起，看不出表 1 里“完整 WSM 比 TD 高一倍”的差距。我的推断：图 2(a) 的紫线是从头训练的 WM-Craftnet（和表 1 的 414.3 一致），而 753.3 那一行对应的是图 2(b) 的红线。论文没有说明，目测，<b>未核实</b>。</p></div>
+
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 2：z 轴基准上的 WSM 受控变体（照录；均值 ± 95% CI）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">OffAxis↓</th><th class="n">AngVar↓</th></tr></thead><tbody>
+<tr><td>带噪深度监督</td><td class="n">708.0 ± 3.5</td><td class="n">431.1 ± 2.0</td><td class="n">1.265 ± 0.005</td><td class="n">1.299 ± 0.006</td><td class="n">1.456 ± 0.045</td></tr>
+<tr><td>去掉 \(h_{t-1}\) 循环输入</td><td class="n">705.4 ± 4.3</td><td class="n">434.3 ± 2.3</td><td class="n">1.282 ± 0.005</td><td class="n best">1.125 ± 0.006</td><td class="n best">1.185 ± 0.008</td></tr>
+<tr><td>编码器-解码器 \(z_t\) 策略</td><td class="n">667.6 ± 4.7</td><td class="n">417.4 ± 2.6</td><td class="n">1.254 ± 0.003</td><td class="n">1.323 ± 0.006</td><td class="n">1.343 ± 0.018</td></tr>
+<tr><td><b>完整 WSM</b></td><td class="n best">753.3 ± 3.6</td><td class="n best">435.2 ± 1.9</td><td class="n best">1.293 ± 0.004</td><td class="n">1.225 ± 0.006</td><td class="n">1.324 ± 0.027</td></tr>
+</tbody></table></div>
+<p><b>受控变体。</b>表 2 分别检验干净深度监督、确定性循环和循环策略特征。重建带噪深度而不是干净深度，回报从 753.3 降到 708.0；把循环策略上下文换成每步的编码器-解码器特征，降到 667.6。去掉 \(h_{t-1}\) 得到 705.4 回报和 1.282 RotR，但 OffAxis 和 AngVar 改善到 1.125 和 1.185，说明稳定性和任务表现之间有取舍。表旁的训练曲线显示完整 WSM 最终奖励最高。</p>
+
+<div class="tablewrap"><table class="t-r6"><caption class="tcap">表 3：真机 z 轴旋转（照录）。RR 是每个 20 秒回合转过的弧度，SR 是 10 次试验的成功次数（转过半圈以上）</caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="2">鸭子</th><th colspan="2">十字块</th><th colspan="2">角块</th><th colspan="2">双缺口块（未见）</th></tr><tr><th class="n">RR</th><th class="n">SR</th><th class="n">RR</th><th class="n">SR</th><th class="n">RR</th><th class="n">SR</th><th class="n">RR</th><th class="n">SR</th></tr></thead><tbody>
+<tr><td>开环回放 OlR</td><td class="n">2.32</td><td class="n">6/10</td><td class="n">3.04</td><td class="n">6/10</td><td class="n">5.19</td><td class="n">7/10</td><td class="n">0.23</td><td class="n">0/10</td></tr>
+<tr><td>Touch Dexterity TD [1]</td><td class="n">1.54</td><td class="n">4/10</td><td class="n">0.34</td><td class="n">2/10</td><td class="n">0.22</td><td class="n">0/10</td><td class="n">0.27</td><td class="n">0/10</td></tr>
+<tr><td>In-Hand Rotation IHR [6]</td><td class="n">1.83</td><td class="n">5/10</td><td class="n">0.45</td><td class="n">1/10</td><td class="n">0.36</td><td class="n">1/10</td><td class="n">0.39</td><td class="n">0/10</td></tr>
+<tr><td>IHR + WSM 去噪深度</td><td class="n">2.76</td><td class="n">8/10</td><td class="n">1.21</td><td class="n">8/10</td><td class="n">2.43</td><td class="n best">10/10</td><td class="n">0.80</td><td class="n">0/10</td></tr>
+<tr><td><b>本文</b></td><td class="n best">16.179</td><td class="n best">10/10</td><td class="n best">8.01</td><td class="n best">10/10</td><td class="n best">8.48</td><td class="n best">10/10</td><td class="n best">4.32</td><td class="n best">8/10</td></tr>
+</tbody></table></div>
+<p><b>真机实验。</b>在鸭子、十字块、角块和一个未见的双缺口块上做真机 z 轴旋转。表 3 的基线是一个递进：固定的开环回放，到 Touch Dexterity 的触觉反馈，再到 In-Hand Rotation 的深度 + 触觉反馈。IHR 对仿真深度到真实带噪深度的转变很敏感；把 WSM 去噪后的深度喂给它，在三个见过的物体上旋转和成功率都提高，说明几何去噪有用，但在未见的块上转得有限、没有一次成功。WM-Craftnet 用从深度、触觉、本体和动作历史联合学到的循环 WSM 特征做条件，在见过和未见的物体上 RR 和 SR 都高。</p>
+<div class="note" id="n16"><span class="lab">读者注 16 · 真机表的几处细节，以及部署代码和论文的差别</span><ul>
+<li><b>开环回放在真机上比两个闭环基线好。</b>角块上 OlR 转 5.19 rad、7/10 成功，TD 只有 0.22 rad、0/10，IHR 0.36 rad、1/10；十字块上也是 OlR 最好。所以表 3 的“递进”（开环 → 触觉 → 深度 + 触觉）在真机上并不是单调变好的，重新实现的两个闭环基线迁移得很差。论文没有讨论这一点。</li>
+<li><b>精度不一致。</b>鸭子的 16.179 写了三位小数，其余都是两位；16.179 rad / 20 s ≈ 0.81 rad/s，约 2.6 圈。</li>
+<li><b>成功阈值。</b>半圈 = π ≈ 3.14 rad。IHR + WSM 在双缺口块上 RR 0.80 &lt; π，0/10 自洽；本文在双缺口块上平均 4.32 rad、8/10，也说得通。</li>
+<li><b>相机型号。</b>附录 A.3 写腕部相机是 RealSense L515；部署脚本的说明和报错都写 D405（<span class="cv">deploy/examples/wm_craftnet_infer.py:7, 698, 769</span>），全仓库没有 L515 字样。哪一个是论文实验用的，<b>未核实</b>。</li>
+<li><b>真机深度还过了滤波。</b>部署脚本在进网络之前用了 RealSense SDK 的空间滤波和时间滤波（指数平均，α = 0.4，<span class="cv">:750-772</span>，注释说“和 WMP 论文的预处理一致”）。论文只说 WSM 负责去噪，没提这层滤波。</li>
+<li><b>触觉频率。</b>论文说触觉 10 Hz；README 说非 CUDA 版 SDK 以 30 Hz 输出触觉推理结果，策略按 10 Hz 读取。两者不矛盾，但论文没写。</li>
+</ul></div>
+
+<figure class="pfig" id="fig3-5">
+<img src="wm-craftnet/fig3-5.webp" width="1391" height="283" alt="图 3 到图 5：左为 9 个物体的 WSM 循环状态 t-SNE；中为鸭子旋转的深度重建四格（第三人称 RGB、真值腕部深度、带噪输入、WSM 预测）；右为 49 个新物体的下游训练场景" loading="lazy">
+<figcaption><span class="lab">图 3、图 4、图 5 · 原文第 7 页（三图并排，裁成一张）· Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=7">看原图 ↗</a></span>左（图 3）：z 轴 9 物体回放里收集的 \(h_t\) 做 t-SNE，按物体上色；每个物体有大致自己的区域，又有重叠，区域内能看到成串的小环（同一回合的周期性轨迹）。中（图 4）：仿真里一次鸭子 z 轴旋转，(a) 第三人称 RGB，(b) 真值腕部深度，(c) 带噪输入（散布白色丢点），(d) WSM 预测的深度，丢点消失、手和鸭子的轮廓保留。右（图 5）：49 个新物体的下游策略训练场景（顶部黑条是原图里就有的）。</figcaption>
+</figure>
+
+<h3 id="s4-3"><span class="no">4.3</span>World Synesthesia Model 分析</h3>
+<p>这一节分析 WSM 学到的表征。结果表明它的循环上下文结合了几何、接触演化和物体运动相关的线索。表 10 的辅助头研究里，回报从不加辅助头的 688.1，到只加价值头的 737.0，到全部头的 753.3。表 2 给了干净深度和循环状态的受控变体，LSTM 和 GRU 历史基线放在附录 B.1。</p>
+<p>两个诊断：在 9 个 z 轴物体上，把评测时的循环状态 \(h_t\) 投影到 t-SNE，看物体和交互阶段的结构；物体标签只用来上色，不是策略输入。另外从隐状态解码干净深度，和真值、带噪腕部深度对比。</p>
+<p><b>隐状态和重建分析。</b>图 3 显示部分依赖物体的区域，以及跨物体、跨回合阶段的重叠。图 4 显示 WSM 从带噪输入重建出更干净的深度，去掉伪影、保留手-物几何；真机视频里效果相同。两项诊断都和“循环状态同时反映物体相关几何和共享的交互阶段”一致。</p>
+<p><b>可复用的联觉先验。</b>同一个预测模型可以用到 9 物体 z 轴设置之外。图 5 和网站视频展示一个在 49 个新物体上训练的下游策略：3000 个 epoch 后，每个物体平均每回合转 <b>9.37 ± 0.13 rad</b>，没有先验的基线是 3.28 rad；训练中的掉落率从开始的 6% 降到结束的 0.3%。另一个五块体的先验规模诊断（斜块、窄块、双缺口块、阶梯块、V 形切口块）：RotR 从头训练 / 9 物体先验 / 49 物体先验依次是 1.10 / 1.34 / 1.46。这个诊断和下面按轴划分的留出集不同；附录 B.2 给出完整物体集，图 8 可视化循环状态的组织。</p>
+<div class="note" id="n17"><span class="lab">读者注 17 · 49 物体实验的几个数怎么读</span><p>9.37 / 3.28 = 2.86 倍。“掉落率 6% → 0.3%”是同一个有先验的训练从开始到结束的变化，不是有无先验的对比；没有先验时最终掉落率是多少，论文没给。3.28 rad 没给置信区间。“49 物体先验”在五块体诊断里出现，说明还有一个在 49 物体上训过的 WSM 被再拿去初始化，这一步的流程论文没写。五块体里的“双缺口块”同时出现在真机的未见物体和 y 轴留出集里，三处是不是同一个模型未核实。49 物体的资源和配置都没有发布（代码只有 <span class="cv">set_z</span>、<span class="cv">set_x4</span>、<span class="cv">set_y</span> 三组，<span class="cv">wm_craftnet_rotation.py:343-353</span>）。</p></div>
+
+<h3 id="s4-4"><span class="no">4.4</span>更难的旋转模式</h3>
+<p>接下来评测手掌被动支撑更少的轴。y 轴旋转对细长物体有更大的力臂和不对称接触；x 轴更难：指尖工作空间有限，必须在重力把物体拉离手掌的同时重新分配接触。所有按轴的策略都用同样的 WM-Craftnet 设计、奖励、随机起点和可部署观测，每个轴单独训一个 WSM。</p>
+<figure class="pfig small" id="t4obj">
+<img src="wm-craftnet/t4obj.webp" width="689" height="645" alt="表 4 左侧的 9 个 y 轴工具类物体：toy trash can、corner block、regular block、corner cylinder、toothpaste、coca can、screwdriver、flashlight、bottle" loading="lazy">
+<figcaption><span class="lab">表 4 左侧物体图 · 原文第 8 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=8">看原图 ↗</a></span>y 轴的 9 个物体：玩具垃圾桶、角块、规则块、带角圆柱、牙膏、可乐罐、螺丝刀、手电筒、瓶子。和代码 <span class="cv">set_y</span>（<span class="cv">wm_craftnet_rotation.py:350-352</span>）一一对应。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 4：y 轴 9 个工具类物体（照录；对 9 个物体和全部试验取平均）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">Fall↓</th><th class="n">ObjVel↓</th></tr></thead><tbody>
+<tr><td>开环回放</td><td class="n">−52.4 ± 5.2</td><td class="n">85.8 ± 10.0</td><td class="n">0.031 ± 0.063</td><td class="n">0.784 ± 0.082</td><td class="n best">0.0366 ± 0.0042</td></tr>
+<tr><td>盲 RL 策略</td><td class="n">177.8 ± 9.2</td><td class="n">192.4 ± 7.6</td><td class="n">0.545 ± 0.016</td><td class="n">0.164 ± 0.002</td><td class="n">0.0737 ± 0.0014</td></tr>
+<tr><td>Touch Dexterity [1]</td><td class="n">105.3 ± 5.8</td><td class="n">172.0 ± 6.2</td><td class="n">0.297 ± 0.030</td><td class="n">0.208 ± 0.003</td><td class="n">0.0760 ± 0.0021</td></tr>
+<tr><td>RL 策略（有深度无触觉）</td><td class="n">154.8 ± 6.9</td><td class="n">178.4 ± 5.4</td><td class="n">0.288 ± 0.033</td><td class="n">0.103 ± 0.002</td><td class="n">0.0909 ± 0.0015</td></tr>
+<tr><td>In-Hand Rotation [6]</td><td class="n">142.8 ± 5.5</td><td class="n">162.5 ± 4.8</td><td class="n">0.377 ± 0.025</td><td class="n">0.063 ± 0.003</td><td class="n">0.0787 ± 0.0021</td></tr>
+<tr><td><b>WM-Craftnet</b></td><td class="n best">272.7 ± 13.5</td><td class="n best">215.0 ± 8.7</td><td class="n best">1.025 ± 0.026</td><td class="n best">0.049 ± 0.001</td><td class="n">0.0682 ± 0.0013</td></tr>
+</tbody></table></div>
+<p>y 轴用表 4 旁的工具类物体集，测试会撬着手指转的物体。WM-Craftnet 把回报从最强基线的 177.8 提到 272.7，RotR 从最好基线的 0.545 提到 1.025（接近翻倍），掉落率最低。RotR 提高 88.1%，远大于 EpLen 的 11.7%，说明回报的提升来自更快的目标轴进度，而不只是回合更长。它的 ObjVel 排第二而不是第一，所以优势在于受控旋转和减少掉落，不是物体整体运动更小。图 2(d) 的训练趋势相同。</p>
+
+<figure class="pfig small" id="t5obj">
+<img src="wm-craftnet/t5obj.webp" width="831" height="729" alt="表 5 左侧的 4 个 x 轴物体：regular block、corner block、step block、lego" loading="lazy">
+<figcaption><span class="lab">表 5 左侧物体图 · 原文第 8 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=8">看原图 ↗</a></span>x 轴的 4 个物体：规则块、角块、阶梯块、乐高。代码 <span class="cv">set_x4</span> 是规则块、角块、<span class="cv">set_obj2_block</span>、乐高（<span class="cv">:348</span>），第三个的文件名是“block”，图里叫“step block”。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 5：x 轴 4 个物体（照录）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">Fall↓</th><th class="n">ObjVel↓</th></tr></thead><tbody>
+<tr><td>开环回放</td><td class="n">18.0 ± 6.8</td><td class="n">129.4 ± 22.3</td><td class="n">0.411 ± 0.054</td><td class="n">0.164 ± 0.064</td><td class="n">0.0448 ± 0.0019</td></tr>
+<tr><td>盲 RL 策略</td><td class="n">44.0 ± 0.8</td><td class="n">63.4 ± 1.0</td><td class="n">0.867 ± 0.002</td><td class="n">0.033 ± 0.001</td><td class="n best">0.0311 ± 0.0001</td></tr>
+<tr><td>Touch Dexterity [1]</td><td class="n">37.8 ± 0.2</td><td class="n">42.7 ± 0.2</td><td class="n">1.023 ± 0.002</td><td class="n">0.039 ± 0.002</td><td class="n">0.0334 ± 0.0001</td></tr>
+<tr><td>RL 策略（有深度无触觉）</td><td class="n">38.2 ± 0.2</td><td class="n">43.7 ± 0.4</td><td class="n">1.079 ± 0.003</td><td class="n">0.033 ± 0.001</td><td class="n">0.0323 ± 0.0001</td></tr>
+<tr><td>In-Hand Rotation [6]</td><td class="n">295.1 ± 3.3</td><td class="n">365.1 ± 3.1</td><td class="n">0.839 ± 0.001</td><td class="n">0.103 ± 0.003</td><td class="n">0.0433 ± 0.0001</td></tr>
+<tr><td><b>WM-Craftnet</b></td><td class="n best">432.8 ± 2.1</td><td class="n best">435.4 ± 1.8</td><td class="n best">1.114 ± 0.001</td><td class="n best">0.020 ± 0.001</td><td class="n">0.0460 ± 0.0001</td></tr>
+</tbody></table></div>
+<p>x 轴（表 5）更严格地考验接触顺序：策略要在很小的有效手指空间里滚动物体，并在物体离开手掌支撑之前重新分配接触。盲、只触觉、只深度三个策略回报都低于 45、回合长度低于 64；开环回放撑得更久，但回报低、RotR 低、掉落率高。WM-Craftnet 回报 432.8、回合长度 435.4，RotR 最高、掉落率最低，保持抓握的同时找到能推进旋转的接触。</p>
+<div class="note" id="n18"><span class="lab">读者注 18 · x / y 轴的奖励权重和初始噪声和表 7 不同</span><p>正文说各轴“用同样的奖励”。代码里 x、y 两个任务配置覆盖了一批权重（<span class="cv">WMCraftnetRotationX.yaml</span>、<span class="cv">WMCraftnetRotationY.yaml</span>）：力矩和功 −0.003 → −0.001，动作 −0.002 → −0.000001，控制误差 −1.0 → −0.001，手部姿态 1.5 → 0.5。初始位置噪声：表 7 写 [0.035, 0.02, 0.0025] m、旋转 10°；z 轴配置是 [0.03, 0.015, 0.001] m、5°（<span class="cv">WMCraftnetRotation.yaml:28-29</span>，发布检查点同），x / y 是 [0.01, 0.005, 0.0025] m、5°。三组都不等于表 7。“同样的奖励”可能指同样的奖励<b>形式</b>，但权重并不相同。基线是否也用了各轴的覆盖权重，代码里没有基线实现，无法核对。</p><p>另外表 5 里 WM-Craftnet 的 ObjVel 0.0460 是全表<b>最高</b>（最差），正文没提；表 4 里它排第二（正文提了）。</p></div>
+
+<h3 id="s4-5"><span class="no">4.5</span>困难交互状态下的压力测试</h3>
+<figure class="pfig small" id="t6obj">
+<img src="wm-craftnet/t6obj.webp" width="912" height="756" alt="表 6 左侧：每个轴 4 个留出物体。X：small corner block、narrow block、large step block、small lego；Y：double-notched block、flashlight、narrow block、V-cut block；Z：lidded jar、tilted tumbler、pedal bin、handled pot" loading="lazy">
+<figcaption><span class="lab">表 6 左侧物体图 · 原文第 9 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=9">看原图 ↗</a></span>每个轴 4 个未见物体。x：小角块、窄块、大阶梯块、小乐高；y：双缺口块、手电筒（正文写“大手电筒”）、窄块、V 形切口块；z：带盖罐、倾斜杯、脚踏垃圾桶、带柄锅。这些资源仓库里没有。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-r6"><caption class="tcap">表 6：按轴的留出物体旋转、仿真 z 轴扰动恢复、大规模真机 z 轴旋转（照录）。仿真报告 RotR 和回报；真机成功数汇总 20 个物体共 200 次试验</caption>
+<thead><tr><th>方法</th><th class="n">RotR, Ret.（x）↑</th><th class="n">RotR, Ret.（y）↑</th><th class="n">RotR, Ret.（z）↑</th><th class="n">仿真恢复率↑</th><th class="n">仿真恢复时间↓（s）</th><th class="n">真机成功↑</th></tr></thead><tbody>
+<tr><td>盲 RL 策略</td><td class="n">0.852, 134.7</td><td class="n">0.300, 135.7</td><td class="n">0.665, 277.1</td><td class="n">4.7% ± 3.7%</td><td class="n">3.62 ± 2.25</td><td class="n">41/200</td></tr>
+<tr><td>Touch Dexterity [1]</td><td class="n">0.923, 35.8</td><td class="n">0.174, 78.7</td><td class="n">0.605, 242.2</td><td class="n">6.2% ± 4.2%</td><td class="n">3.33 ± 1.41</td><td class="n">33/200</td></tr>
+<tr><td>RL 策略（无触觉）</td><td class="n">0.853, 33.8</td><td class="n">0.378, 168.9</td><td class="n">0.696, 301.7</td><td class="n">5.5% ± 4.0%</td><td class="n">3.14 ± 0.79</td><td class="n">45/200</td></tr>
+<tr><td>In-Hand Rotation [6]</td><td class="n">0.732, 246.0</td><td class="n">0.309, 193.0</td><td class="n">0.468, 156.1</td><td class="n">0.0% ± 0.0%</td><td class="n">N/A</td><td class="n">53/200</td></tr>
+<tr><td><b>WM-Craftnet</b></td><td class="n best">1.002, 333.6</td><td class="n best">0.715, 203.5</td><td class="n best">0.842, 533.1</td><td class="n best">14.1% ± 6.0%</td><td class="n best">2.56 ± 0.77</td><td class="n best">175/200</td></tr>
+</tbody></table></div>
+<p><b>未见物体测试。</b>先在仿真里做按轴的零样本迁移：直接评测在各自 4、9、9 个物体上训的 x、y、z 轴策略，不做物体专门的微调。每个轴的留出集有 4 个未见物体（见上图）。WM-Craftnet 在三个轴上都是 RotR 和回报最高。相对每个指标上最强的非 WSM 方法，RotR 提高 8.6%、89.2%、20.9%（x、y、z），回报提高 35.6%、5.4%、76.7%。</p>
+<p><b>扰动恢复测试。</b>在严重的仿真扰动下，测策略能否回到可控构型，以及成功恢复的试验用了多长时间。WM-Craftnet 恢复成功率 14.1%，最强基线 6.2%；平均恢复时间最短，2.56 s。相对各指标上的最强基线，绝对提升 7.9 个百分点、恢复时间少 0.58 s。在困难起点和过程中的外力扰动下，图 6 里的代表性成功回合显示策略把物体重新居中、扶正，或从手掌转回可控的手指空间，再继续绕目标轴旋转。绝对恢复率在这么大的扰动下仍然有限。</p>
+<div class="note" id="n19"><span class="lab">读者注 19 · 表 6 和正文的百分比核算</span><p>RotR 提升（对每列最强的非 WSM）：x 1.002 / 0.923（TD）= 1.0856 → 8.6% ✓；y 0.715 / 0.378（RL 无触觉）= 1.8915 → 89.2% ✓；z 0.842 / 0.696（RL 无触觉）= 1.2098 → <b>21.0%</b>，正文写 20.9%（截断而不是四舍五入，差 0.1 个点）。回报提升：x 333.6 / 246.0（IHR）= 1.3561 → 35.6% ✓；y 203.5 / 193.0（IHR）= 1.0544 → 5.4% ✓；z 533.1 / 301.7 = 1.7670 → 76.7% ✓。恢复：14.1 − 6.2 = 7.9 个百分点 ✓（6.2% 是 TD）；时间 3.14 − 2.56 = 0.58 s ✓（3.14 是 RL 无触觉，两个“最强基线”不是同一个方法，正文用“on the respective metric”交代了）。真机 175/200 = 87.5%，基线 16.5%–26.5%。</p><p>y 轴 RotR 的 88.1%：1.025 / 0.545 = 1.8807 ✓；EpLen 的 11.7%：215.0 / 192.4 = 1.1175 ✓（两者都对盲策略比）。另外恢复率的 95% 置信区间很宽：14.1% ± 6.0% 和 TD 的 6.2% ± 4.2% 区间有重叠（8.1% 到 10.4%）。论文没写扰动恢复测了多少回合；若按二项分布 \(1.96\sqrt{p(1-p)/n}=0.060\)、\(p=0.141\) 反推，\(n\approx 129\)，接近 128（我的推算）。</p></div>
+
+<figure class="pfig" id="fig6">
+<img src="wm-craftnet/fig6.webp" width="1355" height="700" alt="图 6：定性压力测试。(a) 未见物体的泛化（缺口块、双缺口块，仿真和真机）；(b) 从困难起点恢复（瓶子、可乐罐、不规则块、鸭子）；(c) 受力扰动后的调整（十字块注入外力、角块人手推动）" loading="lazy">
+<figcaption><span class="lab">图 6 · 原文第 9 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=9">看原图 ↗</a></span>六行代表性成功序列，白色手是仿真、金属色手是真机。(a) 未见物体：缺口块和双缺口块，仿真和真机都“平滑旋转”。(b) 困难起点：瓶子从难姿态被推回手指上；可乐罐倒着被扶正；真机上不规则块处于分布外状态、鸭子被人放到手里后恢复抓握再继续转。(c) 外力扰动：仿真里给十字块注入外力，真机上人手推动角块，之后调整、继续旋转。论文强调定量恢复率只在仿真里测（表 6）。</figcaption>
+</figure>
+<p><b>大规模真机评测。</b>另一套硬件协议：20 个真实物体上做标准 z 轴旋转，每个 10 次。物体包括 9 个训练物体和 11 个未见物体（带盖罐、倾斜杯、脚踏垃圾桶、带柄锅、斜块、窄块、双缺口块、阶梯块、V 形切口块、垃圾桶、水桶）。WM-Craftnet 成功 175/200 次，基线 33/200 到 53/200。这个结果衡量的是广泛物体集上的旋转成功率。</p>
+<p><b>工具使用行为。</b>附录 B.3 报告用同一策略形式做螺丝刀平移和旋转。</p>
+
+<h2 id="s5"><span class="no">5</span>结论和局限</h2>
+<p>WM-Craftnet 是一个基于世界模型的视触觉框架：WSM 从带噪深度、本体、触觉和动作学 Dreamer 式隐动力学，重建干净深度目标，并用确定性循环特征给策略当条件。深度重建去掉传感器伪影、保留手-物几何；预测表征还能当 49 物体下游策略的可复用先验。实验显示它在多物体旋转、未见物体迁移、扰动恢复和 sim-to-real 上都好于视触觉基线。</p>
+<p><b>局限：</b>当前任务都是短视野的，严重扰动下的恢复仍然有限。失败发生在物体超出手的工作空间、大偏移离开恢复的吸引域、漂移和卡住破坏稳定接触时。以后会探索更广的分布和更复杂的工具使用。</p>
+
+<h2 id="sA">附录 A　实现细节</h2>
+<h3 id="sA-1">A.1　世界模型训练细节</h3>
+<p>表 7 汇总世界模型和深度预处理设置。世界模型每步接收单步本体、触觉 / 接触向量、加噪的预处理深度、上一步动作、回合开始标志；奖励只作为预测目标存着。RSSM 每个控制步做一次观测更新，只把停梯度的确定性特征 \(h_t\) 经小 MLP 投影后给演员。</p>
+<p>世界模型的数据在 PPO 采样时在线收集，存进环形回放缓存：本体、触觉 / 接触、加噪深度输入、只裁剪的干净目标深度、上一步动作、奖励和回合开始标志。预热之后，采连续片段训练干净深度重建、本体重建、触觉接触预测、奖励预测，以及 Dreamer 式的动力学 / 表征 KL。完整 WSM 另外预测物体位姿、价值和物体形状；形状目标是 BPS 到网格的位移向量。这些头在预训练和下游适应时都用。</p>
+<p>评测预训练先验时，迁移编码器、多模态 RSSM、深度 / 本体解码器和奖励预测器。下游 49 物体 PPO 训练时，这些部件继续用新数据适应，演员-评论家和任务专用头为目标分布重新学。</p>
+<div class="note" id="n20"><span class="lab">读者注 20 · 回放缓存有多大、每条数据用几次（代码推算）</span><p><span class="cv">replay_capacity: 256</span> 指 256 <b>行</b>，每行存所有环境的一步（<span class="cv">world_model.py:163-181</span>）。论文设置 1024 个环境时是 256 × 1024 = 262,144 条转移；PPO 每个 epoch 采 <span class="cv">horizon_length: 16</span> 步，所以缓存只保留最近 16 个 PPO epoch 的数据。预热 10,000 条转移 ≈ 10 行，不到一个 epoch 就开始训。每个 PPO epoch 训 WSM 10 次，每次 16 条 × 32 步 = 512 条，共 5,120 条；同期新采 16 × 1024 = 16,384 条，所以平均每条转移只被 WSM 看 0.31 次。采样时从“已填满的前缀”里随机选环境和起点，第一步强制 <span class="cv">is_first=1</span>（<span class="cv">:313-377</span>），即每个片段都从零状态开始展开 32 步，不接着缓存里的真实历史。注意 \(t\) 时刻 RSSM 在环境里实际运行时是从回合开头一直滚到当前，片段训练只看 32 步，两者的“记忆长度”不同（我的观察，论文没讨论）。脚本默认 256 个环境（README 说为了在 32 GiB 内存的机器上放下缓存），此时缓存只有 65,536 条。</p></div>
+
+<h3 id="sA-2">A.2　策略训练细节</h3>
+<p>表 7 列出 PPO、控制和奖励设置，表 8 汇总可部署信号和仿真侧信号。演员为全部 22 个手关节输出相对目标更新，信号级滤波器平滑后交给 10 Hz 的硬件控制器。奖励偏好稳定、有目标、像人的旋转，而不只是速度：</p>
+\[\begin{aligned}r_t:=\ &\lambda_{\rm spin}r^{\rm spin}_t+\lambda_{\rm vel}r^{\rm vel}_t+\lambda_{\rm contact}r^{\rm contact}_t+\lambda_{\rm dist}r^{\rm dist}_t+\lambda_\tau r^\tau_t+\lambda_{\rm work}r^{\rm work}_t\\&+\lambda_a r^a_t+\lambda_{\rm ctrl}r^{\rm ctrl}_t+\lambda_{\rm pose}r^{\rm pose}_t+r^{\rm drift}_t+r^{\rm axis}_t+r^{\rm nospin}_t\end{aligned}\tag{10}\]
+<p>目标轴旋转项用投到 \(\mathbf a\) 上的有符号增量旋转，按最大转速截断。稳定项惩罚物体速度、漂移、偏轴旋转、大力矩、机械功、大动作和跟踪误差；接触和姿态项鼓励有用的指尖接近，避免过大的力或非指尖接触，并温和地偏向自然手形。</p>
+<p>回合在以下情况重置：物体掉落超过距离阈值、偏离期望旋转轴太远、连续太多步目标轴转速低于阈值、到达时间上限。这些重置减少不可恢复失败后的无效探索，也让所有基线满足同样的稳定性要求。</p>
+<div class="note" id="n21"><span class="lab">读者注 21 · 式 10 每一项在代码里</span><p><span class="cv">wm_craftnet_rotation.py:2279-2364</span>（<span class="cv">compute_hand_reward_finger</span>），z 轴配置 <span class="cv">WMCraftnetRotation.yaml:50-101</span>：</p><ul>
+<li>\(r^{\rm spin}\) = clip(20·Δθ, −6.28, 2.0)，系数 1.0；\(r^{\rm vel}\) = −0.1·‖v_obj‖。</li>
+<li>\(r^{\rm contact}\)：<span class="cv">contact_coef: 0.0</span>，即式 10 的 \(\lambda_{\rm contact}=0\)，这一项实际不存在；表 7 也没列。</li>
+<li>\(r^{\rm dist}\)：五个指尖到物体中心距离超过 2.5 cm 部分按 3 cm 归一后平方、截到 1、取平均，乘 −0.1。</li>
+<li>\(r^\tau\) = −0.003·Σ τ²；\(r^{\rm work}\) = −0.003·Σ|τ||q̇|；\(r^a\) = −0.002·Σ u²；\(r^{\rm ctrl}\) = −1.0·‖q_target − q‖。这四个系数还乘重力课程里的“保守系数”，配置把它固定为 1（<span class="cv">actionScaleStart/Max: 1</span>）。</li>
+<li>\(r^{\rm pose}\) = 1.5·exp(−Σ 加权关节偏差²)。</li>
+<li>\(r^{\rm drift}\) = −100·‖p − p₀‖²；\(r^{\rm axis}\) = −0.001·(20·偏轴转角)²；\(r^{\rm nospin}\)：轴向角速度 &lt; 0.5 rad/s 连续 60 步（6 s）时 −50 并重置。</li>
+<li>指尖力过大：五指平均超出 2 N 的部分 \(e\)，惩罚 −0.9·(exp(0.01·e) − 1)（<span class="cv">:1476-1500</span>）；拇指非指尖接触超过 1 N 罚 0.1（<span class="cv">thumbNonTipContactPenalty</span>）。后者表 7 没列。</li>
+<li>重置：物体离初始位置 ≥ 0.06 m（掉落，另罚 −50）；物体上的轴向量偏离指令轴 &gt; 0.4π（72°）；无旋转 6 s；500 步到时。</li></ul>
+<p>表 7 的“Object drift 100.0”写成正数，代码里是 −100·距离²，表中的值是系数的绝对值。</p></div>
+
+<h3 id="sA-3">A.3　系统辨识和域随机化</h3>
+<p>真机用带触觉的 <a class="ds" href="https://www.sharpa.com/pages/wave">Sharpa Wave</a> 手和腕部深度相机（<a class="ds" href="https://dev.realsenseai.com/docs/lidar-camera-l515-datasheet">RealSense L515</a>）。手控制器、腕部相机和触觉流都是 10 Hz；仿真用同样的策略 / 控制频率，物理步 60 Hz。两个域里策略的观测 / 动作接口相同。</p>
+<p>上真机之前先辨识关节级动力学：用 1 Hz 正弦动作激励真手，比较测得的关节响应和仿真。调仿真的 Kp、Kd，让仿真轨迹的幅值和相位对齐硬件响应。这个标定给出名义动力学模型，域随机化覆盖剩下的不匹配。图 7 是标定后全手的关节跟踪拟合：同样的正弦指令下仿真和真实关节响应很接近，仿真-真实平均跟踪误差低于 0.2°。</p>
+<p>训练随机化物体质量、摩擦、PD 增益、观测 / 动作噪声、重置位姿、外力和重力方向（表 7）。训练时质量在 [0.2, 0.4] kg 里采样，测试用更宽的范围。摩擦和关节增益随机化覆盖接触和执行器的不确定性；深度和触觉观测有丢失、噪声、小角度图像旋转、阈值变化和延迟。外力和重力方向课程进一步鼓励扰动恢复，而不是记住单一的掌心朝上旋转指法。</p>
+
+<div class="tablewrap"><table class="t-cfg"><caption class="tcap">表 7：当前 WM-Craftnet 配置的实现参数（照录），右栏是代码 a1e825a 的对应值（z 轴任务配置）</caption>
+<thead><tr><th>参数</th><th>论文</th><th>代码</th></tr></thead><tbody>
+<tr><td colspan="3"><b>系统</b></td></tr>
+<tr><td>手</td><td>Sharpa Wave，22 自由度五指</td><td><span class="cv">right_sharpa_wave.urdf</span>，<span class="cv">numActions: 22</span> <span class="ok">✓</span></td></tr>
+<tr><td>硬件频率</td><td>手控制 / 腕部相机 / 触觉：10 Hz</td><td>部署 <span class="cv">control_hz</span> = 10；相机流 30 fps（<span class="cv">cam_fps: 30</span>），SDK 触觉 30 Hz</td></tr>
+<tr><td>相机流</td><td>腕部，640 × 480，3D 打印支架固定</td><td>640 × 480 <span class="ok">✓</span>；型号代码写 D405 <span class="bad">≠ L515</span>（读者注 16）</td></tr>
+<tr><td>仿真频率</td><td>物理 60 Hz；观测 / 控制 10 Hz</td><td>dt 0.01667、decimation 6 <span class="ok">✓</span></td></tr>
+<tr><td colspan="3"><b>世界模型</b></td></tr>
+<tr><td>类型</td><td>多模态输入的 Dreamer 式 RSSM</td><td><span class="cv">wsm/</span>（dreamerv3-torch 移植）<span class="ok">✓</span></td></tr>
+<tr><td>确定 / 随机 / 离散维数</td><td>512 / 32 / 32</td><td>512 / 32 / 32 <span class="ok">✓</span></td></tr>
+<tr><td>隐层 / 循环深度</td><td>512 / 1</td><td>512 / 1 <span class="ok">✓</span></td></tr>
+<tr><td>演员投影</td><td>512 → 64 → 32 → 16</td><td><span class="bad">512 → 256 → 128 → 32</span>（读者注 10）</td></tr>
+<tr><td>回放容量 / 预热</td><td>256 行 / 10,000 条转移</td><td>256 / 10000 <span class="ok">✓</span></td></tr>
+<tr><td>批大小 / 片段长度 / 更新次数</td><td>16 / 32 / 每个 PPO epoch 10 次</td><td>16 / 32 / 10 <span class="ok">✓</span>（WSM 默认 64 被任务配置覆盖成 32）</td></tr>
+<tr><td>优化器 / 学习率 / 梯度裁剪</td><td>Adam / 10⁻⁴ / 1000</td><td>adam / 1e-4 / 1000 <span class="ok">✓</span></td></tr>
+<tr><td>KL 自由比特 / dyn / rep</td><td>1.0 / 0.5 / 0.1</td><td>1.0 / 0.5 / 0.1 <span class="ok">✓</span></td></tr>
+<tr><td colspan="3"><b>深度输入</b></td></tr>
+<tr><td>策略深度张量 / 最大深度</td><td>96 × 72 / 0.4 m</td><td>96 × 72 / 0.4 <span class="ok">✓</span></td></tr>
+<tr><td>时间丢点 / 相关</td><td>0.02 / 0.95</td><td><span class="bad">0.01</span> / 0.95（读者注 6）</td></tr>
+<tr><td>随机图像旋转</td><td>±0.3°</td><td>0.3 <span class="ok">✓</span></td></tr>
+<tr><td colspan="3"><b>策略和控制</b></td></tr>
+<tr><td>环境数 / 视野 / 小批 / 小轮数</td><td>1024 / 16 / 4096 / 4</td><td>1024 / 16 / 4096 / 4 <span class="ok">✓</span>（脚本默认 256 / 1024）</td></tr>
+<tr><td>γ / GAE τ / 学习率 / 裁剪</td><td>0.99 / 0.95 / 10⁻⁴ / 0.2</td><td>0.99 / 0.95 / 1e-4（自适应 KL 0.02）/ 0.2 <span class="ok">✓</span></td></tr>
+<tr><td>策略 MLP / 激活</td><td>[512, 256, 256] / ELU</td><td>[512, 256, 256] / elu <span class="ok">✓</span></td></tr>
+<tr><td>自由度 / 回合 / 仿真 dt / 控制抽取</td><td>22 / 500 / 0.01667 / 6</td><td>22 / 500 / 0.01667 / 6 <span class="ok">✓</span></td></tr>
+<tr><td colspan="3"><b>奖励</b></td></tr>
+<tr><td>旋转 / 最大转速 / 速度</td><td>1.0 / 2.0 / −0.1</td><td>1.0 / 2.0 / −0.1 <span class="ok">✓</span></td></tr>
+<tr><td>力矩 / 功 / 动作 / 控制</td><td>−0.003 / −0.003 / −0.002 / −1.0</td><td>z 轴 <span class="ok">✓</span>；x、y 轴不同（读者注 18）</td></tr>
+<tr><td>指尖距离 / 手部姿态 / 偏轴</td><td>0.1 / 1.5 / 0.001</td><td>0.1 / 1.5 / 0.001 <span class="ok">✓</span>（x、y 轴姿态 0.5）</td></tr>
+<tr><td>物体漂移 / 无旋转 / 掉落惩罚</td><td>100.0 / −50.0 / −50.0</td><td>100（代码里取负）/ −50 / −50 <span class="ok">✓</span></td></tr>
+<tr><td>指尖力系数 / 阈值 / 指数</td><td>0.9 / 2.0 / 0.01</td><td>0.9 / 2.0 / 0.01 <span class="ok">✓</span></td></tr>
+<tr><td colspan="3"><b>随机化</b></td></tr>
+<tr><td>物体质量 训练 / 测试</td><td>[0.2, 0.4] kg / [0.1, 1.4] kg</td><td>[0.2, 0.4] / [0.1, 1.4]（配置注释写测试范围“目前未单独使用”）</td></tr>
+<tr><td>摩擦缩放 / PD 缩放</td><td>[0.5, 2.0] / [0.8, 1.2]</td><td>[0.5, 2.0] / [0.8, 1.2] <span class="ok">✓</span>；另有刚度 [0.75, 1.5] 对数均匀（<span class="cv">yaml:403-407</span>）</td></tr>
+<tr><td>观测噪声 / 动作噪声</td><td>[0, 0.05] / [0, 0.04]</td><td>[0, 0.05] / [0, 0.04] <span class="ok">✓</span></td></tr>
+<tr><td>重置位置 / 重置旋转</td><td>[0.035, 0.02, 0.0025] m / 10°</td><td><span class="bad">[0.03, 0.015, 0.001] / 5°</span>（读者注 18）</td></tr>
+<tr><td>外力缩放 / 概率 / 衰减</td><td>0.5 / 0.25 / 0.99</td><td>0.5 / 0.25 / 0.99 <span class="ok">✓</span></td></tr>
+<tr><td>重力课程</td><td>1° → 4°，步长 0.05°</td><td>1 → 4，0.05 <span class="ok">✓</span>（完整回合比例 ≥ 0.85 才升级，窗口 2048 回合）</td></tr>
+</tbody></table></div>
+
+<div class="tablewrap"><table class="t-io"><caption class="tcap">表 8：WM-Craftnet 用到的可部署信息和特权信息（照录，加代码一栏）。演员只用可部署信号；仿真状态只用于奖励、评论家训练和诊断</caption>
+<thead><tr><th>信号</th><th>使用方</th><th>说明</th><th>代码</th></tr></thead><tbody>
+<tr><td>手部本体</td><td>演员、WM</td><td>归一化的 22 自由度关节状态和之前的目标历史</td><td>22 + 22 维，<span class="ok">✓</span></td></tr>
+<tr><td>触觉 / 接触</td><td>演员、WM</td><td>二值接触流，带阈值、丢失和延迟噪声</td><td>5 个指尖，阈值 0.3 ± 0.05，丢失 0.02，延迟 0.02 <span class="ok">✓</span>；WM 里和本体同一向量</td></tr>
+<tr><td>深度图</td><td>演员、WM</td><td>带噪腕部深度输入；干净深度只当 WM 重建目标</td><td>深度<b>只进 WM</b>，不直接进演员（读者注 4）</td></tr>
+<tr><td>指令轴</td><td>演员</td><td>目标方向 \(\mathbf a\in\{\pm x,\pm y,\pm z\}\)</td><td>24 维；<b>WM 也看得到</b>（读者注 5）</td></tr>
+<tr><td>世界模型特征</td><td>演员</td><td>投影后的确定性 RSSM 特征 \(\psi(h_t)\)</td><td><span class="ok">✓</span>，投影宽度见读者注 10</td></tr>
+<tr><td>相对动作</td><td>控制器、WM</td><td>22 自由度关节目标增量，执行前平滑</td><td><span class="ok">✓</span></td></tr>
+<tr><td>物体状态</td><td>只给奖励 / 评论家</td><td>仿真里的位姿、速度、接触力、掉落 / 重置诊断</td><td>还进了 WSM 的位姿、形状、价值、17 连杆接触辅助头（读者注 9）</td></tr>
+</tbody></table></div>
+
+<figure class="pfig" id="fig7">
+<img src="wm-craftnet/fig7.webp" width="1433" height="947" alt="图 7：22 个关节的系统辨识曲线，每格画动作（绿虚线）、真实状态（橙）、仿真状态（蓝），横轴 0 到 5 秒，左上角标仿真-真实平均绝对误差" loading="lazy">
+<figcaption><span class="lab">图 7 · 原文第 14 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=14">看原图 ↗</a></span>22 格对应 22 个关节，按手指分列（拇指、食指、中指、无名指、小指）。每格 5 秒、约 5 个周期，即 1 Hz 正弦。绿色虚线是指令，橙色是真机，蓝色是标定后的仿真；橙蓝几乎重合，都比指令滞后一点。每格左上角是仿真-真实的平均绝对误差。</figcaption>
+</figure>
+<div class="note" id="n22"><span class="lab">读者注 22 · 图 7 的 22 个误差：平均 0.152°，两个关节超过 0.2°</span><p>从图上逐格读左上角的标注（标注是文字，读数没有误差）：拇指 CMC FE 0.21、CMC AA 0.10、MCP FE 0.18、MCP AA 0.11、IP 0.16；食指 MCP FE 0.18、MCP AA 0.10、PIP 0.16、DIP 0.16；中指 0.17、0.10、0.16、0.16；无名指 0.18、0.10、0.16、0.15；小指 CMC 0.24、MCP FE 0.17、MCP AA 0.08、PIP 0.16、DIP 0.15。合计 3.34°，22 个平均 <b>0.152°</b>，“平均低于 0.2°”成立。单个关节最大是小指 CMC 0.24°，拇指 CMC FE 0.21° 也超过 0.2°。注意这是仿真和真机<b>关节状态</b>之间的误差，二者都跟着同一个指令走、都有同样的滞后，所以这个数说明的是“PD 跟踪动力学对上了”，不说明接触、摩擦等和物体有关的动力学对上了。小指 CMC 的摆幅只有约 2–11°，误差相对摆幅最大。部署侧的标定配置在 <span class="cv">deploy/cfg/pd_sine_shared.yaml</span>，我没有逐项核对。</p></div>
+
+<h2 id="sB">附录 B　补充实验</h2>
+<h3 id="sB-1">B.1　WSM 机制的更多消融</h3>
+<p>表 9 比较循环历史和预测式 WSM 目标。LSTM 和 GRU 看同样的观测历史，但不用多模态预测损失训练。</p>
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 9：循环历史基线和完整 WSM，z 轴基准（照录；均值 ± 95% CI）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">OffAxis↓</th><th class="n">AngVar↓</th></tr></thead><tbody>
+<tr><td>LSTM（无预测目标）</td><td class="n">621.0 ± 4.3</td><td class="n">424.3 ± 2.7</td><td class="n">1.186 ± 0.004</td><td class="n">1.297 ± 0.006</td><td class="n">1.392 ± 0.028</td></tr>
+<tr><td>GRU（无预测目标）</td><td class="n">497.8 ± 4.5</td><td class="n">377.1 ± 2.5</td><td class="n">1.095 ± 0.003</td><td class="n">1.226 ± 0.007</td><td class="n">1.357 ± 0.013</td></tr>
+<tr><td><b>完整 WSM</b></td><td class="n best">753.3 ± 3.6</td><td class="n best">435.2 ± 1.9</td><td class="n best">1.293 ± 0.004</td><td class="n best">1.225 ± 0.006</td><td class="n best">1.324 ± 0.027</td></tr>
+</tbody></table></div>
+<p>完整 WSM 回报 753.3、RotR 1.293，LSTM 621.0 / 1.186，GRU 497.8 / 1.095。WSM 的 AngVar 也最低（1.324），OffAxis 1.225 和 GRU 的 1.226 相当。这些结果把预测式多模态训练的好处和单纯的循环记忆分开。</p>
+<div class="note" id="n23"><span class="lab">读者注 23 · LSTM / GRU 和 WSM 的比较并不完全只差“预测损失”</span><p>LSTM 和 GRU 基线在代码里没有发布（<span class="cv">WMCraftnetPPO.yaml</span> 里没有 <span class="cv">rnn</span> 段；<span class="cv">rl_games</span> 支持 RNN，但没有对应配置）。从正文看，它们“看同样的观测历史”，而 WSM 有三个额外因素：（1）深度通过 CNN 编码器进来，LSTM / GRU 是否也有同样的 CNN 没写；（2）WSM 用单独的优化器、和 PPO 断开梯度，LSTM / GRU 大概率是和 PPO 端到端训练；（3）WSM 的“完整”版本还从预训练初始化（读者注 14）。所以 753.3 对 621.0 的差距，未必全部来自“有没有预测损失”。另外 GRU 比 LSTM 差 123 回报，论文没讨论；RSSM 内部本身就是 GRU 单元（<span class="cv">wsm/networks.py</span> 的 <span class="cv">GRUCell</span>）。</p></div>
+<p>表 10 看仿真侧辅助目标怎样塑造 WSM。去掉所有辅助头回报 688.1；价值、位姿、物体形状各自改进学到的状态的不同方面。单头变体里价值头的回报提升最大，位姿头的角速度波动最低。全部头一起时总回报和旋转速率最高。</p>
+<div class="tablewrap"><table class="t-r5"><caption class="tcap">表 10：辅助头消融，z 轴基准（照录）</caption>
+<thead><tr><th>方法</th><th class="n">Return↑</th><th class="n">EpLen↑</th><th class="n">RotR↑</th><th class="n">OffAxis↓</th><th class="n">AngVar↓</th></tr></thead><tbody>
+<tr><td>不加辅助头</td><td class="n">688.1 ± 3.7</td><td class="n">433.7 ± 2.0</td><td class="n">1.239 ± 0.006</td><td class="n">1.229 ± 0.005</td><td class="n">1.778 ± 0.138</td></tr>
+<tr><td>只加价值头</td><td class="n">737.0 ± 4.9</td><td class="n best">435.7 ± 2.2</td><td class="n">1.291 ± 0.003</td><td class="n">1.258 ± 0.007</td><td class="n">1.346 ± 0.045</td></tr>
+<tr><td>只加位姿头</td><td class="n">690.0 ± 5.8</td><td class="n">432.3 ± 2.5</td><td class="n">1.221 ± 0.007</td><td class="n">1.228 ± 0.008</td><td class="n best">1.231 ± 0.011</td></tr>
+<tr><td>只加物体形状头</td><td class="n">689.2 ± 4.2</td><td class="n">428.1 ± 2.2</td><td class="n">1.261 ± 0.002</td><td class="n">1.255 ± 0.006</td><td class="n">1.535 ± 0.032</td></tr>
+<tr><td><b>完整 WSM</b></td><td class="n best">753.3 ± 3.6</td><td class="n">435.2 ± 1.9</td><td class="n best">1.293 ± 0.004</td><td class="n best">1.225 ± 0.006</td><td class="n">1.324 ± 0.027</td></tr>
+</tbody></table></div>
+<div class="note" id="n24"><span class="lab">读者注 24 · 发布的检查点对应哪一行？</span><p>README 说“六个可选头默认全开”，但发布的 <span class="cv">wm_craftnet_set_z.pth</span> 是“legacy setup：proprioception + depth only”，测试脚本 <span class="cv">scripts/test_wm_craftnet.sh</span> 的 <span class="cv">set_z</span> 分支把位姿、触觉、价值、形状四个头全部关掉；检查点配置 <span class="cv">example_ckpt/wm_craftnet_set_z.yaml:295-335</span> 也是四个 <span class="cv">false</span>。按表 10 的定义，它最接近“不加辅助头”（688.1），而不是“完整 WSM”（753.3）。注意表 10 的“不加辅助头”是否也去掉了触觉接触头，论文没细分（触觉头在正文被列为主损失 \(\lambda_c\mathcal L_{\rm tac}\)，在表 10 又不在单头列表里）。这是我的推断，没有跑检查点，<b>未核实</b>。y 轴测试分支要求六个头全开（<span class="cv">test_wm_craftnet_y.sh</span> → <span class="cv">WM_HEAD_ARGS</span>），但 y 轴检查点 <span class="cv">wm_craftnet_set_y.pth</span> 没有发布（2026-11-23 查 Hugging Face API，仓库里只有 <span class="cv">wm_craftnet_set_z.pth</span> 一个权重文件）。</p><p>另外 <span class="cv">wm_tac_pred</span>（17 连杆接触）和“表 10 里没出现的触觉头”是同一个东西；它在表 1 的“完整 WSM”里是开着的。</p></div>
+
+<h3 id="sB-2">B.2　大规模物体集</h3>
+<p>图 8(a) 是 9 个 z 轴物体预训练 WSM 之后，下游大规模多物体策略训练用的 49 个新物体。它们在大小、长宽比、曲率和接触几何上差别很大。为了看迁移后的 WSM 在这个规模上是否还保留结构化的交互状态，把下游策略评测时的循环状态做 t-SNE。图 8(b) 显示局部连贯的轨迹、部分依赖物体的区域，以及大量重叠。这和“表征同时刻画依赖物体的几何和跨物体共享的交互阶段，而不是一个严格的物体身份分类器”一致。</p>
+<figure class="pfig" id="fig8">
+<img src="wm-craftnet/fig8.webp" width="1340" height="592" alt="图 8：(a) 49 个物体的网格图，名字如 block、bottle、bucket、trash_can、toaster、kitchen_pot、switch；(b) 下游策略循环状态的 t-SNE，按物体着色" loading="lazy">
+<figcaption><span class="lab">图 8 · 原文第 15 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=15">看原图 ↗</a></span>(a) 49 个物体按编号排成 7 × 7：01–23 多是 block、box、fruit、toaster 等，24–49 多是 bottle、bucket、kitchen_pot、trash_can，另有 switch、toaster。很多块体是白色的不规则形状。(b) t-SNE：比图 3 更分散，每个物体是一串串小环（单回合的周期轨迹），区域之间重叠很多。</figcaption>
+</figure>
+
+<h3 id="sB-3">B.3　螺丝刀工具使用</h3>
+<p>螺丝刀考验工具使用式的行为：细长几何、手柄局部接触、打滑风险、依任务调整。图 9 显示同样的 WM-Craftnet 接口能做目标条件的螺丝刀平移（把螺丝刀调到目标位置），以及保持接触的旋转。</p>
+<figure class="pfig mid" id="fig9">
+<img src="wm-craftnet/fig9.webp" width="1188" height="601" alt="图 9：(a) 目标条件的螺丝刀平移，上方是目标位置的螺丝刀，下方手把螺丝刀推到对应位置；(b) 螺丝刀旋转三帧" loading="lazy">
+<figcaption><span class="lab">图 9 · 原文第 15 页 · Yin 等（Sharpa），CC BY 4.0，只做了裁切 · <a href="https://arxiv.org/pdf/2609.07002v1#page=15">看原图 ↗</a></span>(a) 上排浮着的螺丝刀是目标位置，下排手逐步把螺丝刀平移过去；(b) 手掌上的螺丝刀绕自身长轴转动。只有定性的三帧，没有数字。代码里有 <span class="cv">dextool_short_screwdriver</span> 资源（属于 y 轴物体集），但“目标条件平移”的任务代码和目标观测没有发布，论文也没说平移任务的观测里目标怎样给。</figcaption>
+</figure>
+
+<h3 id="sB-4">B.4　补充视频和失败案例</h3>
+<p>项目网站有更多真机回合、定性比较和失败案例，涉及深度噪声、打滑和困难的接触切换。（项目页只链接，没有抓取。）</p>
+
+<h2 id="code">代码对照表</h2>
+<p>论文和官方代码 a1e825a 的逐项对照。✓ 表示一致。只列有意义的条目，表 7 的完整对照在上面。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>论文</th><th>代码</th><th>读者注</th></tr></thead><tbody>
+<tr><td>不做想象 / 不用模型优化策略</td><td>是</td><td>是；<span class="cv">imagine_with_action</span> 只在未调用的 <span class="cv">video_pred</span> 里</td><td><a href="#n8">8</a></td></tr>
+<tr><td>演员接口停梯度</td><td>是</td><td>WSM 在环境的 <span class="cv">torch.no_grad</span> 里前向（<span class="cv">world_model.py:192</span>），特征作为观测进 PPO；WSM 有自己的优化器 <span class="cv">_model_opt</span> <span class="ok">✓</span></td><td>–</td></tr>
+<tr><td>奖励预测监督</td><td>有，\(\lambda_r\) 未给</td><td><span class="bad">loss_scale 0.0</span>，且不可覆盖</td><td><a href="#n7">7</a></td></tr>
+<tr><td>投影层</td><td>512→64→32→16</td><td><span class="bad">512→256→128→32</span></td><td><a href="#n10">10</a></td></tr>
+<tr><td>本体 / 触觉编码</td><td>各自 MLP 分支</td><td>同一个向量、同一个 MLP，含指令轴</td><td><a href="#n5">5</a></td></tr>
+<tr><td>深度裁剪、高斯噪声</td><td>有</td><td><span class="bad">都关着</span>；丢点 0.01 对 0.02</td><td><a href="#n6">6</a></td></tr>
+<tr><td>深度进演员</td><td>式 1 写在 \(\mathbf o_t\) 里</td><td>不直接进，只经 WSM</td><td><a href="#n4">4</a></td></tr>
+<tr><td>各轴同一奖励</td><td>是</td><td>x、y 轴覆盖了 5 个权重</td><td><a href="#n18">18</a></td></tr>
+<tr><td>重置噪声</td><td>[0.035, 0.02, 0.0025] m / 10°</td><td>z [0.03, 0.015, 0.001] / 5°；x、y 另一组</td><td><a href="#n18">18</a></td></tr>
+<tr><td>预训练迁移哪些部件</td><td>编码器、RSSM、深度 / 本体解码器、奖励头</td><td>同（<span class="cv">_WM_BODY_RESUME_PREFIXES</span>）<span class="ok">✓</span></td><td>–</td></tr>
+<tr><td>发布检查点</td><td>–</td><td>只有 z 轴，本体 + 深度两个头</td><td><a href="#n24">24</a></td></tr>
+<tr><td>腕部相机</td><td>RealSense L515</td><td><span class="bad">D405</span>，且加了 SDK 空间 / 时间滤波</td><td><a href="#n16">16</a></td></tr>
+<tr><td>教师-学生蒸馏</td><td>没有（只有非对称评论家）</td><td>代码里有蒸馏分支，但 <span class="cv">self.distill = False</span> 写死（<span class="cv">rl_games/algos_torch/a2c_continuous.py:19</span>）<span class="ok">✓</span></td><td>–</td></tr>
+<tr><td>49 物体、留出集、基线、LSTM/GRU、螺丝刀平移</td><td>有实验</td><td>都没有发布</td><td><a href="#n17">17</a>、<a href="#n23">23</a></td></tr>
+</tbody></table></div>
+
+<h2 id="repro">代码与复现要点</h2>
+<p>以下按 README、<span class="cv">install.md</span>、<span class="cv">deploy/README.md</span> 和源码整理，提交 a1e825a。我没有运行任何命令。</p>
+<h3 id="repro-tree">仓库结构</h3>
+<ul>
+<li><span class="cv">wsm/</span>：世界模型。<span class="cv">models.py</span> 的 <span class="cv">WorldModel</span>（编码器、RSSM、解码器、奖励头、四个辅助头、优化器、<span class="cv">_train</span>）；<span class="cv">networks.py</span> 的 <span class="cv">RSSM</span>、<span class="cv">MultiEncoder</span>、<span class="cv">MultiDecoder</span>、<span class="cv">ConvEncoder</span>；<span class="cv">tools.py</span> 优化器和分布；<span class="cv">configs.yaml</span> 默认超参。来自 dreamerv3-torch（MIT）。</li>
+<li><span class="cv">isaacgymenvs/utils/world_model.py</span>：<span class="cv">WorldModelAdapter</span>，持有 WSM、每个环境的循环状态、环形回放、片段采样和“只加载身体”的预训练加载。</li>
+<li><span class="cv">isaacgymenvs/learning/wm_continuous.py</span>：<span class="cv">WMA2CAgent</span>，在 rl_games 的 PPO 每个 epoch 之后训 WSM 10 次，把评论家的价值回填为价值头目标，检查点里一起存 WSM。</li>
+<li><span class="cv">isaacgymenvs/tasks/wm_craftnet_rotation.py</span>（基础任务：手、物体、观测、奖励、重置、随机化、重力课程）和 <span class="cv">wm_craftnet_camera_rotation.py</span>（加腕部深度相机、深度预处理、每步调用 WSM、写回放、评测录像和指标）。注册名 <span class="cv">RealmanSharpaHa4CameraRotation</span>。</li>
+<li><span class="cv">isaacgymenvs/cfg/task/WMCraftnetRotation{,X,Y}.yaml</span>、<span class="cv">cfg/train/WMCraftnetPPO.yaml</span>：全部超参。</li>
+<li><span class="cv">rl_games/</span>：PPO 后端（修改过：<span class="cv">network_builder.py</span> 加了 WSM 特征投影和一个默认关闭的按轴 MoE）。</li>
+<li><span class="cv">scripts/</span>：<span class="cv">train_wm_craftnet_{z,x,y}.sh</span>、<span class="cv">test_wm_craftnet.sh</span>、<span class="cv">test_wm_craftnet_y.sh</span>。</li>
+<li><span class="cv">deploy/</span>：真机推理（本地一体 <span class="cv">wm_craftnet_infer.py</span>；或拆成 GPU 机上的 <span class="cv">wm_craftnet_policy_server.py</span> 和机器人侧的 ZMQ 客户端 <span class="cv">wm_craftnet_infer_client.py</span>），<span class="cv">sharpa_sdk/</span>（SDK 5.0.9 的 Python 扩展和 .so），<span class="cv">configs/tactile*.json</span>，<span class="cv">cfg/pd_sine_shared.yaml</span>（系统辨识用的正弦激励）。</li>
+<li><span class="cv">assets/urdf/</span>：Sharpa Wave 右手 URDF / USD / MJCF，物体来自 ycb、contactdb、dextoolbench、daily 和自建的 set 系列。</li>
+<li><span class="cv">example_ckpt/wm_craftnet_set_z.yaml</span>：发布检查点的完整运行配置（权重在 Hugging Face）。</li>
+</ul>
+<h3 id="repro-wsm">世界模型（wsm/）</h3>
+<ul>
+<li>编码器：深度 96 × 72 × 1 过 CNN（深度 32、核 4、最小分辨率 4）；73 维向量过 5 层 × 1024 的 MLP，symlog 输入，SiLU + LayerNorm。</li>
+<li>RSSM：确定性 512、随机 32 个 32 类类别变量（1024 维 one-hot），隐层 512，循环深度 1，unimix 0.01，初始状态可学（<span class="cv">initial: 'learned'</span>）。回合开始时 <span class="cv">is_first</span> 把状态重置。</li>
+<li>头：所有头都读完整特征 \([z, h]\)（1024 + 512 = 1536 维）；演员只读 \(h\)（<span class="cv">get_deter_feat</span>）。解码器深度 MSE、向量 symlog MSE。</li>
+<li>每个环境步：<span class="cv">encoder → dynamics.obs_step(prev_latent, prev_action, embed, is_first) → h</span>，全部在 <span class="cv">no_grad</span> 下（<span class="cv">world_model.py:192-210</span>）。上一步动作取的是驱动刚结束那一步物理的 <span class="cv">self.actions</span>（已做过平滑）。</li>
+</ul>
+<h3 id="repro-policy">策略网络和特权信息</h3>
+<ul>
+<li>演员：[292 维堆叠观测 ‖ 投影后的 WSM 特征 32 维] → [512, 256, 256] ELU → 22 维高斯均值，固定 σ（<span class="cv">fixed_sigma: True</span>，初值 log σ = 0）。</li>
+<li>评论家（<span class="cv">central_value_config</span>）：212 维特权状态 → [512, 512, 256, 256]，单独学习率 5e-4。</li>
+<li>没有教师-学生；特权信息只走两条路：评论家，以及 WSM 的辅助头目标（位姿、形状、17 连杆接触、价值）。</li>
+<li>PPO：<span class="cv">critic_coef 5</span>、<span class="cv">bounds_loss_coef 0.005</span>、<span class="cv">entropy_coef 0</span>、<span class="cv">grad_norm 1.0</span>、奖励缩放 0.01、<span class="cv">max_epochs 20100</span>（论文图都画到 3000 epoch）。</li>
+</ul>
+<h3 id="repro-env">仿真环境和域随机化</h3>
+<ul>
+<li><a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a> Preview 4，PhysX TGS / PGS 由全局配置决定，位置迭代 8、速度迭代 0、子步 2、contact offset 2 mm。</li>
+<li>物体初始位置在手掌上方固定偏移 [−0.06, 0.0075, 0.045] 加均匀噪声；初始关节加 ±0.2 的随机（<span class="cv">resetDofPosRandomInterval</span>）。</li>
+<li>随机化：质量、摩擦（物体 0.2、金属 0.4、指垫弹性体 1.2 的基础值乘 [0.5, 2.0]）、逐关节 PD 增益 [0.8, 1.2]、IsaacGym 自带的刚度 [0.75, 1.5]、观测 / 动作高斯噪声、外力（每控制步 25% 概率、规模 0.5、衰减 0.99）、重力方向课程（1° 起、每次 +0.05°、最多 4°）。触觉：阈值 ±0.05、丢失 2%、延迟 2%。深度：时间丢点 1%（相关 0.95）、±0.3° 旋转、相机外参抖动。</li>
+</ul>
+<h3 id="repro-run">怎么跑（按 README，未运行）</h3>
+<pre class="cmd"># 环境：Python 3.8，PyTorch 2.1.0 + CUDA 11.8，Isaac Gym Preview 4（需自行下载并同意 NVIDIA 许可）
+conda create -n wm-craftnet python=3.8 &amp;&amp; conda activate wm-craftnet
+conda install pytorch=2.1.0 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install -c fvcore -c iopath -c conda-forge fvcore iopath
+conda install pytorch3d -c pytorch3d
+pip install hydra-core gym numpy==1.22.2 tensorboardX tensorboard wandb scipy imageio imageio-ffmpeg h5py trimesh rtree pillow ninja
+tar -xzvf IsaacGym_Preview_4_Package.tar.gz &amp;&amp; cd isaacgym/python &amp;&amp; pip install -e . --no-deps
+
+# 仿真里看发布的 z 轴检查点（默认开 viewer，无显示器加 HEADLESS=true）
+hf download SharpaIT/WM-Craftnet wm_craftnet_set_z.pth --local-dir example_ckpt
+CHECKPOINT=example_ckpt/wm_craftnet_set_z.pth bash scripts/test_wm_craftnet.sh
+
+# 训练（脚本默认 256 环境 / 小批 1024；论文是 1024 / 4096）
+NUM_ENVS=1024 MINIBATCH_SIZE=4096 bash scripts/train_wm_craftnet_z.sh task.env.objSet=set_z
+bash scripts/train_wm_craftnet_x.sh task.env.objSet=set_x4
+bash scripts/train_wm_craftnet_y.sh task.env.objSet=set_y
+
+# 用 z 轴 WSM 初始化另一个任务（只加载编码器 / RSSM / 解码器 / 奖励头）
+bash scripts/train_wm_craftnet_y.sh task.env.cameraPolicy.worldModel.resume_body_from=&lt;agent.pth&gt;
+
+# 真机（Python 3.10，另一个环境）：先装 Sharpa Wave SDK 5.0.9 到 deploy/sharpa_sdk/，
+# 在 build_hardcoded_config() 里设 checkpoint、相机、no_actuation=True 先空跑
+python deploy/examples/wm_craftnet_infer.py</pre>
+<h3 id="repro-decide">论文没写、要自己决定的</h3>
+<ul>
+<li>奖励头要不要开（发布代码是 0，读者注 7）；投影层用论文还是配置的宽度（读者注 10）。</li>
+<li>表 1 “预训练完整 WSM”的预训练数据和流程（读者注 14）；49 物体集和留出物体的资源。</li>
+<li>深度裁剪边距和高斯噪声要不要开（读者注 6）；真机相机是 L515 还是 D405，以及 SDK 滤波要不要加（读者注 16）。</li>
+<li>RotR、OffAxis、AngVar 的精确定义（读者注 12）。</li>
+<li>基线（Touch Dexterity、In-Hand Rotation、LSTM、GRU）怎样在 Sharpa Wave 上重新实现。</li>
+<li>随机种子数：每个数只说是 128 个评测回合，没说几个训练种子。</li>
+</ul>
+<h3 id="repro-hw">硬件提示</h3>
+<ul>
+<li>README：WSM 环形缓存的深度默认放在 CPU（<span class="cv">image_on_cpu: True</span>），1024 环境时 256 × 1024 × 96 × 72 × 4 字节 × 2（带噪和干净两份）≈ 14.5 GB，这就是脚本默认降到 256 环境的原因（我的算术）。</li>
+<li>部署要求真深度相机，不支持假深度；先 <span class="cv">no_actuation=True</span> 检查深度预览和视野，再按 README 的步骤对齐相机位姿和裁剪；视野不同时调裁剪边距，不改输入尺寸。</li>
+</ul>
+
+<h2 id="notes">读者注汇总</h2>
+<p>以下各条都是本页加的核算或对照，不属于论文内容。点编号跳到对应位置。</p>
+<ol class="notes">
+<li><a href="#n1">许可矛盾</a>：arXiv 登记 CC BY 4.0，PDF 第 1 页页脚“© 2026 Sharpa. All rights reserved.”。</li>
+<li><a href="#n2">第三方声明里没有 HORA</a>；NOTICE 提到的 assets/licenses 不存在。</li>
+<li><a href="#n3">图 1 把奖励画成输入</a>：正文和代码里奖励只是目标。</li>
+<li><a href="#n4">演员和评论家的输入维数</a>：演员 324，深度不直接进演员。</li>
+<li><a href="#n5">触觉和本体在同一个 MLP，指令轴也进 WSM</a>。</li>
+<li><a href="#n6">深度预处理三处不同</a>：不裁剪、无高斯噪声、丢点 0.01。</li>
+<li><a href="#n7">奖励预测的损失权重是 0</a>：<span class="cv">wsm/configs.yaml:39</span>，且配置覆盖不到。</li>
+<li><a href="#n8">代码确认训练不做想象</a>。</li>
+<li><a href="#n9">七个头在代码里的目标、损失和系数</a>。</li>
+<li><a href="#n10">投影层宽度</a>：论文 512→64→32→16，配置 512→256→128→32。</li>
+<li><a href="#n11">式 9：平滑在积分之前</a>，α = 0.2 且有 ±5% 随机。</li>
+<li><a href="#n12">RotR 等指标没有单位</a>，和 49 物体的 9.37 rad 量级对不上。</li>
+<li><a href="#n13">触觉在测试时只值 3.8%</a>，深度贡献更大。</li>
+<li><a href="#n14">表 1 的预训练流程没交代</a>；从头训练的 RotR 最低。</li>
+<li><a href="#n15">图 2(a) 的顺序和表 1 只大致一致</a>（目测）。</li>
+<li><a href="#n16">真机表细节</a>：开环回放好于闭环基线；L515 对 D405；SDK 滤波。</li>
+<li><a href="#n17">49 物体实验的读法</a>：2.86 倍；掉落率是同一训练的前后对比。</li>
+<li><a href="#n18">x / y 轴奖励权重和初始噪声和表 7 不同</a>；x 轴 ObjVel 最差。</li>
+<li><a href="#n19">表 6 和正文的百分比核算</a>：z 轴 RotR 应为 21.0%。</li>
+<li><a href="#n20">回放缓存只存最近 16 个 PPO epoch</a>，每条转移平均被看 0.31 次。</li>
+<li><a href="#n21">式 10 每一项的代码实现</a>：\(\lambda_{\rm contact}=0\)。</li>
+<li><a href="#n22">图 7 的 22 个误差</a>：平均 0.152°，最大 0.24°。</li>
+<li><a href="#n23">LSTM / GRU 对比不只差预测损失</a>。</li>
+<li><a href="#n24">发布检查点只有本体 + 深度两个头</a>，接近“不加辅助头”。</li>
+</ol>
+<p>论文没写、我也没找到的：RotR / OffAxis / AngVar 的定义；训练种子数；49 物体实验和五块体诊断的完整流程；扰动恢复测试的回合数和扰动大小；螺丝刀平移任务的目标表示；\(\lambda_c\)、\(\lambda_r\)、\(\alpha\) 的值。</p>
+
+<h2 id="links">链接表</h2>
+<p>文中提到的论文、代码、硬件和数据。2026 年 11 月 23 日用脚本核对，全部返回 200（YCB 官网 ycbbenchmarks.com 当天返回 406 / 500，改用它的 S3 镜像页）。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页 / 代码</th><th>论文</th></tr></thead><tbody>
+<tr><td><a class="ds" href="https://wmcraftnet.github.io/">WM-Craftnet</a></td><td>本文项目页（只链接，没有抓取）</td><td><a href="https://github.com/sharpa-robotics/WM-Craftnet">代码</a> · <a href="https://huggingface.co/SharpaIT/WM-Craftnet">检查点</a> · <a href="https://www.sharpa.com/blogs/research/wm-craftnet-world-synesthesia-model-for-robust-and-generalizable-dexterous-in-hand-manipulation">Sharpa 研究文章</a></td><td><a href="https://arxiv.org/abs/2609.07002">2609.07002</a></td></tr>
+<tr><td><a class="ds" href="https://www.sharpa.com/pages/wave">Sharpa Wave</a></td><td>22 自由度五指灵巧手</td><td><a href="https://github.com/sharpa-robotics/sharpa-wave-sdk">SDK</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://dev.realsenseai.com/docs/lidar-camera-l515-datasheet">RealSense L515</a></td><td>论文写的腕部深度相机</td><td>realsenseai.com</td><td>–</td></tr>
+<tr><td><a class="ds" href="https://developer.nvidia.com/isaac-gym">Isaac Gym</a></td><td>GPU 仿真器（Preview 4）</td><td><a href="https://github.com/isaac-sim/IsaacGymEnvs">IsaacGymEnvs</a></td><td><a href="https://arxiv.org/abs/2108.10470">2108.10470</a></td></tr>
+<tr><td><a class="ds" href="https://contactdb.cc.gatech.edu/">ContactDB</a></td><td>部分物体网格的来源（苹果、存钱罐、手电筒、牙膏等）</td><td>contactdb.cc.gatech.edu</td><td><a href="https://arxiv.org/abs/1904.06830">1904.06830</a></td></tr>
+<tr><td><a class="ds" href="http://ycb-benchmarks.s3-website-us-east-1.amazonaws.com/">YCB</a></td><td>资源目录名为 ycb 的物体（鸭子、草莓、灯泡、乐高）</td><td>S3 镜像</td><td><a href="https://arxiv.org/abs/1502.03143">1502.03143</a></td></tr>
+<tr><td>WMP</td><td>世界模型当条件的腿足感知，本文的直接上游</td><td><a href="https://github.com/bytedance/WMP">bytedance/WMP</a></td><td><a href="https://arxiv.org/abs/2409.16784">2409.16784</a></td></tr>
+<tr><td>Robot Synesthesia（In-Hand Rotation 基线）</td><td>视触觉点云手内旋转</td><td><a href="https://github.com/YingYuan0414/in-hand-rotation">in-hand-rotation</a></td><td><a href="https://arxiv.org/abs/2312.01853">2312.01853</a></td></tr>
+<tr><td>Touch Dexterity</td><td>二值触觉手内旋转基线</td><td>–</td><td><a href="https://arxiv.org/abs/2303.10880">2303.10880</a></td></tr>
+<tr><td>HORA</td><td>RMA 手内旋转（[4]）；本仓库声明里没提</td><td><a href="https://github.com/haozhiqi/hora">haozhiqi/hora</a></td><td><a href="https://arxiv.org/abs/2210.04887">2210.04887</a></td></tr>
+<tr><td>DreamerV3</td><td>RSSM 的来源；<a href="dreamerv3.html">本站精读</a></td><td><a href="https://github.com/NM512/dreamerv3-torch">dreamerv3-torch</a></td><td><a href="https://arxiv.org/abs/2301.04104">2301.04104</a></td></tr>
+<tr><td>DreamMimic</td><td>同一作的世界模型特征蒸馏</td><td>–</td><td><a href="https://arxiv.org/abs/2608.22278">2608.22278</a></td></tr>
+<tr><td>rl_games</td><td>PPO 后端</td><td><a href="https://github.com/Denys88/rl_games">Denys88/rl_games</a></td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2609.07002 后的整理，不是作者的官方内容。原文：Jie Yin、Zeyuan Zhao、Xiaojing Tan、Yang Liu、Chiyu Wang、Xinyang Gu，《WM-Craftnet: World Synesthesia Model for Generalizable and Robust Dexterous In-Hand Manipulation》，Sharpa Robotics，CoRL 2026，arXiv 登记许可 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>（PDF 第 1 页另有“© 2026 Sharpa. All rights reserved.”，见读者注 1）。图从原文 PDF 裁切，只做了裁切、缩放和格式转换。代码引用 sharpa-robotics/WM-Craftnet（Apache-2.0，Copyright 2026 Sharpa Group）提交 a1e825a，只引文件名、行号和配置键。读者注和动画是本页所加。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CraftNet 精读 · Paper Reading Lab</title>
+<meta name="description" content="Sharpa CraftNet（分层 VTLA 模型，System 2 / 1 / 0）的中文精读。没有论文，依据是 Sharpa 2026-01-06/07 的公告、CES 两篇新闻稿、DQ 客户案例页和到店指南、8 月 28 日的中文新闻稿和媒体报道（2026-11-23 读）：公告逐段整理、DQ 冰激凌门店部署的时间线和各方说法、宣称与证据对照、Sharpa 公开研究与各层的对应、和 GR00T 双系统 / 三层栈的对比、10 幕 3D 框架动画和 16 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-src{min-width:760px}.t-cmp{min-width:760px}.t-time{min-width:640px}.t-ev{min-width:700px}.t-res{min-width:760px}.t-links{min-width:640px}.t-sm{min-width:520px}.t-who{min-width:700px}
+.t-time td:first-child{font-family:var(--font-mono);font-size:12.5px;white-space:nowrap}
+.i3d{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:18px 0;background:var(--bg2)}
+.i3d .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.i3d p{max-width:none;font-size:14.5px}
+.i3d iframe{display:block;width:100%;height:560px;border:0;border-radius:8px;background:var(--bg)}
+.i3d .go{margin:6px 0 0;font-size:14px}
+@media (max-width:760px){ .i3d iframe{height:900px} }
+.guess{border-left:3px solid var(--note);background:var(--panel);padding:6px 12px;border-radius:0 6px 6px 0;margin:12px 0;max-width:74ch;font-size:14.5px}
+.guess b:first-child{color:var(--note)}
+.notes li{max-width:74ch}
+.q{border-left:3px solid var(--line);padding:2px 12px;margin:10px 0;max-width:74ch;color:var(--muted);font-size:14.5px}
+.tag1,.tag2{display:inline-block;font-family:var(--font-mono);font-size:11.5px;border-radius:5px;padding:0 6px;margin-right:4px;border:1px solid var(--line)}
+.tag1{color:var(--accent)}.tag2{color:var(--note)}
+.archfig{margin:14px 0;max-width:74ch}
+.archfig svg{width:100%;height:auto;display:block}
+.archfig figcaption{font-size:12.5px;color:var(--muted)}
+.archfig rect{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+.archfig rect.cn{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 4}
+.archfig text{fill:var(--fg);font-size:13px;text-anchor:middle}
+.archfig text.m{fill:var(--muted);font-size:12px}
+.archfig text.a{fill:var(--accent);font-size:12px}
+.archfig path{fill:none;stroke:var(--muted);stroke-width:1.4}
+.archfig path.up{stroke:var(--note);stroke-dasharray:5 3}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../interactives/craftnet/index.html">3D 框架动画</a><a href="gr00t.html">GR00T N1</a><a href="gr00t2.html">GR00T 2</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">无论文 · 公司公告 + 客户案例 + 媒体报道 · 2026 年 1 月 6/7 日发布 · 2026 年 11 月 23 日读 · 中文精读</p>
+<h1>CraftNet：Sharpa 的三层“视觉-触觉-语言-动作”控制架构</h1>
+<p class="orig">Sharpa Announces CraftNet - a Hierarchical VTLA Model for Fine Manipulation</p>
+<p>作者：Sharpa Pte Ltd（新加坡，灵巧手和人形机器人公司），公告没有署个人名字。公司页写的联合创始人是 Shaoqing Xiang（向少卿）、David Li（李一帆）、Kai Sun（孙恺），三人都来自激光雷达公司禾赛。</p>
+<div class="meta"><a href="https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation">公告（Sharpa 官网）</a><a href="https://en.prnasia.com/releases/global/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation-518971.shtml">同一公告（PR Newswire）</a><a href="https://www.sharpa.com/pages/sharpa-dq">DQ 客户案例</a><a href="https://www.sharpa.com/pages/visitor-guide">DQ 到店指南</a><span>没有 arXiv、没有技术报告、没有代码和权重</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>CraftNet <b>没有论文</b>。常有人说“Sharpa 有一篇 System 0/1/2 的论文”，我没找到：2026-11-23 在 arXiv 搜 “CraftNet” 只有一条结果，是另一篇 <a href="https://arxiv.org/abs/2609.07002">WM-Craftnet（2609.07002）</a>，它通篇没有提 System 0/1/2（<a href="#n1">读者注 1</a>）。Sharpa 官网的研究博客索引里也没有 CraftNet 论文。能读到的只有三类东西：<b>公司公告</b>（1 月 6/7 日的 CraftNet 公告、CES 的两篇新闻稿、3 月 GTC 新闻稿）、<b>客户案例</b>（DQ 案例页、到店指南、8 月 28 日的中文新闻稿），以及<b>媒体报道</b>。和它相关的正式论文是 Sharpa 自己的 WM-Craftnet（本站并行在写 <a href="wm-craftnet.html">wm-craftnet.html</a>），以及作者里有 Sharpa 的 FTP-1（<a href="https://arxiv.org/abs/2606.13102">2606.13102</a>，本站并行在写 <a href="ftp1.html">ftp1.html</a>）。两篇都没有自称是 CraftNet 的某一层。</p>
+<p><b>来源和抓取日期。</b>全部材料在 2026-11-23 抓取，用脚本去掉 script 和 style 后读正文，清单见<a href="#src">材料与版本</a>。一手来源是 Sharpa 官网的 5 个页面和 PR Newswire 的同文稿；8 月 28 日的中文新闻稿我只在凤凰网“大风号”的转载里读到（转载方是环球财经网），没有找到 Sharpa 官网的原文。二手来源是第一财经（Yicai Global）、量子位（智源社区转载）、远川研究所（36kr 英文站转载）、KrASIA、DairyNews、TechEBlog，以及一篇 arXiv 综述（<a href="https://arxiv.org/abs/2611.06724">2611.06724</a>，CC BY 4.0）。Runtime Wire 付费墙后的正文、澎湃新闻（脚本访问返回 403）、Business Wire（403）和一条 X 帖子我都没能读到，用到它们的地方都标了“未核实”。</p>
+<p><b>许可和图。</b>Sharpa 页面页脚写着 “© Sharpa Pte Ltd. All rights reserved”，新闻报道也是版权保留。所以<b>本页不放任何原图、截图或视频帧，本地也没有存</b>。公告的段落用自己的话转述，只引几处短句并注明出处。本页的示意图和 3D 动画都是我自己画的，按公告的文字描述来画；公告没写的部分标“示意”。</p>
+<p>标成“读者注”的框，是我对照不同来源、核算数字的结果，不属于 Sharpa 或媒体的内容，页尾有汇总。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">速览</a><a href="#src">材料与版本</a><a href="#a0">公告 · 动机</a><a href="#a1">公告 · 三个挑战</a><a href="#a2">公告 · 三层架构</a><a href="#a3">公告 · 数据流</a><a href="#a4">公告 · 频率</a><a href="#a5">公告 · 数据策略</a><a href="#a6">公告 · 结论</a><a href="#i3d">3D 框架动画</a><a href="#ces">CES 2026</a><a href="#later">后续官方提及</a><a href="#dq">DQ 部署</a><a href="#ev">宣称与证据</a><a href="#res">Sharpa 研究与各层</a><a href="#vla">和双系统 VLA 比</a><a href="#rel">和本站其他页</a><a href="#open">没有答案的问题</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">速览</h2>
+<p><b>先说清楚：没有正式论文。</b>CraftNet 只出现在 Sharpa 的公告、客户案例页和媒体报道里。没有模型规模、没有网络结构、没有训练细节、没有任何定量评测。</p>
+<ul>
+<li><b>是什么：</b>Sharpa 称它是“端到端、分层的 VTLA（视觉-触觉-语言-动作）模型”，用于精细操作。架构分三层：System 2 是开源 VLM，约 1 Hz，管理解指令和拆任务；System 1 是“运动脑”，约 10 Hz，管接触前的粗动作；System 0 是“交互脑”，约 100 Hz，在接触阶段用触觉实时修正手和手指。</li>
+<li><b>名字的边界：</b>公告原话是 CraftNet 是 <b>System 0 和 System 1 的组合</b>。System 2 是外接的开源 VLM，严格说不在 CraftNet 里面。媒体常把三层都叫 CraftNet（<a href="#n2">读者注 2</a>）。</li>
+<li><b>两条回传：</b>System 0 在“精细执行失败”时把状态向量回传给 System 1，让它调整粗动作；System 1 把“进度向量”回传给 System 2，更新任务状态。</li>
+<li><b>数据：</b>遥操作时 CraftNet 在环里控制接触；仿真里用它修正接触后的行为；互联网视频数据由 CraftNet “补上触觉”再给 System 1 预训练。<b>怎么补，没有说</b>（<a href="#n6">读者注 6</a>）。</li>
+<li><b>落地：</b>2026-08-29 起，Sharpa 的轮式双臂人形 North 在上海 DQ 一家门店做奥利奥暴风雪。各方都说 55 步；第一财经到店看到约 6 分钟一杯，店员 2 到 3 分钟。Sharpa 自称“全自主”；7 月有博主称预览视频是遥操作的（我没读到原帖）。</li>
+</ul>
+<p>读完我认为最值得记住的三点。第一，CraftNet 的核心主张是<b>按接触前、接触后切换控制回路的时间尺度</b>：接触前视觉为主、慢一点没关系；接触后要靠触觉高频修正。这和 Figure Helix 02、NVIDIA GR00T 2 的“S2/S1/S0”三层栈同一个思路，但那两家的 S0 是全身控制器，CraftNet 的 S0 是触觉接触控制器（<a href="#vla">对比</a>）。第二，<b>宣称远多于证据</b>：关于模型本身，能核对的只有 1/10/100 Hz 三个标称频率；DQ 门店的 6 分钟是媒体实地看到的，成功率、人工干预率都没有公布（<a href="#ev">宣称与证据</a>）。第三，<b>来源之间有几处对不上</b>：门店在“吴江路”还是“南京西路”，“24 小时”说的是门店还是机器人，55 步从哪一步算起，都要分开看（<a href="#n8">读者注 8</a> 到 <a href="#n10">10</a>）。</p>
+
+<h2 id="src">材料与版本</h2>
+<p>全部在 2026-11-23 抓取。“一手”指 Sharpa 自己发布的，“二手”指媒体或第三方。</p>
+<div class="tablewrap"><table class="t-src"><thead><tr><th>材料</th><th>日期</th><th>类型</th><th>内容</th><th>我怎么用</th></tr></thead><tbody>
+<tr><td><a href="https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation">CraftNet 公告</a>（官网）</td><td>页面署 2026-01-07</td><td><span class="tag1">一手</span></td><td>使命、三个挑战、三层架构、数据流、频率、数据策略、结论</td><td>逐段精读的主要来源</td></tr>
+<tr><td><a href="https://en.prnasia.com/releases/global/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation-518971.shtml">同一公告</a>（PR Newswire）</td><td>“LAS VEGAS, Jan. 6, 2026”</td><td><span class="tag1">一手</span></td><td>和官网逐段比对，只差空格、编号缩进和一句小标题</td><td>确认日期，见<a href="#n5">读者注 5</a></td></tr>
+<tr><td><a href="https://www.sharpa.com/blogs/news/sharpa-unveils-its-first-autonomous-full-body-robot-with-human-dexterity-at-ces-2026">North 发布</a></td><td>2026-01-06</td><td><span class="tag1">一手</span></td><td>CES 上四个“全自主”演示，Wave 手参数</td><td><a href="#ces">CES 2026</a> 一节</td></tr>
+<tr><td><a href="https://www.sharpa.com/blogs/news/sharpa-aims-to-manufacture-time-via-its-craftnet-vtla-model-and-stuns-ces-2026-with-live-autonomous-demos-for-fine-manipulation">CES 回顾</a></td><td>2026-01-19</td><td><span class="tag1">一手</span></td><td>四天现场数字；CraftNet = System 0 + System 1；“分阶段更新”</td><td>同上</td></tr>
+<tr><td><a href="https://www.sharpa.com/blogs/news/sharpa-showcases-at-gtc-with-nvidia-advancing-a-new-paradigm-for-robot-training-through-breakthroughs-in-simulation">GTC 新闻稿</a></td><td>正文 2026-03-18，索引 03-20</td><td><span class="tag1">一手</span></td><td>只有一句提 CraftNet</td><td><a href="#later">后续官方提及</a></td></tr>
+<tr><td><a href="https://www.sharpa.com/pages/sharpa-dq">Sharpa × DQ 案例页</a></td><td>“Project Launch Aug 29, 2026”</td><td><span class="tag1">一手</span></td><td>55 步、四个难点；<b>正文没有提 CraftNet</b></td><td><a href="#dq">DQ 部署</a></td></tr>
+<tr><td><a href="https://www.sharpa.com/pages/visitor-guide">DQ 到店指南</a></td><td>无日期</td><td><span class="tag1">一手</span></td><td>四个工位、技术要点、预约方式；也没有提 CraftNet</td><td>同上</td></tr>
+<tr><td><a href="https://finance.ifeng.com/c/8vxfgigbKgO">中文新闻稿（凤凰网转载）</a></td><td>2026-08-28</td><td><span class="tag2">转载的一手</span></td><td>吴江路店、10:00–22:00、55 步、98% 有触觉、CraftNet、“全模态世界模型”</td><td>同上；原发处未找到</td></tr>
+<tr><td><a href="https://www.sharpa.com/blogs/research">Sharpa 研究博客</a>（21 篇）</td><td>2026-01 到 11</td><td><span class="tag1">一手</span></td><td>论文导读；6 篇提到 CraftNet</td><td><a href="#res">研究与各层</a></td></tr>
+<tr><td><a href="https://www.yicaiglobal.com/news/dq-deploys-robot-at-24-hour-shop-on-shanghais-nanjing-west-road">第一财经 Yicai Global</a></td><td>2026-09-01</td><td><span class="tag2">二手</span></td><td>到店观察：约 6 分钟一杯，店员 2–3 分钟；李一帆的成本账</td><td>用时、位置</td></tr>
+<tr><td><a href="https://hub.baai.ac.cn/view/58338">量子位（智源社区转载）</a></td><td>2026-09-29</td><td><span class="tag2">二手</span></td><td>IROS 三款新品；把 DQ 任务和 System 0/1、世界模型连起来讲</td><td>媒体对架构的转述</td></tr>
+<tr><td><a href="https://eu.36kr.com/en/p/4004497051635840">远川研究所（36kr 英文站）</a></td><td>2026-09-30</td><td><span class="tag2">二手</span></td><td>上岗一个月：失败案例、勺子卡住、温度漂移</td><td>宣称与证据</td></tr>
+<tr><td><a href="https://kr-asia.com/sharpa-puts-robotic-dexterity-to-the-test-at-ciie-2026">KrASIA</a></td><td>2026-11-10</td><td><span class="tag2">二手</span></td><td>进博会拍照；DQ 10:00–22:00</td><td>营业时间</td></tr>
+<tr><td><a href="https://dairynews.today/news/sharpa_deploys_north_at_a_shanghai_dairy_queen_6412958.html">DairyNews</a>、<a href="https://www.techeblog.com/dairy-queen-sharpa-robot-store-shanghai-china/">TechEBlog</a></td><td>日期未核实；09-05</td><td><span class="tag2">二手</span></td><td>“每秒 100 次”、98%、31 元一杯、“无人遥操作”</td><td>频率和用语的转述</td></tr>
+<tr><td><a href="https://runtimewire.com/article/sharpa-north-humanoid-dairy-queen-shanghai">Runtime Wire</a></td><td>2026-07-18</td><td><span class="tag2">二手</span></td><td>只能读到摘要：8 月试点、每单 50 到 60 步</td><td>上岗前的说法</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2611.06724">灵巧手综述 2611.06724</a></td><td>2026-11-04 v1</td><td><span class="tag2">二手</span></td><td>§8.6 表 14、§8.8、表 15、§10.4 提到 CraftNet，引 [34]</td><td>学界怎么引用它</td></tr>
+</tbody></table></div>
+
+<h2 id="a0"><span class="no">0</span>公告 · 开头：“制造时间”</h2>
+<p>公告开头是公司口号 “We manufacture time by making robots useful.”（我们通过让机器人有用来“制造时间”）。第一段讲使命：让机器人接手重复、乏味、有时危险的工作，把时间还给人。</p>
+<p>第二段讲判断：行走、跳舞、踢球这类运动能力进步很大，但没有真正省下人的时间，因为机器人的手笨，人还得守在旁边替它补错。从生产力看，重点应该是让操作能力接近人；灵巧操作的自主化还很远。</p>
+
+<h2 id="a1"><span class="no">1</span>公告 · 三个挑战</h2>
+<p>公告列了当前操作范式里的三个挑战，每个配一句口号。</p>
+<ol>
+<li><b>“Tactileless is the new blindness”（没有触觉就是新的失明）。</b>现有操作策略的训练数据只有运动轨迹，没有力也没有触觉。人做大多数手工活很依赖触觉，视觉反而用得少，公告举的例子是扣衬衫扣子、把钥匙插进锁、拿一个塑料杯。</li>
+<li><b>“与物体交互时，90% 的功夫在最后一毫米”。</b>精细操作常用一个统一的 VLA 模型。它适合在接触<b>之前</b>发起有方向的运动，但缺少接触时需要的高频、基于力和触觉的反馈回路，例如收紧抓握、让物体滑动、手指在物体间快速换位。公告的结论是：一个不会按“接触前 / 接触后”调整控制回路的模型解决不了“最后一毫米”。</li>
+<li><b>“数据干旱”。</b>高质量数据少而且贵。论规模，没有什么比得上网上的文本、图像和视频。公告认为有用的数据要同时满足“容易大量获得”和“拟人”（像人手那样操作物体）两个条件，而现有数据往往只占一头：仿真数据多但不够拟人，遥操作数据质量高但难扩展。</li>
+</ol>
+<p>接着一句：Sharpa 开发 CraftNet 来解决这些问题，它是“端到端、分层的 VTLA 模型”，带有“原生拟人的最后一毫米交互”。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 三个挑战和 T-Rex 博客几乎逐条对应</span>
+<p>Sharpa 研究博客里介绍 <a href="https://www.sharpa.com/blogs/research/t-rex-teaching-robots-to-feel-in-real-time-not-just-see-and-plan">T-Rex</a>（UC Berkeley、NVIDIA、Stanford 等合作）的那篇，也列了三个瓶颈：VLA 的“触觉失明”、静态编码器抓不住动态接触、触觉数据的“数据干旱”。用词和 CraftNet 公告的三个挑战高度重合，博客自己也说 T-Rex 的核心观点“呼应 Sharpa 在 CraftNet 里长期主张的”看法。所以这三条更像是 Sharpa 的一贯立场，而不是 CraftNet 独有的发现。第一条“触觉失明”在 T-Rex 博客里有一个可核对的数字：给 π0.5 直接加触觉输入，12 个任务的平均成功率从 17% 降到 6%（博客转述 T-Rex 论文），说明“加触觉”本身不够，要看怎么加。CraftNet 公告没有给出任何这类数字。</p></div>
+
+<h2 id="a2"><span class="no">2</span>公告 · CraftNet 的三层</h2>
+<p>公告说架构“受 System 1 / System 2 理论启发”，再加上前面说的“最后一毫米”交互控制，共三个系统。</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>层</th><th>公告里的名字</th><th>是什么</th><th>频率</th><th>职责（转述）</th></tr></thead><tbody>
+<tr><td>System 2</td><td>Reasoning Brain（推理脑）</td><td>VLM，<b>开源模型</b></td><td>约 1 Hz</td><td>理解人的指令，把复杂任务拆成顺序子任务；感知环境并规划；高层推理、决策和长程规划。它也是机器人和“被协助的人”（餐厅经理、保洁班长等）之间的接口</td></tr>
+<tr><td>System 1</td><td>Motion Brain（运动脑）</td><td>“基础模型”</td><td>约 10 Hz</td><td>运动规划和粗动作控制，保证机器人<b>在接触之前</b>以最优方式接近物体。和具体应用有关的训练大多在这一层做，用公开或私有数据</td></tr>
+<tr><td>System 0</td><td>Interaction Brain（交互脑）</td><td>“超高频模型”</td><td>约 100 Hz</td><td>通过精细运动控制负责即时交互；实时利用触觉反馈，在和物体交互的过程中持续调整手和手指的位置</td></tr>
+</tbody></table></div>
+<p>然后是关键的一句（原文）：</p>
+<p class="q">“CraftNet is the combination of System 0 and System 1, forming a VTLA (Vision-Tactile-Language-Action) model …”</p>
+<p>也就是说，<b>CraftNet 本身只包括 System 0 和 System 1</b>，System 2 是外接的开源 VLM。公告接着说 CraftNet 把高层的多模态输入变成连续的精细动作，由灵巧人形机器人执行，“精度和速度此前只有人能达到”。这句没有任何数据支撑。</p>
+<figure class="archfig">
+<svg viewBox="0 0 700 300" role="img" aria-label="CraftNet 三层架构示意：System 2 在虚线框外，System 1 和 System 0 在 CraftNet 虚线框内；向下传意图和粗动作，向上回传状态向量和进度向量">
+<rect x="40" y="20" width="230" height="56" rx="9"/><text x="155" y="44">System 2 · 推理脑</text><text x="155" y="63" class="m">开源 VLM · 约 1 Hz</text>
+<rect class="cn" x="20" y="100" width="660" height="185" rx="12"/><text x="610" y="122" class="a">CraftNet = S1 + S0</text>
+<rect x="40" y="118" width="230" height="56" rx="9"/><text x="155" y="142">System 1 · 运动脑</text><text x="155" y="161" class="m">粗动作、接触前手型 · 约 10 Hz</text>
+<rect x="40" y="212" width="230" height="56" rx="9"/><text x="155" y="236">System 0 · 交互脑</text><text x="155" y="255" class="m">接触阶段精细动作 · 约 100 Hz</text>
+<path d="M130 76v42"/><path d="M125 112l5 6 5-6"/>
+<path d="M130 174v38"/><path d="M125 206l5 6 5-6"/>
+<path class="up" d="M185 118V76"/><path class="up" d="M180 82l5-6 5 6"/>
+<path class="up" d="M185 212v-38"/><path class="up" d="M180 180l5-6 5 6"/>
+<text x="360" y="92" class="m">↓ 语义意图 / 语言指令</text><text x="360" y="108" class="m">↑ 进度向量</text>
+<text x="380" y="190" class="m">↓ 潜在物理意图 / 粗动作 + 触觉、本体（力、力矩）</text><text x="380" y="206" class="m">↑ 状态向量（精细执行失败时）</text>
+<rect x="430" y="232" width="200" height="40" rx="8"/><text x="530" y="257">手指 / 上身执行</text>
+<path d="M270 240h160"/><path d="M424 235l6 5-6 5"/>
+</svg>
+<figcaption>自己画的示意，依据公告 “CraftNet” 和 “The Flow” 两节的文字。虚线框按公告原话把 System 2 画在 CraftNet 外面。实线是向下传的，虚线是向上回传的。各箭头上传什么只有公告那几个词，向量的维度和内容都没有公开。</figcaption>
+</figure>
+<div class="note" id="n2"><span class="lab">读者注 2 · “CraftNet”到底指两层还是三层</span>
+<p>一手来源里有两种说法，彼此不完全一致：</p>
+<ul>
+<li>公告：CraftNet 是 System 0 和 System 1 的组合（原话见上）。1 月 19 日的 CES 回顾也说 CraftNet “combines two complementary layers”，即 System 0 和 System 1。</li>
+<li>同一篇公告的数据流一节又说 System 2 把意图交给 “System 1 within CraftNet”，标题和首段说它是“端到端、分层的 VTLA”，“L”（语言）其实来自 System 2 的输出。8 月 28 日中文新闻稿只说“自研的分层端到端模型 CraftNet 引入触觉模态输入”，没再提层数。</li>
+</ul>
+<p>媒体普遍把三层都算进 CraftNet，例如量子位写“Sharpa 的 CraftNet 模型……System 2 负责理解任务和长程规划，System 1……System 0……”（<a href="https://hub.baai.ac.cn/view/58338">智源社区转载</a>）。综述 2611.06724 的表 14 则只写了 “S1 Motion Brain” 和 “S0 Interaction Brain”，慢层一格写 “language/task”，和公告的两层说法一致。</p>
+<p>我的理解是：公司自研、自己训练的是 S1 和 S0，所以叫 CraftNet；S2 用现成的开源 VLM。“端到端”指的大概是 S1 和 S0 联合训练（数据策略一节说 “System 1 and 0 are jointly trained”），不是三层一起端到端。这是我的推断，公告没有明说。</p></div>
+
+<h2 id="a3"><span class="no">3</span>公告 · 数据流（The Flow）</h2>
+<p>这一节是公告里最具体的部分，四句话：</p>
+<ol>
+<li><b>S2 → S1：</b>System 2 把语义意图和/或明确的语言指令交给 CraftNet 里的 System 1。</li>
+<li><b>S1 → S0：</b>System 1 生成粗动作，包括上身动作和<b>接触前的手部姿态</b>。然后把“潜在物理意图”（latent physical intent）和/或粗动作交给 System 0，同时 System 0 还接收触觉和本体感觉信号（公告举例：力和力矩）。</li>
+<li><b>S0 的输出和回传：</b>System 0 在接触的最后几毫米产生“人类水平”的精细动作。当精细执行在操作中失败时，System 0 把<b>状态向量</b>回传（原文 “back-propagates”）给 System 1，让它调整潜在物理意图或粗动作。</li>
+<li><b>S1 → S2：</b>System 1 把“进度向量”（progress vector）返回给 System 2，持续更新任务状态，保持对整个执行过程的全局视图。</li>
+</ol>
+<div class="note" id="n4"><span class="lab">读者注 4 · “back-propagates”不是反向传播梯度，内容也没公开</span>
+<p>原文用了 “back-propagates state vectors to System 1”。按上下文，这是<b>推理时</b>的信号回传：执行失败时，下层把状态告诉上层，上层改计划。它不是训练时的梯度反向传播。读的时候别和 backprop 混淆。</p>
+<p>公告没说的东西：状态向量和进度向量的维度和含义；“失败”怎么判定（S0 自己判断，还是另有检测器）；回传是每个 S0 周期都发、还是只在失败时发；S1 收到后是重规划整段粗动作，还是只改当前子目标。“潜在物理意图”是隐向量还是显式的目标（例如目标力、目标接触点）也没说。所以 3D 动画第 7 幕的回传路径是按这四句话画的，失败的判定和重试方式标了“示意”。</p>
+<p>8 月 28 日的中文新闻稿描述 DQ 任务时多了一层“规划、执行、验证、纠错”的闭环：每完成一个子任务就评估状态，偏差作为后续输入，结果不及预期就重试或错误恢复（<a href="https://finance.ifeng.com/c/8vxfgigbKgO">凤凰网转载</a>）。这和公告的两条回传方向一致，但同样没有给出机制。</p></div>
+
+<h2 id="a4"><span class="no">4</span>公告 · 三个频率</h2>
+<p>公告说三层的推理频率不同：System 2 约 1 Hz，System 1 约 10 Hz，System 0 约 100 Hz。这种<b>异步</b>设计带来“时间解耦”：推理脑可以深度理解和长程规划，运动脑快速生成粗轨迹，交互脑做即时、高动态的精细运动控制。</p>
+<p>按标称频率算：S0 一个周期 10 ms，S1 一个周期 100 ms，S2 一个周期 1 s。S1 每出一次粗动作，S0 跑 100 / 10 = 10 次；S2 每更新一次意图，S1 跑 10 次、S0 跑 100 次。3D 动画第 2 幕把这三条节拍画在同一条时间轴上。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 频率在各来源里一致，但只是“标称”值</span>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>来源</th><th>S2</th><th>S1</th><th>S0</th></tr></thead><tbody>
+<tr><td>公告（官网、PR Newswire 同文）</td><td>约 1 Hz</td><td>约 10 Hz</td><td>约 100 Hz</td></tr>
+<tr><td>CES 回顾（01-19）、GTC（03-18）、DQ 案例页、到店指南、中文新闻稿（08-28）</td><td colspan="3">都没有给频率</td></tr>
+<tr><td>DairyNews、TechEBlog</td><td colspan="2">–</td><td>“每秒 100 次”调整手指位置和握力</td></tr>
+<tr><td>量子位</td><td colspan="2">–</td><td>“以更高频率”，没给数</td></tr>
+<tr><td>综述 2611.06724 表 14</td><td colspan="3">CraftNet 一行没有频率（同表 Helix 02 写了 S1 200 Hz、S0 1 kHz）</td></tr>
+</tbody></table></div>
+<p>能找到的数字彼此一致，而且都追溯到 1 月公告这一处。“每秒 100 次”和 S0 的 100 Hz 对得上。</p>
+<p>要注意两点。第一，1/10/100 Hz 是“推理频率”，不是端到端反应延迟。综述 §8.6 专门提醒过：标称控制频率本身不能衡量从触觉信号到动作的延迟。第二，100 Hz 是 S0 的输出频率，至于手指电机的底层控制环多快，公告没说。CES 新闻稿写的乒乓球“0.02 秒反应时间”（相当于 50 Hz 的周期）没有说是哪一层、怎么测的，也没说乒乓球演示用了 CraftNet，不能拿来核对。</p>
+<p>另外，Sharpa 研究博客介绍 T-Rex 时画过一个三层表，频率写的是“约 1–10 Hz 规划、约 10–30 Hz 控制、高频触觉”。那是 T-Rex 的类比，不是 CraftNet 的参数，别混用。</p></div>
+
+<h2 id="a5"><span class="no">5</span>公告 · 数据策略：“点石成金的数据”</h2>
+<p>这一节的标题是 “The ‘Midas Touch for Data’”。总的说法是：CraftNet 提高各类训练数据的用处，把普遍可得的视频数据变成“带触觉的高质量交互数据”。分三类：</p>
+<ul>
+<li><b>真实数据：</b>遥操作采数据时，CraftNet 主动控制交互过程，人在环里完成整个任务。之后在后训练阶段用这些高质量遥操作数据联合训练、微调 System 1 和 System 0。公告说这样后续训练“更快、更有效”，没给数字。</li>
+<li><b>仿真数据：</b>把 CraftNet 放进仿真回路，用真实的接触后行为修正仿真轨迹，纠正不真实的力和柔顺模式。</li>
+<li><b>互联网数据：</b>System 2 用的开源 VLM 是在大规模互联网数据（主要是文本和图像）上预训练的。CraftNet 给互联网数据<b>补上触觉信息</b>，让 System 1 能被恰当地预训练。</li>
+</ul>
+<div class="note" id="n6"><span class="lab">读者注 6 · “给互联网数据补触觉”只有一句话</span>
+<p>这是公告里最大胆的一条主张，也是最没有细节的一条。视频里本来没有触觉，“补上”只能是预测或合成，可能是从视觉推接触，也可能是在仿真里重放再读出触觉。公告没说用什么模型、补出来的是什么形式（接触点、力、还是触觉图像）、怎么验证补得对。</p>
+<p>综述 2611.06724 §8.8 和 §10.4 把它写成 “CraftNet 通过把触觉信号映射到人类视频和手套数据上来优化训练数据”，引的是 [34]：Business Wire 上一篇“Sharpa presents CraftNet … at GTC 2026”的新闻稿（20260313513557）。这条链接对脚本返回 403，我按站点规则没有绕过，所以<b>“手套数据”这一说法未核实</b>。Sharpa 官网同期的 GTC 新闻稿（正文署 3 月 18 日）里只有一句：“用视频和触觉数据训练 VTLA 模型”，CraftNet 只在展台列表里出现，没有提映射到手套数据。</p>
+<p>Sharpa 研究博客里有两篇把自己说成这一条的“前端”：Do as I Do（从 YouTube 视频重建轨迹再在 Wave 手上执行）说自己是 CraftNet “Midas Touch” 需要的“数据工厂”；DexTeleop-0（力感知双手遥操作）说自己是它的遥操作前端。另有 Dex-X、UVTA 两篇从人类视频学视触觉操作，博客没有提 CraftNet，它们和“补触觉”的关系是<b>我的推断</b>。见<a href="#res">研究与各层</a>。</p></div>
+
+<h2 id="a6"><span class="no">6</span>公告 · 结论</h2>
+<p>结论三段。从“会跳舞的机器人”到“能干活的机器人”是现代机器人学最重要的转变；CraftNet 解决了传统模型的“触觉失明”，超越简单的运动轨迹，进入“物理智能”。加上交互脑，就能给机器人触觉的“常识”，这种高频自主保证接触成功。最后一段回到口号：交给 CraftNet 机器人的每件手工活，都是存进人类“时间银行”的一笔；当机器人能感觉精致玻璃杯的摩擦、卡住的拉链的张力，或者不用人干预就走完复杂装配的“最后一毫米”时，它就不再是新奇玩意，而是生产力。</p>
+<p>这一节全部是愿景，没有新的技术信息。</p>
+
+<div class="i3d" id="i3d">
+<p class="lab">自己画的 · 10 幕 3D 框架动画</p>
+<p>拆成 10 幕：三层总览；<b>1/10/100 Hz 三条节拍放在同一条时间轴上</b>（下面嵌的是这一幕）；异步与保持；接触前 S1 带手接近；接触瞬间控制权交接；S0 的触觉闭环（玩具触觉图和握力）；失败回传；三类数据；DQ 暴风雪的四个工位；来源时间线。频率和数据流按公告，DQ 步骤按到店指南和案例页；手、杯子、触觉读数是示意。</p>
+<iframe src="../interactives/craftnet/index.html?embed=1&amp;scene=2" title="CraftNet 框架 3D 分步动画" loading="lazy"></iframe>
+<p class="go"><a href="../interactives/craftnet/index.html">打开完整动画 →</a></p>
+</div>
+
+<h2 id="ces">CES 2026：发布时的演示</h2>
+<p>CraftNet 公告和 North 人形的发布在同一周。两篇 CES 新闻稿值得和公告一起读，因为它们是 CraftNet 唯一的“发布会现场”。</p>
+<ul>
+<li><b>1 月 6 日（North 发布）：</b>North 是 Sharpa 第一款全身机器人（轮式底盘、双臂、Wave 灵巧手）。CES 上四个“全自主”现场演示：乒乓球对打（“0.02 秒反应时间”）、拍拍立得照片（“约 2 mm 精度”）、发牌（“多模态推理，实时视觉和语言输入”）、折纸风车（30 多步的手工序列）。新闻稿说这些能力来自“自研的神经网络模型”、运动学和动力学优化、以及 Wave 手，<b>没有点名 CraftNet</b>。Wave 手：1:1 人手尺寸、22 个主动自由度、每个指尖 1,000 多个触觉像素、亚毫米分辨率。</li>
+<li><b>1 月 19 日（CES 回顾）：</b>四天、每天 8 小时现场运行，拍了 2,000 多张照片，装了 300 多个风车；风车任务要连续 30 多步成功。这一篇介绍 CraftNet 时只说 System 0 和 System 1 两层，并说 “Sharpa will share updates on CraftNet in phases”（会分阶段更新 CraftNet）。另外：Wave 2025 年 5 月发布、10 月量产出货；North 的量产版预计 2026 年年中发布。</li>
+</ul>
+<div class="note" id="n15"><span class="lab">读者注 15 · CES 的数字是公司自报，和 CraftNet 的关系没说</span>
+<p>按 1 月 19 日的数字粗算：4 天 × 8 小时 = 32 小时。300 多个风车相当于平均每小时 9.4 个以上，也就是每个不到约 6.4 分钟（32 × 60 / 300 = 6.4）。2,000 多张照片相当于每小时 62.5 张以上。展台上有几台 North 同时做这两个任务、失败了几次、有没有人工复位，都没有公布，所以这只是“如果一台机器连续做”的上限式换算，<b>不能当吞吐量</b>。</p>
+<p>更要紧的是，1 月 6 日的新闻稿把演示归功于“自研的神经网络模型”，没说就是 CraftNet；1 月 19 日的回顾把 CraftNet 和 North 并列，说两者“共同体现”软硬件一体的路线，也没说哪个演示用了 CraftNet 的哪一层。所以“CES 演示证明了 CraftNet”这个结论，原文并没有给。</p></div>
+
+<h2 id="later">后续官方提及</h2>
+<p>1 月 19 日说会“分阶段更新”。到 2026-11-23，我在 Sharpa 官网能找到的后续提及只有这些：</p>
+<ul>
+<li><b>GTC 新闻稿（3 月 18 日）：</b>技术路线有两个核心能力：仿真里大规模训练技能，以及“用视频和触觉数据训练 VTLA 模型”。展台展示了 North、Wave 和 “CraftNet, its model system that integrates vision, tactile sensing, and language”。没有新的架构细节。</li>
+<li><b>研究博客：</b>6 篇导读在“与 Sharpa 的关系”部分提到 CraftNet，都是类比或定位，见<a href="#res">下一节的表</a>。</li>
+<li><b>DQ 案例页和到店指南：</b>都<b>没有</b>出现 “CraftNet” 这个词。到店指南的“技术要点”写的是：人手尺寸的灵巧手、指尖 1,000 多个触觉像素（最小可测 0.02 N）、双手协作、“记忆与学习”（记得自己做到哪一步）、“自我纠错”（检测“大多数”意外和小错误并实时调整）。</li>
+<li><b>中文新闻稿（8 月 28 日，凤凰网转载）：</b>这是唯一把 CraftNet 和 DQ 连起来的一手材料。它说 55 个步骤里 98% 有触觉直接参与；CraftNet 根据触觉和力反馈实时修正手指动作和力度；另有一个“面向通用灵巧操作的全模态世界模型”，“与 System 1 协同”，根据多模态信息和历史上下文预测动作后的状态，生成或修正后续动作。</li>
+</ul>
+<div class="note" id="n13"><span class="lab">读者注 13 · 8 月新闻稿多出来一个“世界模型”</span>
+<p>1 月公告里没有世界模型。8 月 28 日的中文新闻稿在三层之外加了一个“全模态世界模型”，输入视觉、语言、触觉、力反馈和关节角等本体状态，“与 System 1 协同”。它是 S1 的一部分、S2 的替代，还是第四个模块，稿子没说。</p>
+<p>Sharpa 9 月发的论文 <a href="https://arxiv.org/abs/2609.07002">WM-Craftnet</a> 名字里有 “WM”（世界模型），做的是“世界联觉模型”（World Synesthesia Model，Dreamer 式循环状态，融合腕部深度、触觉、本体感觉和动作历史），用作手内旋转策略的上下文。但我搜过它的 PDF 全文：没有 System 0/1/2、没有 CraftNet 层级、也没有 DQ。新闻稿里的“全模态世界模型”和 WM-Craftnet 是不是同一个东西，<b>没有来源说过</b>。量子位那篇把两者写在一起（“世界模型则结合视觉、触觉、力反馈和本体状态判断任务当前走到哪里”），是媒体的串联。</p></div>
+
+<h2 id="dq">DQ 部署：上海门店做暴风雪</h2>
+<p>这是 CraftNet 相关的唯一一个长期落地案例。下面把时间线、任务步骤、用时和“自主还是遥操作”分开整理，每条写清是谁说的。</p>
+
+<h3 id="dq-time">时间线</h3>
+<div class="tablewrap"><table class="t-time"><thead><tr><th>日期</th><th>谁说的</th><th>说了什么</th></tr></thead><tbody>
+<tr><td>2026-07-18</td><td>Runtime Wire（付费墙，只读到摘要）</td><td>Sharpa 计划 8 月让 North 在 DQ 中国一家上海门店做暴风雪试点，每单 50 到 60 个操作步骤，用门店现有工具、原料和流程</td></tr>
+<tr><td>2026-07-18</td><td>X 用户 “Humanoid Scott”（@GoingBallistic5）<b>未核实</b></td><td>据搜索结果转述：称获得 “Project Edison”（Sharpa 与 DQ 的合作）的独家预览；预览视频是<b>遥操作</b>的，Sharpa 预计 8 月正式上线时全自主。原帖和转述它的 Digg 页我都没能打开</td></tr>
+<tr><td>2026-07-22</td><td>Mike Kalil 博客</td><td>“据 Sharpa”，North 将执行 50 多个连续操作步骤的端到端流程</td></tr>
+<tr><td>2026-08-28</td><td>中文新闻稿（凤凰网转载）</td><td>8 月 29 日在 DQ 上海<b>吴江路店</b>落成；“零改造、全自主、全年无休”；55 步“从点单、制作到交付”；每日 10:00–22:00 运营，“无需人工持续操控”</td></tr>
+<tr><td>2026-08-29</td><td>Sharpa DQ 案例页</td><td>“Project Launch Aug 29, 2026”，地点 Shanghai；“the world’s first no change, fully autonomous, year-round robot restaurant”</td></tr>
+<tr><td>2026-09-01</td><td>第一财经 Yicai Global</td><td>DQ 在<b>南京西路</b>（LV “The Louis” 对面）的 <b>24 小时门店</b>“雇”了人形机器人；记者上岗第一天到店；只做奥利奥口味；约 6 分钟一杯，店员 2 到 3 分钟；双方在探索让机器人接手非高峰和夜间</td></tr>
+<tr><td>2026-09-05</td><td>TechEBlog</td><td>55 步，CraftNet 每秒 100 次调整握力；98% 用到触觉</td></tr>
+<tr><td>2026-09-29</td><td>量子位（智源社区转载）</td><td>“今年 8 月底……在上海吴江路开业”，55 个连续步骤</td></tr>
+<tr><td>2026-09-30</td><td>远川研究所（36kr 英文站）</td><td>吴江路店，上岗一个月“一天没休”；约 6 分钟；“零改造、零干预”花了几个月调试；列了失败案例</td></tr>
+<tr><td>2026-11-10</td><td>KrASIA（改编自 IPO 早知道）</td><td>静安区吴江路店；“据 Sharpa”，每日 10:00–22:00 营业时间运行，无需持续人工控制</td></tr>
+</tbody></table></div>
+<div class="note" id="n8"><span class="lab">读者注 8 · 上岗日期一致，门店位置有两种写法</span>
+<p><b>日期：</b>案例页 “Project Launch Aug 29, 2026” 和中文新闻稿“8 月 29 日落成”一致；量子位“8 月底”、远川 9 月 30 日说“一个月前”也对得上。第一财经 9 月 1 日发稿，说记者是在“上岗第一天”去的，没写是哪一天。所以上岗日按一手来源取 2026-08-29。</p>
+<p><b>位置：</b>中文新闻稿、量子位、远川、KrASIA、DairyNews 都写<b>吴江路</b>（KrASIA 写明静安区）；只有第一财经写<b>南京西路</b>、LV 船形旗舰店 The Louis 对面。吴江路是紧挨南京西路的一条步行街，在同一片街区，我推断说的是同一家店，只是第一财经用了更出名的主干道来描述。门牌号哪份材料都没给，<b>未核实</b>。</p></div>
+<div class="note" id="n9"><span class="lab">读者注 9 · “24 小时”说的是门店，不是机器人</span>
+<p>第一财经的标题是 “24-Hour Shanghai Ice Cream Parlor”，容易读成机器人 24 小时上班。其他来源说的是：中文新闻稿和 KrASIA 都写机器人在<b>每日 10:00–22:00</b>运行；Sharpa 到店指南说预约不到机器人暴风雪的话，“24 小时人工点单柜台”可以服务。三者合起来是：门店 24 小时营业，机器人每天工作 12 小时。第一财经同篇也说双方还在“探索”让机器人接手非高峰和夜间。</p>
+<p>远川那篇有一句 “letting robots work around the clock in stores”（让机器人在店里连轴转），和 10:00–22:00 对不上，我当作修辞，不当事实。“全年无休”（year-round）指的是每天都开，不是全天。</p></div>
+
+<h3 id="dq-steps">任务步骤：来源写到的部分</h3>
+<p>各方都说一杯奥利奥暴风雪 55 步，但<b>没有任何来源列出全部 55 步</b>。下面只列来源写到的环节，按到店指南的四个工位排；括号里是出处。我没有补写其余步骤。</p>
+<ol>
+<li><b>取杯圈：</b>手伸进窄把手的柜子取金属杯圈。柜门把手是行业标准件，没有为机器人改过（到店指南、案例页）。</li>
+<li><b>取杯、接冰淇淋：</b>从紧紧套叠的一摞纸杯里分出一个，握稳，用指尖感知调整握力（到店指南）。第一财经引李一帆的例子：抓软纸杯力太大会一下带出好几个。</li>
+<li><b>加料：</b>双手配合，一只手扶着料盒盖，另一只手舀料（到店指南）；按 SOP 每份三勺奥利奥碎，因为每一勺看上去都一样，模型不能只靠视觉，要自己记住做到第几勺（案例页）。</li>
+<li><b>搅拌、收尾、出杯：</b>搅拌时拇指和食指一直把金属圈压在纸杯上抗振动，力反馈决定握多紧、怎么移动（案例页、到店指南）；插红勺；最后做 DQ 标志性的“倒杯不洒”检查，靠力控和触觉让纸杯不被捏扁、冰淇淋不掉（案例页）。</li>
+</ol>
+<p>远川那篇补了两处现场观察：塑料勺随意堆放，机器人有时用手指拨开再取；勺子卡在金属圈里难住过它。它还转述李一帆：设备跑一两个小时后冰淇淋温度升高，影响后面的搅拌，这在之前的仿真测试里没遇到过。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 55 步从哪一步算起，各家说法不同</span>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>来源</th><th>步数</th><th>起点 → 终点</th></tr></thead><tbody>
+<tr><td>Runtime Wire（07-18，上岗前）</td><td>50 到 60</td><td>–</td></tr>
+<tr><td>Mike Kalil（07-22，“据 Sharpa”）</td><td>50 多</td><td>–</td></tr>
+<tr><td>到店指南</td><td>55</td><td>开柜门 → 倒杯检查</td></tr>
+<tr><td>案例页</td><td>55 个连续操作步骤</td><td>“end to end without cuts”</td></tr>
+<tr><td>中文新闻稿、KrASIA</td><td>55</td><td>点单 → 制作 → 交付</td></tr>
+<tr><td>第一财经（“据 DQ”）</td><td>55</td><td>包括取杯、操作冰淇淋机、加料、搅拌，最后倒杯</td></tr>
+<tr><td>DairyNews、TechEBlog</td><td>55</td><td>从一摞纸杯里取杯 → 交给顾客</td></tr>
+<tr><td>量子位</td><td>55</td><td>开柜门、套杯圈、接冰、撒料、搅拌到倒杯</td></tr>
+</tbody></table></div>
+<p>上岗后数字统一成 55，上岗前是 50 到 60 的范围，说明 55 是最终流程定下来之后的数。起止点的写法不同：“从点单开始”和“从开柜门开始”差别不小，因为点单不是操作动作。我推断 55 指的是操作步骤（案例页原话是 “manipulation steps”），“点单”是新闻稿把整个服务流程概括进去的写法。</p>
+<p>新闻稿说“55 个步骤中 98% 有触觉直接参与”。55 × 0.98 = 53.9，不是整数；54 / 55 = 98.2%，53 / 55 = 96.4%。所以对应的是 <b>54 步</b>有触觉参与、1 步没有。是哪一步没说。DairyNews 把它写成“触觉控制了 98% 的操作阶段”，比原文强了一点。</p></div>
+
+<h3 id="dq-time-cost">用时和成本</h3>
+<p>Sharpa 自己的页面<b>没有给每杯用时</b>。用时来自媒体：第一财经到店看到约 6 分钟一杯，店员 2 到 3 分钟，“大约是人的两倍”；远川和 DairyNews 也写约 6 分钟。DairyNews 说机器人做的和人做的同价，31 元一杯；第一财经和 DairyNews 都转述 Sharpa 方面的话：首台还不赚钱。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 6 分钟意味着什么</span>
+<p>6 / 3 = 2，6 / 2 = 3，所以是人的 2 到 3 倍，第一财经写“两倍左右”取的是下限。</p>
+<p>按每天 10:00–22:00 的 12 小时、每杯 6 分钟、中间不停算，一台机器人一天最多 12 × 60 / 6 = 120 杯。实际会少：要等顾客预约（到店指南说机器人暴风雪要在微信预约，每周五上午 10 点放下周的号）、要补料、要处理失败。这是我的上限估算，不是公布的数据；Sharpa 没有公布每天实际做了多少杯。</p>
+<p>第一财经转述李一帆的回本条件：制作速度至少和人一样快；设备成本按 10 年以上摊销；量产后单台成本从几十万元降到 10 万元左右。三条目前都没达到，他本人也这样说。</p></div>
+
+<h3 id="dq-auto">“全自主”还是“遥操作”</h3>
+<div class="tablewrap"><table class="t-who"><thead><tr><th>谁</th><th>什么时候</th><th>原话或转述</th><th>能不能核实</th></tr></thead><tbody>
+<tr><td>Humanoid Scott（X 博主）</td><td>07-18，上线前</td><td>预览视频是遥操作的，预计上线时全自主（搜索结果的转述）</td><td>原帖未读到，<b>未核实</b></td></tr>
+<tr><td>Sharpa 案例页</td><td>08-29</td><td>“fully autonomous”；“end to end without cuts”；“Performed Without a Glitch”</td><td>一手宣称，无数据</td></tr>
+<tr><td>Sharpa 到店指南</td><td>–</td><td>“Fully Autonomous”；自我纠错能检测“大多数”意外和小错误</td><td>一手宣称；“大多数”本身承认不是全部</td></tr>
+<tr><td>中文新闻稿</td><td>08-28</td><td>“全自主”；“无需人工持续操控”</td><td>“持续”二字允许间歇性人工介入</td></tr>
+<tr><td>第一财经</td><td>09-01</td><td>记者看到机器人“自主”做冰淇淋</td><td>记者现场观察，没说看了几杯</td></tr>
+<tr><td>DairyNews</td><td>–</td><td>“without human teleoperation”</td><td>转述，无来源细节</td></tr>
+<tr><td>远川研究所</td><td>09-30</td><td>“零改造、零干预”；同时写了多次失败案例</td><td>媒体用语；失败后谁处理没说</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 两种说法其实不冲突，但“全自主”没有数据</span>
+<p>遥操作的说法针对的是 <b>7 月的预览视频</b>，全自主的说法针对的是 <b>8 月 29 日以后</b>的正式运营，时间上不冲突。博主自己也说 Sharpa 预计上线时全自主。我没能读到原帖，只能把它当作“据转述”。</p>
+<p>真正的缺口是：关于“全自主”，Sharpa 没有公布任何可以核对的数字，例如每天完成多少单、成功率、平均每单人工介入几次、失败后是机器人自己恢复还是店员接手。新闻稿用的是“无需人工持续操控”，到店指南说能处理“大多数”意外，远川写了勺子卡住等失败。这些措辞都给人工偶尔介入留了余地。综述 2611.06724 表 15 的标题也注明这类结果是“company-reported”（公司自报）。</p></div>
+
+<h2 id="ev">哪些说法有证据，哪些只是宣称</h2>
+<div class="tablewrap"><table class="t-ev"><thead><tr><th>说法</th><th>出处</th><th>证据情况</th></tr></thead><tbody>
+<tr><td>三层架构，S2/S1/S0 约 1/10/100 Hz</td><td>公告</td><td>只有文字描述；没有结构、参数量、延迟测量</td></tr>
+<tr><td>S0 用触觉实时修正手指</td><td>公告、中文新闻稿</td><td>DQ 案例页描述了几个依赖力控的动作（压住杯圈、倒杯不捏扁），但没有消融：没对比“关掉触觉”会怎样</td></tr>
+<tr><td>S0 失败时回传状态，S1 调整</td><td>公告</td><td>没有任何演示或数据单独展示这个机制</td></tr>
+<tr><td>“精度和速度此前只有人能达到”</td><td>公告</td><td>和 DQ 实测矛盾：每杯约 6 分钟，人 2 到 3 分钟（第一财经）</td></tr>
+<tr><td>给互联网数据补触觉</td><td>公告</td><td>没有方法；综述的“映射到手套数据”说法的出处读不到</td></tr>
+<tr><td>CraftNet 在环的遥操作让后训练“更快更有效”</td><td>公告</td><td>没有数字</td></tr>
+<tr><td>CES 四个演示“全自主”</td><td>1 月 6 日、19 日新闻稿</td><td>现场公开运行四天，有总数（2,000 张照片、300 个风车）；成功率、失败次数没公布；没说用了 CraftNet</td></tr>
+<tr><td>DQ 55 步</td><td>案例页、到店指南、新闻稿；媒体一致</td><td>各方一致；但没有完整步骤表</td></tr>
+<tr><td>DQ 全自主、零改造</td><td>案例页、新闻稿</td><td>媒体实地看到机器人在用原装设备干活；“全自主”无干预率数据（<a href="#n12">读者注 12</a>）</td></tr>
+<tr><td>55 步中 98% 有触觉参与</td><td>中文新闻稿</td><td>只有一个百分比，对应 54 步（<a href="#n10">读者注 10</a>）；没说怎么统计</td></tr>
+<tr><td>每杯约 6 分钟</td><td>第一财经、远川、DairyNews</td><td><b>有第三方现场观察</b>，是这个话题里唯一独立的定量数据</td></tr>
+<tr><td>T-Rex、FTP-1 等“验证”了 CraftNet 的思路</td><td>Sharpa 研究博客</td><td>那些论文有正式实验，但它们不是 CraftNet；博客的“验证”是类比（<a href="#n16">读者注 16</a>）</td></tr>
+</tbody></table></div>
+
+<h2 id="res">Sharpa 公开研究与 CraftNet 各层的可能对应</h2>
+<p>我把 Sharpa 研究博客索引上的 21 篇导读都抓下来，搜了 “CraftNet” 和 “System 0/1/2”。下表只把<b>博客原文写了</b>的关系标为“来源明说”，其余是我按内容推的，标“我的推断”。注意：博客是 Sharpa 写的导读，有的论文作者里根本没有 Sharpa（例如 T-Rex 博客写的是 UC Berkeley、NVIDIA、Stanford 等合作，只是用了 Wave 手）。</p>
+<div class="tablewrap"><table class="t-res"><thead><tr><th>研究（arXiv）</th><th>博客里和 CraftNet 的关系</th><th>可能对应的层</th><th>依据</th></tr></thead><tbody>
+<tr><td>T-Rex：触觉反应式灵巧操作（博客只给<a href="https://tactile-rex.github.io/">项目页</a>）</td><td>“呼应” CraftNet 的主张；“parallels CraftNet’s System 0 … at ~100 Hz”，但 T-Rex 是在一个统一的 VLA 式 MoT 骨干里实现</td><td>S0 的思路</td><td><span class="tag1">来源明说</span>是“类比”，不是“就是”</td></tr>
+<tr><td>FTP-1（<a href="https://arxiv.org/abs/2606.13102">2606.13102</a>）</td><td>“CraftNet 主张触觉需要一条独立的高频通路（System 0）……FTP-1 在基础模型规模上独立证明了这一点”</td><td>S0 的触觉表征</td><td><span class="tag1">来源明说</span>“独立证明”；FTP-1 论文 PDF 里没有 CraftNet</td></tr>
+<tr><td>Heterogeneous Tactile Transformer（博客只给<a href="https://jxbi1010.github.io/htt-gh-page/">项目页</a>）</td><td>结构化触觉嵌入远好于原始力矩，“支持 CraftNet 的 System 0 设计”</td><td>S0 的触觉编码</td><td><span class="tag1">来源明说</span>“支持”</td></tr>
+<tr><td>CAIP 动作-图像对比预训练（<a href="https://arxiv.org/abs/2606.17256">2606.17256</a>）</td><td>技术栈表里“高频控制”一格写 “T-Rex, CraftNet System 0”；CAIP 自己填“视觉编码器”一格</td><td>视觉编码（S1 / S2 的输入）</td><td><span class="tag1">来源明说</span>S0 那格；CAIP 的位置是<span class="tag2">我的推断</span></td></tr>
+<tr><td>DexTeleop-0（<a href="https://arxiv.org/abs/2606.23431">2606.23431</a>）</td><td>“CraftNet ‘Midas Touch for Data’ 的遥操作前端”</td><td>数据：真实遥操作</td><td><span class="tag1">来源明说</span></td></tr>
+<tr><td>Do as I Do（<a href="https://arxiv.org/abs/2606.19333">2606.19333</a>）</td><td>“CraftNet ‘Midas Touch’ 愿景需要的数据工厂”：YouTube 视频 → 轨迹 → 物理重定向 → Wave 真机</td><td>数据：互联网视频</td><td><span class="tag1">来源明说</span></td></tr>
+<tr><td>WM-Craftnet（<a href="https://arxiv.org/abs/2609.07002">2609.07002</a>）</td><td>博客和论文都没提 System 0/1/2</td><td>可能是 8 月新闻稿说的“世界模型”，也可能只是同名</td><td><span class="tag2">我的推断</span>，见<a href="#n13">读者注 13</a></td></tr>
+<tr><td>Dex-X（<a href="https://arxiv.org/abs/2609.07747">2609.07747</a>）、UVTA（<a href="https://arxiv.org/abs/2609.34182">2609.34182</a>）</td><td>没提 CraftNet</td><td>从人类视频学视触觉，接近“给视频补触觉”</td><td><span class="tag2">我的推断</span></td></tr>
+<tr><td>TacBPM（<a href="https://arxiv.org/abs/2609.18174">2609.18174</a>）</td><td>没提 CraftNet</td><td>触觉条件的行为先验，接近 S0 的手内操作</td><td><span class="tag2">我的推断</span></td></tr>
+<tr><td>Tacmap（触觉仿真）、EgoScale（2602.16710）</td><td>没提 CraftNet</td><td>Tacmap 接近“仿真数据”那一路；EgoScale 是 NVIDIA GEAR 主导、用 Wave 手的人类视频预训练</td><td><span class="tag2">我的推断</span></td></tr>
+</tbody></table></div>
+<div class="note" id="n16"><span class="lab">读者注 16 · 博客里的“验证”是类比，没有一篇说“这是 CraftNet 的某一层”</span>
+<p>六篇提到 CraftNet 的博客，用的动词是 “parallels”（呼应）、“independently proves”（独立证明）、“supports”（支持）、“is the teleoperation front-end for”（是……的前端）、“the data factory … needs”（需要的数据工厂）。没有一篇说“本文的模型就是 CraftNet 的 System 0”或“已部署在 CraftNet 里”。T-Rex 博客甚至强调 T-Rex 是在一个<b>统一</b>的 VLA 骨干里做到的，这和 CraftNet“拆成单独一层”的做法是两条路。</p>
+<p>反过来也成立：我搜了 WM-Craftnet 和 FTP-1 两篇论文的 PDF 全文，都没有 “CraftNet” 层级或 System 0/1/2。WM-Craftnet 只是名字里有 Craftnet。所以“读 WM-Craftnet 和 FTP-1 就能知道 CraftNet 的 S0 怎么做的”这个想法没有依据。它们能告诉我们的，是 Sharpa 团队在触觉表征和触觉世界模型上做过什么。</p></div>
+
+<h2 id="vla">和双系统 / 三层 VLA 的对比</h2>
+<p>“System 1 / System 2”的说法来自认知心理学的快思考、慢思考。机器人 VLA 里常见的是两层：慢的 VLM 理解场景和指令，快的动作模块出连续动作。最近几家都加了第三层 “S0”。下表把本站已读的 GR00T 页、综述里的 Helix 02 和 CraftNet 放在一起。GR00T 两列取自本站页面（<a href="gr00t.html">gr00t.html</a>、<a href="gr00t2.html#fig9">gr00t2.html 图 9</a>），Helix 02 取自综述 2611.06724 §8.6 和表 14（综述注明是公司自报），CraftNet 取自公告。</p>
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th></th><th><a href="gr00t.html">GR00T N1</a></th><th><a href="gr00t2.html">GR00T 2</a> 全身三层栈</th><th>Figure Helix 02（综述转述）</th><th>CraftNet</th></tr></thead><tbody>
+<tr><td>慢层</td><td>System 2：VLM（Eagle-2），L40 上 10 Hz</td><td>S2：可选的推理模型（任意 VLM 智能体、脚本或操作员），挑任务、监控、失败时重规划</td><td>S2：语义 VLM，输出隐变量</td><td>System 2：开源 VLM，约 1 Hz；<b>不在 CraftNet 里</b></td></tr>
+<tr><td>中层</td><td>System 1：流匹配 DiT，120 Hz 输出动作</td><td>S1：GR00T 2 Turbo，约 1 Hz 预测 1.6 秒动作块（80 个全身潜在 token）</td><td>S1：Transformer，200 Hz 输出全身关节目标，含每根手指</td><td>System 1：约 10 Hz，粗动作和接触前手型</td></tr>
+<tr><td>快层</td><td>没有（底层由机器人控制器跟踪）</td><td>S0：SONIC 以 50 Hz 解码成关节目标；PD 1000 Hz</td><td>S0：10M 参数的全身控制器，1 kHz</td><td>System 0：约 100 Hz，<b>接触阶段的触觉闭环</b></td></tr>
+<tr><td>快层管什么</td><td>–</td><td>全身运动（行走、平衡）</td><td>全身运动</td><td>手指和接触</td></tr>
+<tr><td>触觉进哪一层</td><td>不用触觉</td><td>本站页面里没有触觉输入</td><td>指尖力和手掌相机进 S1（综述 §8.8）</td><td>S0（还有力、力矩）</td></tr>
+<tr><td>向上回传</td><td>没有显式回传</td><td>S2 监控执行、失败时重规划</td><td>综述没写</td><td>S0 → S1 状态向量；S1 → S2 进度向量</td></tr>
+<tr><td>能核对的材料</td><td>论文、代码、权重</td><td>白皮书、开发分支代码</td><td>公司博客</td><td>只有公告</td></tr>
+</tbody></table></div>
+<p><b>名字一样，分工不同。</b>GR00T 2 和 Helix 02 的 “S0” 是<b>全身运动控制器</b>，解决的是“把上层的动作意图稳稳地变成关节力矩”，和触觉无关。CraftNet 的 System 0 是<b>接触控制器</b>，解决的是“手碰到东西之后怎么用触觉修正”。所以三家都叫“三层”，可快层管的东西不一样。CraftNet 的上身动作公告说在 S1 里出（“upper-body movements”），North 是轮式底盘，不需要全身平衡控制器，这大概是它把 S0 留给手指的原因之一（我的推断）。</p>
+<p><b>频率的分配也不同。</b>GR00T N1 的动作层 120 Hz、Helix 02 的 S1 200 Hz，都比 CraftNet 的 S1（10 Hz）快一个数量级；反过来 GR00T 2 Turbo 的 S1 只有约 1 Hz，靠一次出 1.6 秒的动作块撑住。CraftNet 只给了“10 Hz”，没说 S1 一次出多长的动作块，所以没法和 GR00T 2 比“每秒覆盖多少动作”。综述 §8.6 提醒过：标称频率不等于反应延迟，要公平比较得固定感知、算力和延迟做消融；这几家都没公开这样的比较。</p>
+<p><b>和触觉进 VLA 主干的做法比。</b>T-Rex、FTP-1、本站读过的 <a href="lingbot-touch.html">LingBot-Touch</a> 都是把触觉做成 token、接进<b>一个</b>策略里；CraftNet 是把触觉单独放进一个高频层。哪条路更好，目前没有对照实验。本站并行在写的 <a href="wall-oss.html">WALL-OSS</a> 页也是一种 VLA 结构，这里只链接，不下结论。</p>
+
+<h2 id="rel">和本站其他页的关系</h2>
+<ul>
+<li><b><a href="lingbot-touch.html">LingBot-Touch</a>（arXiv 2611.12806）：</b>作者来自蚂蚁灵波（Robbyant），<b>不是 Sharpa</b>。它和 Sharpa 的关系在硬件和基线：预训练语料里的视触觉数据来自 Sharpa Wave 指尖，真机实验用 Sharpa Wave 手，VLA 基线之一是 T-Rex。它把三类触觉传感器统一成一个编码器，再接进 T-Rex、π0.5、LingBot-VLA，属于“触觉进策略主干”那条路。</li>
+<li><b><a href="gr00t.html">GR00T N1</a>：</b>双系统 VLA 的代表，System 2 是 VLM、System 1 是 DiT 动作头，不用触觉。CraftNet 公告说“受 System 1 / System 2 理论启发”，和它是同一个命名来源。另外，Sharpa Wave 是 NVIDIA Isaac GR00T 参考人形的灵巧手（Sharpa 6 月 1 日新闻稿）。</li>
+<li><b><a href="gr00t2.html">GR00T 2</a>：</b>白皮书图 9 的全身三层栈（S2 可选 / S1 约 1 Hz / S0 SONIC 50 Hz）是和 CraftNet 最直接的对照，见上一节。</li>
+<li><b><a href="ftp1.html">FTP-1</a>（并行在写）：</b>作者含 Sharpa，在 Sharpa North 上做真机评测。Sharpa 博客说它“独立证明”了 System 0 的思路，但论文本身没提 CraftNet。</li>
+<li><b><a href="wm-craftnet.html">WM-Craftnet</a>（并行在写）：</b>Sharpa 自己的论文，名字里有 Craftnet，内容是手内旋转的世界模型条件策略，没有 System 0/1/2。和 8 月新闻稿里的“全模态世界模型”是否同一个东西，没有来源。</li>
+<li><b><a href="wall-oss.html">WALL-OSS</a>（并行在写）：</b>只链接，结论以那一页为准。</li>
+</ul>
+
+<h2 id="open">没有答案的问题</h2>
+<ol>
+<li>S1、S0 各是什么网络、多大、怎么训练？S2 用的是哪个开源 VLM？</li>
+<li>“潜在物理意图”“状态向量”“进度向量”的内容和维度是什么？“失败”怎么判定？</li>
+<li>S1 一次输出多长的动作块？S0 从触觉信号到电机指令的实际延迟是多少？</li>
+<li>“给互联网数据补触觉”用的是什么方法？有没有验证补出来的触觉和真实触觉一致？</li>
+<li>CES 和 DQ 的演示里，CraftNet 的哪几层在跑？8 月说的“世界模型”在哪一层？</li>
+<li>DQ 门店每天完成多少杯、成功率多少、平均每杯人工介入几次？</li>
+<li>如果把 S0 关掉，只用 S1 做 DQ 的 55 步，会差多少？这是检验“最后一毫米”主张最直接的实验，目前没有。</li>
+</ol>
+
+<h2 id="notes">读者注汇总</h2>
+<div class="note" id="n1"><span class="lab">读者注 1 · 没有论文：我查了哪些地方</span>
+<p>2026-11-23 查过：arXiv 搜 “CraftNet” 全字段只有 1 条结果，即 WM-Craftnet（2609.07002，Sharpa Robotics，2026-09-07 v1）；Sharpa 研究博客索引的 21 篇里没有 CraftNet 论文；Sharpa 新闻索引里与 CraftNet 有关的只有 1 月 7 日公告和 1 月 19 日回顾；综述 2611.06724 引 CraftNet 时引的是 Business Wire 新闻稿 [34]，不是论文。1 月 19 日的回顾说会“分阶段”更新 CraftNet，到这一天为止没有技术报告。</p></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 公告日期：1 月 6 日还是 7 日</span>
+<p>PR Newswire 稿件电头是 “LAS VEGAS, Jan. 6, 2026”；Sharpa 官网页面和新闻索引写 2026-01-07。CES 2026 在拉斯维加斯，美国太平洋时间 1 月 6 日对应新加坡时间已是 1 月 7 日，我推断是时区差，内容逐段比对是同一篇（官网多一句小标题、编号缩进不同）。North 的发布稿两处都是 1 月 6 日。</p>
+<p>GTC 新闻稿也有类似的差：正文电头 “SAN JOSE, CA., March 18, 2026”，新闻索引写 March 20。综述引的 Business Wire 稿件编号是 20260313…，标题是“at GTC 2026”，和这两个日期都不同，可能是另一篇稿子；Business Wire 返回 403，<b>未核实</b>。</p></div>
+<ol class="notes">
+<li><a href="#n1">没有论文</a>：arXiv 只有同名的 WM-Craftnet；综述引的是新闻稿。</li>
+<li><a href="#n2">CraftNet 是两层还是三层</a>：公告说 S0 + S1，S2 是外接开源 VLM；媒体常算三层。</li>
+<li><a href="#n3">三个挑战和 T-Rex 博客逐条对应</a>：更像公司的一贯立场；π0.5 加触觉 17% → 6%。</li>
+<li><a href="#n4">“back-propagates”不是梯度</a>：是推理时的状态回传，向量内容没公开。</li>
+<li><a href="#n5">公告日期</a>：1 月 6 日（PRN，拉斯维加斯）和 7 日（官网）是时区差；GTC 稿日期三种写法。</li>
+<li><a href="#n6">给互联网数据补触觉</a>：只有一句话；综述说的“手套数据”出处 403，未核实。</li>
+<li><a href="#n7">频率</a>：1/10/100 Hz 只来自 1 月公告，其他来源一致或不提；是标称推理频率，不是延迟。</li>
+<li><a href="#n8">上岗日期和位置</a>：8 月 29 日一致；吴江路 vs 南京西路，推断同一家店，门牌未核实。</li>
+<li><a href="#n9">“24 小时”</a>：是门店，机器人每天 10:00–22:00。</li>
+<li><a href="#n10">55 步的起止和 98%</a>：上岗前说 50 到 60；98% 对应 54 步。</li>
+<li><a href="#n11">6 分钟</a>：人的 2 到 3 倍；12 小时最多约 120 杯（我的上限估算）。</li>
+<li><a href="#n12">全自主 vs 遥操作</a>：遥操作说的是 7 月预览视频（未核实）；全自主没有干预率数据。</li>
+<li><a href="#n13">8 月多出来的世界模型</a>：和 WM-Craftnet 是否同一个，没有来源。</li>
+<li><a href="#n14">CraftNet 和 DQ 的连接只在一份转载稿里</a>：案例页、到店指南都没提 CraftNet。</li>
+<li><a href="#n15">CES 数字</a>：32 小时 300 个风车 ≈ 每个 ≤ 6.4 分钟（若单台连续）；没说用了 CraftNet。</li>
+<li><a href="#n16">研究博客的“验证”是类比</a>：没有一篇说自己就是 CraftNet 的某一层。</li>
+</ol>
+<div class="note" id="n14"><span class="lab">读者注 14 · “DQ 机器人跑的是 CraftNet”只有一份一手材料</span>
+<p>Sharpa 官网的 DQ 案例页和到店指南正文里都没有 “CraftNet” 这个词（页面导航栏里有新闻链接，那不算）。把两者连起来的一手材料只有 8 月 28 日的中文新闻稿，而我读到的是凤凰网“大风号”上环球财经网的转载，Sharpa 官网新闻索引里没有这一篇。媒体（DairyNews、TechEBlog、量子位）说 CraftNet 驱动 DQ 机器人，应该都源自这份稿子。新闻稿本身的措辞也只是“CraftNet 引入触觉模态输入……实时修正手指动作和力度”，没说 S2、S1、S0 三层在 DQ 任务里各做了什么。</p></div>
+
+<h2 id="links">链接表</h2>
+<p>链接在 2026 年 11 月 23 日用脚本核对过可以打开（返回 200）。例外是 Mike Kalil 的文章：本机 curl 超时（站点首页返回 200），我是用网页抓取工具读到正文的。Business Wire、澎湃新闻对脚本返回 403，Digg 帖子返回 404，这三处没有列入。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>链接</th></tr></thead><tbody>
+<tr><td>CraftNet 公告</td><td>一手，主要来源</td><td><a href="https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation">sharpa.com</a> · <a href="https://en.prnasia.com/releases/global/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation-518971.shtml">PR Newswire</a></td></tr>
+<tr><td>North 发布（CES）</td><td>一手</td><td><a href="https://www.sharpa.com/blogs/news/sharpa-unveils-its-first-autonomous-full-body-robot-with-human-dexterity-at-ces-2026">sharpa.com</a></td></tr>
+<tr><td>CES 回顾</td><td>一手</td><td><a href="https://www.sharpa.com/blogs/news/sharpa-aims-to-manufacture-time-via-its-craftnet-vtla-model-and-stuns-ces-2026-with-live-autonomous-demos-for-fine-manipulation">sharpa.com</a> · <a href="https://en.prnasia.com/releases/global/sharpa-aims-to-manufacture-time-via-its-craftnet-vtla-model-and-stuns-ces-2026-with-live-autonomous-demos-for-fine-manipulation-519476.shtml">PR Newswire</a></td></tr>
+<tr><td>GTC 新闻稿</td><td>一手</td><td><a href="https://www.sharpa.com/blogs/news/sharpa-showcases-at-gtc-with-nvidia-advancing-a-new-paradigm-for-robot-training-through-breakthroughs-in-simulation">sharpa.com</a></td></tr>
+<tr><td>Sharpa × DQ</td><td>一手，客户案例</td><td><a href="https://www.sharpa.com/pages/sharpa-dq">案例页</a> · <a href="https://www.sharpa.com/pages/visitor-guide">到店指南</a></td></tr>
+<tr><td>中文新闻稿</td><td>转载的一手</td><td><a href="https://finance.ifeng.com/c/8vxfgigbKgO">凤凰网</a></td></tr>
+<tr><td>Sharpa 研究博客</td><td>一手，论文导读</td><td><a href="https://www.sharpa.com/blogs/research">索引</a> · <a href="https://www.sharpa.com/blogs/research/t-rex-teaching-robots-to-feel-in-real-time-not-just-see-and-plan">T-Rex</a> · <a href="https://www.sharpa.com/blogs/research/ftp-1-the-first-foundation-model-for-touch-one-policy-21-sensors-any-embodiment">FTP-1</a> · <a href="https://www.sharpa.com/blogs/research/heterogeneous-tactile-transformer-learning-shared-tactile-representations-across-heterogeneous-sensors">HTT</a> · <a href="https://www.sharpa.com/blogs/research/contrastive-action-image-pre-training-for-visuomotor-control">CAIP</a> · <a href="https://www.sharpa.com/blogs/research/dexteleop-0-force-aware-bimanual-dexterous-teleoperation-with-ego-centric-perception-towards-shared-autonomy">DexTeleop-0</a> · <a href="https://www.sharpa.com/blogs/research/do-as-i-do-from-internet-video-to-dexterous-robot-rollouts">Do as I Do</a> · <a href="https://www.sharpa.com/blogs/research/wm-craftnet-world-synesthesia-model-for-robust-and-generalizable-dexterous-in-hand-manipulation">WM-Craftnet</a></td></tr>
+<tr><td>第一财经</td><td>二手，到店观察</td><td><a href="https://www.yicaiglobal.com/news/dq-deploys-robot-at-24-hour-shop-on-shanghais-nanjing-west-road">yicaiglobal.com</a></td></tr>
+<tr><td>量子位</td><td>二手</td><td><a href="https://hub.baai.ac.cn/view/58338">智源社区转载</a></td></tr>
+<tr><td>远川研究所</td><td>二手</td><td><a href="https://eu.36kr.com/en/p/4004497051635840">36kr 英文站</a></td></tr>
+<tr><td>KrASIA</td><td>二手</td><td><a href="https://kr-asia.com/sharpa-puts-robotic-dexterity-to-the-test-at-ciie-2026">kr-asia.com</a></td></tr>
+<tr><td>DairyNews、TechEBlog、Mike Kalil</td><td>二手</td><td><a href="https://dairynews.today/news/sharpa_deploys_north_at_a_shanghai_dairy_queen_6412958.html">DairyNews</a> · <a href="https://www.techeblog.com/dairy-queen-sharpa-robot-store-shanghai-china/">TechEBlog</a> · <a href="https://mikekalil.com/blog/sharpa-dairy-queen-robot/">mikekalil.com</a></td></tr>
+<tr><td>Runtime Wire</td><td>二手，付费墙</td><td><a href="https://runtimewire.com/article/sharpa-north-humanoid-dairy-queen-shanghai">runtimewire.com</a></td></tr>
+<tr><td>灵巧手综述</td><td>二手，CC BY 4.0</td><td><a href="https://arxiv.org/abs/2611.06724">arXiv 2611.06724</a>（§8.6 表 14 在 <a href="https://arxiv.org/pdf/2611.06724#page=22">PDF 第 22 页</a>）</td></tr>
+<tr><td>WM-Craftnet</td><td>Sharpa 的论文</td><td><a href="https://arxiv.org/abs/2609.07002">arXiv 2609.07002</a> · <a href="https://wmcraftnet.github.io/">项目页</a> · 本站 <a href="wm-craftnet.html">wm-craftnet.html</a></td></tr>
+<tr><td>FTP-1</td><td>作者含 Sharpa</td><td><a href="https://arxiv.org/abs/2606.13102">arXiv 2606.13102</a> · 本站 <a href="ftp1.html">ftp1.html</a></td></tr>
+<tr><td>本站对照页</td><td>–</td><td><a href="gr00t.html">GR00T N1</a> · <a href="gr00t2.html">GR00T 2</a> · <a href="lingbot-touch.html">LingBot-Touch</a> · <a href="wall-oss.html">WALL-OSS</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 Sharpa 的 CraftNet 公告（2026-01-06/07）、CES 和 GTC 新闻稿、DQ 案例页和到店指南，以及所列媒体报道后的整理，不是 Sharpa 的官方内容；CraftNet 没有论文。原页面标注 “© Sharpa Pte Ltd. All rights reserved”，媒体报道也是版权保留，本页没有复制任何原图、截图或视频，只引了几处短句并注明出处。示意图和 3D 动画是我按文字描述自己画的。综述 arXiv 2611.06724（Ji Pei）按 CC BY 4.0 引用。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+</body>
+</html>
