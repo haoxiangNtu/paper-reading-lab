@@ -20,6 +20,20 @@
 pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;overflow-x:auto;max-width:100%;line-height:1.55}
 .cv{font-family:var(--font-mono);font-size:12.5px}
 .bad{color:var(--warn)}
+.arch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.arch-grid svg{display:block;width:100%;height:auto;background:var(--bg2);border:1px solid var(--line);border-radius:8px}
+.arch-cmp{--vlc:#38d1ff;--acc:#ffb347}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .arch-cmp{--vlc:#0a86b8;--acc:#b86200}}
+:root[data-theme="light"] .arch-cmp{--vlc:#0a86b8;--acc:#b86200}
+.arch-cmp text{fill:var(--fg);font-family:var(--font-body);font-size:14px;text-anchor:middle}
+.arch-cmp text.s{fill:var(--muted);font-size:12px}
+.arch-cmp text.h{font-size:15px;font-weight:700}
+.arch-cmp rect{stroke-width:1.5}
+.arch-cmp rect.vl{fill:color-mix(in srgb,var(--vlc) 16%,var(--bg2));stroke:var(--vlc)}
+.arch-cmp rect.ac{fill:color-mix(in srgb,var(--acc) 16%,var(--bg2));stroke:var(--acc)}
+.arch-cmp rect.jt{fill:var(--panel);stroke:var(--muted)}
+.arch-cmp rect.diff{stroke-width:3.5}
+.arch-cmp path.ar{stroke:var(--muted);stroke-width:1.5;fill:none}
 </style>
 </head>
 <body>
@@ -301,7 +315,7 @@ pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;pad
 <div class="tablewrap"><table class="t-t3"><thead><tr><th>版本</th><th>公开时间</th><th>来源</th><th>真机对比的基线</th></tr></thead><tbody>
 <tr><td>WALL-OSS 原版（本页）</td><td>权重 2025-09-06/07；代码首提交 09-07；论文落款 09-08；arXiv v1 09-15</td><td>arXiv 2509.11766</td><td>π0、Diffusion Policy</td></tr>
 <tr><td><a href="wall-oss-05.html">Wall-OSS-0.5</a></td><td>arXiv v1 2026-05-29，v2 06-01</td><td>arXiv 2605.30877</td><td>π0.5、DreamZero</td></tr>
-<tr><td>WALL-OSS 1.0-lite（预览）</td><td>HF 仓库 2026-10-23、11-02 创建</td><td>只有模型卡，没有论文</td><td>没有公开的对比</td></tr>
+<tr><td>WALL-OSS 1.0-lite（预览）</td><td>HF 仓库 2026-10-23、11-02 创建</td><td>只有模型卡，没有论文</td><td>没有论文里的对比；第三方 RoboDojo 仿真榜平均分第 1，但领先很薄（见 <a href="wall-oss-05.html#w10-rd">0.5 页的分析</a>）</td></tr>
 </tbody></table></div>
 <p>所以“和 π0 比”说的是原版。“和 π0.5 比”说的是 0.5。1.0 目前只有 Hugging Face 上的 lite 预览，没有论文，也没有公开的对比（见 <a href="wall-oss-05.html#w10">0.5 页“关于 WALL-OSS 1.0”</a>）。</p>
 <div class="callout">
@@ -363,15 +377,64 @@ pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;pad
 <p><b>B1 · “紧耦合优于松耦合”：没有一组同数据、同规模的结构消融。</b>另外，图 2(b) 和 §3 对 π0 的描述不准确：</p>
 <ul>
 <li>论文把 π0 画成“另起一个分支，靠虚线和 VLM 交互”。按 π0 原文 §3，它的动作专家在<b>每一层</b>都和 VLM 的 token 一起做自注意力，只是 QKV 投影和 FFN 用各自的权重。</li>
-<li>WALL-OSS 和 π0 的实际区别只有三点：
-  <ul>
-  <li>注意力投影权重共享，而 π0 是两套；</li>
-  <li>动作 FFN 更窄（中间维 2048）；</li>
-  <li>动作 token 走同一个主干宽度。</li>
-  </ul>
-</li>
+<li>两者在“动作 token 能不能每层读到图文信息”这一点上完全一样，差别只在<b>动作 token 用谁的权重</b>。见下图和下表。</li>
 </ul>
-<p>“紧耦合 / 松耦合”这个对立说法放大了两者的差别。论文也没有做“共享 QKV 对比分开 QKV”这一项对照。</p>
+
+<figure class="pfig arch-cmp" id="fig-attn">
+<div class="arch-grid">
+<svg viewBox="0 0 420 470" role="img" aria-labelledby="fa-t1 fa-d1"><title id="fa-t1">π0 的一层</title><desc id="fa-d1">π0：图文 token 和动作 token 各用自己的归一化、QKV 投影、O 投影和 FFN，中间做一次联合自注意力</desc>
+<text class="h" x="210" y="22">π0 的一层（共 18 层）</text>
+<rect class="vl" x="16" y="404" width="180" height="50" rx="8"/><text x="106" y="425">图文 token</text><text class="s" x="106" y="443">宽 2048（PaliGemma）</text>
+<rect class="ac" x="224" y="404" width="180" height="50" rx="8"/><text x="314" y="425">状态 + 加噪动作 token</text><text class="s" x="314" y="443">宽 1024（动作专家）</text>
+<path class="ar" d="M106 404V378M314 404V378"/>
+<rect class="vl" x="16" y="330" width="180" height="48" rx="8"/><text x="106" y="350">归一化 + QKV 投影</text><text class="s" x="106" y="368">图文那套权重</text>
+<rect class="ac diff" x="224" y="330" width="180" height="48" rx="8"/><text x="314" y="350">归一化 + QKV 投影</text><text class="s" x="314" y="368">动作专家自己的一套</text>
+<path class="ar" d="M106 330V302M314 330V302"/>
+<rect class="jt" x="16" y="236" width="388" height="66" rx="8"/><text x="210" y="258">联合自注意力（一次 softmax）</text><text class="s" x="210" y="276">两边的 Q、K、V 沿序列拼起来一起算</text><text class="s" x="210" y="293">动作 token 能读到所有图文 token 的 K、V</text>
+<path class="ar" d="M106 236V210M314 236V210"/>
+<rect class="vl" x="16" y="164" width="180" height="46" rx="8"/><text x="106" y="192">O 投影（图文）</text>
+<rect class="ac diff" x="224" y="164" width="180" height="46" rx="8"/><text x="314" y="192">O 投影（动作专家）</text>
+<path class="ar" d="M106 164V140M314 164V140"/>
+<rect class="vl" x="16" y="92" width="180" height="48" rx="8"/><text x="106" y="112">归一化 + FFN</text><text class="s" x="106" y="130">中间维 16384</text>
+<rect class="ac" x="224" y="92" width="180" height="48" rx="8"/><text x="314" y="112">归一化 + FFN</text><text class="s" x="314" y="130">中间维 4096</text>
+<path class="ar" d="M106 92V58M314 92V58"/>
+<text class="s" x="106" y="50">↑ 下一层</text><text class="s" x="314" y="50">↑ 下一层</text>
+</svg>
+<svg viewBox="0 0 420 470" role="img" aria-labelledby="fa-t2 fa-d2"><title id="fa-t2">WALL-OSS 原版的一层</title><desc id="fa-d2">WALL-OSS：所有 token 共用一套归一化、QKV 投影和 O 投影，做同样的联合自注意力，只有 FFN 按 token 类型分成两份</desc>
+<text class="h" x="210" y="22">WALL-OSS 原版的一层（共 36 层）</text>
+<rect class="vl" x="16" y="404" width="180" height="50" rx="8"/><text x="106" y="425">图文 + 状态 + FAST token</text><text class="s" x="106" y="443">宽 2048（Qwen2.5-VL）</text>
+<rect class="ac" x="224" y="404" width="180" height="50" rx="8"/><text x="314" y="425">加噪动作 token</text><text class="s" x="314" y="443">宽 2048（同一个主干）</text>
+<path class="ar" d="M106 404V378M314 404V378"/>
+<rect class="vl diff" x="16" y="330" width="388" height="48" rx="8"/><text x="210" y="350">归一化 + QKV 投影：只有一套</text><text class="s" x="210" y="368">动作 token 也用图文那套（继承自 Qwen2.5-VL）</text>
+<path class="ar" d="M106 330V302M314 330V302"/>
+<rect class="jt" x="16" y="236" width="388" height="66" rx="8"/><text x="210" y="258">联合自注意力（一次 softmax）</text><text class="s" x="210" y="276">和 π0 一样：所有 token 一起算</text><text class="s" x="210" y="293">动作 token 能读到所有图文 token 的 K、V</text>
+<path class="ar" d="M106 236V210M314 236V210"/>
+<rect class="vl diff" x="16" y="164" width="388" height="46" rx="8"/><text x="210" y="192">O 投影：只有一套（共用）</text>
+<path class="ar" d="M106 164V140M314 164V140"/>
+<rect class="vl" x="16" y="92" width="180" height="48" rx="8"/><text x="106" y="112">归一化 + VL FFN</text><text class="s" x="106" y="130">中间维 11008（继承）</text>
+<rect class="ac" x="224" y="92" width="180" height="48" rx="8"/><text x="314" y="112">归一化 + 动作 FFN</text><text class="s" x="314" y="130">中间维 2048（新加）</text>
+<path class="ar" d="M106 92V58M314 92V58"/>
+<text class="s" x="106" y="50">↑ 下一层</text><text class="s" x="314" y="50">↑ 下一层</text>
+</svg>
+</div>
+<figcaption><span class="lab">示意图 · 本站绘制 · 依据 π0 原文 §3、openpi <span class="cv">gemma.py</span>（<span class="cv">gemma_2b</span> / <span class="cv">gemma_300m</span> 配置）、wall-x 论文时期代码和 HF 配置（见<a href="#code">代码对照</a>）</span>蓝色是图文那一路的权重，橙色是动作那一路的权重，加粗描边是两图不同的地方。中间灰色的联合自注意力两边一样：动作 token 在每一层都能读到图文 token 的 K、V。π0 里动作 token 用自己的一套归一化和 QKV、O 投影，WALL-OSS 里动作 token 借用图文那一套。FFN 两边都分成两份。两边的注意力掩码也基本一样：图文 token 看不到后面的动作 token，动作 token 之间双向可见。</figcaption>
+</figure>
+
+<p>用公式说：在两个模型里，动作 token \(i\) 的注意力输出都是 \(o_i=\sum_j \mathrm{softmax}_j\!\big(q_i\cdot k_j/\sqrt d\big)\,v_j\)，求和范围包括它能看见的全部图文 token 和动作 token。唯一的差别在 \(q_i\)（以及 \(k_i, v_i\)、输出投影）用哪组矩阵算：</p>
+<ul>
+<li>π0：\(q_i = W_Q^{\text{act}}\,h_i\)，动作专家自己的矩阵；</li>
+<li>WALL-OSS：\(q_i = W_Q^{\text{VL}}\,h_i\)，和文字 token 共用同一个矩阵。</li>
+</ul>
+<p>打个比方：两拨人在同一个会议室里开会（联合注意力）。π0 让两拨人各带一个翻译，WALL-OSS 让两拨人共用一个翻译。谁能听到谁说话，两边完全一样。</p>
+
+<div class="tablewrap"><table class="t-cmp"><thead><tr><th>每一层里</th><th>π0</th><th>WALL-OSS 原版</th><th>Wall-OSS-0.5 / 1.0-lite（同一团队后来的版本）</th></tr></thead><tbody>
+<tr><td>动作 token 和图文 token 做联合注意力</td><td>每层都做</td><td>每层都做</td><td>每层都做</td></tr>
+<tr><td>动作 token 的归一化、QKV、O 投影</td><td>独立一套</td><td><b>共用图文那套</b></td><td>独立一套（<span class="cv">attention_moe</span>、<span class="cv">norm_moe</span> 打开）</td></tr>
+<tr><td>动作 token 的 FFN</td><td>独立，中间维 4096</td><td>独立，中间维 2048</td><td>独立（0.5 中间维 2048）</td></tr>
+<tr><td>动作 token 的隐藏宽度</td><td>1024，比图文窄</td><td>2048，和图文一样</td><td>0.5 是 1024，1.0-lite 是 1280，都比图文窄</td></tr>
+<tr><td>层数</td><td>18</td><td>36</td><td>0.5 是 36</td></tr>
+</tbody></table></div>
+<p>所以结构上真正的区别只有一个：<b>注意力的投影矩阵和归一化层是共用还是分开</b>。另外两条，动作 FFN 多宽、动作 token 多宽，是同一结构下的尺寸选择。论文把这个区别说成“紧耦合 / 松耦合”的对立，并把 π0 画成只在旁边用虚线交互的独立分支，夸大了差别。论文也没有做“共享 QKV 对比分开 QKV”这一项对照。</p>
 <p>还有一个旁证：同一团队的 <a href="wall-oss-05.html">Wall-OSS-0.5</a> 换成了 Mixture-of-Transformers。它的图 2 里，VL 专家和动作专家每层各有自己的 QKV 和 FFN，再用一层联合注意力连起来；HF 配置里动作专家宽 1024。这和图 2(b) 里被批评为“松耦合”的 π0 结构基本是同一类。0.5 没有解释为什么放弃共享注意力。所以“共享注意力是关键”这个提法，作者自己后来也没有坚持（这是我的推断，依据是 0.5 页对原文图 2 和配置的记录）。</p>
 
 <p><b>B2 · Inspiration 阶段有用：§4.4 和 §6.1 都说“消融显示有效”，正文找不到这组消融</b>（<a href="#n10">读者注 10</a>）。</p>

@@ -40,7 +40,7 @@ td.b{font-weight:700}
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 方法</a><a href="#s2-1">2.1 结构</a><a href="#s2-2">2.2 训练配方</a><a href="#s2-3">2.3 推理优化</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 数据</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 零样本</a><a href="#s4-2">4.2 微调</a><a href="#s4-3">4.3 多模态</a><a href="#s5">5 消融</a><a href="#s6">6 相关工作</a><a href="#s7">7 讨论与局限</a><a href="#s8">8 贡献者</a><a href="#appA">附录 A</a><a href="#w10">关于 WALL-OSS 1.0</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 方法</a><a href="#s2-1">2.1 结构</a><a href="#s2-2">2.2 训练配方</a><a href="#s2-3">2.3 推理优化</a><a href="#i3d">3D 框架动画</a><a href="#s3">3 数据</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 零样本</a><a href="#s4-2">4.2 微调</a><a href="#s4-3">4.3 多模态</a><a href="#s5">5 消融</a><a href="#s6">6 相关工作</a><a href="#s7">7 讨论与局限</a><a href="#s8">8 贡献者</a><a href="#appA">附录 A</a><a href="#w10">关于 WALL-OSS 1.0</a><a href="#w10-rd" class="rn">RoboDojo 榜单</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -503,7 +503,66 @@ td.b{font-weight:700}
 <li>“世界模型”：<b>不成立</b>。配置里 <span class="cv">future_length: 0</span>，没有预测未来画面的头或损失；动作仍由流匹配生成（<span class="cv">noise_scheduler</span> Beta(1.5, 1)、s = 0.999、10 步，加 <span class="cv">refiner</span> 4 次）。同公司的世界模型是另一条线（HF 上另有 <span class="cv">wall-wm-2.0-robodojo</span>，见 <a href="wall-ss.html">wall-ss</a> 页）。</li>
 </ul>
 <p><b>和 0.5 的关系。</b>相同：同属 wall-x 体系（serving 代码在 wall-x 的 PR #128“Qwen3.5 VLA release with RoboDojo serving and CUDA operators”，截至 2026-11-23 仍未合并，模型卡让用户先用一个个人分支）；MoT（<span class="cv">use_mot</span>、<span class="cv">mlp_moe</span>、<span class="cv">norm_moe</span>）；26 维动作布局；本体按文本数字 token 表示；流匹配时间步采样参数相同；用 DMuon。不同：主干从 Qwen2.5-VL-3B 换成 Qwen3.5（4B 级）；动作专家宽 1280、用 adaRMS 注入时间；<b><span class="cv">use_x_loss: false</span></b>，也就是 1.0-lite 没有用 0.5 的动作空间监督（式 5）；RoboDojo 微调配置里 <span class="cv">ar_loss_weight: 0.0</span>、<span class="cv">action_tokenizer_type: null</span>，微调时不用离散动作 CE；加了关键帧记忆和残差精修。关键帧记忆正好回应 0.5 §7 的局限“只用单帧图像”，换更大主干回应“只在 3B 上验证”。</p>
-<p><b>只有模型卡来源。</b>1.0 的训练数据、预训练配方、评测成绩都没有公开文档；RoboDojo 排行榜上的数我没有核对。上面所有判断都只依据模型卡和配置文件，不代表正式的 1.0 版本。</p>
+<p><b>只有模型卡来源。</b>1.0 的训练数据和预训练配方都没有公开文档。上面所有判断都只依据模型卡和配置文件，不代表正式的 1.0 版本。它的评测成绩只有第三方的 RoboDojo 榜单，见下一节。</p>
+
+<h3 id="w10-rd">RoboDojo 榜单上的“第一”怎么读</h3>
+<p>数据来源：2026-11-24 用无头浏览器渲染 <a href="https://robodojo-benchmark.com/leaderboard#robodojo">RoboDojo 排行榜</a>（页面标“Updated 2026.11.18”，新闻更新到 11-22），对照它的<a href="https://robodojo-benchmark.com/leaderboard/protocol?lang=en">评测协议</a>和论文 <a href="https://arxiv.org/abs/2607.04434">arXiv 2607.04434</a>。榜单还在持续更新，排名以后会变。</p>
+
+<p><b>RoboDojo 是什么。</b>港大等机构 2026-07-06 发布的机器人操作基准，由非营利组织 AI MMLab Club 维护。</p>
+<ul>
+<li><b>仿真：</b>42 个双臂任务（Isaac Sim），分 5 个能力维度：泛化 12 个、记忆 6 个、精度 8 个、长程 8 个、开放 8 个（按文档的任务清单数）。</li>
+<li><b>真机：</b>18 个任务，分布在 ARX X5、Piper、Piper X 三种机械臂上，每个任务 10 次。</li>
+<li><b>官方训练数据：</b>34 个仿真任务各 100 条示范，加 100 条随机背景的辅助数据，共 3,500 条。“开放”维度的 8 个任务<b>没有训练数据</b>，专门考指令理解和技能组合。</li>
+<li><b>两个指标：</b>SR 是成功率，只算完全做完；Score 是 0–100 的进度分，做完一半也给分。仿真每个任务 50 回合 × 3 个种子，评测由官方系统跑，不是自报。</li>
+</ul>
+
+<div class="tablewrap"><table class="t-w10"><thead><tr><th>榜单</th><th>比什么</th><th>WALL-OSS-1.0-lite</th></tr></thead><tbody>
+<tr><td>RoboDojo-Sim（主榜）</td><td>端到端策略（VLA、世界动作模型等）在 42 个仿真任务上的表现。默认按 5 个维度的平均 Score 排序，共 60 个模型</td><td><b>第 1</b>：42.59 / 34.97%</td></tr>
+<tr><td>RoboDojo-RealWorld</td><td>18 个真机任务，三种机械臂，看真实部署和跨机械臂泛化</td><td><b>没有参加</b>；模型卡写明“没有在真机上验证”。目前第一是 SLA-Preview（42.33 / 33.89%）</td></tr>
+<tr><td>RoboDojo-Agent</td><td>大模型智能体系统，例如用 GPT-6 Astra、Claude 写代码或调用技能库来控制机器人。平均分不含“开放”维度。多数条目带 *，表示不完全符合 11-14 新发布的规则</td><td>不适用（不是智能体）</td></tr>
+<tr><td>RoboDojo-Gen</td><td>只看“泛化”维度，拆成 Gen-Std（标准场景）和 Gen-Rand（随机背景、光照、杂物）</td><td>Gen-Std <b>第 2</b>（53.44，第一 Motubrain 2.0 是 61.06）；Gen-Rand <b>第 1</b>（39.88）</td></tr>
+<tr><td>RoboTwin 2.0</td><td>同一团队更早的另一个仿真基准，有 clean2clean（易）和 clean2random（难）两种设置，经 XPolicyLab 接入</td><td>没有参加</td></tr>
+<tr><td>Per-task</td><td>每个仿真任务的逐项分数</td><td>见下文</td></tr>
+</tbody></table></div>
+
+<p><b>结论：按默认排序，第一是真的，但领先很薄，而且主要来自“开放”维度里的两个任务。</b>换个排法，名次如下（只算 60 个非智能体条目）：</p>
+<div class="tablewrap"><table class="t-res"><thead><tr><th>排序方式</th><th>WALL 名次</th><th>WALL</th><th>第一名</th></tr></thead><tbody>
+<tr><td>平均 Score（默认）</td><td class="b">1</td><td>42.59</td><td>—（第二 Motubrain 2.0 41.28）</td></tr>
+<tr><td>平均 SR</td><td class="b">1</td><td>34.97%</td><td>—（第二 Motubrain 2.0 33.91%）</td></tr>
+<tr><td>不含开放的平均 Score</td><td>2</td><td>48.05</td><td>Motubrain 2.0 49.95</td></tr>
+<tr><td>不含开放的平均 SR</td><td>5</td><td>38.82%</td><td>Motubrain 2.0 40.91%</td></tr>
+<tr><td>泛化 Score / SR</td><td>1 / 2</td><td>46.66 / 37.94%</td><td>Motubrain 2.0 39.17%（SR）</td></tr>
+<tr><td>精度 Score / SR</td><td>8 / 9</td><td>38.16 / 29.08%</td><td>Motubrain 2.0 44.90 / 35.83%</td></tr>
+<tr><td>长程 Score / SR</td><td>5 / 9</td><td>49.94 / 32.25%</td><td>Simate-beta 57.84 / 43.42%</td></tr>
+<tr><td>记忆 Score / SR</td><td>1 / 2</td><td>57.42 / 56.00%</td><td>Bagel-Robotics-1 56.89%（SR）</td></tr>
+<tr><td>开放 Score / SR</td><td>2 / 2</td><td>20.76 / 19.58%</td><td>Awomo-0.5 24.09 / 22.92%</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>领先来自开放维度。</b>WALL 的开放分是 20.76，Motubrain 2.0 是 6.61。开放占平均分的五分之一，这一项就给 WALL 拉开 (20.76 − 6.61) / 5 ≈ 2.8 分，比它总共领先的 1.31 分还多。去掉开放，平均 Score 被 Motubrain 2.0 反超，平均 SR 掉到第 5。</li>
+<li><b>开放分又集中在两个任务上。</b>stack_blocks_by_language 85.33（其他模型最高 30.67，Motubrain 2.0 17.33），general_pickup 72.67（其他最高 62.67，Motubrain 2.0 27.33）。剩下 6 个开放任务 WALL 只有一项拿到 7.27，其余是 0 或接近 0。开放维度第一的 Awomo-0.5 则主要靠 align_blocks 58.00 和 solve_equation 50.00，这两项 WALL 都是 0。这两项可能得益于 Qwen3.5 主干的语言理解，这是我的推断，没有消融可以证实。</li>
+<li><b>短板也明显。</b>press_by_number 1.33（Bagel-Robotics-1 99.33、VPP2 96.00），play_stacking_toy 4.60（Motubrain 2.0 47.80），plug_in_charger 11.33（30.00）。强项是 swap_T 90.00、imitate_sorting_sequence 58.17（其他模型最高 40.70）、stack_bowls 85.90。</li>
+</ul>
+
+<p><b>和榜上 π0.5、π0 的差距不能当成“结构更好”的证据。</b></p>
+<ul>
+<li>榜上贡献者写“RoboDojo Team”的条目，是组织方按统一的通用配方从公开检查点微调的。比如 π0.5 从 <span class="cv">pi05_base</span> 起，batch 256、训 6 万步（论文附录 K）。结果 π0.5 是 11.44 / 6.93%，排第 28；π0 是 3.48 / 1.53%。</li>
+<li>WALL-OSS-1.0-lite 这类条目由各家团队自己训练后提交，配方各自优化。WALL 用了末端位姿动作空间、关键帧记忆和 4 次残差精修，训练配置为 20,768 步、学习率 3e-5。</li>
+<li>所以“42.59 对 11.44”比的是“整个系统加团队的调参工作”，和本页审视的原版论文里“π0 只做了微调”是同一类不对等。</li>
+<li>非智能体赛道的训练数据有没有限制，我在协议里没找到条款。智能体赛道明确只能用官方示范数据。</li>
+<li>WALL 的 <span class="cv">config.yml</span> 引用了 <span class="cv">data_config.yml</span>，但 HF 仓库里没有这个文件，训练代码所在的 wall-x PR #128 也还没合并。所以它到底用了哪些 RoboDojo 数据、有没有额外数据，现在无法核对。</li>
+</ul>
+
+<p><b>榜单本身的规则还算严格：</b></p>
+<ul>
+<li>分数由官方系统评测，不是自报。</li>
+<li>另有隐藏布局做一致性检查；隐藏布局和公开布局差太多会作废。</li>
+<li>上榜后 3 天内要公开检查点和训练、部署代码，否则标“待验证”或下榜。</li>
+<li>所有任务必须用同一个检查点，不许按任务切换模型。</li>
+<li>禁止用评测回合的反馈来调参。</li>
+</ul>
+<p>页面渲染出来的文本里，我没有看到 WALL 条目的验证状态标记。</p>
+
+<p><b>主榜顶上那两行淡色的“Fable 5.2 64.90”“Opus 5.5 39.40”是什么。</b>它们是智能体方案，在主榜上淡色显示、不参与排名，所以 WALL 的名次不受影响。</p>
 
 <h2 id="code">代码对照表</h2>
 <p>论文每个设计点在 wall-x（ce2a1ae）和 HF 检查点里的位置。路径省略前缀 <span class="cv">wall_x/</span>。“一致”指数值或公式对得上；“缺失”指公开代码里没有。</p>
@@ -606,6 +665,7 @@ CHECKPOINT_PATH=... TRAIN_CONFIG_PATH=my_libero.yml TASK_SUITE_NAME=libero_spati
 <tr><td><a class="ds" href="https://x2robot.com/en/oss">Wall-OSS</a></td><td>本文项目页（只链接）</td><td><a href="https://github.com/X-Square-Robot/wall-x">wall-x</a></td><td><a href="https://arxiv.org/abs/2605.30877">2605.30877</a></td></tr>
 <tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-0.5">wall-oss-0.5</a></td><td>官方权重</td><td>HF</td><td>–</td></tr>
 <tr><td><a class="ds" href="https://huggingface.co/lerobot/wall-oss-0.5">lerobot/wall-oss-0.5</a></td><td>LeRobot 原生转换版</td><td><a href="https://github.com/huggingface/lerobot/pull/4200">PR #4200</a></td><td>–</td></tr>
+<tr><td><a class="ds" href="https://robodojo-benchmark.com/leaderboard">RoboDojo</a></td><td>仿真 + 真机操作基准和排行榜（1.0-lite 的成绩来源）</td><td><a href="https://github.com/robodojo-benchmark/RoboDojo">GitHub</a></td><td><a href="https://arxiv.org/abs/2607.04434">2607.04434</a></td></tr>
 <tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo">wall-oss-1.0-lite-robodojo</a></td><td>1.0-lite 的 RoboDojo 微调版</td><td>HF</td><td>无</td></tr>
 <tr><td><a class="ds" href="https://huggingface.co/x-square-robot/wall-oss-1.0-lite-robodojo-base">…-robodojo-base</a></td><td>1.0-lite 预览基座</td><td>HF</td><td>无</td></tr>
 <tr><td><a class="ds" href="https://huggingface.co/x-square-robot/X-Tokenizer">X-Tokenizer</a></td><td>同公司的 RVQ 动作分词器</td><td><a href="https://github.com/X-Square-Robot/X-Tokenizer">代码</a></td><td><a href="https://arxiv.org/abs/2606.14752">2606.14752</a></td></tr>
