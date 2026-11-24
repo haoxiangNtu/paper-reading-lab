@@ -86,6 +86,7 @@
 
 | 专题 | 页面 | 交互 | 要点 |
 |---|---|---|---|
+| VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
 
 ## VLA、世界模型与触觉（自变量 WALL 三篇 + Sharpa 三篇 + ∇Mimic，2026-11-23）读后要点
@@ -398,6 +399,7 @@ papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画�
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
 papers/nablamimic.html     ∇Mimic 精读（无 PDF 原图，仓库图和重画图在 papers/nablamimic/；11 幕动画在 interactives/nablamimic/）
+papers/vla-design-space.html 概念专题：VLA 设计空间（交互脚本在 papers/vla-design-space/widgets.js）
 papers/rl-families.html    概念专题：强化学习算法谱系（交互脚本在 papers/rl-families/widgets.js）
 papers/wall-oss.html       WALL-OSS 精读（原图在 papers/wall-oss/，11 幕动画在 interactives/wall-oss/；#audit 为公平性审视）
 papers/wall-oss-05.html    Wall-OSS-0.5 精读（原图在 papers/wall-oss-05/，11 幕动画在 interactives/wall-oss-05/）

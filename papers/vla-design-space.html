@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VLA 设计空间 · Paper Reading Lab</title>
+<meta name="description" content="概念专题：把视觉-语言-动作模型（VLA）拆成 8 个部件，整理 15 类常见改动分别改的是哪一块、为什么改、代价是什么；6 种动作模块和主干的接法；22 个代表模型的总对照表。配可点击的部件图和耦合方式示意图。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.vd{--vlc:#38d1ff;--acc:#ffb347;--hit:#7ee0a8}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .vd{--vlc:#0a86b8;--acc:#b86200;--hit:#1f7a4d}}
+:root[data-theme="light"] .vd{--vlc:#0a86b8;--acc:#b86200;--hit:#1f7a4d}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+.t-mx{min-width:1180px}.t-links{min-width:640px}.t-sum{min-width:640px}
+.t-mx th[scope=row]{white-space:nowrap;text-align:left}
+.t-mx td{font-size:13.5px;line-height:1.55;vertical-align:top}
+.t-mx td.key{font-weight:700;background:var(--best)}
+.wid{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:18px 0;background:var(--bg2)}
+.wid .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.wid p{max-width:none;font-size:14.5px;margin:6px 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:4px 0}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:3px 14px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{background:var(--panel);border:1px solid var(--line);border-radius:999px;color:var(--fg);font:inherit;font-size:13px;padding:2px 11px;cursor:pointer;line-height:1.7}
+.chips button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+/* 部件图：桌面是网格，手机竖排 */
+.anat{display:grid;gap:8px;margin:10px 0;grid-template-columns:1fr 1.3fr .8fr 1.1fr 1fr;
+  grid-template-areas:". rs rs . ." "in bb cp ar inf" "tr tr tr tr tr" "da da da da da"}
+.slot{border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel);cursor:pointer;transition:opacity .15s,border-color .15s;min-width:0}
+.slot b{display:block;font-size:14.5px;line-height:1.4}
+.slot span{display:block;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+.slot:hover,.slot:focus-visible{border-color:var(--accent);outline:none}
+.slot.hi{border-color:var(--hit);border-width:3px;background:color-mix(in srgb,var(--hit) 14%,var(--panel))}
+.slot.dim{opacity:.42}
+.s-in{grid-area:in}.s-bb{grid-area:bb}.s-cp{grid-area:cp}.s-ar{grid-area:ar}.s-rs{grid-area:rs}.s-tr{grid-area:tr}.s-da{grid-area:da}.s-inf{grid-area:inf}
+.s-bb,.s-cp,.s-ar{position:relative}
+.flow{font-size:13px;color:var(--muted);margin:2px 0 0}
+@media (max-width:720px){.anat{grid-template-columns:1fr;grid-template-areas:"in" "rs" "bb" "cp" "ar" "inf" "tr" "da"}}
+.card{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;min-height:9em}
+.card h4{margin:0 0 4px;font-size:15.5px}
+.card p,.card li{font-size:14.5px;max-width:none;margin:3px 0}
+.card .sub{color:var(--muted);font-size:13.5px}
+.card ul{margin:4px 0;padding-left:1.2em}
+/* 耦合方式图 */
+.cp-wrap{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:14px;align-items:start}
+@media (max-width:720px){.cp-wrap{grid-template-columns:1fr}}
+#cp-svg{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+#cp-svg text{fill:var(--fg);font-family:var(--font-body);font-size:14px;text-anchor:middle}
+#cp-svg text.s{fill:var(--muted);font-size:12px}
+#cp-svg text.h{fill:var(--fg);font-size:14px;font-weight:700}
+#cp-svg rect{stroke-width:1.5}
+#cp-svg rect.vl{fill:color-mix(in srgb,var(--vlc) 16%,var(--bg));stroke:var(--vlc)}
+#cp-svg rect.ac{fill:color-mix(in srgb,var(--acc) 16%,var(--bg));stroke:var(--acc)}
+#cp-svg rect.jt{fill:var(--panel);stroke:var(--muted)}
+#cp-svg rect.diff{stroke-width:3.5}
+#cp-svg path.ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+#cp-svg path.kv{stroke:var(--vlc);stroke-width:2.2;stroke-dasharray:5 3}
+#cp-seg{display:flex;flex-wrap:wrap;border-radius:10px}
+#cp-seg button{text-align:left}
+.legend{font-size:13px;color:var(--muted);margin:4px 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin:0 4px 0 10px;border:2px solid}
+.algo{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;background:var(--panel)}
+.algo h3{margin:0 0 6px;font-size:16.5px;padding:0;border:0}
+.algo p,.algo li{max-width:none;font-size:15px}
+.algo .where{font-family:var(--font-mono);font-size:12.5px;color:var(--accent);margin:0 0 4px}
+.qa dt{font-weight:700;margin:16px 0 4px}
+.qa dd{margin:0 0 6px 0;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap vd">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../index.html#architecture">专题</a><a href="wall-oss-05.html#s6">Wall-OSS-0.5 相关工作</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">概念专题 · VLA · 2026-11-24 · 中文整理</p>
+<h1>VLA 设计空间：常见改动分别在改哪个部件</h1>
+<p class="orig">RT-2 · OpenVLA · Octo · π0 / π0-FAST / π0.5 · GR00T N1 / GR00T 2 · CogACT · Hi Robot · CoT-VLA · X-VLA · WALL-OSS / 0.5 / 1.0-lite · MolmoAct2 · Cosmos Policy · OpenWAM-α · FTP-1 …</p>
+<div class="meta"><span>不是单篇论文精读</span><a href="#links">各模型原文</a><a href="wall-oss-05.html#s6">起点：Wall-OSS-0.5 §6 相关工作</a><a href="wall-oss.html#fig-attn">π0 与 WALL-OSS 单层对比图</a></div>
+
+<div class="callout">
+<p><b>这一页是什么。</b><a href="wall-oss-05.html#s6">Wall-OSS-0.5 §6</a> 把相关工作按“动作表示、结构、数据”三条线列了一遍。这一页把它展开成一张地图：把一个 VLA 拆成 8 个部件，看每一类常见改动到底改的是哪一块、想解决什么问题、要付什么代价。</p>
+<p><b>依据。</b>本站精读过的模型（WALL-OSS、Wall-OSS-0.5、MolmoAct2、GR00T N1、GR00T 2、Cosmos Policy、OpenWAM、FTP-1、LingBot-Touch、CraftNet），细节以各精读页为准，那些页对照过论文和代码。其他模型（RT-2、OpenVLA、Octo、π0 系列、CogACT、Hi Robot、CoT-VLA、X-VLA、HPT、LAPA、RTC、MemoryVLA、π*0.6 等）只按原文摘要和主要结构图整理，2026-11-24 核对了 arXiv 编号和标题，没有逐行读代码。分类是我的整理方式，不是哪篇论文的官方分类。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">一句话回答</a><a href="#anatomy">8 个部件（交互）</a><a href="#strats">15 类常见改动</a><a href="#s-couple" class="rn">6 种接法（交互）</a><a href="#matrix">总对照表</a><a href="#read">读新论文时问 8 个问题</a><a href="#qa">常见误解</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">一句话回答</h2>
+<p><b>一个 VLA 可以拆成 8 个部件，绝大多数“新方法”只换了其中一到三个，其余照搬前人。</b></p>
+<ol>
+<li><b>输入与感知：</b>看几路相机、要不要本体状态、历史帧、触觉。</li>
+<li><b>主干：</b>从零训的 Transformer、预训练 VLM，还是视频生成模型。</li>
+<li><b>动作模块怎么接主干：</b>同一套 token、共享注意力、每层联合注意力、逐层读 KV、只读一组特征，还是干脆分成两套模型。</li>
+<li><b>动作表示与生成：</b>离散 token（分桶、FAST、学出来的码本）还是连续生成（扩散、流匹配），或者两者都要。</li>
+<li><b>中间推理：</b>出动作前要不要先写子任务、思维链、画一张目标图。</li>
+<li><b>训练目标与配方：</b>和什么数据共训、哪些部分冻结、梯度能不能回传、要不要 RL。</li>
+<li><b>数据：</b>跨具身数据、人类视频、仿真、伪动作标签。</li>
+<li><b>推理与部署：</b>动作块怎么执行、怎么平滑、怎么加速。</li>
+</ol>
+<p>所以读一篇新 VLA 论文，最有用的问题是：<b>它改了哪个部件？换掉的是什么？对照实验有没有只改这一个部件？</b>本站 <a href="wall-oss.html#audit">WALL-OSS 的审视</a>就是这个问题的反例：论文把成绩归功于“紧耦合”（部件 3），但它和 π0 同时差在主干、数据、推理监督好几个部件上。</p>
+
+<h2 id="anatomy">8 个部件</h2>
+<div class="wid" id="anat">
+<p class="lab">交互 1 · 部件图</p>
+<p>点上面的按钮，看一类改动（或一个模型）动了哪些部件；也可以直接点某个部件，看有哪些策略在改它。</p>
+<div class="seg" id="anat-mode" role="group" aria-label="切换"><button type="button" data-mode="strat" aria-pressed="true">按改动策略</button><button type="button" data-mode="model" aria-pressed="false">按模型</button></div>
+<div class="chips" id="anat-chips"></div>
+<div class="anat">
+<div class="slot s-rs" data-slot="rs" data-desc="出动作之前先输出的东西：子任务文字、思维链、目标图、深度图。它通常也由主干生成，所以画在主干上方。"><b>⑤ 中间推理</b><span>子任务 · CoT · 视觉子目标</span></div>
+<div class="slot s-in" data-slot="in" data-desc="模型看到什么：几路相机、语言指令、本体状态、历史帧、触觉和力。跨具身时，不同机器人的输入格式也在这里对齐。"><b>① 输入与感知</b><span>相机 · 指令 · 本体 · 历史 · 触觉</span></div>
+<div class="slot s-bb" data-slot="bb" data-desc="承载大部分参数和先验知识的网络：从零训练的 Transformer、预训练视觉语言模型（VLM）、或视频生成模型。"><b>② 主干</b><span>从零 Transformer · VLM · 视频生成模型</span></div>
+<div class="slot s-cp" data-slot="cp" data-desc="动作参数和主干的连接方式：信息怎么从主干流到动作，哪些权重共用。见下文“6 种接法”。"><b>③ 接法</b><span>动作模块怎么接主干</span></div>
+<div class="slot s-ar" data-slot="ar" data-desc="动作用什么形式表示和生成：离散 token（分桶、FAST、VQ/RVQ、潜在动作）或连续生成（扩散、流匹配），以及一次出多长的动作块。"><b>④ 动作表示与生成</b><span>离散 token · 扩散 / 流匹配 · 动作块</span></div>
+<div class="slot s-inf" data-slot="inf" data-desc="训练之外、部署时的做法：动作块怎么执行和拼接、去噪多少步、缓存和编译加速、精修。"><b>⑧ 推理与部署</b><span>执行 · 平滑 · 加速</span></div>
+<div class="slot s-tr" data-slot="tr" data-desc="损失怎么组合、分几个阶段、哪些参数冻结、梯度能不能回传主干、要不要用强化学习继续训练。"><b>⑥ 训练目标与配方</b><span>共训 · 冻结与分阶段 · 梯度隔离 · 强化学习</span></div>
+<div class="slot s-da" data-slot="da" data-desc="用什么数据：单一机器人遥操作、多具身数据集、网页图文和 VQA、人类视频、仿真和生成数据、伪动作标签。"><b>⑦ 数据</b><span>跨具身 · 网页 / VQA · 人类视频 · 仿真 · 伪标签</span></div>
+</div>
+<p class="flow">数据流：① 输入 → ② 主干（可能先生成 ⑤）→ ③ 接法 → ④ 动作 → ⑧ 执行到机器人；⑥ ⑦ 作用在整条链上。</p>
+<div class="card" id="anat-card" aria-live="polite"></div>
+</div>
+
+<h2 id="strats">15 类常见改动</h2>
+<p>每一类先写它改哪个部件，再写动机、做法、代表和代价。代表模型的细节见文末<a href="#matrix">总对照表</a>。</p>
+
+<div class="algo" id="s-tok"><h3>1 · 动作写成词表 token</h3>
+<p class="where">改：④ 动作表示 · ③ 接法（同一套 token）</p>
+<p><b>动机：</b>VLM 本来就会“预测下一个 token”。把动作也写成 token，就能不加任何新模块，直接复用语言模型的训练和推理。</p>
+<p><b>做法：</b>每个动作维度按取值范围均匀分成 256 个桶，每个桶对应一个 token。RT-2 把动作写成一串整数 token（PaLI-X 直接用数字 token，PaLM-E 占用最少用的 256 个词）；OpenVLA（Llama 2 主干）同样把词表里最少用的 256 个 token 改作动作 token。</p>
+<p><b>代价：</b>精度受桶宽限制；7 维动作每步要解码 7 个 token，动作块一长，自回归解码就慢；动作监督直接改写 VLM 的全部权重。</p></div>
+
+<div class="algo" id="s-codec"><h3>2 · 更好的离散分词</h3>
+<p class="where">改：④ 动作表示</p>
+<p><b>动机：</b>逐维分桶的 token 数多，相邻时刻的动作又高度相关，下一个 token 几乎可以直接抄上一个，模型学不到有用的东西。高频、精细的动作尤其明显。</p>
+<p><b>做法：</b>两条路。一是规则压缩：FAST 对一段动作做离散余弦变换（DCT），量化后再用 BPE 合并，token 数大幅减少（π0-FAST、WALL-OSS 用它，MolmoAct2 训了开放版 MolmoAct2-FAST）。二是学一个码本：VQ-BeT 用残差 VQ；Wall-OSS-0.5 训了和视觉对齐的 RVQ 分词器。</p>
+<p><b>代价：</b>仍要自回归解码；码本有重建误差；学出来的分词器多一个要训练和发布的部件（Wall-OSS-0.5 的公开代码里没有这个分词器，见<a href="wall-oss-05.html">精读页</a>）。</p></div>
+
+<div class="algo" id="s-cont"><h3>3 · 连续生成头 + 动作块</h3>
+<p class="where">改：④ 动作表示 · ⑧ 推理（一次出一段）</p>
+<p><b>动机：</b>动作是连续值，而且同一画面下往往有多种合理做法（多峰）。直接回归会把几种做法平均成一种错的。</p>
+<p><b>做法：</b>用扩散或流匹配从噪声生成一整段动作（动作块）。Diffusion Policy 是单任务起点；Octo 在从零训的 Transformer 上接扩散头；π0 和 GR00T N1 用流匹配，π0 一次出 50 步，GR00T N1 出 16 步。</p>
+<p><b>代价：</b>要多步去噪，推理更重；接到 VLM 上时，新加的参数从零初始化，它的梯度会扰动 VLM（引出第 5 类）。</p></div>
+
+<div class="algo" id="s-couple"><h3>4 · 换动作模块的接法</h3>
+<p class="where">改：③ 接法</p>
+<p><b>动机：</b>只要动作不是词表 token，就要另加参数。这些参数必须拿到主干的信息，又最好不要把主干学坏、不要拖慢推理。接法决定两件事：<b>信息从主干的哪几层流到动作</b>，以及<b>哪些权重共用</b>。</p>
+<div class="wid">
+<p class="lab">交互 2 · 6 种接法</p>
+<div class="seg" id="cp-seg" role="group" aria-label="接法"></div>
+<p class="legend"><i style="border-color:var(--vlc)"></i>主干那一路的权重<i style="border-color:var(--acc)"></i>动作那一路的权重<i style="border-color:var(--muted)"></i>两路共用的运算　粗边框是这种接法的关键差别</p>
+<div class="cp-wrap">
+<svg id="cp-svg" viewBox="0 0 420 440" role="img" aria-labelledby="cp-title"><title id="cp-title">接法示意</title></svg>
+<div class="card" id="cp-info" aria-live="polite"></div>
+</div>
+</div>
+<p><b>怎么看这 6 种：</b>从 1 到 6，动作模块和主干越来越独立。</p>
+<ul>
+<li>1 和 2 共用的权重最多，新增参数最少，但动作监督对主干的干扰也最直接。</li>
+<li>3 和 4 让动作模块逐层看主干，只是权重分开，这是 2024 年以来最常见的做法（π0 系列、MolmoAct2、OpenWAM-α）。</li>
+<li>5 和 6 把主干当成黑盒的特征源或规划器，换主干最方便，但信息通道最窄。</li>
+</ul>
+<p>不同接法之间的成绩差距，很少有论文做过“只换接法、其他不变”的对照。<a href="wall-oss.html#fig-attn">WALL-OSS 原版</a>就没有做；OpenWAM 的 Study 部分做了一些视频-动作接法的受控实验，但不少差距在 1 个点以内（见 <a href="openwam.html">OpenWAM 精读</a>）。</p></div>
+
+<div class="algo" id="s-hybrid"><h3>5 · 离散和连续一起训</h3>
+<p class="where">改：④ 动作表示 · ⑥ 训练配方</p>
+<p><b>动机：</b>连续动作专家从零初始化，训练初期它回传给 VLM 的梯度是噪声，会冲掉 VLM 的语义；而且单靠流匹配损失训练 VLM 很慢。离散 token 的交叉熵和语言损失是同一种形式，训起来快、对 VLM 友好。</p>
+<p><b>做法：</b>VLM 用离散动作 token（FAST 或学出来的码本）学“说动作”，连续专家另外负责出精确动作。π0.5 配合<a href="https://arxiv.org/abs/2505.23705">知识隔离</a>（KI）：动作专家读 VLM 的 K、V 时截断梯度，VLM 只由离散损失更新。MolmoAct2 在后训练阶段也这样做（LIBERO 微调时关掉）。WALL-OSS 是“先离散后连续”的两阶段；Wall-OSS-0.5 把离散通路明确称作“梯度桥”。</p>
+<p><b>代价：</b>两个头、多阶段训练，配方变复杂；离散和连续两条通路的预测可能不一致。</p></div>
+
+<div class="algo" id="s-reason"><h3>6 · 先想再做：子任务、思维链、视觉子目标</h3>
+<p class="where">改：⑤ 中间推理 · ⑥ 训练（需要标注）</p>
+<p><b>动机：</b>长任务、需要判断的任务（“把不健康的食物扔掉”），从画面直接映射到动作容易走错，也很难查错。</p>
+<p><b>做法：</b>按中间产物分三种。</p>
+<ul>
+<li><b>文字：</b>π0.5 先预测高层子任务再出动作；ECoT 生成包括计划、子任务、物体框的思维链；WALL-OSS 的 Uni-CoT 输出 CoT 和子任务。</li>
+<li><b>图像：</b>CoT-VLA 先自回归生成未来画面当视觉目标，再出一小段动作。</li>
+<li><b>几何：</b>MolmoAct2-Think 先预测深度 token，再经逐层 KV 进入动作专家。</li>
+</ul>
+<p><b>代价：</b>要标注中间步骤（常用大模型自动生成）；推理多出一段生成，变慢；中间步骤错了会带偏动作。WALL-OSS 的审视里还有一个提醒：<b>多给子任务监督本身就能涨分</b>，和这类方法比较时，基线有没有同样的监督要看清楚。</p></div>
+
+<div class="algo" id="s-hier"><h3>7 · 分层 / 多频率系统</h3>
+<p class="where">改：③ 接法（两套模型） · ⑤ 中间推理 · ⑧ 部署频率</p>
+<p><b>动机：</b>越大的模型越懂语言和常识，但越慢；控制回路要几十到几百赫兹。</p>
+<p><b>做法：</b>高层模型低频输出子任务文字或潜向量，低层策略高频执行。Hi Robot 的高层 VLM 还能接住用户中途的反馈（“那个不是垃圾”）。CraftNet 再往下拆一层：约 100 Hz 的 System 0 负责接触后的触觉修正。GR00T 2 用前沿多模态智能体当 System 2。</p>
+<p><b>代价：</b>两层之间的接口窄，细节传不下去；两层要分别准备训练数据。注意 GR00T N1 也用 System 1 / 2 的叫法，但它是单个模型，端到端一起训，按接法属于“读一组特征”。</p></div>
+
+<div class="algo" id="s-wam"><h3>8 · 主干换成视频生成模型（WAM）</h3>
+<p class="where">改：② 主干 · ④ 动作表示 · ⑦ 数据</p>
+<p><b>动机：</b>VLM 是在静态图文上预训练的，懂“这是什么”，不太懂“推一下会怎样”。视频生成模型在大量视频上学过画面怎么变化，而且能直接用没有动作标签的视频训练。</p>
+<p><b>做法：</b>用视频模型当主干，让它同时预测未来画面和动作。GR-1 / GR-2 用视频生成预训练再接动作；Cosmos Policy 不改结构，把动作、状态、价值写进隐帧一起去噪；OpenWAM-α 在 Wan2.2-5B 视频 DiT 旁边挂 1B 的动作 DiT，逐层联合注意力，同步去噪；GR00T 2 从 Cosmos-Predict2.5-2B 初始化，同时生成多路相机的未来画面和动作。</p>
+<p><b>代价：</b>计算量大；像素隐空间对相机位姿和图像噪声敏感（OpenWAM 在 LIBERO-Plus 的相机、噪声两项明显落后）；语言理解通常弱于 VLM 主干。<a href="cosmos-policy.html">Cosmos Policy</a> 的消融显示，“同时预测未来画面”这个辅助目标贡献很大。</p></div>
+
+<div class="algo" id="s-cotrain"><h3>9 · 和网页 / 具身 VQA 数据共训</h3>
+<p class="where">改：⑥ 训练配方 · ⑦ 数据</p>
+<p><b>动机：</b>只用机器人数据微调，VLM 的通用语义和指令理解会退化，换个说法、换个没见过的物体就不认识了。</p>
+<p><b>做法：</b>RT-2 把机器人数据和原来的网页图文数据混着训；π0.5 混入网页数据、物体检测、高层子任务标注；WALL-OSS 自动生成具身 VQA（定位、进度、可供性），按比例插进微调；MolmoAct2 先把主干专门训成具身推理模型 Molmo2-ER（330 万样本）。</p>
+<p><b>代价：</b>配比要调；VQA 数据的生成管线常常不公开（WALL-OSS 就没有公开），别人很难复现。</p></div>
+
+<div class="algo" id="s-xemb"><h3>10 · 跨具身适配</h3>
+<p class="where">改：① 输入 · ④ 动作输出层 · ⑦ 数据</p>
+<p><b>动机：</b>不同机器人的相机数量、关节数、动作含义都不同，直接混训会互相打架。</p>
+<p><b>做法：</b>三种。</p>
+<ul>
+<li><b>每种机器人一个小输入输出层，中间共享：</b>HPT（具身专属的“输入干”加共享主干）；GR00T N1 有 32 个具身槽位，各有一套状态、动作编解码 MLP。</li>
+<li><b>统一成一个大动作向量，用掩码：</b>RDT-1B 的统一动作空间；WALL-OSS 的 20 维自由度模板。</li>
+<li><b>每个数据源一组可学的软提示：</b>X-VLA，0.9B。</li>
+</ul>
+<p><b>代价：</b>槽位或提示只对训练里见过的机器人有效，新机器人要微调；统一向量里大部分维度对某一台机器人是空的。</p></div>
+
+<div class="algo" id="s-video"><h3>11 · 用没有动作标签的视频</h3>
+<p class="where">改：⑦ 数据 · ④ 动作表示（潜在动作）</p>
+<p><b>动机：</b>遥操作数据贵，人类视频和网络视频多几个数量级，但没有机器人动作。</p>
+<p><b>做法：</b>三种。</p>
+<ul>
+<li><b>潜在动作：</b>LAPA 用 VQ-VAE 从相邻两帧学离散的“潜在动作”，先让 VLA 预测它，再在少量真机数据上映射到真实动作。</li>
+<li><b>伪标签：</b>GR00T N1 同时用潜在动作和逆动力学模型（IDM）预测的伪动作，各当一种具身。</li>
+<li><b>直接用视频预训练：</b>WAM 本来就从视频学，OpenWAM-α 和 GR00T 2 都大量用人类第一视角视频。GR00T 2 按小时人类视频占 92%。</li>
+</ul>
+<p><b>代价：</b>人手和机器人的动作不对应；潜在动作可能编码了相机运动等无关变化。</p></div>
+
+<div class="algo" id="s-mem"><h3>12 · 记忆和历史帧</h3>
+<p class="where">改：① 输入</p>
+<p><b>动机：</b>很多任务不满足“看当前一帧就够”：东西被盖住了、要按顺序按按钮、要记得做到第几步。<a href="wall-oss-05.html#w10-rd">RoboDojo</a> 专门设了记忆维度。</p>
+<p><b>做法：</b>MemoryVLA 维护一个感知-认知记忆库，检索后和当前 token 融合，再交给扩散动作专家；ContextVLA 把多帧上下文压缩后输入；WALL-OSS-1.0-lite 让模型自己决定保留哪些关键帧；GR00T 2 读最近 0.8 秒的多路画面。</p>
+<p><b>代价：</b>输入变长、推理变慢；历史帧多了容易让模型抄历史动作，而不是看当前画面。</p></div>
+
+<div class="algo" id="s-touch"><h3>13 · 加触觉等新模态</h3>
+<p class="where">改：① 输入 · ③ 接法（多一路专家）</p>
+<p><b>动机：</b>手一碰到物体，视觉就被遮挡、也看不出力的大小；插接、拧、捏要靠触觉。</p>
+<p><b>做法：</b><a href="ftp1.html">FTP-1</a> 把各种触觉传感器统一成每只手 24 个功能区槽位的 token，在 π0.5 的两路专家旁边加第三路触觉专家，三路一起做带掩码的注意力。<a href="lingbot-touch.html">LingBot-Touch</a> 先单独预训练一个跨传感器的触觉编码器，再把它的 token 接到各种策略上。<a href="craftnet.html">CraftNet</a> 用单独的高频回路处理接触后的阶段。</p>
+<p><b>代价：</b>触觉数据少、传感器五花八门；新模态的专家又是从零初始化。</p></div>
+
+<div class="algo" id="s-infer"><h3>14 · 推理侧：动作块执行、实时分块、精修、加速</h3>
+<p class="where">改：⑧ 推理与部署（多数不用重新训练）</p>
+<p><b>动机：</b>模型出一段动作要几十到几百毫秒。等它算完再动会停顿；块和块之间接不上会抖。</p>
+<p><b>做法：</b></p>
+<ul>
+<li><b>平滑：</b>ACT 提出动作块，并用时间集成把重叠的块加权平均。RTC 在执行当前块的同时生成下一块，把一定会被执行的动作冻结，其余部分用补全的方式生成；它适用于扩散和流匹配策略，不用重新训练。</li>
+<li><b>精修：</b>WALL-OSS-1.0-lite 在流匹配之后再用残差精修器连续修 4 次。</li>
+<li><b>加速：</b>MolmoAct2 缓存与上下文相关的中间量，再用 CUDA Graph 捕获整个流循环。GR00T 2 Turbo 在 Jetson Thor 上 124 ms 出一段动作。</li>
+</ul>
+<p><b>代价：</b>多数只改善平滑和速度，不改善“做对没有”；精修器要额外训练。</p></div>
+
+<div class="algo" id="s-rl"><h3>15 · 强化学习后训练</h3>
+<p class="where">改：⑥ 训练配方</p>
+<p><b>动机：</b>模仿学习的上限是示范质量，而且模型失败了不会自己变好。</p>
+<p><b>做法：</b>π*0.6 的 RECAP 先用离线 RL 预训练一个“以优势为条件”的策略，再把真机自主执行的数据和人工纠正加进来继续训练。GR00T 2 在真机上用 GRPO 加自我模仿，把四个精密插接任务做到 88% 到 98%。和人形机器人 sim2real 里从零训 PPO 不同，这里的 RL 是在一个已经会做的 VLA 上微调。</p>
+<p><b>代价：</b>要奖励或成功判定，真机采样贵；容易遗忘预训练能力。算法本身的区别见<a href="rl-families.html">强化学习算法谱系</a>。</p></div>
+
+<h2 id="matrix">总对照表</h2>
+<p>每行一个模型，每列一个部件。<b>加粗加底色</b>的格子是这个模型相对前人的主要改动，也是交互 1 里“按模型”高亮的部件；“—”表示沿用常规做法或原文没强调。本站有精读页的模型，名字链接到精读页。</p>
+<div class="tablewrap"><table class="t-mx" id="mx"><thead><tr><th>模型（年份）</th><th>① 输入</th><th>② 主干</th><th>③ 接法</th><th>④ 动作</th><th>⑤ 推理</th><th>⑥ 训练配方</th><th>⑦ 数据</th><th>⑧ 部署</th></tr></thead><tbody>
+<tr data-m="rt2"><th scope="row">RT-2（2023）</th><td data-s="in">图像 + 指令</td><td data-s="bb">PaLI-X / PaLM-E</td><td data-s="cp" class="key">同一套 token</td><td data-s="ar" class="key">每维 256 桶，写成文本 token</td><td data-s="rs">—</td><td data-s="tr" class="key">和网页图文数据共训</td><td data-s="da">RT-1 机器人数据</td><td data-s="inf">—</td></tr>
+<tr data-m="openvla"><th scope="row">OpenVLA（2024）</th><td data-s="in">DINOv2 + SigLIP 双视觉编码</td><td data-s="bb">Prismatic-7B（Llama 2）</td><td data-s="cp">同一套 token</td><td data-s="ar">256 桶，占用最少用的 256 个词</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da" class="key">Open X-Embodiment 约 97 万条，全部开源</td><td data-s="inf">—</td></tr>
+<tr data-m="octo"><th scope="row">Octo（2024）</th><td data-s="in">多相机，可用目标图代替指令</td><td data-s="bb" class="key">从零训练的 Transformer</td><td data-s="cp">读出 token → 动作头</td><td data-s="ar" class="key">扩散，动作块</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">Open X-Embodiment 80 万条</td><td data-s="inf">—</td></tr>
+<tr data-m="rdt"><th scope="row">RDT-1B（2024）</th><td data-s="in">冻结的视觉、语言编码器</td><td data-s="bb" class="key">从零训练的扩散 Transformer（1.2B）</td><td data-s="cp">主干就是动作网络</td><td data-s="ar">扩散</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da" class="key">统一动作空间，面向双臂</td><td data-s="inf">—</td></tr>
+<tr data-m="pi0"><th scope="row">π0（2024）</th><td data-s="in">多相机 + 本体</td><td data-s="bb">PaliGemma 3B</td><td data-s="cp" class="key">MoT：约 3 亿参数的动作专家，每层联合注意力</td><td data-s="ar" class="key">流匹配，50 步动作块</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">自家多机器人数据 1 万多小时 + OXE</td><td data-s="inf">缓存前缀 KV，只反复跑动作专家</td></tr>
+<tr data-m="pi0fast"><th scope="row">π0-FAST（2025）</th><td data-s="in">同 π0</td><td data-s="bb">PaliGemma 3B</td><td data-s="cp">同一套 token</td><td data-s="ar" class="key">FAST：DCT + BPE</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">同 π0</td><td data-s="inf">—</td></tr>
+<tr data-m="pi05"><th scope="row">π0.5（2025）</th><td data-s="in">—</td><td data-s="bb">PaliGemma</td><td data-s="cp">MoT</td><td data-s="ar" class="key">预训练用 FAST，后训练加流匹配专家</td><td data-s="rs" class="key">先预测高层子任务文本</td><td data-s="tr" class="key">异构数据共训；配合知识隔离（另文）</td><td data-s="da">多环境移动操作 + 网页数据</td><td data-s="inf">—</td></tr>
+<tr data-m="gr00t"><th scope="row"><a href="gr00t.html">GR00T N1</a>（2025）</th><td data-s="in">具身专属的状态、动作编码器</td><td data-s="bb">Eagle-2，截到第 12 层；语言部分冻结</td><td data-s="cp" class="key">DiT 交叉注意力读一组特征</td><td data-s="ar">流匹配，16 步动作块</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da" class="key">数据金字塔：人类视频、仿真、神经轨迹；潜在动作 + IDM 伪标签</td><td data-s="inf">—</td></tr>
+<tr data-m="cogact"><th scope="row">CogACT（2024）</th><td data-s="in">—</td><td data-s="bb">VLM</td><td data-s="cp" class="key">只读 VLM 输出的认知特征</td><td data-s="ar" class="key">扩散动作 Transformer</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">—</td><td data-s="inf">—</td></tr>
+<tr data-m="hirobot"><th scope="row">Hi Robot（2025）</th><td data-s="in">含用户中途反馈</td><td data-s="bb">高层、低层各一个 VLM</td><td data-s="cp" class="key">分层：语言指令交接</td><td data-s="ar">低层 π0 式</td><td data-s="rs" class="key">高层推断下一步该做什么</td><td data-s="tr">—</td><td data-s="da">合成的指令和反馈数据</td><td data-s="inf">—</td></tr>
+<tr data-m="cotvla"><th scope="row">CoT-VLA（2025）</th><td data-s="in">—</td><td data-s="bb">7B，能生成图像和动作 token</td><td data-s="cp">同一套 token</td><td data-s="ar">短动作序列</td><td data-s="rs" class="key">先生成未来画面当视觉目标</td><td data-s="tr">—</td><td data-s="da">—</td><td data-s="inf">—</td></tr>
+<tr data-m="xvla"><th scope="row">X-VLA（2025）</th><td data-s="in" class="key">每个数据源一组软提示</td><td data-s="bb">软提示的标准 Transformer，0.9B</td><td data-s="cp">—</td><td data-s="ar">流匹配</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da" class="key">跨具身异构数据</td><td data-s="inf">—</td></tr>
+<tr data-m="walloss"><th scope="row"><a href="wall-oss.html">WALL-OSS</a>（2025）</th><td data-s="in">20 维自由度模板 + 掩码</td><td data-s="bb">Qwen2.5-VL-3B</td><td data-s="cp" class="key">共享注意力，FFN 分两份</td><td data-s="ar">先 FAST，后流匹配</td><td data-s="rs" class="key">Uni-CoT：CoT、子任务</td><td data-s="tr" class="key">具身 VQA 共训；分阶段冻结</td><td data-s="da">自家轮式双臂数据 + 开源数据</td><td data-s="inf">—</td></tr>
+<tr data-m="wall05"><th scope="row"><a href="wall-oss-05.html">Wall-OSS-0.5</a>（2026）</th><td data-s="in">—</td><td data-s="bb">Qwen2.5-VL-3B</td><td data-s="cp" class="key">改成 MoT，动作专家宽 1024</td><td data-s="ar" class="key">视觉对齐的 RVQ 分词器当梯度桥 + 流匹配；动作空间监督</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">每 epoch 超百万条、20 多种具身，任务级幂次采样</td><td data-s="inf">—</td></tr>
+<tr data-m="wall10"><th scope="row"><a href="wall-oss-05.html#w10">WALL-OSS-1.0-lite</a>（2026，只有模型卡）</th><td data-s="in" class="key">关键帧记忆</td><td data-s="bb">Qwen3.5（4B 级）</td><td data-s="cp">MoT，动作专家宽 1280</td><td data-s="ar">32 步末端位姿块</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">RoboDojo 示范微调</td><td data-s="inf" class="key">残差精修 4 次</td></tr>
+<tr data-m="molmoact2"><th scope="row"><a href="molmoact2.html">MolmoAct2</a>（2026）</th><td data-s="in">—</td><td data-s="bb">Molmo2-ER（4B 具身推理 VLM）</td><td data-s="cp" class="key">逐层交叉注意力读 KV（36 层 DiT 专家）</td><td data-s="ar">MolmoAct2-FAST，再接流匹配</td><td data-s="rs">Think 版：先预测深度 token</td><td data-s="tr">后训练用知识隔离（微调关闭）</td><td data-s="da">新的双臂数据集 720 小时</td><td data-s="inf">缓存 + CUDA Graph</td></tr>
+<tr data-m="memoryvla"><th scope="row">MemoryVLA（2025）</th><td data-s="in" class="key">感知-认知记忆库</td><td data-s="bb">VLM</td><td data-s="cp">记忆条件的动作专家</td><td data-s="ar">扩散</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">—</td><td data-s="inf">—</td></tr>
+<tr data-m="pistar"><th scope="row">π*0.6（2025）</th><td data-s="in">—</td><td data-s="bb">—</td><td data-s="cp">—</td><td data-s="ar">以优势为条件</td><td data-s="rs">—</td><td data-s="tr" class="key">RECAP：离线 RL + 真机经验和人工纠正</td><td data-s="da">自主执行数据、纠正数据</td><td data-s="inf">—</td></tr>
+<tr data-m="cosmospolicy"><th scope="row"><a href="cosmos-policy.html">Cosmos Policy</a>（2026）</th><td data-s="in">多相机 + 本体写进隐帧</td><td data-s="bb" class="key">Cosmos-Predict2-2B 视频扩散模型</td><td data-s="cp">同一套（不改结构）</td><td data-s="ar" class="key">动作、状态、价值写成隐帧，和画面一起去噪</td><td data-s="rs">预测未来画面和价值，可用来规划</td><td data-s="tr">—</td><td data-s="da">—</td><td data-s="inf">—</td></tr>
+<tr data-m="openwam"><th scope="row"><a href="openwam.html">OpenWAM-α</a>（2026）</th><td data-s="in">—</td><td data-s="bb" class="key">Wan2.2-5B 视频 DiT</td><td data-s="cp">1B 动作 DiT，30 层联合自注意力，双向</td><td data-s="ar">视频和动作同步去噪</td><td data-s="rs">—</td><td data-s="tr">一次性联合预训练</td><td data-s="da" class="key">人类第一视角视频 + 机器人数据，约 6,369 小时</td><td data-s="inf">—</td></tr>
+<tr data-m="gr00t2"><th scope="row"><a href="gr00t2.html">GR00T 2</a>（2026）</th><td data-s="in">多相机最近 0.8 秒</td><td data-s="bb" class="key">从 Cosmos-Predict2.5-2B 初始化的 WAM</td><td data-s="cp">—</td><td data-s="ar">同时生成未来画面和动作</td><td data-s="rs">可外接前沿智能体当 System 2</td><td data-s="tr">真机 GRPO + 自我模仿</td><td data-s="da" class="key">按小时人类视频占 92%</td><td data-s="inf">Turbo 版 124 ms</td></tr>
+<tr data-m="ftp1"><th scope="row"><a href="ftp1.html">FTP-1</a>（2026）</th><td data-s="in" class="key">统一触觉 token：每只手 24 个功能区槽位</td><td data-s="bb">π0.5</td><td data-s="cp" class="key">加第三路触觉专家</td><td data-s="ar">32 步动作块</td><td data-s="rs">—</td><td data-s="tr">—</td><td data-s="da">26 个来源、21 种触觉传感器</td><td data-s="inf">—</td></tr>
+</tbody></table></div>
+
+<h2 id="read">读新 VLA 论文时问 8 个问题</h2>
+<ol>
+<li><b>它改了哪几个部件？</b>按上面 8 个部件逐一对照。如果一次改了三四个，最后的提升到底算谁的？</li>
+<li><b>有没有只改一个部件的对照？</b>比如“共享 QKV 对比分开 QKV”“有子任务监督对比没有”。没有这种对照，结构上的说法就只是假设。</li>
+<li><b>基线是谁训的？</b>是作者用自己的数据和配方认真训的，还是按别人默认配置跑一下？RoboDojo 上“团队自调”和“主办方统一配方”的差别就有好几倍（见 <a href="wall-oss-05.html#w10-rd">RoboDojo 分析</a>）。</li>
+<li><b>监督信号对等吗？</b>新方法多用了子任务、VQA、深度这类标注，基线有没有？</li>
+<li><b>评测任务和预训练数据有没有重叠？</b>WALL-OSS 一半评测任务在它自己的预训练里。</li>
+<li><b>动作块多长、控制多少赫兹、去噪几步？</b>这些常常不写在正文里，但对速度和平滑影响很大。</li>
+<li><b>数字能不能复算？</b>平均值、百分点和相对提升有没有混用（本站多篇精读都找到过这类问题）。</li>
+<li><b>代码和权重放出来的是不是论文里那个版本？</b>本站对照过的几份代码，冻结范围、动作块长度、分词器经常和论文不一样。</li>
+</ol>
+
+<h2 id="qa">常见误解</h2>
+<dl class="qa">
+<dt>“MoE / 紧耦合”是不是比 π0 那种“松耦合”强？</dt>
+<dd>先看具体接法。WALL-OSS 原版的“紧耦合 MoE”是“共享注意力、FFN 分两份”；π0 是“每层联合注意力、权重分开”。两者的信息流完全一样，动作 token 每层都读图文的 K、V，差别只在权重共不共用（<a href="wall-oss.html#fig-attn">对比图</a>）。这两种接法之间没有公开的受控对照，同一团队后来也换成了 π0 那种。</dd>
+<dt>离散动作 token 是不是已经过时了？</dt>
+<dd>作为最终输出，确实多被连续生成取代；但作为训练手段，它反而更常见了。π0.5、MolmoAct2、Wall-OSS-0.5 都在预训练阶段用离散 token 训 VLM，再由连续专家出动作（第 5 类）。</dd>
+<dt>WAM 是不是就是“世界模型”？</dt>
+<dd>WAM 的主干是视频生成模型，训练时也预测未来画面，所以带有世界模型的能力。但部署时它的工作是出动作，未来画面常常只是辅助目标，甚至可以不生成。反过来，WALL-OSS 系列虽然叫“具身基础模型”，按公开代码它们都不预测未来画面，不是世界模型（见 <a href="wall-oss.html">WALL-OSS 读者注 1</a>）。</dd>
+<dt>叫 System 1 / System 2 的都是分层系统吗？</dt>
+<dd>不一定。GR00T N1 的 System 2 / 1 是一个模型里的主干和动作头，一起端到端训练，按接法属于“读一组特征”。Hi Robot、CraftNet 才是两套各自训练、靠语言或状态向量交接的模型。</dd>
+<dt>榜单分数高，是不是说明结构好？</dt>
+<dd>榜单衡量的是整个系统：主干、数据、配方、调参一起算。只有在其他部件都固定的受控实验里，分数差才能归到某一个部件上。</dd>
+</dl>
+
+<h2 id="links">链接表</h2>
+<p>2026-11-24 用 arXiv API 核对了编号和标题。</p>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>模型 / 方法</th><th>原文</th><th>本站</th></tr></thead><tbody>
+<tr><td>RT-2</td><td><a href="https://arxiv.org/abs/2307.15818">arXiv 2307.15818</a></td><td>—</td></tr>
+<tr><td>OpenVLA</td><td><a href="https://arxiv.org/abs/2406.09246">arXiv 2406.09246</a></td><td>—</td></tr>
+<tr><td>Octo</td><td><a href="https://arxiv.org/abs/2405.12213">arXiv 2405.12213</a></td><td>—</td></tr>
+<tr><td>RDT-1B</td><td><a href="https://arxiv.org/abs/2410.07864">arXiv 2410.07864</a></td><td>—</td></tr>
+<tr><td>Diffusion Policy</td><td><a href="https://arxiv.org/abs/2303.04137">arXiv 2303.04137</a></td><td>—</td></tr>
+<tr><td>ACT（动作块）</td><td><a href="https://arxiv.org/abs/2304.13705">arXiv 2304.13705</a></td><td>—</td></tr>
+<tr><td>π0</td><td><a href="https://arxiv.org/abs/2410.24164">arXiv 2410.24164</a></td><td><a href="wall-oss.html#fig-attn">和 WALL-OSS 的对比图</a></td></tr>
+<tr><td>FAST / π0-FAST</td><td><a href="https://arxiv.org/abs/2501.09747">arXiv 2501.09747</a></td><td>—</td></tr>
+<tr><td>π0.5</td><td><a href="https://arxiv.org/abs/2504.16054">arXiv 2504.16054</a></td><td>—</td></tr>
+<tr><td>知识隔离（KI）</td><td><a href="https://arxiv.org/abs/2505.23705">arXiv 2505.23705</a></td><td>—</td></tr>
+<tr><td>π*0.6（RECAP）</td><td><a href="https://arxiv.org/abs/2511.14759">arXiv 2511.14759</a></td><td>—</td></tr>
+<tr><td>RTC（实时分块）</td><td><a href="https://arxiv.org/abs/2506.07339">arXiv 2506.07339</a></td><td>—</td></tr>
+<tr><td>Hi Robot</td><td><a href="https://arxiv.org/abs/2502.19417">arXiv 2502.19417</a></td><td>—</td></tr>
+<tr><td>ECoT</td><td><a href="https://arxiv.org/abs/2407.08693">arXiv 2407.08693</a></td><td>—</td></tr>
+<tr><td>CoT-VLA</td><td><a href="https://arxiv.org/abs/2503.22020">arXiv 2503.22020</a></td><td>—</td></tr>
+<tr><td>CogACT</td><td><a href="https://arxiv.org/abs/2411.19650">arXiv 2411.19650</a></td><td>—</td></tr>
+<tr><td>X-VLA</td><td><a href="https://arxiv.org/abs/2510.10274">arXiv 2510.10274</a></td><td>—</td></tr>
+<tr><td>HPT</td><td><a href="https://arxiv.org/abs/2409.20537">arXiv 2409.20537</a></td><td>—</td></tr>
+<tr><td>LAPA</td><td><a href="https://arxiv.org/abs/2410.11758">arXiv 2410.11758</a></td><td>—</td></tr>
+<tr><td>VQ-BeT</td><td><a href="https://arxiv.org/abs/2403.03181">arXiv 2403.03181</a></td><td>—</td></tr>
+<tr><td>MemoryVLA</td><td><a href="https://arxiv.org/abs/2508.19236">arXiv 2508.19236</a></td><td>—</td></tr>
+<tr><td>ContextVLA</td><td><a href="https://arxiv.org/abs/2510.04246">arXiv 2510.04246</a></td><td>—</td></tr>
+<tr><td>GR-1 / GR-2</td><td><a href="https://arxiv.org/abs/2312.13139">arXiv 2312.13139</a>；<a href="https://arxiv.org/abs/2410.06158">2410.06158</a></td><td>—</td></tr>
+<tr><td>Open X-Embodiment</td><td><a href="https://arxiv.org/abs/2310.08864">arXiv 2310.08864</a></td><td>—</td></tr>
+<tr><td>GR00T N1</td><td><a href="https://arxiv.org/abs/2503.14734">arXiv 2503.14734</a></td><td><a href="gr00t.html">精读</a></td></tr>
+<tr><td>GR00T 2</td><td>NVIDIA 白皮书（无 arXiv）</td><td><a href="gr00t2.html">精读</a></td></tr>
+<tr><td>WALL-OSS</td><td><a href="https://arxiv.org/abs/2509.11766">arXiv 2509.11766</a></td><td><a href="wall-oss.html">精读</a></td></tr>
+<tr><td>Wall-OSS-0.5</td><td><a href="https://arxiv.org/abs/2605.30877">arXiv 2605.30877</a></td><td><a href="wall-oss-05.html">精读</a></td></tr>
+<tr><td>MolmoAct2</td><td><a href="https://arxiv.org/abs/2605.02881">arXiv 2605.02881</a></td><td><a href="molmoact2.html">精读</a></td></tr>
+<tr><td>Cosmos Policy</td><td><a href="https://arxiv.org/abs/2601.16163">arXiv 2601.16163</a></td><td><a href="cosmos-policy.html">精读</a></td></tr>
+<tr><td>OpenWAM</td><td><a href="https://arxiv.org/abs/2609.07398">arXiv 2609.07398</a></td><td><a href="openwam.html">精读</a></td></tr>
+<tr><td>FTP-1</td><td><a href="https://arxiv.org/abs/2606.13102">arXiv 2606.13102</a></td><td><a href="ftp1.html">精读</a></td></tr>
+<tr><td>LingBot-Touch</td><td><a href="https://arxiv.org/abs/2611.12806">arXiv 2611.12806</a></td><td><a href="lingbot-touch.html">精读</a></td></tr>
+<tr><td>CraftNet</td><td>无论文</td><td><a href="craftnet.html">精读</a></td></tr>
+</tbody></table></div>
+
+<footer><p>这一页是概念整理，不是任何一篇论文的精读。部件划分和分类是我的整理方式。本站有精读页的模型以精读页为准；其他模型只按原文摘要和主要结构整理，没有逐行读代码。交互图都是示意，不代表具体层数和尺寸。</p></footer>
+</div>
+<script src="vla-design-space/widgets.js"></script>
+</body>
+</html>
