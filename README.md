@@ -9,7 +9,7 @@
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
-| Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。 | 19 条 |
+| Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。另有“提法与对比的公平性审视”一节（#audit）。 | 19 条 |
 | Wall-OSS-0.5 Technical Report（[arXiv 2605.30877](https://arxiv.org/abs/2605.30877)，2026-06，CC BY 4.0） | [wall-oss-05 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss-05.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss-05/index.html) | 零样本可执行的 4B VLA。“高 17.5%”是百分点；图 1、图 7 和附录表对不上；公开代码没有 RVQ 分词器。含 WALL-OSS 1.0 模型卡小节。 | 21 条 |
 | WALL-SS: Scaling Long-horizon World Models via Next-Scale Autoregression（[arXiv 2608.26239](https://arxiv.org/abs/2608.26239)，2026-08） | [wall-ss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-ss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-ss/index.html) | 按尺度自回归的动作可控世界模型。闭环评估数字能复算；“排第一”只对平均成立；代码未发布。非独占许可，仓库图 MIT。 | 20 条 |
 | Sharpa CraftNet（无论文；[公告](https://www.sharpa.com/blogs/news/sharpa-announces-craftnet-a-hierarchical-vtla-model-for-fine-manipulation) + DQ 部署报道，© 保留） | [craftnet 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/craftnet.html) · [10 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/craftnet/index.html) | System 2/1/0 = 1/10/100 Hz；公告说 CraftNet 只是 System 0+1。DQ 案例页不提 CraftNet，没有公开介入率。 | 16 条 |
@@ -81,6 +81,12 @@
 | [WAPR](https://arxiv.org/abs/2610.09535), ECCV 2026 | [架构笔记](papers/wapr.html) | [位姿对比图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/foundationpose-wapr/) | 大角度训练；论文与仓库配方；遮挡证据边界 |
 | [T(R,O) Grasp](https://arxiv.org/abs/2510.12724), ICRA 2026 | [架构笔记](papers/tro-grasp.html) | [图扩散网络图解](https://haoxiangntu.github.io/paper-reading-lab/interactives/tro-grasp/) | PointNet++ / BPS；OR / RR；DDIM / IK；代码维度差异 |
 | [T(R,O) Grasp++](https://arxiv.org/abs/2610.25410), CoRL 2026 | [架构与原版对比](papers/tro-grasp-plus-plus.html) | [页内网络交互](https://haoxiangntu.github.io/paper-reading-lab/papers/tro-grasp-plus-plus.html#denoiser) | 环境 ER 分支；运动学指纹；8×768 主干；论文 / 代码差异 |
+
+概念专题（不是单篇论文）：
+
+| 专题 | 页面 | 交互 | 要点 |
+|---|---|---|---|
+| 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
 
 ## VLA、世界模型与触觉（自变量 WALL 三篇 + Sharpa 三篇 + ∇Mimic，2026-11-23）读后要点
 
@@ -392,7 +398,8 @@ papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画�
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
 papers/wevisone-vl.html    wevisone-vl 精读（原图在 papers/wevisone-vl/，11 幕动画在 interactives/wevisone-vl/）
 papers/nablamimic.html     ∇Mimic 精读（无 PDF 原图，仓库图和重画图在 papers/nablamimic/；11 幕动画在 interactives/nablamimic/）
-papers/wall-oss.html       WALL-OSS 精读（原图在 papers/wall-oss/，11 幕动画在 interactives/wall-oss/）
+papers/rl-families.html    概念专题：强化学习算法谱系（交互脚本在 papers/rl-families/widgets.js）
+papers/wall-oss.html       WALL-OSS 精读（原图在 papers/wall-oss/，11 幕动画在 interactives/wall-oss/；#audit 为公平性审视）
 papers/wall-oss-05.html    Wall-OSS-0.5 精读（原图在 papers/wall-oss-05/，11 幕动画在 interactives/wall-oss-05/）
 papers/wall-ss.html        WALL-SS 精读（无 PDF 原图，仓库图和重画图在 papers/wall-ss/；11 幕动画在 interactives/wall-ss/）
 papers/craftnet.html       CraftNet 精读（无论文、无原图；10 幕动画在 interactives/craftnet/）

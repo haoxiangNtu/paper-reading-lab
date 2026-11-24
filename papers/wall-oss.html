@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>WALL-OSS 论文精读 · Paper Reading Lab</title>
-<meta name="description" content="arXiv 2509.11766《Igniting VLMs toward the Embodied Space》（X Square Robot / 自变量机器人，WALL-OSS 原版）的中文精读：逐节整理、按出现顺序编号的公式、照录的表 1–3、图 7 矢量读数、裁切的原图、和 wall-x 官方代码（论文时期 86f70a3 与当前 ce2a1ae）逐项对照、HF 权重文件头核对、复现要点、11 幕 3D 框架动画和读者注。">
+<meta name="description" content="arXiv 2509.11766《Igniting VLMs toward the Embodied Space》（X Square Robot / 自变量机器人，WALL-OSS 原版）的中文精读：逐节整理、按出现顺序编号的公式、照录的表 1–3、图 7 矢量读数、裁切的原图、和 wall-x 官方代码（论文时期 86f70a3 与当前 ce2a1ae）逐项对照、HF 权重文件头核对、提法与对比的公平性审视、复现要点、11 幕 3D 框架动画和读者注。">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
@@ -40,7 +40,7 @@ pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;pad
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 WALL-OSS</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 数据构成</a><a href="#s5">5 实验</a><a href="#s5-2">5.2 结果</a><a href="#s6">6 讨论</a><a href="#refs">参考文献</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+<a href="#tldr">摘要与速览</a><a href="#rel">和本站其他页的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 WALL-OSS</a><a href="#i3d">3D 框架动画</a><a href="#s4">4 数据构成</a><a href="#s5">5 实验</a><a href="#s5-2">5.2 结果</a><a href="#s6">6 讨论</a><a href="#refs">参考文献</a><a href="#audit" class="rn">提法与公平性审视</a><a href="#code">代码对照表</a><a href="#repro">代码与复现要点</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">摘要与速览</h2>
@@ -59,6 +59,7 @@ pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;pad
 <li>公开代码只覆盖微调，预训练的数据、步数、学习率论文和代码都没给。论文的“第一阶段冻结 VLM、只训流头”，在代码开关 <span class="cv">freeze_vlm</span> 里实际是只训动作 FFN，流头的投影层也被冻住（<a href="#n6">读者注 6</a>）。默认的 LeRobot 数据管线不产生 CoT 和子任务样本，按 README 直接跑只训动作（<a href="#n18">读者注 18</a>）。</li>
 <li>论文时期的流匹配代码有两个后来修掉的问题：训练时间 t 可取到 −0.001，推理时 10 个时间点只走 9 步 Euler（<a href="#n5">读者注 5</a>）。权重是 2025-09-06/07 上传的，此后没有更新。</li>
 </ol>
+<p><b>对比是否公平？</b>不完全公平。三件事要注意：WALL-OSS 预训练里已经有一半评测任务和同一台机器人，π0 没有；WALL-OSS 微调时多给了 CoT 和子任务标注；全文没有一组隔离“紧耦合结构”或“Inspiration 课程”的消融。逐条分析见<a href="#audit">提法与对比的公平性审视</a>。</p>
 
 <figure class="pfig" id="fig1">
 <img src="wall-oss/fig1.webp" width="1500" height="539" alt="图 1：两个例子。上：让 VLM 数卡片，VLM 说做不到，WALL-OSS 输出每张卡的坐标和总数 53；下：用字母积木拼出“8”，VLM 说缺字母 I，WALL-OSS 说出目标词 EIGHT 并开始放积木；右侧示意 LLM 和 VLM 的先验覆盖不了具身需要的部分" loading="lazy">
@@ -293,6 +294,146 @@ pre.cmd{background:var(--bg2);border:1px solid var(--line);border-radius:8px;pad
 <li>论文多处“π0”在 PDF 文本层里丢了 π 字符（例如图 7 图例在 <span class="cv">pdftotext</span> 里只剩“0”），看 PDF 时没有影响。</li>
 </ul>
 <div class="note" id="n19"><span class="lab">读者注 19 · 图里的几个名字和笔误</span><p>图 2(c) 的标题是“WALL-A”，正文从没出现过这个名字，推测是内部代号（我的推断）。图 3 把 Vision 拼成“Vison”，图 4 把 Base 拼成“Bese”。论文首页和 README 早期版本引用的是一个白皮书 PDF（<span class="cv">x2robot.cn-wlcb.ufileos.com/wall_oss.pdf</span>，题为“WALL-OSS: Igniting VLMs toward the Embodied Space”），arXiv 版题目里没有“WALL-OSS”；仓库在 2026-07-07 的 70dcf78 才把链接改成 arXiv。我没有比对白皮书和 arXiv 版的内容是否相同（未核实）。</p></div>
+
+<h2 id="audit">提法与对比的公平性审视</h2>
+<p>这一节是本页加的。我把第 1–3 节的提法和第 5 节的实验条件逐条对照，专门找对比不对等、结论超出证据的地方。和已有读者注重复的部分只给链接。标“我的推断”的是根据原文推出来的，原文没有直接写。</p>
+<p><b>先分清是哪一版。</b>“WALL-OSS”目前有三个公开版本，基线各不相同。本节审视的是第一行。</p>
+<div class="tablewrap"><table class="t-t3"><thead><tr><th>版本</th><th>公开时间</th><th>来源</th><th>真机对比的基线</th></tr></thead><tbody>
+<tr><td>WALL-OSS 原版（本页）</td><td>权重 2025-09-06/07；代码首提交 09-07；论文落款 09-08；arXiv v1 09-15</td><td>arXiv 2509.11766</td><td>π0、Diffusion Policy</td></tr>
+<tr><td><a href="wall-oss-05.html">Wall-OSS-0.5</a></td><td>arXiv v1 2026-05-29，v2 06-01</td><td>arXiv 2605.30877</td><td>π0.5、DreamZero</td></tr>
+<tr><td>WALL-OSS 1.0-lite（预览）</td><td>HF 仓库 2026-10-23、11-02 创建</td><td>只有模型卡，没有论文</td><td>没有公开的对比</td></tr>
+</tbody></table></div>
+<p>所以“和 π0 比”说的是原版。“和 π0.5 比”说的是 0.5。1.0 目前只有 Hugging Face 上的 lite 预览，没有论文，也没有公开的对比（见 <a href="wall-oss-05.html#w10">0.5 页“关于 WALL-OSS 1.0”</a>）。</p>
+<div class="callout">
+<p><b>结论先说。</b>这篇论文的实验能支持这样一句话：<b>在自家机器人上，用自家大量数据预训练、微调时又多给了 CoT 和子任务标注的 WALL-OSS，在需要推理和判断任务阶段的任务上，比只做了微调的 π0 好。</b>但它有两个核心提法：一是“紧耦合 MoE 优于松耦合”，二是“Inspiration 课程（具身 VQA 加 FAST）有效”。这两条都没有被单独隔离验证过。引言里“在多个操作基准上达到 SOTA”也没有依据：全文只有一套自建任务和两个基线。</p>
+</div>
+
+<h3 id="audit-a">A. 对比条件不对等</h3>
+<p><b>A1 · WALL-OSS 预训练时已经见过一半评测任务和这台机器人，π0 没有见过。</b></p>
+<ul>
+<li>§5.1.1 说，只有 set-table、tidy-bedroom、place-by-color 是“预训练没见过的新任务”。反过来就是说，block-spell、collect-waste、pick-place-cup 都在 WALL-OSS 的预训练数据里。</li>
+<li>评测平台就是自采数据用的那台轮式双臂机器人：权重里的 20 维自由度模板就是按它定的（<a href="#n9">读者注 9</a>）。</li>
+<li>π0 的预训练从没见过这台机器人，只靠每个任务 500–1600 条示范微调。</li>
+</ul>
+<p>按图 7 的矢量读数：</p>
+<ul>
+<li>差距最大的 block-spell（62.7 对 33.0）正是 WALL-OSS 预训练见过的任务。</li>
+<li>同样见过的 pick-place-cup，π0 反而更高（97.5 对 93.0）；collect-waste 两者都是 100。</li>
+</ul>
+<p>也就是说，纯动作任务上 WALL-OSS 即使有主场优势，也没有赢。</p>
+
+<p><b>A2 · “所有模型接受相同的任务监督”（§5.1.2）这句话不成立。</b></p>
+<ul>
+<li>WALL-OSS 微调时多拿了三样东西：CoT 和子任务标注；2D 指代定位监督；按 1:15、1:100 交错混入的 VQA 样本（<a href="#n17">读者注 17</a>）。</li>
+<li>基线只有两种设置：Flat（只给高层指令），或 GPT4-Subtask（训练用人工子任务，推理时由 GPT-4 现场生成子任务）。</li>
+<li>GPT-4 没有在这套子任务标注上微调过。它看什么输入、多久调用一次、提示词是什么，论文都没写。作者自己也说 GPT-4 的回答“缺乏及时性”（§5.2.5）。这个基线是按“做不好”的方式搭的（我的推断）。</li>
+</ul>
+<p>更公平的对照有两种：</p>
+<ul>
+<li>π0 配一个用同一套子任务标注微调过的高层 VLM，也就是 <a href="https://arxiv.org/abs/2502.19417">Hi Robot</a> 式的分层做法（论文引用了它）；</li>
+<li>给 π0 喂真值子任务，作为上限参考。</li>
+</ul>
+<p>§5.1.2 说两种基线设置能“把任务分解的贡献和结构创新的贡献分开”。但图 7 只说明了 block-spell 的基线用 GPT-subtask（§5.2.5）。set-table、tidy-bedroom 这两个长程任务的基线是哪种设置没有写，也没有把两种设置都报出来。所以这两种贡献其实没有分开。tidy-bedroom 40.0 对 13.3 这个差距，很可能大半来自“有没有子任务”，而不是来自结构（我的推断）。</p>
+
+<p><b>A3 · 基线选得弱，也没有公开基准。</b></p>
+<ul>
+<li>只比了 π0（论文 2024-10，权重 2025-02 随 openpi 公开）和 Diffusion Policy。</li>
+<li>π0.5（31）、Hi Robot（64）、GR00T N1（53）都在参考文献里，但都没进对比。按公开时间分开看：
+  <ul>
+  <li><b>π0.5 不比是可以理解的。</b>论文 2025-04 就挂出来了，但 openpi 把 π0.5 权重（<span class="cv">pi05_base</span> 等）合进主分支是 2025-09-08。这正好是本文的落款日期，离 arXiv 提交（09-15）只差一周，来不及比。</li>
+  <li><b>Hi Robot 没有公开代码。</b>不过它的分层思路可以自己搭，见 A2。</li>
+  <li><b>能比而没比的有两个：</b>π0-FAST（2025-02 和 π0 一起在 openpi 公开）和 GR00T N1（2025-03 公开）。</li>
+  </ul>
+</li>
+<li>和本文“先离散、后连续”最接近的 π0-FAST、Knowledge Insulation 也没比。KI 的训练方法后来用在了 9 月公开的 π0.5 上，所以本文写作时 KI 只有论文，没有公开权重。引言批评“Knowledge insulation”是松耦合，但没有给出引用。</li>
+<li>DP 从零训练。论文没说它是否接收语言指令；如果不接收，place-by-color 和 block-spell 这类靠指令决定目标的任务它基本做不好（我的推断）。把它算进平均分，主要作用是拉大柱子间的视觉差距。</li>
+<li>全文没有任何公开基准（LIBERO、SimplerEnv 等）。wall-x 后来加了 LIBERO 的微调配置和评测脚本，但 WALL-OSS 和后来的 Wall-OSS-0.5 都没有报告 LIBERO 微调成绩（见 <a href="wall-oss-05.html">Wall-OSS-0.5 页</a>）。</li>
+</ul>
+
+<p><b>A4 · 表 2 让零样本的底座模型和在同分布数据上训过的模型比</b>（<a href="#n15">读者注 15</a>）。补充三点：</p>
+<ul>
+<li><b>坐标格式可能不一致。</b>Qwen2.5-VL 定位默认输出绝对像素坐标，图 1 里 WALL-OSS 输出的是 <span class="cv">{"x":22.708,"y":80.778}</span> 这种 0–100 的百分比式坐标。如果评分按某一种格式判，另一方的格式差异会被算成定位失败（我的推断）。</li>
+<li><b>比较对象太窄。</b>只比了 3B 底座。没有比 7B、72B 的 Qwen2.5-VL，没有比 Gemini，也没有比其他面向机器人的 VLM。</li>
+<li><b>“没丢掉原能力”没有证据。</b>§5.2.1 说预训练“保住了 VLM 的视觉-语言对齐”，但全文没有一个通用 VLM 基准分数可以支撑这一点。</li>
+</ul>
+
+<p><b>A5 · 表 3 的“WALL-OSS（只训动作）26% 对 π0（只训动作）9%”不能说明结构更好。</b>两者的预训练数据完全不同，WALL-OSS 预训练里有 block-spell 任务，也有具身定位 VQA。这一行只能说明“自家预训练有用”，分不出结构的作用（<a href="#n16">读者注 16</a>）。</p>
+
+<h3 id="audit-b">B. 核心提法缺少对照</h3>
+<p><b>B1 · “紧耦合优于松耦合”：没有一组同数据、同规模的结构消融。</b>另外，图 2(b) 和 §3 对 π0 的描述不准确：</p>
+<ul>
+<li>论文把 π0 画成“另起一个分支，靠虚线和 VLM 交互”。按 π0 原文 §3，它的动作专家在<b>每一层</b>都和 VLM 的 token 一起做自注意力，只是 QKV 投影和 FFN 用各自的权重。</li>
+<li>WALL-OSS 和 π0 的实际区别只有三点：
+  <ul>
+  <li>注意力投影权重共享，而 π0 是两套；</li>
+  <li>动作 FFN 更窄（中间维 2048）；</li>
+  <li>动作 token 走同一个主干宽度。</li>
+  </ul>
+</li>
+</ul>
+<p>“紧耦合 / 松耦合”这个对立说法放大了两者的差别。论文也没有做“共享 QKV 对比分开 QKV”这一项对照。</p>
+<p>还有一个旁证：同一团队的 <a href="wall-oss-05.html">Wall-OSS-0.5</a> 换成了 Mixture-of-Transformers。它的图 2 里，VL 专家和动作专家每层各有自己的 QKV 和 FFN，再用一层联合注意力连起来；HF 配置里动作专家宽 1024。这和图 2(b) 里被批评为“松耦合”的 π0 结构基本是同一类。0.5 没有解释为什么放弃共享注意力。所以“共享注意力是关键”这个提法，作者自己后来也没有坚持（这是我的推断，依据是 0.5 页对原文图 2 和配置的记录）。</p>
+
+<p><b>B2 · Inspiration 阶段有用：§4.4 和 §6.1 都说“消融显示有效”，正文找不到这组消融</b>（<a href="#n10">读者注 10</a>）。</p>
+
+<p><b>B3 · §5.2.3“预训练必不可少”：比的是“预训练过的 VLA”和“从零训的 DP”。</b>两者的容量、语言条件和结构全都不同。缺少“同一个 WALL-OSS 去掉机器人预训练”这一项对照。</p>
+
+<p><b>B4 · 对前人工作的描述和引用有错。</b></p>
+<ul>
+<li>引言第 2 页说“一些方法（例如 π0）先在高层把动作离散化、和文本 token 对齐，再用扩散 / 流匹配生成连续动作”。π0 没有离散动作，这其实是 π0.5 和 Knowledge Insulation 的做法。</li>
+<li>式 (1) 前写“cf. π0-FAST (12)”，但 (12) 是 π0 论文（arXiv 2410.24164），FAST 应引 (56)（arXiv 2501.09747）。</li>
+</ul>
+
+<p><b>B5 · “单一可微框架、端到端可微映射”（摘要、§3、§6.1）说过头了。</b></p>
+<ul>
+<li>CoT 和子任务是采样出来的离散文本，推理时梯度不会穿过它们。</li>
+<li>训练时各层级用 teacher forcing 分别监督，“可微”只是说每一段损失各自可微。</li>
+<li>公开代码里也没有 CoT 字段（<a href="#n18">读者注 18</a>）。</li>
+</ul>
+
+<p><b>B6 · 其他偏大的说法。</b></p>
+<ul>
+<li>“验证了一条可扩展的范式”：只有一个模型尺寸、一个数据规模，没有扩展曲线。</li>
+<li>“开源完整训练代码”：预训练代码、数据和具身 VQA 生成管线都没有公开（<a href="#n7">读者注 7</a>）。</li>
+</ul>
+
+<h3 id="audit-c">C. 评测和统计</h3>
+<ul>
+<li><b>C1 · 没有误差范围，也不知道样本量。</b>没有试验次数、置信区间和随机种子。纵轴是任务进度，正文却说成功率，有两处数字和图对不上（<a href="#n13">读者注 13</a>）。</li>
+<li><b>C2 · OOD 的定义和任务选择。</b>
+  <ul>
+  <li>只有 collect-waste 说明了 OOD 改了什么（换环境）。</li>
+  <li>OOD 只测了 4 个任务。缺的两个恰好是 π0 在 ID 上赢的 pick-place-cup，以及 WALL-OSS 最弱的 tidy-bedroom（40.0）。</li>
+  <li>WALL-OSS 有两项 OOD 比 ID 还高：place-by-color 85.0 对 83.3，block-spell 75.0 对 62.7。这说明要么分布偏移很弱，要么样本少、噪声大（我的推断）。</li>
+  <li>DP 有两个格子没画柱，却按 0 计入了平均。</li>
+  </ul>
+</li>
+<li><b>C3 · 零样本的 85% 和 61%。</b>没有对应的图，没有试验次数，没有基线（<a href="#n14">读者注 14</a>）。“见过的物体”本就在预训练数据里，所以这里的“零样本”只是相对于微调而言。</li>
+<li><b>C4 · “盲测第三方评测”的盲法有限。</b>
+  <ul>
+  <li>测试文档、初始状态和评分标准都由训练方提供。“第三方”是不是公司外部的人，论文没说。</li>
+  <li>WALL-OSS 运行时会生成思维链和子任务，节奏和行为与基线不同，评测者不难猜出是哪个模型（我的推断）。</li>
+  </ul>
+</li>
+<li><b>C5 · 规模不对等，也没有报告。</b>
+  <ul>
+  <li>数据量有“1 万小时”和“数万小时”两种说法（<a href="#n10">读者注 10</a>）。</li>
+  <li>参数量 4.22B，π0 约 3.3B（π0 原文）。</li>
+  <li>训练算力没有报告。</li>
+  </ul>
+</li>
+</ul>
+
+<h3 id="audit-d">D. 去掉不公平因素后还剩什么</h3>
+<p>只看两个模型预训练都没见过的三个任务（图 7 分布内矢量读数）：</p>
+<div class="tablewrap"><table class="t-f7"><thead><tr><th>任务</th><th>WALL-OSS</th><th>π0</th><th>差</th><th>这一项还混着什么</th></tr></thead><tbody>
+<tr><td>place-by-color</td><td>83.3</td><td>75.0</td><td>+8.3</td><td>WALL-OSS 用 CoT，基线设置没写</td></tr>
+<tr><td>set-table</td><td>83.3</td><td>71.6</td><td>+11.7</td><td>WALL-OSS 用子任务，基线设置没写</td></tr>
+<tr><td>tidy-bedroom</td><td>40.0</td><td>13.3</td><td>+26.7</td><td>同上；作者说基线“缺少显式子任务引导”</td></tr>
+</tbody></table></div>
+<p>这三项 WALL-OSS 仍然领先，但每一项都同时混着两个因素：多给的子任务和 CoT 监督，以及在同一台机器人上的大量预训练。纯动作任务（collect-waste、pick-place-cup）上两者打平，或 π0 略好。</p>
+<p>所以比较稳妥的读法是：这篇论文又一次印证了“高层语言监督（子任务、CoT）对长程和推理类任务有用”。这一点和 Hi Robot、π0.5 的结论一致。论文把功劳记到“紧耦合 MoE”和“Inspiration 课程”上，这两点在本文的实验里没有被单独验证过。</p>
+<p>后续的 <a href="wall-oss-05.html">Wall-OSS-0.5</a> 做了一部分这里缺的对照：§5.1 比较了去掉“梯度桥”、截断梯度、推迟联合训练三种做法；多模态评测里有四个公开基准。但它的机器人操作评测仍然只用自建真机任务，基线换成了 π0.5 和 DreamZero。</p>
 
 <h2 id="code">代码对照表</h2>
 <p>“论文”列按原文，“代码”列按论文时期的 86f70a3（行号）；最后一列是当前 HEAD ce2a1ae 的情况。HF 列来自权重的 <span class="cv">config.json</span> 和文件头。</p>

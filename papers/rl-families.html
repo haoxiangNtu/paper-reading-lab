@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>强化学习算法谱系 · Paper Reading Lab</title>
+<meta name="description" content="概念专题：REINFORCE、A2C/A3C、TRPO、PPO 和 DQN、DDPG、TD3、SAC、PQL、FastTD3、FastSAC 的区别和联系。共同骨架、谱系图、同策略与离策略的分界、三种策略梯度、并行仿真下的离策略扩展，配四个交互小图。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+:root{--on:#38d1ff;--off:#ffb347;--dif:#7ee0a8}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--on:#0a86b8;--off:#9a5200;--dif:#1f7a4d}}
+:root[data-theme="light"]{--on:#0a86b8;--off:#9a5200;--dif:#1f7a4d}
+.t-all{min-width:980px}.t-scale{min-width:760px}.t-links{min-width:640px}.t-axis{min-width:620px}
+.t-all td:first-child,.t-scale td:first-child{white-space:nowrap;font-weight:600}
+.cv{font-family:var(--font-mono);font-size:12.5px}
+.on{color:var(--on)}.off{color:var(--off)}.dif{color:var(--dif)}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:11.5px;border:1px solid currentColor;border-radius:999px;padding:0 7px;margin-right:4px;line-height:1.6}
+.wid{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:18px 0;background:var(--bg2)}
+.wid .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.wid p{max-width:none;font-size:14.5px;margin:6px 0}
+.wid svg.plot{display:block;width:100%;height:auto;margin:6px 0;font-family:var(--font-body)}
+.wid .ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:14px;margin:6px 0}
+.wid .ctl label{display:flex;align-items:center;gap:8px}
+.wid input[type=range]{width:150px;accent-color:var(--accent)}
+.wid .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.wid .seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13px;padding:3px 12px;cursor:pointer}
+.wid .seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.wid .out{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);white-space:pre-wrap;margin:4px 0 0}
+.wid .card{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;min-height:7.5em}
+.wid .card h4{margin:0 0 4px;font-size:15.5px}
+.wid .card p{margin:4px 0}
+.node{cursor:pointer}
+.node:focus{outline:none}
+.node:focus rect,.node:hover rect{stroke-width:2.4}
+.algo{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;background:var(--panel)}
+.algo h4{margin:0 0 4px;font-size:16px}
+.algo p,.algo li{max-width:none}
+.algo .fix{font-size:14px;color:var(--muted)}
+.qa dt{font-weight:700;margin:16px 0 4px}
+.qa dd{margin:0 0 6px 0;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../index.html#architecture">专题</a><a href="holosoma-15min.html">FastSAC 精读</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">概念专题 · 强化学习 · 2026-11-24 · 中文整理</p>
+<h1>强化学习算法谱系：同策略和离策略两条线的区别与联系</h1>
+<p class="orig">REINFORCE · A2C / A3C · TRPO · PPO ｜ DQN · DDPG · TD3 · SAC · PQL · FastTD3 · FastSAC</p>
+<div class="meta"><span>不是单篇论文精读</span><a href="#links">各算法原文</a><a href="holosoma-15min.html">FastSAC / FastTD3 精读页</a><a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro2.html">OpenAI Spinning Up（分类图）</a></div>
+
+<div class="callout">
+<p><b>这一页是什么。</b>这是一张算法地图，不是某篇论文的精读。写它是为了回答一个问题：PPO 和 FastSAC 都叫“强化学习算法”，它们到底是不是同一类东西？如果是，区别和联系在哪里？</p>
+<p><b>依据。</b>公式按各算法原文的写法整理，符号统一成本页的记号。关键超参数按原文给。PQL（arXiv 2307.12983）和 FastTD3（arXiv 2505.22642）我重新读了原文，FastSAC 的数字取自本站的 <a href="holosoma-15min.html">holosoma-15min 精读页</a>，那一页对照过论文和代码。四个交互小图都用玩具数据，只演示机制，不代表真实任务的数值。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">一句话回答</a><a href="#core">共同骨架</a><a href="#map">谱系图</a><a href="#axes">三条分界线</a><a href="#on">同策略一族</a><a href="#off">离策略一族</a><a href="#scale">并行仿真下的扩展</a><a href="#grad">三种梯度</a><a href="#table">总对照表</a><a href="#robot">机器人里怎么选</a><a href="#qa" class="rn">常见误解</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">一句话回答</h2>
+<p><b>是同一类东西。</b>这些都是“训练一个策略网络，让期望累计奖励最大”的完整算法。在同一个仿真器、同一份奖励、同样结构的策略网络下，可以把 PPO 换成 FastSAC，反过来也行。holosoma 就是这么比的：同一个 G1 行走任务，横轴是训练时间，三条曲线分别是 PPO、FastTD3、FastSAC。它们不是互相配合的“不同模块”。</p>
+<p>区别集中在三个问题上：</p>
+<ol>
+<li><b>数据从哪来。</b>
+  <ul>
+  <li><span class="on">同策略</span>（on-policy）只能用当前策略刚采到的数据，用完就扔。</li>
+  <li><span class="off">离策略</span>（off-policy）能反复用回放缓存里的旧数据，这些数据由旧策略、甚至别的策略产生。</li>
+  </ul>
+</li>
+<li><b>策略怎么改。</b>
+  <ul>
+  <li>同策略一族用“似然比梯度”：采样一个动作，奖励高就把它的概率调大。</li>
+  <li>DDPG、TD3、SAC 用“对 Q 求导”：沿着 \(\partial Q/\partial a\) 把动作往 Q 更高的方向推。</li>
+  <li>DQN 干脆不学策略网络，直接对 Q 取 argmax。</li>
+  </ul>
+</li>
+<li><b>价值怎么估。</b>
+  <ul>
+  <li>同策略一族学状态价值 \(V(s)\)，用整段轨迹算优势（GAE）。</li>
+  <li>离策略一族学动作价值 \(Q(s,a)\)，用一步时序差分（TD）自举，加目标网络稳住。</li>
+  </ul>
+</li>
+</ol>
+<p>联系在于两点：</p>
+<ul>
+<li><b>它们都是同一个骨架的变体。</b>中间那几个（A2C、TRPO、PPO、DDPG、TD3、SAC）都是“演员-评论家”结构：一个网络出动作，一个网络打分。</li>
+<li><b>每一代都是为了修上一代的一个具体毛病：</b>
+  <ul>
+  <li>PPO 修 TRPO 太复杂；</li>
+  <li>TD3 修 DDPG 高估 Q；</li>
+  <li>SAC 修 TD3 探索靠人加噪声；</li>
+  <li>PQL、FastTD3、FastSAC 修“离策略在几千个并行环境下跑不快”。</li>
+  </ul>
+</li>
+</ul>
+
+<h2 id="core">共同骨架：大家在估同几样东西</h2>
+<p>所有算法面对的都是同一个问题：在马尔可夫决策过程里，状态 \(s_t\)，动作 \(a_t\sim\pi_\theta(\cdot\mid s_t)\)，奖励 \(r_t\)，折扣 \(\gamma\)。目标是让下式最大：</p>
+\[ J(\theta)=\mathbb E_{\tau\sim\pi_\theta}\Big[\sum_{t\ge0}\gamma^t r_t\Big] \tag{1} \]
+<p>围绕它有三个量。这一页的所有算法，都是在用不同的办法估计其中某几个，再拿去改策略。</p>
+\[ V^\pi(s)=\mathbb E_\pi\Big[\sum_{k\ge0}\gamma^k r_{t+k}\,\Big|\,s_t=s\Big],\qquad Q^\pi(s,a)=\mathbb E_\pi\Big[\sum_{k\ge0}\gamma^k r_{t+k}\,\Big|\,s_t=s,a_t=a\Big],\qquad A^\pi=Q^\pi-V^\pi \tag{2} \]
+<p>两个基本关系把整张谱系串起来。第一个是贝尔曼方程，离策略一族全靠它：</p>
+\[ Q^\pi(s,a)=\mathbb E_{s'}\Big[r+\gamma\,\mathbb E_{a'\sim\pi(\cdot\mid s')}Q^\pi(s',a')\Big],\qquad Q^*(s,a)=\mathbb E_{s'}\Big[r+\gamma\max_{a'}Q^*(s',a')\Big] \tag{3} \]
+<p>第二个是策略梯度定理，同策略一族全靠它：</p>
+\[ \nabla_\theta J=\mathbb E_{s\sim d^{\pi_\theta},\,a\sim\pi_\theta}\big[\nabla_\theta\log\pi_\theta(a\mid s)\,A^{\pi_\theta}(s,a)\big] \tag{4} \]
+<p>注意两个式子里期望的下标：</p>
+<ul>
+<li><b>式 (4) 的期望在当前策略 \(\pi_\theta\) 下。</b>数据必须由当前策略采，换了 \(\theta\) 旧数据就不再是这个分布。这就是“同策略”的来源。</li>
+<li><b>式 (3) 左边的 \((s,a)\) 可以是任何一对。</b>只要下一步的 \(a'\) 按要评估的策略取，等式对任意来源的 \((s,a,r,s')\) 都成立。所以旧数据可以一直用，这就是“离策略”的来源。</li>
+</ul>
+<p>同策略和离策略的分界，根子就在这两个式子上，和“有没有回放缓存”“是不是随机策略”都没有直接关系（见<a href="#qa">常见误解</a>）。</p>
+
+<h2 id="map">谱系图</h2>
+<div class="wid" id="w-map">
+<p class="lab">交互 1 · 谱系图（点一个算法看它修了什么）</p>
+<p>上面一行是<span class="on">同策略</span>一族，下面一行是<span class="off">离策略</span>一族。箭头表示“在前者基础上改”。虚线表示跨族的借用：A2C 和 DDPG 都是演员-评论家；PPO 的“限制每步改动幅度”和 SAC 的熵正则都来自更早的思想；PQL 和 FastTD3 借了 PPO 那套“大量并行环境”的用法。右侧<span class="dif">绿色</span>是第三条路：穿过可微仿真器直接求梯度（本站 SHAC、∇Mimic、DiffMimic）。</p>
+<svg class="plot" id="map-svg" viewBox="0 0 860 400" role="img" aria-label="强化学习算法谱系图"></svg>
+<div class="card" id="map-card" aria-live="polite"><p>点击图中任意一个算法。</p></div>
+</div>
+
+<h2 id="axes">三条分界线</h2>
+<p>把每个算法放到下面三根轴上，就能看清它们的关系。三根轴是互相独立的：比如 SAC 是“离策略 + 随机策略 + 对 Q 求导”，PPO 是“同策略 + 随机策略 + 似然比梯度”。</p>
+<div class="tablewrap"><table class="t-axis"><thead><tr><th>轴</th><th>一端</th><th>另一端</th><th>决定了什么</th></tr></thead><tbody>
+<tr><td>数据能不能复用</td><td><span class="on">同策略</span>：REINFORCE、A2C/A3C、TRPO、PPO</td><td><span class="off">离策略</span>：DQN、DDPG、TD3、SAC、PQL、FastTD3、FastSAC</td><td>样本效率；要不要回放缓存；能不能每采一步做多次更新</td></tr>
+<tr><td>策略怎么更新</td><td>似然比 / 得分函数梯度：\(\nabla\log\pi\cdot A\)（同策略一族）</td><td>对学到的 Q 求导：\(\nabla_aQ\cdot\nabla_\theta a\)（DDPG、TD3、SAC 系）；或者没有策略网络，直接 \(\arg\max_aQ\)（DQN）</td><td>梯度方差；能不能处理离散动作；需不需要可导的 Q</td></tr>
+<tr><td>价值怎么学</td><td>\(V(s)\)，用多步回报或 GAE 当目标（同策略一族）</td><td>\(Q(s,a)\)，用一步 TD 自举，配目标网络（离策略一族）</td><td>偏差和方差的取舍；高估问题只出现在后者</td></tr>
+</tbody></table></div>
+<p>第三根轴其实是第一根的后果。离策略要评估“没采过的动作”，就必须学 \(Q(s,a)\)。\(V(s)\) 隐含着“按采样数据的那个策略走”，换了策略就不对了。</p>
+
+<h2 id="on"><span class="no">L</span>同策略一族：REINFORCE → A2C/A3C → TRPO → PPO</h2>
+<p>这条线一直在做同一件事：用式 (4) 估梯度，然后想办法把<b>方差降下来</b>、把<b>每一步改多大</b>控制住。</p>
+
+<div class="algo" id="reinforce"><h4>REINFORCE（Williams 1992）</h4>
+<p>直接用一整局的实际回报 \(G_t\) 代替式 (4) 里的优势：</p>
+\[ \hat g=\sum_t\nabla_\theta\log\pi_\theta(a_t\mid s_t)\,\big(G_t-b(s_t)\big),\qquad G_t=\sum_{k\ge t}\gamma^{k-t}r_k \tag{5} \]
+<p>这个估计是无偏的，但方差很大：一局里任何一步的运气都会算到每一个动作头上。减去一个只和状态有关的基线 \(b(s_t)\)，期望不变，方差会小很多。<a href="#w-grad">交互 4</a> 可以看到，不加基线时，奖励整体平移一个常数，方差就会暴涨。</p>
+<p class="fix">留下的问题：要等一整局结束；方差仍然大；每批数据只更新一次。</p></div>
+
+<div class="algo" id="a2c"><h4>A2C / A3C（Mnih 等 2016；A2C 是 OpenAI Baselines 2017 年的同步版）</h4>
+<p>加一个评论家 \(V_\phi(s)\)，用 n 步回报加自举来估优势，不必等一局结束：</p>
+\[ \hat A_t=\sum_{k=0}^{n-1}\gamma^k r_{t+k}+\gamma^nV_\phi(s_{t+n})-V_\phi(s_t) \tag{6} \]
+<p>总损失由三项组成：策略项 \(-\log\pi\,\hat A\)，价值项 \(c_v(V_\phi-\hat R)^2\)，再减去熵奖励 \(c_eH(\pi)\) 鼓励探索。</p>
+<ul>
+<li><b>A3C</b> 用多个 CPU 线程（原文 16 个）各自跑环境、异步往共享参数上推梯度。</li>
+<li><b>A2C</b> 把它改成同步：所有环境走一步，凑成一批，一起更新。OpenAI 发现 A2C 效果不比 A3C 差，而且更好地利用 GPU。</li>
+</ul>
+<p>“很多环境并行采样、凑大批”的做法从这里开始，后来成了 Isaac Gym 时代 PPO 的标准用法。</p>
+<p class="fix">留下的问题：步长难调。学习率稍大，策略一步就可能变坏，变坏的策略又采到更差的数据，没法回头。</p></div>
+
+<div class="algo" id="trpo"><h4>TRPO（Schulman 等 2015）</h4>
+<p>把“每步改多少”变成约束。先用重要性比率 \(\rho_t=\pi_\theta(a_t\mid s_t)/\pi_{\theta_\text{old}}(a_t\mid s_t)\) 写一个替代目标，再限制新旧策略的 KL 散度：</p>
+\[ \max_\theta\ \mathbb E_t\big[\rho_t\hat A_t\big]\quad\text{s.t.}\quad \mathbb E_t\big[\mathrm{KL}\big(\pi_{\theta_\text{old}}(\cdot\mid s_t)\,\|\,\pi_\theta(\cdot\mid s_t)\big)\big]\le\delta \tag{7} \]
+<p>求解时用共轭梯度算自然梯度方向，再做线搜索，原文 \(\delta=0.01\)。理论上能保证每步单调改进（在近似成立的条件下）。</p>
+<p>注意：\(\rho_t\) 让 TRPO 可以用“上一版策略”采的数据，但只在新旧策略很接近时才可靠。它仍然是同策略。</p>
+<p class="fix">留下的问题：二阶优化，实现复杂；和共享参数的网络、dropout 等不好配合。</p></div>
+
+<div class="algo" id="ppo"><h4>PPO（Schulman 等 2017）</h4>
+<p>不用 KL 约束，直接把比率裁剪掉：</p>
+\[ L^{\text{CLIP}}(\theta)=\mathbb E_t\Big[\min\big(\rho_t\hat A_t,\ \mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\,\hat A_t\big)\Big],\qquad \epsilon=0.2 \tag{8} \]
+<p>优势用 GAE 估计。它是 \(\lambda\) 加权的多步 TD 误差，\(\lambda\) 在“一步 TD（偏差大、方差小）”和“整段回报（偏差小、方差大）”之间调节：</p>
+\[ \delta_t=r_t+\gamma V_\phi(s_{t+1})-V_\phi(s_t),\qquad \hat A_t^{\text{GAE}}=\sum_{l\ge0}(\gamma\lambda)^l\,\delta_{t+l} \tag{9} \]
+<p>一批数据可以跑好几轮小批量更新（例如 5 轮），裁剪保证跑多轮也不会把策略推太远。只用一阶优化，几十行就能实现。</p>
+<p>legged_gym、Isaac Lab 的 rsl_rl 默认都用它。本站的 <a href="rpl.html">RPL</a> 专家、<a href="beyondmimic.html">BeyondMimic</a> 跟踪、<a href="php-parkour.html">PHP</a> 的蒸馏（DAgger 和 PPO 混合）、<a href="sonic.html">SONIC</a> 都是 PPO。</p>
+<p class="fix">留下的问题：仍然是同策略，数据用几轮就扔，样本效率低。只靠“堆并行环境”来换时间。</p></div>
+
+<div class="wid" id="w-ppo">
+<p class="lab">交互 2 · PPO 的裁剪目标（式 8）</p>
+<p>横轴是新旧策略的概率比 \(\rho\)，纵轴是这一个样本对目标的贡献。虚线是不裁剪的 \(\rho A\)，实线是 PPO 的目标，阴影区是梯度为 0 的区域。</p>
+<ul>
+<li><b>A &gt; 0 时：</b>动作比预期好，\(\rho\) 涨过 \(1+\epsilon\) 就不再奖励，防止一步把概率拉太高。</li>
+<li><b>A &lt; 0 时：</b>\(\rho\) 跌过 \(1-\epsilon\) 就不再惩罚。</li>
+</ul>
+<p>反方向不裁剪：A &gt; 0 而 \(\rho\) 已经变小，或 A &lt; 0 而 \(\rho\) 已经变大，这时梯度保留，用来把走错的方向拉回来。</p>
+<div class="ctl"><span class="seg" role="group" aria-label="优势符号"><button type="button" data-a="1" aria-pressed="true">A &gt; 0</button><button type="button" data-a="-1" aria-pressed="false">A &lt; 0</button></span>
+<label>ε <input type="range" id="ppo-eps" min="0.05" max="0.5" step="0.01" value="0.2"><span class="cv" id="ppo-eps-v">0.20</span></label></div>
+<svg class="plot" id="ppo-svg" viewBox="0 0 640 300" role="img" aria-label="PPO 裁剪目标曲线"></svg>
+<p class="out" id="ppo-out"></p>
+</div>
+
+<h2 id="off"><span class="no">R</span>离策略一族：DQN → DDPG → TD3 → SAC</h2>
+<p>这条线的共同点是：学一个 \(Q(s,a)\)，用式 (3) 的右边当回归目标；数据放在回放缓存里反复抽。难点是自举（用自己的估计当目标）、函数近似和离策略数据三样凑在一起容易发散。所以这条线一直在加稳定性技巧。</p>
+
+<div class="algo" id="dqn"><h4>DQN（Mnih 等 2013 / Nature 2015）</h4>
+\[ y=r+\gamma\,(1-d)\max_{a'}Q_{\phi^-}(s',a'),\qquad \mathcal L(\phi)=\big(Q_\phi(s,a)-y\big)^2 \tag{10} \]
+<p>两个稳定性技巧：</p>
+<ul>
+<li><b>回放缓存：</b>Nature 版存 100 万步，打散数据之间的相关性。</li>
+<li><b>目标网络 \(\phi^-\)：</b>每隔一段时间从 \(\phi\) 拷一次，让回归目标不要跟着自己一起动。</li>
+</ul>
+<p>行为策略是 ε-贪心。DQN 没有策略网络，动作就是 \(\arg\max_aQ\)，所以只能用于离散动作，比如 Atari 的 18 个按键。</p>
+<p>后来的 Double DQN 用在线网络选动作、目标网络打分，缓解式 (10) 里 \(\max\) 带来的高估（见<a href="#w-over">交互 3</a>）。</p>
+<p class="fix">留下的问题：连续动作（例如 23 个关节的力矩或目标角）没法对每个动作取 max。</p></div>
+
+<div class="algo" id="ddpg"><h4>DDPG（Lillicrap 等 2015，基于 Silver 等 2014 的确定性策略梯度）</h4>
+<p>用一个确定性演员 \(\mu_\theta(s)\) 代替 \(\arg\max\)。演员的梯度就是“Q 对动作的导数”乘上“动作对参数的导数”：</p>
+\[ y=r+\gamma(1-d)\,Q_{\phi'}\big(s',\mu_{\theta'}(s')\big),\qquad \nabla_\theta J\approx\mathbb E_{s\sim\mathcal D}\Big[\nabla_aQ_\phi(s,a)\big|_{a=\mu_\theta(s)}\,\nabla_\theta\mu_\theta(s)\Big] \tag{11} \]
+<p>可以把它看成“连续动作版 DQN”：</p>
+<ul>
+<li>回放缓存和目标网络都保留，目标网络改成软更新 \(\phi'\leftarrow\tau\phi+(1-\tau)\phi'\)，原文 \(\tau=0.001\)；</li>
+<li>探索靠在动作上加噪声，原文用 OU 过程。</li>
+</ul>
+<p>它也是一个演员-评论家，和 A2C 的结构相同，只是评论家学的是 Q 而不是 V，演员按 \(\nabla_aQ\) 更新而不是按 \(\nabla\log\pi\cdot A\) 更新。</p>
+<p class="fix">留下的问题：演员一直往 Q 的高处推，而 Q 的误差里偏高的那部分正好被选中，于是高估越滚越大，训练不稳定。</p></div>
+
+<div class="algo" id="td3"><h4>TD3（Fujimoto 等 2018）</h4>
+<p>针对 DDPG 的高估，加了三处修改：</p>
+\[ \tilde a=\mathrm{clip}\big(\mu_{\theta'}(s')+\mathrm{clip}(\varepsilon,-c,c),\,a_\text{low},a_\text{high}\big),\ \ \varepsilon\sim\mathcal N(0,\tilde\sigma^2);\qquad y=r+\gamma(1-d)\min_{i=1,2}Q_{\phi'_i}(s',\tilde a) \tag{12} \]
+<ol>
+<li><b>裁剪双 Q（CDQ）：</b>学两个评论家，目标取较小的那个。</li>
+<li><b>延迟策略更新：</b>评论家每更新 2 次，演员和目标网络才更新 1 次（\(d=2\)）。</li>
+<li><b>目标策略平滑：</b>给目标动作加裁剪过的噪声，\(\tilde\sigma=0.2\)、\(c=0.5\)，不让 Q 在某个尖点上被利用。</li>
+</ol>
+<p>原文 \(\tau=0.005\)，探索噪声 \(\mathcal N(0,0.1)\)。</p>
+<p class="fix">留下的问题：取最小值会低估；探索仍然靠手调的固定噪声。</p></div>
+
+<div class="algo" id="sac"><h4>SAC（Haarnoja 等 2018；自动调温版 2018 年 12 月）</h4>
+<p>改目标本身：在奖励上加策略的熵，让策略在拿到奖励的同时保持随机。这是最大熵强化学习：</p>
+\[ J(\pi)=\mathbb E\Big[\sum_t\gamma^t\big(r_t+\alpha\,\mathcal H(\pi(\cdot\mid s_t))\big)\Big] \tag{13} \]
+\[ y=r+\gamma(1-d)\Big(\min_{i=1,2}Q_{\phi'_i}(s',\tilde a')-\alpha\log\pi_\theta(\tilde a'\mid s')\Big),\ \ \tilde a'\sim\pi_\theta(\cdot\mid s') \tag{14} \]
+\[ \mathcal L_\pi(\theta)=\mathbb E_{s\sim\mathcal D,\ \xi\sim\mathcal N}\Big[\alpha\log\pi_\theta(a_\theta\mid s)-\min_iQ_{\phi_i}(s,a_\theta)\Big],\quad a_\theta=\tanh\big(m_\theta(s)+\sigma_\theta(s)\odot\xi\big) \tag{15} \]
+<ul>
+<li><b>策略：</b>经 tanh 压缩的高斯分布，用重参数化（\(a_\theta\) 对 \(\theta\) 可导）。所以 SAC 的演员也是“对 Q 求导”，和 DDPG 是同一种梯度，只是多了熵项、动作是随机的。</li>
+<li><b>温度 \(\alpha\)：</b>可以自动调，让策略的熵接近目标值 \(\bar{\mathcal H}=-\dim\mathcal A\)。</li>
+<li><b>CDQ：</b>沿用 TD3 的取较小值。</li>
+</ul>
+<p>它和 TD3 的根本差别在探索。TD3 的探索靠外面加噪声；SAC 的探索写进了目标，策略自己学会在哪里该多试。</p>
+<p class="fix">留下的问题：原始的 SAC、TD3 都是“1 个环境、每步 1 次更新、批 256”的设定。放到几千个 GPU 并行环境上，墙钟时间反而比不过 PPO。</p></div>
+
+<div class="wid" id="w-over">
+<p class="lab">交互 3 · 为什么 Q 会被高估，CDQ 和“取平均”各做了什么（玩具）</p>
+<p>设定是这样的：有 K 个候选动作，真实 Q 全是 0；两个评论家的估计各带独立噪声 \(\mathcal N(0,\sigma^2)\)。演员按评论家 1 选出看起来最好的动作 \(a^\star=\arg\max_aQ_1(a)\)，然后用三种方式给目标打分。</p>
+<ul>
+<li><b>直接用 \(Q_1(a^\star)\)：</b>这是 DQN 的 \(\max\)，也是 DDPG 演员追着单个 Q 跑时的情形。</li>
+<li><b>取 \(\min(Q_1,Q_2)\)：</b>这是 TD3、SAC 的 CDQ。</li>
+<li><b>取 \((Q_1+Q_2)/2\)：</b>这是 FastSAC 的选择。</li>
+</ul>
+<p>正确答案是 0，柱子偏离 0 越多，偏差越大。这里只演示一步的偏差；真实训练里偏差会经过自举一轮轮累积。</p>
+<div class="ctl"><label>动作数 K <input type="range" id="ov-k" min="1" max="64" step="1" value="10"><span class="cv" id="ov-k-v">10</span></label>
+<label>噪声 σ <input type="range" id="ov-s" min="0" max="2" step="0.05" value="1"><span class="cv" id="ov-s-v">1.00</span></label></div>
+<svg class="plot" id="ov-svg" viewBox="0 0 640 230" role="img" aria-label="三种目标的偏差柱状图"></svg>
+<p class="out" id="ov-out"></p>
+<p>从图上能读出两点：</p>
+<ul>
+<li><b>max 一定偏高，</b>而且 K 越大、σ 越大，偏得越多。</li>
+<li><b>min 往往偏低；平均在两者中间。</b>min 用独立的第二个估计纠正了“选中偏高”的效应，又多减了一点；平均只纠正了一半。</li>
+</ul>
+<p>这和 FastTD3、FastSAC 两篇的发现能对上：</p>
+<ul>
+<li>FastTD3 发现，不加层归一化时，CDQ 仍然关键。</li>
+<li>FastSAC 加了层归一化之后，取平均比 CDQ 好，和 BRO 论文“CDQ 与层归一化一起用有害”的观察一致。我的理解是：层归一化让 Q 的估计噪声变小，“选中偏高”的效应变弱，CDQ 的低估反而成了拖累。这是我的推断，两篇原文都没有这样解释。</li>
+</ul></div>
+
+<h2 id="scale">并行仿真下的扩展：PQL → FastTD3 → FastSAC</h2>
+<p>Isaac Gym 之后，一张 GPU 能同时跑几千到几万个环境。这时“样本效率”不再是瓶颈，<b>墙钟时间</b>才是。</p>
+<ul>
+<li><b>PPO 天然适合这种设定：</b>采一大批、更新几轮、扔掉，再采。</li>
+<li><b>经典离策略算法不适合：</b>它们按“每个环境步做 1 次小批更新”设计，几千个环境一起走一步，要么更新跟不上，要么大部分数据从没被抽到。</li>
+</ul>
+<p>下面三篇都在解决这个问题。它们都没有发明新的损失函数，改的是<b>系统和超参数</b>。</p>
+<div class="tablewrap"><table class="t-scale"><thead><tr><th>做法</th><th>基于</th><th>主要改动（原文）</th><th>结论</th></tr></thead><tbody>
+<tr><td>PQL<br><span class="cv">2023 · ICML</span></td><td>DDPG</td><td>
+  <ul>
+  <li>三个进程并发：Actor 采数据，V-learner 更新 Q，P-learner 更新策略；用速度比 \(\beta_{a:v}\)、\(\beta_{p:v}\) 分配 GPU。</li>
+  <li>双 Q 加 n 步回报。</li>
+  <li>“混合探索”：第 i 个环境的噪声 \(\sigma_i\) 在 \([0.05,0.8]\) 里线性均匀分布，不用逐任务调 σ。</li>
+  <li>PQL-D 版本再加分布式评论家。</li>
+  </ul></td><td>
+  <ul>
+  <li>Isaac Gym 六个任务，墙钟时间快于 PPO，样本效率也更高。</li>
+  <li>附带发现：大规模并行下 DDPG 比 SAC 好。</li>
+  <li>代价是三进程调度复杂（FastTD3 原文也这么评价）。</li>
+  </ul></td></tr>
+<tr><td>FastTD3<br><span class="cv">2025-05</span></td><td>TD3</td><td>
+  <ul>
+  <li>并行环境，批大小 32,768。</li>
+  <li>C51 分布式评论家，保留 CDQ：不加层归一化时 CDQ 仍然关键。</li>
+  <li>混合噪声，\(\sigma_\text{max}=0.4\) 有帮助；混合本身没有显著收益，但保留了。</li>
+  <li>每 128–4096 个并行环境步只做 2、4、8 次更新。</li>
+  <li>缓存按 N × 环境数设定；非对称演员-评论家。</li>
+  <li>评论家 1024/512/256，演员 512/256/128。</li>
+  </ul></td><td>
+  <ul>
+  <li>单张 A100，3 小时内解决一批 HumanoidBench 任务。</li>
+  <li>在 MuJoCo Playground 里训练，迁移到 Booster T1 真机。作者称这是“据我们所知，第一次有记录的离策略 RL 策略部署到全尺寸人形真机”。</li>
+  <li>原文也做了一个 FastSAC，当时比 FastTD3 慢。</li>
+  </ul></td></tr>
+<tr><td>FastSAC<br><span class="cv">2025-12 · holosoma</span></td><td>SAC</td><td>
+  <ul>
+  <li>沿用 FastTD3 的配方，重新调稳 SAC。</li>
+  <li>动作界按关节限位定；观测归一化加层归一化。</li>
+  <li>Q 取平均，不用 CDQ。</li>
+  <li>行走 γ = 0.97，跟踪 γ = 0.99。</li>
+  <li>σ 上限 1.0，α 初值 0.001、自动调温。</li>
+  <li>Adam β₂ = 0.95，权重衰减 0.001。</li>
+  <li>代码里批 8192，每步 8 次更新。</li>
+  </ul></td><td>
+  <ul>
+  <li>G1 / T1 行走 15 分钟内能训出可上真机的策略，8 种设置下都快于 PPO，FastSAC 略好于 FastTD3。</li>
+  <li>全身跟踪“与 PPO 相当或更好”。但长舞蹈上 FastTD3 最后低于 PPO（146.6 对 159.5）。</li>
+  <li>细节见<a href="holosoma-15min.html">精读页</a>。</li>
+  </ul></td></tr>
+</tbody></table></div>
+<p>三篇连起来看，有两条线索：</p>
+<ul>
+<li><b>“大量并行环境 + 大批量”是从 PPO 那边借来的。</b>它让离策略方法在墙钟时间上追平甚至超过 PPO。FastTD3 原文的解释是：并行环境带来的数据多样性，降低了更新的“有效离策略程度”，所以不加额外稳定器也稳定。</li>
+<li><b>DDPG、SAC 之间的高下并不固定。</b>PQL 认为大规模并行下 DDPG 比 SAC 好；FastTD3 也发现自己的 FastSAC 更慢；holosoma 把 SAC 的几个旋钮重新调过之后，FastSAC 反过来略好于 FastTD3。这说明在这种设定下，“算法名字”远没有“配方”重要。</li>
+</ul>
+
+<h2 id="grad">三种梯度：似然比、对 Q 求导、穿过仿真器</h2>
+<p>从“梯度从哪来”的角度看，这一页的算法只有两种，本站另外几页是第三种：</p>
+<ol>
+<li><span class="on">似然比梯度（得分函数，零阶）</span>：\(\nabla_\theta\log\pi\cdot(\text{回报或优势})\)。
+  <ul>
+  <li>只需要采样和标量奖励，不需要对环境或 Q 求导，离散、连续动作都能用。</li>
+  <li>代价是方差大，靠基线、GAE 和大批量压下来。</li>
+  <li>REINFORCE、A2C、TRPO、PPO 属于这一种。</li>
+  </ul>
+</li>
+<li><span class="off">对学到的 Q 求导（路径梯度，经过模型）</span>：\(\nabla_aQ_\phi\cdot\nabla_\theta a_\theta\)。
+  <ul>
+  <li>方差小，但梯度方向只和学到的 Q 一样准。Q 错了，演员就被带偏，所以需要 TD3 那些修补。</li>
+  <li>DDPG、TD3、SAC、PQL、FastTD3、FastSAC 属于这一种。</li>
+  </ul>
+</li>
+<li><span class="dif">穿过可微仿真器求导（一阶，解析）</span>：\(\nabla_\theta\sum_t r_t\) 直接沿着 \(s_{t+1}=f(s_t,a_t)\) 反传。
+  <ul>
+  <li>方差最小，但接触多时梯度会爆炸或很不光滑，所以要截短窗口，再在末端接一个价值函数。</li>
+  <li>本站的 <a href="shac.html">SHAC</a>、<a href="diffmimic.html">DiffMimic</a>、<a href="nablamimic.html">∇Mimic</a> 属于这一种。</li>
+  <li><a href="supermimic.html">SuperMimic</a> 把仿真器换成学到的可微世界模型。</li>
+  </ul>
+</li>
+</ol>
+
+<div class="wid" id="w-grad">
+<p class="lab">交互 4 · 同一个梯度，三种估法的噪声（玩具）</p>
+<p>设定：策略 \(a\sim\mathcal N(\mu,s^2)\)，\(\mu=0\)；奖励 \(R(a)=-(a-1)^2+c\)，真实梯度 \(\partial_\mu\mathbb E[R]=2\)。三种估法如下，每种取 N 个样本的平均，重复 2000 批，看估计的平均值和标准差。</p>
+<ul>
+<li><b>似然比，不加基线：</b>\((a-\mu)/s^2\cdot R\)。</li>
+<li><b>似然比，加基线：</b>减去 \(\mathbb E[R]\)。</li>
+<li><b>路径梯度：</b>\(R'(a)=-2(a-1)\)。这里 R 是精确可导的，对应“穿过可微仿真器”；如果换成一个学到的、有误差的 Q，就是 DDPG、SAC 的情形，还要再加上 Q 的偏差。</li>
+</ul>
+<p>调大常数 c（相当于奖励整体平移），不加基线的那一条会明显变差；另外两条不受影响。</p>
+<div class="ctl"><label>批大小 N <input type="range" id="gr-n" min="1" max="256" step="1" value="16"><span class="cv" id="gr-n-v">16</span></label>
+<label>策略标准差 s <input type="range" id="gr-s" min="0.1" max="2" step="0.05" value="0.5"><span class="cv" id="gr-s-v">0.50</span></label>
+<label>奖励平移 c <input type="range" id="gr-c" min="0" max="20" step="0.5" value="0"><span class="cv" id="gr-c-v">0.0</span></label></div>
+<svg class="plot" id="gr-svg" viewBox="0 0 640 230" role="img" aria-label="三种梯度估计的均值和标准差"></svg>
+<p class="out" id="gr-out"></p>
+</div>
+
+<h2 id="table">总对照表</h2>
+<div class="tablewrap"><table class="t-all"><thead><tr><th>算法</th><th>年份</th><th>数据</th><th>动作</th><th>策略</th><th>学的价值</th><th>策略怎么更新</th><th>关键技巧</th><th>修了前一代什么</th></tr></thead><tbody>
+<tr><td>REINFORCE</td><td>1992</td><td class="on">同策略</td><td>离散 / 连续</td><td>随机</td><td>无（可选基线）</td><td>似然比 × 整局回报</td><td>基线</td><td>—</td></tr>
+<tr><td>A3C / A2C</td><td>2016 / 2017</td><td class="on">同策略</td><td>离散 / 连续</td><td>随机</td><td>V</td><td>似然比 × n 步优势</td><td>并行环境、熵奖励</td><td>方差、要等整局</td></tr>
+<tr><td>TRPO</td><td>2015</td><td class="on">同策略</td><td>离散 / 连续</td><td>随机</td><td>V（GAE）</td><td>带 KL 约束的替代目标</td><td>共轭梯度、线搜索</td><td>步长难调</td></tr>
+<tr><td>PPO</td><td>2017</td><td class="on">同策略</td><td>离散 / 连续</td><td>随机</td><td>V（GAE）</td><td>裁剪的替代目标，多轮小批</td><td>ε = 0.2 裁剪</td><td>TRPO 太复杂</td></tr>
+<tr><td>DQN</td><td>2013 / 2015</td><td class="off">离策略</td><td>只离散</td><td>无网络，argmax Q</td><td>Q</td><td>—</td><td>回放、目标网络</td><td>表格 Q 学习无法上图像</td></tr>
+<tr><td>DDPG</td><td>2015</td><td class="off">离策略</td><td>只连续</td><td>确定 + 外加噪声</td><td>Q</td><td>\(\nabla_aQ\cdot\nabla_\theta\mu\)</td><td>软更新目标网络</td><td>DQN 不能做连续动作</td></tr>
+<tr><td>TD3</td><td>2018</td><td class="off">离策略</td><td>只连续</td><td>确定 + 外加噪声</td><td>两个 Q</td><td>同 DDPG，延迟更新</td><td>CDQ、延迟、目标平滑</td><td>DDPG 高估</td></tr>
+<tr><td>SAC</td><td>2018</td><td class="off">离策略</td><td>连续（有离散变体）</td><td>随机（tanh 高斯）</td><td>两个软 Q</td><td>重参数化，对 Q 求导 + 熵</td><td>最大熵、自动调温</td><td>探索靠手调噪声</td></tr>
+<tr><td>PQL</td><td>2023</td><td class="off">离策略</td><td>连续</td><td>确定 + 混合噪声</td><td>两个 Q（可选分布式）</td><td>同 DDPG</td><td>三进程并发、混合探索</td><td>离策略用不好万级并行环境</td></tr>
+<tr><td>FastTD3</td><td>2025</td><td class="off">离策略</td><td>连续</td><td>确定 + 混合噪声</td><td>两个 C51 分布式 Q</td><td>同 TD3</td><td>批 32,768、低更新比</td><td>PQL 太复杂</td></tr>
+<tr><td>FastSAC</td><td>2025</td><td class="off">离策略</td><td>连续</td><td>随机</td><td>两个 C51 Q，取平均</td><td>同 SAC</td><td>层归一化、关节限位定界、低 γ</td><td>SAC 在大规模并行下不稳</td></tr>
+</tbody></table></div>
+
+<h2 id="robot">机器人里怎么选</h2>
+<ul>
+<li><b>为什么 sim-to-real 长期默认 PPO：</b>
+  <ul>
+  <li>实现简单，超参数在不同任务间迁移性好，结果稳定；</li>
+  <li>采集和更新天然配合几千个并行环境；</li>
+  <li>仿真数据便宜，样本效率低也不心疼。</li>
+  </ul>
+  本站大多数行走和跟踪页都用它。</li>
+<li><b>离策略的优势在“同样的仿真步，学得更多”：</b>
+  <ul>
+  <li>每采一批可以做多次更新，旧数据也能继续用。</li>
+  <li>仿真本身慢时最明显，比如崎岖地形、相机渲染、可变形物体；这时仿真成了瓶颈，复用数据最划算。holosoma 图 2b 的分析正是这个意思。</li>
+  </ul>
+</li>
+<li><b>“快于 PPO”的比较要看条件：</b>
+  <ul>
+  <li>holosoma 的 PPO 基线是认真设置过的：同一套环境、奖励和域随机化，网络 [512, 256, 128]，自适应 KL。所以那是同一框架内的公平比较（<a href="holosoma-15min.html">holosoma 页</a>）。</li>
+  <li>横轴是墙钟时间，结果和硬件、仿真器、环境数都有关。</li>
+  <li>离策略也不是处处赢：长舞蹈跟踪（Dance）跑到 600 分钟时，FastTD3 是 146.6，低于 PPO 的 159.5；FastSAC 是 180.3。</li>
+  <li>“第一次把离策略策略部署到全尺寸人形”是 FastTD3 作者“据我们所知”的说法；holosoma 论文补充说，那次只控制了部分关节。</li>
+  </ul>
+  这些结论在作者的设定下成立，换一个任务最好自己跑一下再下结论。</li>
+<li><b>两者也会组合着用：</b>同一个流程里，用 PPO 或 FastSAC 训特权专家，再用 DAgger 蒸馏成学生。学生蒸馏是监督学习，和专家用的是同策略还是离策略算法无关（本站 RPL、PHP 都是这个结构）。</li>
+</ul>
+
+<h2 id="qa">常见误解</h2>
+<dl class="qa">
+<dt>“PPO 有重要性比率 ρ，能复用上一版的数据，所以是离策略？”</dt>
+<dd>不是。ρ 只修正“采数据的策略”和“当前策略”之间的一点点差别，并且被裁剪在 1 ± ε 之内。PPO 每采一批只跑几轮就扔，不会从几小时前的数据里学。离策略的意思是：任意旧数据都能直接进入贝尔曼目标，不需要比率修正。</dd>
+<dt>“有回放缓存就是离策略？”</dt>
+<dd>因果方向反了。是因为更新规则（式 3）不依赖数据由哪个策略产生，才<em>可以</em>用回放缓存。PPO 的“rollout buffer”也是缓存，只是每轮清空。</dd>
+<dt>“SAC 的策略是随机的，所以它和 PPO 是一类？”</dt>
+<dd>随机还是确定是另一根轴。SAC 和 PPO 都用随机策略，但 SAC 的演员沿 \(\nabla_aQ\) 更新、用回放数据，和 DDPG、TD3 是一家；PPO 用似然比梯度、只用新数据。</dd>
+<dt>“FastTD3 / FastSAC 是新算法？”</dt>
+<dd>损失函数分别就是 TD3 和 SAC（加 C51 分布式评论家）。新的是系统和配方：并行环境数、批大小、更新比、归一化、噪声范围、折扣因子。holosoma 精读页的结论也是“这不是新算法，是一份哪些旋钮该怎么拧的清单”。</dd>
+<dt>“DDPG 和 A2C 一个离策略一个同策略，所以没有关系？”</dt>
+<dd>两者都是演员加评论家，结构几乎一样。差别只在评论家学 Q 还是学 V，演员沿 \(\nabla_aQ\) 走还是按 \(\nabla\log\pi\cdot A\) 走。把 DDPG 的确定性演员换成随机的、再加熵，就走到了 SAC。</dd>
+<dt>“PPO 能不能和 FastSAC 互换？”</dt>
+<dd>可以，holosoma 就是这么比的：同一个环境、同一份奖励、同样的观测和动作。不过最佳超参数不通用。例如 FastSAC 行走用 γ = 0.97，PPO 常用 0.99；FastSAC 需要按关节限位定动作界，PPO 的高斯策略一般不压缩到界内。</dd>
+</dl>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>算法</th><th>原文</th><th>本站相关页</th></tr></thead><tbody>
+<tr><td>REINFORCE</td><td><a href="https://doi.org/10.1007/BF00992696">Williams 1992，Machine Learning 8</a></td><td>—</td></tr>
+<tr><td>A3C</td><td><a href="https://arxiv.org/abs/1602.01783">arXiv 1602.01783</a></td><td>—</td></tr>
+<tr><td>A2C</td><td><a href="https://openai.com/index/openai-baselines-acktr-a2c/">OpenAI Baselines: ACKTR &amp; A2C（博客）</a></td><td>—</td></tr>
+<tr><td>TRPO</td><td><a href="https://arxiv.org/abs/1502.05477">arXiv 1502.05477</a></td><td>—</td></tr>
+<tr><td>GAE</td><td><a href="https://arxiv.org/abs/1506.02438">arXiv 1506.02438</a></td><td>—</td></tr>
+<tr><td>PPO</td><td><a href="https://arxiv.org/abs/1707.06347">arXiv 1707.06347</a></td><td><a href="rpl.html">RPL</a>、<a href="beyondmimic.html">BeyondMimic</a>、<a href="php-parkour.html">PHP</a>、<a href="sonic.html">SONIC</a></td></tr>
+<tr><td>DQN</td><td><a href="https://arxiv.org/abs/1312.5602">arXiv 1312.5602</a>；<a href="https://doi.org/10.1038/nature14236">Nature 2015</a></td><td>—</td></tr>
+<tr><td>Double DQN</td><td><a href="https://arxiv.org/abs/1509.06461">arXiv 1509.06461</a></td><td>—</td></tr>
+<tr><td>DPG</td><td><a href="https://proceedings.mlr.press/v32/silver14.html">Silver 等，ICML 2014</a></td><td>—</td></tr>
+<tr><td>DDPG</td><td><a href="https://arxiv.org/abs/1509.02971">arXiv 1509.02971</a></td><td>—</td></tr>
+<tr><td>TD3</td><td><a href="https://arxiv.org/abs/1802.09477">arXiv 1802.09477</a></td><td>—</td></tr>
+<tr><td>SAC</td><td><a href="https://arxiv.org/abs/1801.01290">arXiv 1801.01290</a>；自动调温 <a href="https://arxiv.org/abs/1812.05905">1812.05905</a></td><td>—</td></tr>
+<tr><td>C51</td><td><a href="https://arxiv.org/abs/1707.06887">arXiv 1707.06887</a></td><td>—</td></tr>
+<tr><td>BRO</td><td><a href="https://arxiv.org/abs/2405.16158">arXiv 2405.16158</a></td><td>—</td></tr>
+<tr><td>PQL</td><td><a href="https://arxiv.org/abs/2307.12983">arXiv 2307.12983</a>；<a href="https://github.com/Improbable-AI/pql">代码</a></td><td>—</td></tr>
+<tr><td>FastTD3</td><td><a href="https://arxiv.org/abs/2505.22642">arXiv 2505.22642</a>；<a href="https://younggyo.me/fast_td3">项目页</a></td><td><a href="holosoma-15min.html">holosoma-15min</a></td></tr>
+<tr><td>FastSAC</td><td><a href="https://arxiv.org/abs/2512.01996">arXiv 2512.01996</a>；<a href="https://github.com/amazon-far/holosoma">holosoma</a></td><td><a href="holosoma-15min.html">holosoma-15min</a></td></tr>
+<tr><td>SHAC</td><td><a href="https://arxiv.org/abs/2204.07137">arXiv 2204.07137</a></td><td><a href="shac.html">SHAC</a>、<a href="diffmimic.html">DiffMimic</a>、<a href="nablamimic.html">∇Mimic</a></td></tr>
+<tr><td>入门教材</td><td><a href="https://spinningup.openai.com/en/latest/">OpenAI Spinning Up</a></td><td>—</td></tr>
+</tbody></table></div>
+
+<footer><p>这一页是概念整理，不是任何一篇论文的精读。公式按各算法原文的写法整理，符号统一成本页的记号。PQL、FastTD3 的细节我对照了 arXiv 原文（2307.12983 v1、2505.22642 v3），FastSAC 的细节取自本站 holosoma-15min 精读页。四个交互小图都是玩具设定，只演示机制。</p></footer>
+</div>
+<script src="rl-families/widgets.js"></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+</body>
+</html>

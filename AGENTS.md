@@ -42,6 +42,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 触觉（2026-11-17） | `lingbot-touch`（arXiv 2611.12806，CC BY 4.0 放原图；项目网页 © All rights reserved，只链接不抓取）；页末有空的 `#qa` 节 |
 | NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`、`gr00t2`（2026-11-17，NVIDIA 白皮书无 arXiv，全权保留，经站点作者决定放原图；正式代码未发布，开发分支 codex/n2-action-expert 为评测许可，用户决定保留“只引文件名和键名”的写法）；和 OpenWAM 相关的页末有 `#openwam` 节 |
 | WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`、`libero`（基准本身，CC BY 4.0）；上游模型 `wan`、`dinov3`、`vjepa21`、`svae`、`rae`，各页末有 `#openwam` 节。三页都有 `#repro` 节；LIBERO 环境与各家评测协议对照在 `openwam.html#qa-libero` |
+| 概念专题（2026-11-24） | `rl-families`：强化学习算法谱系，不是单篇精读；没有 3D 动画，页内四个 SVG 交互（`papers/rl-families/widgets.js`）。FastSAC 数字以 `holosoma-15min` 为准。另：`wall-oss` 页加了 `#audit`（提法与对比的公平性审视），含 WALL-OSS 原版 / 0.5 / 1.0-lite 版本表；π0.5 权重 2025-09-08 才进 openpi，原版没比它不算缺陷 |
 | 抓取 / 位姿架构专题 | `graspgen`（已升级为逐节精读）`foundationpose` `wapr` `tro-grasp` `tro-grasp-plus-plus`。这批大多由用户的另一个账号推送 |
 
 ## 3. Git 规则（重要）
