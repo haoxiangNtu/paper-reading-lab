@@ -94,6 +94,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:14.5px}
 <p><b>和 <a href="wall-oss-05.html#w10-rd">RoboDojo 榜单分析</a>、<a href="libero.html">LIBERO</a>：</b>论文明确说要做布料版的 LIBERO、RoboTwin、RoboDojo，而且 RoboDojo 只有一个可变形任务。协议上很像：每格固定种子、统一示范、官方评测。区别是 FabricBench 目前所有结果都是作者自己跑的，排行榜要等公开发布后才开放提交；而 RoboDojo 的榜单是提交后官方统一评测。</p>
 <p><b>和 <a href="simpler.html">SIMPLER</a>、<a href="real2sim-eval.html">Real-to-Sim 策略评测</a>：</b>那两篇用多个策略算仿真和真机成功率的相关性和排序（MMRV），问的是“仿真能不能替真机给策略排名”。FabricBench 的真机实验只有 π0.5，算的是 6 个任务的难度排序，问的是“仿真里难的任务真机上是不是也难”。这是更弱的结论（<a href="#n12">读者注 12</a>）。</p>
 <p><b>和 <a href="gauge.html">GAUGE</a>：</b>GAUGE 比较了 Isaac Sim、Genesis、Newton 几个引擎的物理保真度；FabricBench 的表 1 和附录 B.7 在抓取这一件事上比较了 Isaac Sim PBD、Newton VBD、Newton Style3D 和 Genesis，结论方向一致：PBD 布料抓不住，现有接触模型放不开。</p>
+<p><b>六个策略的结构对照</b>单独做成了一页：<a href="six-policies.html">六个操作策略对照</a>，逐格比较它们各改了哪几块，以及和这里的成绩怎么对应。</p>
 <p><b>和 <a href="vla-design-space.html">VLA 设计空间</a>、<a href="gr00t.html">GR00T</a>：</b>被评测的四个大模型里，π0.5、GR00T 是 VLA，LingBot-VA、Fast-WAM 是世界动作模型（WAM，预测未来画面和动作）。表 3 里 WAM 并没有整体占优：LingBot-VA 第二，Fast-WAM 在装零食上只有 8%、叠 T 恤 0%，而且对外观变化最敏感。</p>
 
 <h2 id="s1">1 引言</h2>

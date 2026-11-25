@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>六个操作策略对照 · Paper Reading Lab</title>
+<meta name="description" content="概念专题：把 FabricBench 评测的六个策略 ACT、Diffusion Policy、π0.5、GR00T N1、LingBot-VA、Fast-WAM 放在同一套 8 个部件上对照：每个方法改了哪几块、相邻两代之间改了什么、训练和推理时各跑哪些模块，以及这些差别和 FabricBench 成绩的对应关系。三个交互图，一张总对照表。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.sx{--p1:#5aa2f0;--p2:#f08a4b;--p3:#3cc48e;--p4:#d8a520;--p5:#b48cf0;--p6:#e06aa8;
+  --c-in:#5aa2f0;--c-bb:#9b8cf0;--c-cp:#38c6d9;--c-ar:#f08a4b;--c-rs:#e06aa8;--c-tr:#d8a520;--c-da:#3cc48e;--c-inf:#a3a3a3}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .sx{--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f;
+  --c-in:#1f6fc9;--c-bb:#6a55d6;--c-cp:#0f8ea0;--c-ar:#d2571c;--c-rs:#c2407f;--c-tr:#a87900;--c-da:#12875c;--c-inf:#6b6b6b}}
+:root[data-theme="light"] .sx{--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f;
+  --c-in:#1f6fc9;--c-bb:#6a55d6;--c-cp:#0f8ea0;--c-ar:#d2571c;--c-rs:#c2407f;--c-tr:#a87900;--c-da:#12875c;--c-inf:#6b6b6b}
+.t-mx{min-width:1180px}.t-mx td{font-size:13.5px;line-height:1.55;vertical-align:top}.t-mx th[scope=row]{white-space:nowrap;text-align:left}
+.t-mx td.key{font-weight:700;background:var(--best)}.t-mx .sub{font-weight:400;color:var(--muted);font-size:12px}.t-mx tr.mt td{color:var(--muted)}
+.t-fb{min-width:700px}.t-links{min-width:640px}.t-sm{min-width:520px}
+.wid{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:18px 0;background:var(--bg2)}
+.wid .lab{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 4px}
+.wid p{max-width:none;font-size:14.5px;margin:6px 0}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:4px 8px 4px 0}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:4px 12px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{background:var(--panel);border:1px solid var(--line);border-radius:999px;color:var(--fg);font:inherit;font-size:13px;padding:2px 11px;cursor:pointer;line-height:1.7}
+.chips button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.sel{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:14px;margin:6px 0}
+.sel select{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+svg.dg{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+svg.dg text{fill:var(--fg);font-family:var(--font-body);font-size:13px}
+svg.dg text.m{fill:var(--muted);font-size:11.5px}
+.cmp{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+.cmp th,.cmp td{border-top:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
+.cmp th{white-space:nowrap;font-weight:600}
+.cmp tr.df th{color:var(--accent)}
+.cmp tr.df td{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.cmp tr.sm td{color:var(--muted)}
+.cmp .tag{display:inline-block;font-size:11.5px;border-radius:999px;padding:0 7px;margin-left:4px;border:1px solid var(--line);color:var(--muted);font-weight:400}
+.cmp tr.df .tag{border-color:var(--accent);color:var(--accent)}
+@media (max-width:640px){.cmp td:first-of-type{display:block}.cmp td{display:block;border-top:0;padding-top:0}.cmp th{display:block}}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);margin:4px 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px;border:2px solid}
+.card{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.card p{font-size:14.5px;max-width:none;margin:4px 0}
+.pol{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:14px 0;background:var(--panel)}
+.pol h3{margin:0 0 6px;font-size:17px;padding:0;border:0}
+.pol p,.pol li{max-width:none;font-size:15px}
+.pol .where{font-family:var(--font-mono);font-size:12.5px;color:var(--accent);margin:0 0 4px}
+.qa dt{font-weight:700;margin:16px 0 4px}.qa dd{margin:0 0 6px 0;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap sx">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#architecture">架构专题</a><a href="fabricbench.html">FabricBench</a><a href="vla-design-space.html">VLA 设计空间</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">概念专题 · 2026-11-25 整理 · 从 FabricBench 展开</p>
+<h1>六个操作策略对照：ACT、DP、π0.5、GR00T、LingBot-VA、Fast-WAM 各改了哪几块</h1>
+<p class="orig">ACT · Diffusion Policy · π0.5 · GR00T N1 · LingBot-VA · Fast-WAM</p>
+
+<div class="callout">
+<p><b>这页是什么。</b><a href="fabricbench.html">FabricBench</a> 用同一份数据训练和评测了这六个策略。这页把它们放进 <a href="vla-design-space.html">VLA 设计空间</a>那套 8 个部件里逐格对照，回答三个问题：每个方法的主要改动在哪几块；相邻两代之间改了什么；训练和推理时各跑哪些模块。最后把这些差别和 FabricBench 的成绩放在一起看。</p>
+<p><b>依据。</b>每个方法的结构数字都对照了原文：ACT（<a href="https://arxiv.org/abs/2304.13705">2304.13705</a>，表 III）、Diffusion Policy（<a href="https://arxiv.org/abs/2303.04137">2303.04137</a>，表 7）、π0.5（<a href="https://arxiv.org/abs/2504.16054">2504.16054</a>，另对照 openpi 的 <code>pi0_config.py</code> 和 <code>pi0.py</code>，2026-11-25 读 main 分支）、GR00T N1（<a href="https://arxiv.org/abs/2503.14734">2503.14734</a>，以站内 <a href="gr00t.html">GR00T 精读</a>为准）、LingBot-VA（<a href="https://arxiv.org/abs/2601.21998">2601.21998</a>，§3、§4.2）、Fast-WAM（<a href="https://arxiv.org/abs/2603.16666">2603.16666</a>，§3、§4.1）。本页没有放任何原图，结构图是我按原文描述重画的示意。8 个部件的划分和“主要改动”的判断是我的整理方式。</p>
+<p><b>一个版本问题。</b>FabricBench 写的是“GR00T”，引的是 N1 论文，预测 16 步动作。N1 和 N1.5 都是 16 步，N1.6 默认 50 步，所以用的大概是 N1 或 N1.5，论文没写清（未核实）。本页按 N1 写，N1.5 的差别见 <a href="gr00t.html">GR00T 精读</a>的版本表。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">速览</a><a href="#cmp">交互 1：两两对比</a><a href="#arch">交互 2：结构图</a><a href="#each">逐个看</a><a href="#matrix">总对照表</a><a href="#fb">放到 FabricBench 上看</a><a href="#qa">常见误解</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">速览</h2>
+<p>六个方法分三类，每一类相对上一类换掉的是不同的部件：</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>类别</th><th>方法</th><th>主干从哪来</th><th>动作怎么出</th><th>相对上一类主要换了什么</th></tr></thead><tbody>
+<tr><td>从零训练的模仿学习</td><td>ACT、DP</td><td>ResNet，从零训</td><td>ACT 回归，DP 扩散</td><td>（起点）两者只差动作头和执行方式</td></tr>
+<tr><td>VLA</td><td>π0.5、GR00T N1</td><td>预训练视觉语言模型</td><td>流匹配动作模块</td><td>② 主干、③ 接法、⑦ 数据；加语言</td></tr>
+<tr><td>世界动作模型（WAM）</td><td>LingBot-VA、Fast-WAM</td><td>预训练视频生成模型</td><td>流匹配动作专家</td><td>② 主干换成视频模型；⑥ 训练加“预测未来画面”</td></tr>
+</tbody></table></div>
+<p>几个容易混的点，先说结论：</p>
+<ul>
+<li><b>ACT 和 DP 的区别几乎只在 ④ 和 ⑧：</b>同样是 ResNet 加单任务数据，ACT 一次回归 100 步、靠时间集成平滑；DP 用扩散生成 16 步、执行 8 步就重新预测。</li>
+<li><b>π0.5 和 GR00T 的区别主要在 ③ 接法和 ⑦ 数据：</b>π0.5 的动作专家每一层都和 VLM 联合注意力；GR00T 的 DiT 只读 VLM 第 12 层输出的一组特征。π0.5 用网页图文和子任务文本共训；GR00T 用视频、仿真和伪动作标签。</li>
+<li><b>两个 WAM 的区别在推理时要不要真的“想象”：</b>LingBot-VA 每一步先生成下一段视频潜变量，动作看着它出；Fast-WAM 只在训练时预测未来视频，推理时视频分支只前向一次、不生成任何未来帧。Fast-WAM 论文的结论是：好处主要来自训练目标，而不是推理时的想象。</li>
+<li><b>“有没有用机器人数据预训练”是另一条独立的轴：</b>ACT、DP、Fast-WAM 没有；π0.5、GR00T、LingBot-VA 有。在 FabricBench 上，外观泛化的好坏恰好按这条轴分成两组（<a href="#fb">最后一节</a>）。</li>
+</ul>
+
+<h2 id="cmp">交互 1：任选两个，看差在哪几块</h2>
+<div class="wid" id="w-cmp">
+<p class="lab">交互 · 上面是“改动谱系”，点一条边就是一次常见的改动；也可以在下拉框里任选两个</p>
+<svg class="dg" id="lin-svg" viewBox="0 0 640 275" role="img" aria-label="六个方法的改动谱系"></svg>
+<div class="sel"><label>从 <select id="cmp-a"></select></label><label>到 <select id="cmp-b"></select></label><span id="cmp-count" style="color:var(--muted)"></span></div>
+<div class="card" id="cmp-sum" aria-live="polite"></div>
+<table class="cmp" id="cmp-tab"></table>
+<p style="color:var(--muted);font-size:13px">判断“同类 / 不同”用的是我给每格定的粗类别（例如主干分“从零 / VLM / 视频模型”三类），不是逐字比较。同类的格子灰显，只是细节不同。</p>
+</div>
+
+<h2 id="arch">交互 2：结构图，训练和推理各跑什么</h2>
+<div class="wid" id="w-arch">
+<p class="lab">示意 · 按原文描述重画，不是原图 · 方框颜色对应 8 个部件 · 虚线框是当前模式下不运行的模块</p>
+<div><span class="seg" id="ar-pol"></span></div>
+<div><span class="seg" id="ar-mode"><button data-v="inf" aria-pressed="true">推理时</button><button data-v="train" aria-pressed="false">训练时</button></span></div>
+<div class="legend" id="ar-leg"></div>
+<svg class="dg" id="ar-svg" viewBox="0 0 640 330" role="img" aria-label="所选方法的结构图"></svg>
+<div class="card" id="ar-card" aria-live="polite"></div>
+</div>
+
+<h2 id="each">逐个看</h2>
+<div class="pol" id="p-act">
+<h3>ACT（Action Chunking with Transformers，2023）</h3>
+<p class="where">主要改动：④ 动作表示 · ⑥ 训练（CVAE）· ⑧ 部署（时间集成）</p>
+<p>ACT 是为 ALOHA 双臂低成本机器人做的，和 FabricBench 的 Piper 一样是 14 维关节控制。它要解决的问题是：模仿学习一步一步预测动作时误差会累积，而且人类示范在停顿处很不一致。做法是<b>一次预测一整块</b>（k = 100 步）关节位置，把有效决策步数缩短到原来的百分之一；再用一个条件 VAE 把示范里的“风格”差异吸收到隐变量 z 里，测试时 z 取先验均值 0，于是输出是确定的。</p>
+<p>结构：每路相机一个 ResNet18，4 路共 1200 个 512 维特征，加上关节和 z，进 4 层 Transformer 编码器；7 层解码器用 k 个固定位置查询读编码器，直接输出 k × 14。损失是 L1（论文说比 L2 更精确）。部署时每一步都推理，同一时刻会被多个动作块覆盖，按指数权重平均，这叫时间集成。约 8000 万参数，从零训练，每任务约 50 条示范。</p>
+</div>
+<div class="pol" id="p-dp">
+<h3>Diffusion Policy（2023）</h3>
+<p class="where">主要改动：④ 动作表示（扩散）· ⑧ 部署（滚动时域）</p>
+<p>DP 把“预测动作”换成“从噪声里去噪出一段动作序列”。回归在示范有多种解法时会取平均（比如绕障碍物左右各半，平均出来就撞上），扩散能表示多峰分布。CNN 版的去噪网络是一个 1D 时序 U-Net，观测特征通过 FiLM 调制每一层；视觉用不预训练的 ResNet-18，把全局池化换成空间 softmax、BatchNorm 换成 GroupNorm。</p>
+<p>它的动作块比 ACT 短得多：看最近 2 帧，预测 16 步，只执行前 8 步就重新预测（滚动时域）。训练用 100 个噪声级，推理用 DDIM 降到 10–16 步。论文表 7 的真机配置是扩散网络约 6700 万参数加视觉 2200 万。</p>
+</div>
+<div class="pol" id="p-pi05">
+<h3>π0.5（Physical Intelligence，2025）</h3>
+<p class="where">主要改动：④ 动作表示（FAST + 流匹配）· ⑤ 子任务 · ⑥ 共训 · ⑦ 异构数据</p>
+<p>π0.5 在 π0 的结构上改训练和数据。结构沿用 π0：PaliGemma（SigLIP + Gemma 2B）做主干，一个约 3 亿参数的动作专家按 MoT 方式每层和主干做联合注意力，流匹配生成连续动作块。和 π0 相比，openpi 里的 π0.5 有两处结构变化：本体状态不再是一个连续 token，而是离散成文本放进前缀（<code>discrete_state_input</code>）；流匹配的时间步改用 adaRMSNorm 注入动作专家（<code>use_adarms</code>）。</p>
+<p>真正的改动在训练：预训练时动作用 FAST 离散 token 表示，和网页图文、子任务标注、多具身机器人数据一起按“预测下一个 token”训练；后训练再加流匹配动作专家。推理时模型可以先输出一句子任务（“拿起盘子”），再出动作，这是同一个模型的两种输出，不是两个模型。在 FabricBench 这种单任务微调里，子任务这一层用不上。</p>
+</div>
+<div class="pol" id="p-gr00t">
+<h3>GR00T N1（NVIDIA，2025）</h3>
+<p class="where">主要改动：① 具身专属编解码 · ③ 读一层特征 · ⑥ 伪动作标签 · ⑦ 数据金字塔</p>
+<p>GR00T N1 也是“VLM + 流匹配动作模块”，但接法不同：Eagle-2 VLM 只跑到语言模型第 12 层（代码里是把后面的层删掉），输出一串 token；DiT 动作头交替做两件事，自注意力看状态和带噪动作，交叉注意力读这串 token。所以动作模块只看到主干的一个中间层，不像 π0.5 那样每层都能读。论文把 VLM 叫 System 2、DiT 叫 System 1，这是两个模块的名字，不是先出文字计划再出动作的分层系统。</p>
+<p>另外两点是为跨具身设计的：每种机器人有自己的状态编码 MLP 和动作解码 MLP；数据是一个金字塔，底层是大量无动作标签的人类视频（用潜在动作 LAPA 和逆动力学模型 IDM 补伪标签），中层是仿真和神经生成的轨迹，顶层是真机数据。约 22 亿参数，16 步动作块，推理去噪 4 步。</p>
+</div>
+<div class="pol" id="p-lingbot">
+<h3>LingBot-VA（Robbyant，2026）</h3>
+<p class="where">主要改动：① 全历史上下文 · ② 视频主干 · ④ 交错自回归 · ⑤ 想象未来 · ⑧ 异步执行</p>
+<p>LingBot-VA 把问题拆成两步：先预测接下来的画面会怎样变化（视觉动力学），再由“当前画面 → 想象中的下一段画面”反推动作（逆动力学）。主干是 Wan2.2-5B 视频生成模型（30 层，宽 3072）；动作流同样 30 层、宽 768，按 MoT 每层联合自注意力，约多 3.5 亿参数。动作流的权重从视频流的权重插值初始化，论文说从零初始化训练会不稳定。</p>
+<p>序列是视频潜变量和动作交错的：每个视频潜帧后面跟 4 个动作（视频时间下采样 4 倍）。块内并行生成，块与块之间因果自回归，历史全部留在 KV 缓存里，所以它有“记忆”。推理时视频只用 3 步去噪到 s = 0.6 就停（训练时随机给历史加噪，让动作分支学会从半成品视频里读信息），动作再用 10 步去噪。部署时异步：机器人执行当前块的同时，模型预测下一块，并用一个前向动力学步把预测对齐到最新的真实观测，防止它沿着自己想象的视频一路滑下去。预训练用约 1.6 万小时机器人数据，统一成 30 维动作接口。</p>
+</div>
+<div class="pol" id="p-fastwam">
+<h3>Fast-WAM（清华 / Galaxea，2026）</h3>
+<p class="where">主要改动：② 视频主干 · ⑤ 未来视频只在训练用 · ⑥ 联合目标 · ⑦ 无机器人预训练 · ⑧ 单次前向</p>
+<p>Fast-WAM 问的问题是：WAM 的好处到底来自“训练时学着预测未来画面”，还是“推理时真的生成未来画面”？它的结构是 Wan2.2-5B 视频 DiT 加一个宽 1024 的动作专家 DiT（约 10 亿参数），MoT 共享注意力。训练时有三组 token：当前帧（干净）、未来帧（加噪，用来做视频预测）、动作（加噪）；注意力掩码让动作 token 只能看当前帧，看不到未来帧。损失是动作和视频两个流匹配损失之和。推理时未来帧这一组直接不要，视频 DiT 只对当前帧前向一次，动作专家去噪 10 步，论文报 190 ms。</p>
+<p>论文的对照实验：同一框架下，推理时先生成未来视频的两个变体（联合去噪、先视频后 IDM）和 Fast-WAM 差不多（RoboTwin 90.6、91.3 对 91.8）；去掉视频预测训练目标则掉到 83.8。它不做机器人数据预训练，多相机画面拼成一张图进 VAE，动作块 32 步。</p>
+</div>
+
+<h2 id="matrix">总对照表</h2>
+<p>加粗底色的格子是我判断的该方法主要改动。交互 1 的“同类 / 不同”用的是同一份数据。</p>
+<div class="tablewrap"><table class="t-mx" id="mx"><thead><tr><th>部件</th><th>ACT<br><span class="sub">从零训练的模仿学习 · 2023</span></th><th>DP<br><span class="sub">从零训练的模仿学习 · 2023</span></th><th>π0.5<br><span class="sub">VLA · 2025</span></th><th>GR00T N1<br><span class="sub">VLA · 2025</span></th><th>LingBot-VA<br><span class="sub">世界动作模型（WAM） · 2026</span></th><th>Fast-WAM<br><span class="sub">世界动作模型（WAM） · 2026</span></th></tr></thead><tbody><tr><th scope="row">① 输入与感知</th><td>4 路相机 RGB + 14 维关节位置；不用语言</td><td>最近 2 帧图像 + 本体状态（观测历史 T_o = 2）；不用语言</td><td>多相机 + 语言指令；本体状态离散成文本 token 放进前缀（openpi 的 discrete_state_input）</td><td class="key">图像 + 语言 + 本体；状态和动作用具身专属的 MLP 编码和解码</td><td class="key">多相机沿宽度拼成一帧，经因果视频 VAE；全部历史帧和历史动作都在上下文（KV 缓存）</td><td>多相机拼成一张图进 Wan VAE；只用当前帧；语言经 T5 交叉注意力</td></tr><tr><th scope="row">② 主干</th><td>每路相机一个 ResNet18，特征展平后进 4 层 Transformer 编码器</td><td>ResNet-18 不预训练，全局池化换成空间 softmax，BatchNorm 换成 GroupNorm</td><td>PaliGemma：SigLIP 视觉 + Gemma 2B 语言模型</td><td>Eagle-2 VLM（SigLIP-2 + SmolLM2），截到第 12 层；语言部分冻结</td><td class="key">Wan2.2-5B 视频生成 DiT（30 层，宽 3072）</td><td class="key">Wan2.2-5B 视频 DiT</td></tr><tr><th scope="row">③ 动作模块怎么接主干</th><td>DETR 式：7 层 Transformer 解码器用 k 个固定位置查询，交叉注意力读编码器输出</td><td>CNN 版：观测特征用 FiLM 调制 1D 时序 U-Net 的每一层（另有 Transformer 版用交叉注意力）</td><td>MoT：约 3 亿参数的动作专家，每层和 VLM 做联合注意力；流匹配时间步用 adaRMSNorm 注入</td><td class="key">DiT 动作头用交叉注意力读 VLM 第 12 层的一组 token（不是每层联合）</td><td>MoT：动作流同深度、宽 768，各自 QKV，每层联合自注意力</td><td>MoT 共享注意力：动作专家宽 1024；注意力掩码不让动作 token 看未来视频 token</td></tr><tr><th scope="row">④ 动作表示与生成</th><td class="key">一次回归一整块 k = 100 步关节位置，L1 损失；CVAE 的风格变量 z 测试时取 0</td><td class="key">DDPM 扩散：从噪声去噪出一段 16 步动作序列</td><td class="key">预训练用 FAST 离散动作 token，后训练加流匹配连续动作</td><td>流匹配，16 步动作块</td><td class="key">流匹配；视频帧和动作 token 交错，块内并行、块间因果自回归</td><td>流匹配，32 步动作块</td></tr><tr><th scope="row">⑤ 中间推理</th><td>无</td><td>无</td><td class="key">先预测高层子任务文本，再在同一个模型里出动作</td><td>无（System 1/2 指两个模块，不是先出文字再出动作）</td><td class="key">先生成下一段视频潜变量（只去噪到 s = 0.6），动作再看着它出（逆动力学）</td><td class="key">训练时预测未来视频，推理时完全不生成</td></tr><tr><th scope="row">⑥ 训练目标与配方</th><td class="key">CVAE：L1 重构 + β·KL（β = 10）；编码器只在训练时用</td><td>预测噪声的 MSE 损失</td><td class="key">异构数据共训：机器人动作、网页图文、子任务标注、口头指令；两阶段</td><td class="key">流匹配；无动作视频用潜在动作（LAPA）和 IDM 伪标签参与训练</td><td>视频动力学损失 + 逆动力学损失；teacher forcing；带噪历史增强</td><td class="key">L = L_act + λ·L_vid：视频预测只当训练目标</td></tr><tr><th scope="row">⑦ 数据</th><td>单任务约 50 条遥操作示范</td><td>单任务示范（几十到两百条）</td><td class="key">多环境移动操作 + 多具身实验室数据 + 网页数据</td><td class="key">数据金字塔：人类视频 → 仿真和神经生成轨迹 → 真机</td><td>6 个公开来源加自采，约 1.6 万小时；30 维统一动作接口</td><td class="key">不做机器人数据预训练，直接在任务数据上训</td></tr><tr><th scope="row">⑧ 推理与部署</th><td class="key">时间集成：每步都推理，重叠的动作块按指数权重平均</td><td class="key">滚动时域：DDIM 去噪 10–16 步，执行 8 步后重新预测</td><td>图像和语言前缀算一次 KV 缓存，只反复跑动作专家</td><td>去噪 4 步</td><td class="key">异步：执行当前块时预测下一块，用前向动力学把预测对齐到真实观测</td><td class="key">视频分支只前向一次，动作专家去噪；论文报 190 ms</td></tr><tr class="mt"><th scope="row">参数量</th><td>约 8000 万</td><td>约 9000 万（CNN 版，含视觉）</td><td>约 33 亿（PaliGemma 3B + 3 亿动作专家）</td><td>约 22 亿</td><td>约 53 亿（视频 50 亿 + 动作 3.5 亿）</td><td>约 60 亿（视频 50 亿 + 动作专家 10 亿）</td></tr><tr class="mt"><th scope="row">动作块</th><td>k = 100 步</td><td>预测 16 步，执行 8 步</td><td>50 步（openpi 默认）</td><td>16 步</td><td>每段 K 帧 × 4 个动作（部署 K = 4，即 16 步）</td><td>32 步</td></tr><tr class="mt"><th scope="row">推理时去噪</th><td>一次前向（回归）</td><td>DDIM 10–16 步</td><td>流匹配 10 步</td><td>流匹配 4 步</td><td>视频 3 步到 s = 0.6，动作 10 步</td><td>视频前向 1 次，动作 10 步（FabricBench 用 20）</td></tr><tr class="mt"><th scope="row">预训练</th><td>无，单任务从零训练</td><td>无，单任务从零训练</td><td>多机器人 + 网页图文 + 子任务标注</td><td>数据金字塔：视频 + 仿真 / 神经轨迹 + 真机</td><td>约 1.6 万小时机器人数据</td><td>无机器人预训练（视频先验来自 Wan2.2）</td></tr></tbody></table></div>
+
+<h2 id="fb">放到 FabricBench 上看</h2>
+<p>FabricBench 给这六个方法同样的 200 条示范、同样的评测种子，所以是少有的“同数据、同协议”对比。下面把表 3、表 4 的几个关键数字和上面的结构差别放在一起：</p>
+<div class="tablewrap"><table class="t-fb"><thead><tr><th>方法</th><th>主干</th><th>机器人数据预训练</th><th class="n">平均成功率</th><th class="n">叠 T 恤</th><th class="n">展平 T 恤外观降幅</th><th class="n">展平 T 恤 C0→C2 降幅</th><th>FabricBench 的训练设置</th></tr></thead><tbody>
+<tr><td>π0.5</td><td>VLM</td><td>有</td><td class="n">77</td><td class="n">36</td><td class="n">6</td><td class="n">70</td><td>3 万步，有效批量 8</td></tr>
+<tr><td>LingBot-VA</td><td>视频模型</td><td>有</td><td class="n">70</td><td class="n">36</td><td class="n">2</td><td class="n">76</td><td>3 万步，8 卡有效批量 8</td></tr>
+<tr><td>Fast-WAM</td><td>视频模型</td><td>无</td><td class="n">50</td><td class="n">0</td><td class="n">50</td><td class="n">78</td><td>5 个 epoch，8 卡每卡 16；动作块 32、每 32 步重规划、去噪 20 步</td></tr>
+<tr><td>GR00T</td><td>VLM</td><td>有</td><td class="n">47</td><td class="n">2</td><td class="n">14</td><td class="n">58</td><td>2 万步，全局批量 32</td></tr>
+<tr><td>ACT</td><td>从零</td><td>无</td><td class="n">38</td><td class="n">30</td><td class="n">42</td><td class="n">64</td><td>3 万步，批量 16</td></tr>
+<tr><td>DP</td><td>从零</td><td>无</td><td class="n">24</td><td class="n">0</td><td class="n">28</td><td class="n">68</td><td>单卡等价 1.25 万步，批量 64</td></tr>
+</tbody></table></div>
+<p class="tcap">数字来自 FabricBench 表 3、表 4、表 11（成功率 %，降幅是百分点，每格 50 回合）。</p>
+<div class="wid" id="w-fb">
+<p class="lab">重画 · 同一组六个点放在两条轴上 · 实心 = 用机器人数据预训练过，空心 = 没有</p>
+<svg class="dg" id="fb-svg" viewBox="0 0 640 300" role="img" aria-label="外观降幅和构型降幅的点图"></svg>
+</div>
+<p>能看出的规律，和它们的限度：</p>
+<ul>
+<li><b>外观泛化按“有没有机器人预训练”分成两组。</b>预训练过的三个外观降幅是 2–14 个点，没有的三个是 28–50 个点。Fast-WAM 有视频生成预训练（Wan2.2），但没有机器人数据预训练，它的降幅反而最大。这和 Fast-WAM 论文的说法有张力：它说视频预测目标能弥补没有机器人预训练，但在 FabricBench 的外观轴上没有看到。我的推断，单一基准、每格 50 回合，不能当因果结论；Fast-WAM 把多相机拼成一张图、只看当前帧，也可能有关。</li>
+<li><b>构型泛化不按任何一条轴分组。</b>C0→C2 降幅六个方法都在 58–78 个点，VLA、WAM、从零训练的小模型一样差。也就是说，目前这些结构差别和预训练都没有解决“布的初始形状没见过”这个问题，这正是 FabricBench 发现 3 的意思。</li>
+<li><b>叠 T 恤：ACT（30%）和 π0.5、LingBot-VA（36%）在 50 回合的置信区间里分不开，</b>GR00T（2%）和 Fast-WAM（0%）几乎完全失败。ACT 一次出 100 步并做时间集成，动作最平滑；GR00T 和 Fast-WAM 都是“大模型 + 较短或开环较长的动作块”。为什么会这样，FabricBench 没有分析，我也只能列出这些差别，不能下结论。</li>
+<li><b>装零食：Fast-WAM 只有 8%，LingBot-VA 98%。</b>两者主干相同，差别之一是 LingBot-VA 有全部历史的 KV 缓存，Fast-WAM 只看当前帧、每 32 步（1.28 s）才重新看一次。装零食是多阶段任务，要记得零食有没有放进去。这是我的推断，没有消融支持。</li>
+<li><b>训练预算不一样。</b>按“步数 × 有效批量”算，π0.5 和 LingBot-VA 各见过 24 万个样本，ACT 48 万，GR00T 64 万（<a href="fabricbench.html#n20">FabricBench 读者注 20</a>）。GR00T 见得最多，成绩却在中间，所以至少不是“训得越多越好”能解释的。</li>
+</ul>
+
+<h2 id="qa">常见误解</h2>
+<dl class="qa">
+<dt>WAM 推理时一定要生成视频吗？</dt>
+<dd>不一定。LingBot-VA 要，但只去噪到一半（s = 0.6）就交给动作分支；Fast-WAM 完全不生成，视频 DiT 只是当成一个编码器跑一次。它们共同的是训练时都有“预测未来画面”的损失。</dd>
+<dt>GR00T 的 System 1 / System 2 是不是 π0.5 那种“先想子任务再出动作”？</dt>
+<dd>不是。GR00T 的两个 System 是同一次前向里的两个网络：VLM 出特征，DiT 读特征出动作，中间没有文字。π0.5 才是真的先输出一段子任务文本。</dd>
+<dt>ACT 的 CVAE 在推理时有用吗？</dt>
+<dd>编码器推理时直接丢掉，z 取 0。CVAE 的作用只在训练：把示范之间的风格差异吸收到 z 里，让解码器不用去拟合互相矛盾的目标。</dd>
+<dt>DP 和 π0.5 都是“生成式动作头”，区别在哪？</dt>
+<dd>DP 是扩散（预测噪声，推理 10–16 步），去噪网络是条件化的 1D CNN；π0.5 是流匹配（预测速度场，推理 10 步），去噪网络是一个和 VLM 每层联合注意力的 Transformer 专家。数学上两者很接近，真正的差别在“条件信息从哪来、怎么接进去”。</dd>
+<dt>动作块越长越好吗？</dt>
+<dd>不一定。长块（ACT 100 步、π0.5 50 步、Fast-WAM 32 步）减少决策次数、动作更连贯，但中间不看新观测，环境一变就反应慢；短块加重规划（DP 执行 8 步、GR00T 16 步）反应快但容易抖。ACT 用时间集成、LingBot-VA 用异步执行，都是在这对矛盾里找折中。</dd>
+<dt>“视频模型做主干”和“VLM 做主干”哪个更好？</dt>
+<dd>目前没有干净的答案。Fast-WAM 论文表 1、表 2 里，两个 WAM 在 RoboTwin（91.8、92.2 对 79.8）和 LIBERO（97.6、98.5 对 96.9）上都比 π0.5 高；FabricBench 里 π0.5 平均第一、LingBot-VA 第二、Fast-WAM 第三。两个 WAM 之间的差距（70 对 50）比 WAM 和 VLA 之间的差距还大，所以“有没有机器人预训练”可能比“主干是哪种”更要紧。</dd>
+</dl>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>方法</th><th>论文</th><th>代码</th><th>站内</th></tr></thead><tbody>
+<tr><td>ACT</td><td><a href="https://arxiv.org/abs/2304.13705">2304.13705</a></td><td><a href="https://github.com/tonyzhaozh/act">tonyzhaozh/act</a></td><td>–</td></tr>
+<tr><td>Diffusion Policy</td><td><a href="https://arxiv.org/abs/2303.04137">2303.04137</a></td><td><a href="https://github.com/real-stanford/diffusion_policy">real-stanford/diffusion_policy</a></td><td>–</td></tr>
+<tr><td>π0.5</td><td><a href="https://arxiv.org/abs/2504.16054">2504.16054</a></td><td><a href="https://github.com/Physical-Intelligence/openpi">Physical-Intelligence/openpi</a></td><td><a href="vla-design-space.html">VLA 设计空间</a></td></tr>
+<tr><td>GR00T N1</td><td><a href="https://arxiv.org/abs/2503.14734">2503.14734</a></td><td><a href="https://github.com/NVIDIA/Isaac-GR00T">NVIDIA/Isaac-GR00T</a></td><td><a href="gr00t.html">GR00T 精读</a></td></tr>
+<tr><td>LingBot-VA</td><td><a href="https://arxiv.org/abs/2601.21998">2601.21998</a></td><td><a href="https://github.com/robbyant/lingbot-va">robbyant/lingbot-va</a></td><td>–</td></tr>
+<tr><td>Fast-WAM</td><td><a href="https://arxiv.org/abs/2603.16666">2603.16666</a></td><td><a href="https://yuantianyuan01.github.io/FastWAM/">项目主页</a></td><td>–</td></tr>
+<tr><td>FabricBench</td><td><a href="https://arxiv.org/abs/2611.31577">2611.31577</a></td><td>未发布</td><td><a href="fabricbench.html">FabricBench 精读</a></td></tr>
+</tbody></table></div>
+
+<footer><p>这是我对六篇论文的对照整理，不是任何一篇的官方内容。结构图是按原文描述重画的示意；“主要改动”的判断和 8 个部件的划分是我的整理方式。FabricBench 的数字来自 arXiv 2611.31577 表 3、表 4、表 11。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script type="application/json" id="six-data">{"slots": [["in", "① 输入与感知"], ["bb", "② 主干"], ["cp", "③ 动作模块怎么接主干"], ["ar", "④ 动作表示与生成"], ["rs", "⑤ 中间推理"], ["tr", "⑥ 训练目标与配方"], ["da", "⑦ 数据"], ["inf", "⑧ 推理与部署"]], "policies": [{"id": "act", "name": "ACT", "year": "2023", "fam": "il", "famName": "从零训练的模仿学习", "color": "var(--p5)", "paper": "2304.13705", "site": null, "meta": {"params": "约 8000 万", "chunk": "k = 100 步", "steps": "一次前向（回归）", "pre": "无，单任务从零训练"}, "s": {"in": ["nolang", "4 路相机 RGB + 14 维关节位置；不用语言", false], "bb": ["scratch", "每路相机一个 ResNet18，特征展平后进 4 层 Transformer 编码器", false], "cp": ["dec", "DETR 式：7 层 Transformer 解码器用 k 个固定位置查询，交叉注意力读编码器输出", false], "ar": ["regress", "一次回归一整块 k = 100 步关节位置，L1 损失；CVAE 的风格变量 z 测试时取 0", true], "rs": ["none", "无", false], "tr": ["cvae", "CVAE：L1 重构 + β·KL（β = 10）；编码器只在训练时用", true], "da": ["single", "单任务约 50 条遥操作示范", false], "inf": ["ensemble", "时间集成：每步都推理，重叠的动作块按指数权重平均", true]}}, {"id": "dp", "name": "Diffusion Policy", "short": "DP", "year": "2023", "fam": "il", "famName": "从零训练的模仿学习", "color": "var(--p6)", "paper": "2303.04137", "site": null, "meta": {"params": "约 9000 万（CNN 版，含视觉）", "chunk": "预测 16 步，执行 8 步", "steps": "DDIM 10–16 步", "pre": "无，单任务从零训练"}, "s": {"in": ["nolang", "最近 2 帧图像 + 本体状态（观测历史 T_o = 2）；不用语言", false], "bb": ["scratch", "ResNet-18 不预训练，全局池化换成空间 softmax，BatchNorm 换成 GroupNorm", false], "cp": ["film", "CNN 版：观测特征用 FiLM 调制 1D 时序 U-Net 的每一层（另有 Transformer 版用交叉注意力）", false], "ar": ["diffusion", "DDPM 扩散：从噪声去噪出一段 16 步动作序列", true], "rs": ["none", "无", false], "tr": ["denoise", "预测噪声的 MSE 损失", false], "da": ["single", "单任务示范（几十到两百条）", false], "inf": ["receding", "滚动时域：DDIM 去噪 10–16 步，执行 8 步后重新预测", true]}}, {"id": "pi05", "name": "π0.5", "year": "2025", "fam": "vla", "famName": "VLA", "color": "var(--p1)", "paper": "2504.16054", "site": "vla-design-space.html", "meta": {"params": "约 33 亿（PaliGemma 3B + 3 亿动作专家）", "chunk": "50 步（openpi 默认）", "steps": "流匹配 10 步", "pre": "多机器人 + 网页图文 + 子任务标注"}, "s": {"in": ["lang", "多相机 + 语言指令；本体状态离散成文本 token 放进前缀（openpi 的 discrete_state_input）", false], "bb": ["vlm", "PaliGemma：SigLIP 视觉 + Gemma 2B 语言模型", false], "cp": ["mot", "MoT：约 3 亿参数的动作专家，每层和 VLM 做联合注意力；流匹配时间步用 adaRMSNorm 注入", false], "ar": ["flow", "预训练用 FAST 离散动作 token，后训练加流匹配连续动作", true], "rs": ["subtask", "先预测高层子任务文本，再在同一个模型里出动作", true], "tr": ["cotrain", "异构数据共训：机器人动作、网页图文、子任务标注、口头指令；两阶段", true], "da": ["hetero", "多环境移动操作 + 多具身实验室数据 + 网页数据", true], "inf": ["kvcache", "图像和语言前缀算一次 KV 缓存，只反复跑动作专家", false]}}, {"id": "gr00t", "name": "GR00T N1", "year": "2025", "fam": "vla", "famName": "VLA", "color": "var(--p4)", "paper": "2503.14734", "site": "gr00t.html", "meta": {"params": "约 22 亿", "chunk": "16 步", "steps": "流匹配 4 步", "pre": "数据金字塔：视频 + 仿真 / 神经轨迹 + 真机"}, "s": {"in": ["lang", "图像 + 语言 + 本体；状态和动作用具身专属的 MLP 编码和解码", true], "bb": ["vlm", "Eagle-2 VLM（SigLIP-2 + SmolLM2），截到第 12 层；语言部分冻结", false], "cp": ["xfeat", "DiT 动作头用交叉注意力读 VLM 第 12 层的一组 token（不是每层联合）", true], "ar": ["flow", "流匹配，16 步动作块", false], "rs": ["none", "无（System 1/2 指两个模块，不是先出文字再出动作）", false], "tr": ["pseudo", "流匹配；无动作视频用潜在动作（LAPA）和 IDM 伪标签参与训练", true], "da": ["pyramid", "数据金字塔：人类视频 → 仿真和神经生成轨迹 → 真机", true], "inf": ["few", "去噪 4 步", false]}}, {"id": "lingbot", "name": "LingBot-VA", "year": "2026", "fam": "wam", "famName": "世界动作模型（WAM）", "color": "var(--p2)", "paper": "2601.21998", "site": null, "meta": {"params": "约 53 亿（视频 50 亿 + 动作 3.5 亿）", "chunk": "每段 K 帧 × 4 个动作（部署 K = 4，即 16 步）", "steps": "视频 3 步到 s = 0.6，动作 10 步", "pre": "约 1.6 万小时机器人数据"}, "s": {"in": ["hist", "多相机沿宽度拼成一帧，经因果视频 VAE；全部历史帧和历史动作都在上下文（KV 缓存）", true], "bb": ["video", "Wan2.2-5B 视频生成 DiT（30 层，宽 3072）", true], "cp": ["mot", "MoT：动作流同深度、宽 768，各自 QKV，每层联合自注意力", false], "ar": ["flow-ar", "流匹配；视频帧和动作 token 交错，块内并行、块间因果自回归", true], "rs": ["imagine", "先生成下一段视频潜变量（只去噪到 s = 0.6），动作再看着它出（逆动力学）", true], "tr": ["video-idm", "视频动力学损失 + 逆动力学损失；teacher forcing；带噪历史增强", false], "da": ["robot16k", "6 个公开来源加自采，约 1.6 万小时；30 维统一动作接口", false], "inf": ["async", "异步：执行当前块时预测下一块，用前向动力学把预测对齐到真实观测", true]}}, {"id": "fastwam", "name": "Fast-WAM", "year": "2026", "fam": "wam", "famName": "世界动作模型（WAM）", "color": "var(--p3)", "paper": "2603.16666", "site": null, "meta": {"params": "约 60 亿（视频 50 亿 + 动作专家 10 亿）", "chunk": "32 步", "steps": "视频前向 1 次，动作 10 步（FabricBench 用 20）", "pre": "无机器人预训练（视频先验来自 Wan2.2）"}, "s": {"in": ["lang", "多相机拼成一张图进 Wan VAE；只用当前帧；语言经 T5 交叉注意力", false], "bb": ["video", "Wan2.2-5B 视频 DiT", true], "cp": ["mot", "MoT 共享注意力：动作专家宽 1024；注意力掩码不让动作 token 看未来视频 token", false], "ar": ["flow", "流匹配，32 步动作块", false], "rs": ["trainonly", "训练时预测未来视频，推理时完全不生成", true], "tr": ["act-video", "L = L_act + λ·L_vid：视频预测只当训练目标", true], "da": ["single", "不做机器人数据预训练，直接在任务数据上训", true], "inf": ["onepass", "视频分支只前向一次，动作专家去噪；论文报 190 ms", true]}}], "edges": [{"a": "act", "b": "dp", "txt": "动作头从确定性回归换成扩散生成，执行方式从时间集成换成滚动重规划。主干仍是从零训练的 ResNet，数据仍是单任务示范。"}, {"a": "dp", "b": "pi05", "txt": "主干换成预训练 VLM，加上语言；动作头换成流匹配专家，按 MoT 每层接主干；数据从单任务变成异构共训，还多了“先说子任务”。几乎每一块都换了。"}, {"a": "pi05", "b": "gr00t", "txt": "同是“VLM + 流匹配动作模块”，差在接法：GR00T 只读第 12 层的一组特征；加具身专属编解码；用数据金字塔和伪动作标签代替网页图文共训；没有子任务文本。"}, {"a": "pi05", "b": "fastwam", "txt": "主干从图文 VLM 换成视频生成 DiT；训练多一个预测未来视频的目标；不做机器人预训练。接法仍是 MoT，推理时仍是“看当前帧直接出动作”。"}, {"a": "fastwam", "b": "lingbot", "txt": "推理时真的先生成未来视频（部分去噪）再出动作；上下文从单帧变成全部历史的自回归（KV 缓存）；加约 1.6 万小时机器人预训练；异步执行。"}], "fb": {"pi05": {"avg": 77, "fold": 36, "tapp": 6, "tc2": 70, "sapp": 22, "robotpre": true}, "lingbot": {"avg": 70, "fold": 36, "tapp": 2, "tc2": 76, "sapp": 0, "robotpre": true}, "fastwam": {"avg": 50, "fold": 0, "tapp": 50, "tc2": 78, "sapp": 64, "robotpre": false}, "gr00t": {"avg": 47, "fold": 2, "tapp": 14, "tc2": 58, "sapp": 8, "robotpre": true}, "act": {"avg": 38, "fold": 30, "tapp": 42, "tc2": 64, "sapp": 6, "robotpre": false}, "dp": {"avg": 24, "fold": 0, "tapp": 28, "tc2": 68, "sapp": 0, "robotpre": false}}}</script>
+<script src="six-policies/widgets.js" defer></script>
+</body>
+</html>
