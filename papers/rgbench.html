@@ -68,6 +68,7 @@
 <p>读完我认为最值得记住的四点。第一，这是一个<b>评测布料模拟器</b>的基准，不是评测操作策略的基准：三个动作都是回放录下来的机器人轨迹，全文没有训练或测试任何策略（<a href="#rel">关系一节</a>）。第二，表 4、表 5 的数字和公开代码里的基线文件逐格一致，可以放心引用；但附录 C 的文字有好几处和表对不上，叠衣服一段把 CD<sub>s2r</sub> 的均值当成了 CD<sub>r2s</sub>，按衣物分组给的提升区间几乎全错（<a href="#n16">读者注 16</a>、<a href="#n17">17</a>）。第三，GarmentDynamics 没有公开，“本文”一列无法复现；公开的基线代码里，PyBullet 和 Isaac Sim 是把测得的刚度原样当成弹簧和 PBD 参数填进去的，所有衣物质量都写成 0.255 kg（<a href="#n19">读者注 19</a>、<a href="#n20">20</a>）。第四，图 4 的速度数字都能从矢量图读回来；表 1 里两个基线的数字是直接从 BCM 原文抄的（<a href="#n6">读者注 6</a>、<a href="#n8">8</a>）。</p>
 
 <h2 id="rel">和站内已有页面的关系</h2>
+<p><b>后续：<a href="fabricbench.html">FabricBench</a>（2026-11，同一第一作者）。</b>它换用 Newton 里开源的 Style3D 求解器、重写接触后做成策略基准，附录 H 用 RGBench 的机器人模式数据给自己的模拟器打分；那张表没有列 GarmentDynamics，本页附录 C 表 5 的数字放在一起看，GarmentDynamics 平均误差更低（见 <a href="fabricbench.html#n21">FabricBench 读者注 21</a>）。</p>
 <p><b>和 <a href="gauge.html">GAUGE</a>：</b>两篇都拿真实测量当标准答案来评物理引擎，而且布料参数都用 Style3D 的拉伸仪和弯曲仪测。差别在测什么、怎么比：</p>
 <div class="tablewrap"><table class="t-cmp"><thead><tr><th>项目</th><th>RGBench</th><th>GAUGE</th></tr></thead><tbody>
 <tr><td>对象</td><td>整件衣物（9 件，表里 7 件），机器人操作</td><td>方形布片等受控实验，另有刚体和三维软体，共 22 个任务族</td></tr>

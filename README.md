@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，图用文字描述；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
 | Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。另有“提法与对比的公平性审视”一节（#audit），含 π0 与 WALL-OSS 单层结构对比图（#fig-attn）。 | 19 条 |
 | Wall-OSS-0.5 Technical Report（[arXiv 2605.30877](https://arxiv.org/abs/2605.30877)，2026-06，CC BY 4.0） | [wall-oss-05 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss-05.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss-05/index.html) | 零样本可执行的 4B VLA。“高 17.5%”是百分点；图 1、图 7 和附录表对不上；公开代码没有 RVQ 分词器。含 WALL-OSS 1.0 模型卡小节和 RoboDojo 榜单分析（#w10-rd）。 | 21 条 |
@@ -88,6 +89,14 @@
 |---|---|---|---|
 | VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
+
+## FabricBench 读后要点
+
+- 核心贡献是接触模型：三角形级 SDF 检测管释放和不穿透，双向耦合管负载传递，锚定库仑摩擦让持握不用夸大摩擦系数。表 2b：附着–分离让同一个 DP 检查点从 19/50 降到 9/50。
+- 泛化实验一次只改一个因素：构型（C0–C2）比外观伤害大得多，展平 T 恤 C2 只剩 6–14%；但丝巾 C2 是“丢下来”、T 恤 C2 是“深折”，两者不可横比。
+- 真机只部署了 π0.5，ρ = 0.94 说明任务难度排序一致，不说明策略排序一致；真机每格 20 次，中间四个任务分不开。
+- 附录 H 的基线数字和 RGBench 表 5 逐个一致，但没列同团队闭源的 GarmentDynamics（平均 0.030，本文 0.054）。
+- “官方配置”不官方：π0.5 批量 8 × 3 万步，样本是 openpi 默认的四分之一；各策略样本数最多差 2.7 倍。1 万件资产评测只用了 3 件模板。
 
 ## VLA、世界模型与触觉（自变量 WALL 三篇 + Sharpa 三篇 + ∇Mimic，2026-11-23）读后要点
 
@@ -394,6 +403,7 @@ papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/real2sim-eval/，11 幕动画在 interactives/real2sim-eval/）
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
+papers/fabricbench.html    FabricBench 精读（无原图；交互图和重画图在 papers/fabricbench/widgets.js；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
