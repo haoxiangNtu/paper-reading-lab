@@ -8,7 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
-| FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，图用文字描述；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
+| FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，经站点作者决定放原图 1–6；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
 | Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。另有“提法与对比的公平性审视”一节（#audit），含 π0 与 WALL-OSS 单层结构对比图（#fig-attn）。 | 19 条 |
 | Wall-OSS-0.5 Technical Report（[arXiv 2605.30877](https://arxiv.org/abs/2605.30877)，2026-06，CC BY 4.0） | [wall-oss-05 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss-05.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss-05/index.html) | 零样本可执行的 4B VLA。“高 17.5%”是百分点；图 1、图 7 和附录表对不上；公开代码没有 RVQ 分词器。含 WALL-OSS 1.0 模型卡小节和 RoboDojo 榜单分析（#w10-rd）。 | 21 条 |
@@ -405,7 +405,7 @@ papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了�
 papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/real2sim-eval/，11 幕动画在 interactives/real2sim-eval/）
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
-papers/fabricbench.html    FabricBench 精读（无原图；交互图和重画图在 papers/fabricbench/widgets.js；没有 3D 动画）
+papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）

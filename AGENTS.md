@@ -43,7 +43,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`、`gr00t2`（2026-11-17，NVIDIA 白皮书无 arXiv，全权保留，经站点作者决定放原图；正式代码未发布，开发分支 codex/n2-action-expert 为评测许可，用户决定保留“只引文件名和键名”的写法）；和 OpenWAM 相关的页末有 `#openwam` 节 |
 | WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`、`libero`（基准本身，CC BY 4.0）；上游模型 `wan`、`dinov3`、`vjepa21`、`svae`、`rae`，各页末有 `#openwam` 节。三页都有 `#repro` 节；LIBERO 环境与各家评测协议对照在 `openwam.html#qa-libero` |
 | 概念专题（2026-11-25） | `six-policies`：FabricBench 的六个策略按 8 部件对照。总对照表 `#mx` 和三个交互都读页内 `<script id="six-data">` 的 JSON；这份 JSON 和表是用仓库外脚本（scratchpad 的 data.py + tpl.html）生成的，直接改页面时两处要一起改。GR00T 按 N1 写（FabricBench 未写版本） |
-| 布料策略基准（2026-11-25） | `fabricbench`（arXiv 2611.31577，非独占，不放原图；代码和资产截至 2026-11-25 未发布，项目主页无许可只链接）。没有 3D 动画；`papers/fabricbench/widgets.js` 画表 3 底色、式 (3) 摩擦交互、表 4 折线、图 4 散点（Wilson 区间按 N=50/20 现算）。表 15 末列 GarmentDynamics 是从 `rgbench` 页抄的 RGBench 表 5，不是本文数字。排行榜 leaderboard.html 是 JS 渲染，要无头 Chrome |
+| 布料策略基准（2026-11-25） | `fabricbench`（arXiv 2611.31577，非独占；2026-11-25 用户要求放原图，图 1–6 裁切到 `papers/fabricbench/fig1–fig6.webp`，只对这一篇有效；代码和资产截至 2026-11-25 未发布，项目主页无许可只链接）。没有 3D 动画；`papers/fabricbench/widgets.js` 画表 3 底色、式 (3) 摩擦交互、表 4 折线、图 4 散点（Wilson 区间按 N=50/20 现算）。表 15 末列 GarmentDynamics 是从 `rgbench` 页抄的 RGBench 表 5，不是本文数字。排行榜 leaderboard.html 是 JS 渲染，要无头 Chrome |
 | 概念专题（2026-11-24） | `vla-design-space`：VLA 8 部件 × 15 类改动 × 6 种接法 × 22 模型总表；交互 1 读表 `#mx` 的 `data-s` 和 `.key` 生成模型指纹，改表即改交互；本站有精读页的模型以精读页为准，其余只按摘要整理。`rl-families`：强化学习算法谱系，不是单篇精读；没有 3D 动画，页内四个 SVG 交互（`papers/rl-families/widgets.js`）。FastSAC 数字以 `holosoma-15min` 为准。另：`wall-oss` 页加了 `#audit`（提法与对比的公平性审视），含 WALL-OSS 原版 / 0.5 / 1.0-lite 版本表；π0.5 权重 2025-09-08 才进 openpi，原版没比它不算缺陷；B1 有 π0 / WALL-OSS 单层结构对比 SVG（`#fig-attn`）。`wall-oss-05#w10-rd` 是 RoboDojo 榜单分析（2026-11-24 无头 Chrome 渲染抓取，榜单会变；页面 JS 渲染，WebFetch 拿不到内容） |
 | 抓取 / 位姿架构专题 | `graspgen`（已升级为逐节精读）`foundationpose` `wapr` `tro-grasp` `tro-grasp-plus-plus`。这批大多由用户的另一个账号推送 |
 
@@ -70,6 +70,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 - **OpenWAM 上游模型批（2026-11-16）**：`wan`、`dinov3`、`vjepa21`、`svae`、`rae` 五页，用户明确要求不论许可都放原图（理由是“只有我们会读”；已告知站点是公开的）。图注写原文许可和“经站点作者决定放原图”。只对这五页有效，其他新页仍按上表。
 - **NVIDIA Cosmos / GR00T 批（2026-11-16）**：`cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t` 八页，用户同样要求都放原图，规则同上。2026-11-17 加的 `gr00t2` 同样放原图。
 - **SHAC**（2026-11-20）：非独占许可，用户要求放原图（“只是我们自己阅读”），图 1 到 13 已裁切到 `papers/shac/`，图注写法同 OpenWAM 上游批。只对这一篇有效。
+- **FabricBench**（2026-11-25）：非独占许可，用户要求放原图（“我们也不会对外的”），图 1 到 6 已裁切到 `papers/fabricbench/`，图注写法同 SHAC。只对这一篇有效。
 - **RPL**（2026-11-23）：非独占许可，用户要求放原图，图 1 到 14 已裁切到 `papers/rpl/`（fig1–fig14.webp，图 3、4 合成一张 fig3），图注写法同 SHAC；算法 1 仍用文字。只对这一篇有效。
 - **SONIC、GraspGen** 的 arXiv 许可是 CC BY-SA，但 PDF 页脚写着 “NVIDIA. All rights reserved”。用户决定保留原图，页面上已写明这个矛盾。
 - **MaskedMimic** 的 arXiv 许可是 CC BY-NC-SA，PDF 上有 ACM 版权声明，处理方式同上（读者注 1 里写明）。
