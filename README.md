@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation（[arXiv 2611.31098](https://arxiv.org/abs/2611.31098)，2026-11） | [real2worlds2real 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2worlds2real.html) | 编码代理（GPT-6 Astra）调度工具建数字孪生和表亲、按视频标定物理，再调度策略开发，技能跨任务复用。真机每格 30 次，和真机训练分不开；真机对比只用了孪生；表 3 比的是有无仿真闭环。非独占许可，文字描述图 1–3，图 4、图 5 按矢量路径读数重画。代码未发布。 | 13 条 |
 | FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，经站点作者决定放原图 1–6；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
 | Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。另有“提法与对比的公平性审视”一节（#audit），含 π0 与 WALL-OSS 单层结构对比图（#fig-attn）。 | 19 条 |
@@ -90,6 +91,14 @@
 | 六个操作策略对照（2026-11-25） | [six-policies](https://haoxiangntu.github.io/paper-reading-lab/papers/six-policies.html) | 改动谱系 + 任选两个对比、六张结构图（训练 / 推理切换）、FabricBench 点图 | FabricBench 评测的 ACT、DP、π0.5、GR00T N1、LingBot-VA、Fast-WAM 按 8 个部件逐格对照；外观泛化按“有没有机器人预训练”分两组，构型泛化六个都差。表和交互共用页内 `#six-data`。 |
 | VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
+
+## Real2Worlds2Real 读后要点
+
+- 框架是“代理 + 工具 + 分层技能”：核心原则、任务工作流、专项技能是内置的，代理自己写的个人技能单独存，下个任务可读。建世界和练策略两段都靠渲染比对和仿真回放来修正。
+- 真机表 1(a) 只建了数字孪生，标题里的“一族世界”和视频物理标定都没在真机实验出场；表亲的作用只在 Stack Cups 的扩展曲线上出现，且没写是仿真还是真机评测。
+- 每格 30 次：和“真机训练”逐任务 Fisher 检验都不显著（合计 137 对 127/150，p ≈ 0.11）；和 ASPIRE 只有 Cup 显著，Nut 22 对 19 分不开。
+- 表 3 的 4.2% 来自带仿真的闭环辨识，Claude Opus 5.5、Qwen3-VL 是单次看视频猜，且各方法覆盖的任务不同。
+- 技能复用：切柠檬 token 28.1M → 21.6M → 17.9M → 13.9M（中间两档读图），单次运行；LIBERO-Pro Long 52.9% → 82.2%，不挑程序的平均 44.1% → 69.1% 更公平；和 π0.5 ≤ 8% 比的是写程序的代理对端到端 VLA。
 
 ## FabricBench 读后要点
 
@@ -406,6 +415,7 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
 papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
+papers/real2worlds2real.html  Real2Worlds2Real 精读（不放原图；重画图 widgets.js 在 papers/real2worlds2real/；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）

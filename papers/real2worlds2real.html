@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Real2Worlds2Real 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2611.31098 Real2Worlds2Real 的中文精读：由编码代理（GPT-6 Astra）调度工具，从少量 RGB 图像或视频搭数字孪生和数字表亲，按视频标定物理参数，再在仿真里调度数据生成和策略训练，把验证过的做法存成技能复用。逐节覆盖正文，表 1 到表 3 照录，图 4、图 5 按矢量路径读数重画，14 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-t1{min-width:560px}.t-t2{min-width:900px}.t-t3{min-width:520px}.t-links{min-width:640px}.t-sm{min-width:460px}
+.t-t2 td,.t-t2 th{font-size:13px}
+.viz{--viz-surface:#121a2b;--p1:#5aa2f0;--p2:#f08a4b;--p3:#3cc48e;--p4:#d8a520;--p5:#b48cf0;--p6:#e06aa8;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 6px;max-width:none}
+.viz p{max-width:none;font-size:14.5px}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.7}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:4px 0}
+.viz-legend i{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:4px 8px 4px 0}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:3px 13px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.dia{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.dia text{font:13px var(--font-body);fill:var(--fg)}
+.dia .mu{fill:var(--muted);font-size:12px}
+.dia .bx{fill:var(--panel);stroke:var(--line)}
+.dia .ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dia .fb{stroke:var(--accent);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.notes li{max-width:74ch}
+td.best{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="real2sim-eval.html">Real-to-Sim</a><a href="fabricbench.html">FabricBench</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2611.31098 · cs.RO · v1 2026 年 11 月 23 日 · 中文精读</p>
+<h1>Real2Worlds2Real：让编码代理从几张照片搭出一族仿真世界，再在里面把策略练好送回真机</h1>
+<p class="orig">Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation</p>
+<p>作者 Jinzhong Gu*、Jiakai Chen*、Xinyi Cao*、Yan Shen*、Hangke Sui*、Shutian Zheng、Xiang Xiao†、Haoran Lu、Fan Xu、Lu Shi、Daochen Shi、Ruihua Zhang、Wei Zhan、Masayoshi Tomizuka、Ruihai Wu（通讯），来自加州大学伯克利分校、NVIDIA、UIUC 和 CMU（* 共同一作，† NVIDIA 方面的负责作者）。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2611.31098">arXiv 原文</a><a href="https://arxiv.org/html/2611.31098v1">HTML 版</a><a href="https://arxiv.org/pdf/2611.31098">PDF</a><a href="https://real2worlds2real.github.io/">项目主页</a><a href="https://huggingface.co/papers/2611.31098">Hugging Face 论文页</a><span>正文 8 页 + 参考文献，共 12 页；没有附录</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上登记的是默认的非独占分发许可（arXiv nonexclusive-distrib 1.0）。按本站规则不放原图：图 1 到图 3 用文字描述，“看原图”打开 arXiv HTML 版的对应位置；图 4、图 5 是矢量图，我从 PDF 导出 SVG，按坐标轴刻度标定后读出每个点，再自己重画，图注标“重画”。正文不逐字翻译，表格数字照录原文。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>版本和代码。</b>arXiv 只有 v1（2026-11-23）。项目主页写着代码“Code soon”，截至 2026-11-26 没有公开，所以本页没有代码对照。正文多处说“细节见补充材料”（表 2 的指标定义、表 3 的任务覆盖），但 arXiv 上的 PDF 只有 12 页，没有附带补充材料，这些细节我看不到。项目主页没有标许可，只链接，不抓图。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和站内页面的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 方法</a><a href="#s3-1">3.1 代理与技能</a><a href="#s3-2">3.2 建世界</a><a href="#s3-3">3.3 策略开发</a><a href="#s4">4 实验</a><a href="#s4-1">4.1 真机</a><a href="#s4-2">4.2 扩展规律</a><a href="#s4-3">4.3 世界质量</a><a href="#s4-4">4.4 技能复用</a><a href="#s5">5 结论与 LLM 声明</a><a href="#notes" class="rn">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>Real2Sim2Real 的想法是：用少量真实观测搭一个仿真，在仿真里大量生成数据、训练策略，再部署回真机。难点在“规模化”：每换一个场景，就有人要重新抠几何、调关节、调摩擦；每换一个任务，又要重新决定用规划、强化学习还是模仿学习。这篇论文把这两头都交给一个通用编码代理（论文 LLM 声明里写的是 GPT-6 Astra），给它一套工具和分层的“技能”文档，让它自己决定怎么做。</p>
+<p>框架分两段，外加一个贯穿两段的记忆机制：</p>
+<ul>
+<li><b>建世界。</b>输入 RGB 图像或视频加一句任务描述。代理先用 Blender 脚本重建可操作物体（含关节、可变形面），背景用网格、3D 高斯泼溅或二者混合，得到<b>数字孪生</b>；再在物体和场景两层做变化，得到一族<b>数字表亲</b>（digital cousins）；最后用 PhysX 或 Newton 做物理检查，有交互视频时按视频标定摩擦、质量、阻尼、刚度。</li>
+<li><b>练策略。</b>在这些世界里，代理按任务挑方法：写代码直接控制（抓取优化 + cuRobo 运动规划，或 MPC），训练状态输入的强化学习，或者把前两者生成的示范拿去训练 ACT、Diffusion Policy，再用 DAgger 或 RL 残差修正（Policy Decorator）改进。</li>
+<li><b>技能复用。</b>每次修好一个问题，代理把“怎么发现、怎么修、证据是什么、什么时候适用”写成个人技能，下一个任务能读。</li>
+</ul>
+<p>主要结果：</p>
+<ul>
+<li>真机上 8 个任务（Cup 在两组里各出现一次），每格 30 次（Dexmate 机器人 + Sharpa 灵巧手）。只用数字孪生做 RL 残差修正，5 个精细任务平均 91.3%。同样数据量下，真机修正是 84.7%，PolaRiS 64.7%，SimFoundry 60.0%。</li>
+<li>在 Stack Cups 上，示范从 100 条加到 3,000 条，见过场景的成功率从 4% 升到 76%。示范固定 1,000 条时，训练世界从 10 个加到 1,000 个，没见过场景的成功率从 17% 升到 71%。</li>
+<li>物理参数估计的平均误差是 4.2%，次好的方法 24.4%。</li>
+<li>技能库扩充后，同一个场景的建造 token 从 2,810 万降到 1,390 万。LIBERO-Pro Long 上，代理写控制脚本的成功率从 52.9% 升到 82.2%。</li>
+</ul>
+<p>读完我认为最值得记住的五点。</p>
+<ol>
+<li><b>真机对比只用了数字孪生，没用数字表亲。</b>论文标题里的“Worlds”（一族表亲世界）和物理标定，都没有在真机实验里出场。表亲的作用只在 Stack Cups 一个任务的扩展曲线上显示过，而且那条曲线没有说是在仿真还是真机上测的（<a href="#n3">读者注 3</a>）。</li>
+<li><b>和真机修正的差距在统计上分不开。</b>每格 30 次，5 个任务逐个做 Fisher 精确检验都不显著；5 个任务合起来是 137/150 对 127/150，p ≈ 0.11。论文措辞“相当或更好”，和数字是相符的（<a href="#n1">读者注 1</a>）。</li>
+<li><b>和其他代理框架比，只有 Cup 一个任务显著。</b>论文特意点出的 Nut 任务是 22/30 对 19/30，p ≈ 0.58（<a href="#n2">读者注 2</a>）。</li>
+<li><b>表 3 的“4.2%”是工具加仿真的闭环，对手里的 Claude Opus 5.5 和 Qwen3-VL 只是单次看视频猜参数。</b>这比较的是“有没有闭环”，不是“哪个模型更聪明”。另外各方法覆盖的任务不一样多，平均值不在同一组任务上（<a href="#n8">读者注 8</a>）。</li>
+<li><b>技能复用的两条曲线都只有一次运行。</b>LIBERO-Pro 的总体曲线正好是位置、任务两条曲线的平均，8 个点全部对上。和 π0.5 “≤ 8%”的比较不是同一种东西：一边是能调仿真接口写程序的代理，一边是端到端的 VLA（<a href="#n10">读者注 10</a>、<a href="#n11">11</a>）。</li>
+</ol>
+
+<h2 id="rel">和站内已有页面的关系</h2>
+<ul>
+<li><a href="real2sim-eval.html">Real-to-Sim 策略评测</a>（本文引用 [61]）和 <a href="simpler.html">SIMPLER</a> 都用重建的仿真来<b>评测</b>策略，关心的是仿真和真机的排序一致。本文用仿真来<b>训练</b>，没有报告任何仿真和真机的相关性，只报真机成功率。两类工作对“好仿真”的要求不同：评测要求排序可信，训练要求修正量能迁移。</li>
+<li><a href="phystwin.html">PhysTwin</a>（引用 [22]）是从交互视频辨识可变形物体物理参数的代表，本文在相关工作里说它“要标定的多视角 RGB-D，且一次只做一个物体”。本文的物理标定实验（表 3）只做刚体摩擦、恢复系数和摆长，没有和 PhysTwin 正面比。</li>
+<li><a href="gauge.html">GAUGE</a>（引用 [52]）：表 3 的七个参数估计任务里，有一部分视频取自 GAUGE。</li>
+<li><a href="libero.html">LIBERO</a>：4.4 节用的 LIBERO-Pro Long 是 LIBERO-Long 加了位置扰动和任务扰动的鲁棒性版本。</li>
+<li><a href="six-policies.html">六个策略对照</a>：本文的模仿学习部分用的就是其中的 ACT（真机实验的起点）和 Diffusion Policy（扩展实验）。</li>
+<li><a href="fabricbench.html">FabricBench</a> 同样在 Newton 上做可变形仿真；本文的可变形部分（布、绳、软体）只在方法里提到，实验没有单独评估。</li>
+<li>真机用的 Sharpa 灵巧手，站内有 Sharpa 的 <a href="craftnet.html">CraftNet</a>、<a href="ftp1.html">FTP-1</a> 两页。</li>
+</ul>
+
+<h2 id="s1">1 引言</h2>
+<p>引言的论证顺序是：VLA（π0、OpenVLA、GR00T N1）和世界动作模型（WorldVLA、Cosmos Policy 等）都说明数据规模和多样性重要；真机数据靠遥操作，人力、看护、复位都贵；Real2Sim2Real 能用少量真实观测撑起大量仿真数据。</p>
+<p>作者认为“规模化”不只是多生成几个场景。它还要求两件事：</p>
+<ul>
+<li>仿真世界在任务相关的外观和物理交互上要忠实，变体还得是物理上可执行的；</li>
+<li>策略开发要能按任务调整数据生成和修正方式，并用仿真里的失败指导下一步。</li>
+</ul>
+<p>这两件事都需要“看反馈、改决定”，所以作者用代理来做，而不是用固定流水线。</p>
+<p>贡献有三条：</p>
+<ol>
+<li>一个从有限真实观测构建数字孪生和数字表亲、并由代理调度策略开发的 Real2Sim2Real 框架；</li>
+<li>建世界和练策略两段的代理工作流，支持靠反馈迭代修正，以及靠技能复用跨任务自我改进；</li>
+<li>实验覆盖三方面：仿真里练出的策略迁移到真机，世界的视觉和物理保真度，世界多样性和数据量两个方向的扩展规律。</li>
+</ol>
+
+<div class="fig" id="fig1"><span class="lab">图 1 · 第 1 页 · <a href="https://arxiv.org/html/2611.31098v1#S0.F1">看原图 ↗</a></span><p>总览图，左右两大块。左块“代理式建世界”：真实观测（RGB、可选视频、一句指令“把杯子放到盘子上”）进入工具编排框架（标着 Astra），经过“推理与规划 → 建世界 → 反思与修正（诊断、适应、改进）→ 总结更新”循环，下方三个小格：场景理解与重建（深度、分割）、可扩展的数字表亲（数字孪生和变体 1–4，变化物体、布局、材质、光照，用 Omniverse RTX 渲染）、物理推断与标定（两轮迭代，摩擦、质量、阻尼、刚度从“不匹配”到“对齐”）。右块“代理式策略开发”：A 工具引导的规划与执行（抓取生成器 → cuRobo → 执行），B 奖励引导的强化学习（代理生成或更新奖励函数），C 从示范做模仿学习，D 基于模型的规划（候选轨迹里选一条）。中间一条“提炼出的流程 → 可复用技能”连接两块，最右是真机部署。</p></div>
+
+<h2 id="s2">2 相关工作</h2>
+<h3>2.1 Real-to-Sim 场景生成</h3>
+<p>分三类，每类作者都指出一个缺口。</p>
+<ul>
+<li><b>重建式数字孪生</b>（网格或高斯泼溅，如 SplatSim、PolaRiS、GSWorld、RialTo）：外观逼真，但常要标记物做度量对齐，或手工分割、手工建关节和装配，物理参数用默认值或手调。PhysTwin 一类能从视频辨识可变形动力学，但要标定的多视角 RGB-D，且一次一个物体。总体上是在重建单个孪生，不是一个世界分布。</li>
+<li><b>生成式扩充和数字表亲</b>（ACDC、SimFoundry 等）：检索或生成保留语义和布局、改几何和外观的资产来扩场景；也有推断关节（URDFormer、Articulate-Anything）、单图升 3D（SAM 3D）、文本生成场景（RoboGen）的。问题是多为固定流水线，只有几何检查或物理静置，上游的尺度或支撑面错了没法回头改，物理参数靠默认或 VLM 先验。</li>
+<li><b>代理式和自我改进的构建</b>：Agentic Real2Sim 用阶段评判器和抓取修正从录像搭场景，ARSTAG 用多代理从单图搭场景、失败后重采样布局。作者说两者都是固定阶段图和固定工具集，也不从真实观测辨识刚体物理。本文借鉴了积累技能（Voyager）、改奖励（Eureka）、改代码一类代理的思路，区别在于动态编排工具、用任务执行和真实观测回放来验证世界，并跨场景保留新写的、验证过的技能。</li>
+</ul>
+<h3>2.2 Real2Sim2Real 策略学习</h3>
+<p>MimicGen 系列用以物体为中心的变换和技能重组扩充示范；RoboGen、GenSim2 用规划和强化学习生成任务和监督；也有代理框架用混合求解器和技能探索自动找轨迹（AnyTask、SkillWeaver）。ARSTAG、DREAM、DexAgent 先重建任务专用仿真，再分别用状态输入专家、任务与运动规划、人体动作引导生成示范。本文的不同点是：把多样的、物理上有依据的世界和代理调度的数据生成结合起来，并研究世界多样性和数据规模怎样影响策略的性能和泛化。</p>
+
+<h2 id="s3">3 方法</h2>
+<div class="fig" id="fig2"><span class="lab">图 2 · 第 3 页 · <a href="https://arxiv.org/html/2611.31098v1#S2.F2">看原图 ↗</a></span><p>“技能演化”示意。建世界技能和策略技能各自在反馈下变好，复用和组合后又催生新技能、新任务，形成持续自我改进的循环。</p></div>
+<p>整体流程：给定 RGB 图像或视频和一句任务描述，代理先在技能引导下的工具编排框架里建世界（3.1、3.2），再在这些世界里调度策略开发（3.3），最后把选中的策略部署到真机。</p>
+
+<svg class="dia" viewBox="0 0 680 220" role="img" aria-label="示意：两段流程和技能库">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+<rect class="bx" x="8" y="40" width="110" height="62" rx="8"/><text x="63" y="66" text-anchor="middle">真实观测</text><text x="63" y="86" text-anchor="middle" class="mu">RGB / 视频 + 指令</text>
+<rect class="bx" x="148" y="20" width="220" height="104" rx="8"/><text x="258" y="42" text-anchor="middle" font-weight="600">建世界（3.2）</text>
+<text x="160" y="64" class="mu">① 重建孪生：Blender 脚本 + 3DGS</text><text x="160" y="84" class="mu">② 表亲：物体层 + 场景层变化</text><text x="160" y="104" class="mu">③ 物理：初始化 → 按视频标定</text>
+<rect class="bx" x="398" y="20" width="170" height="104" rx="8"/><text x="483" y="42" text-anchor="middle" font-weight="600">练策略（3.3）</text>
+<text x="410" y="64" class="mu">代码控制 / RL / MPC</text><text x="410" y="84" class="mu">→ 示范 → ACT、DP</text><text x="410" y="104" class="mu">→ DAgger / RL 残差</text>
+<rect class="bx" x="590" y="40" width="82" height="62" rx="8"/><text x="631" y="76" text-anchor="middle">真机</text>
+<path class="ar" d="M118 71H146" marker-end="url(#ah)"/><path class="ar" d="M368 71H396" marker-end="url(#ah)"/><path class="ar" d="M568 71H588" marker-end="url(#ah)"/>
+<path class="fb" d="M300 124C300 142 200 142 200 124"/><text x="250" y="158" text-anchor="middle" class="mu">渲染比对 · 仿真检查</text>
+<path class="fb" d="M510 124C510 142 430 142 430 124"/><text x="470" y="158" text-anchor="middle" class="mu">仿真回放失败</text>
+<rect class="bx" x="148" y="168" width="420" height="40" rx="8"/><text x="358" y="193" text-anchor="middle">技能库：内置（原则 / 工作流 / 专项）+ 个人技能（代理自己写）</text>
+<path class="ar" d="M340 166V126" marker-end="url(#ah)"/><path class="ar" d="M550 166V126" marker-end="url(#ah)"/>
+</svg>
+<p class="cap" style="font-size:12.5px;color:var(--muted)">示意：我按 3.1–3.3 节的文字画的结构，不是论文的图。虚线是反馈回路。</p>
+
+<h3 id="s3-1">3.1 代理式的建世界与自我改进</h3>
+<p><b>技能引导的编排。</b>框架给一个通用编码代理提供共享工作区，里面存着不断演化的场景和之前操作的结果，所以代理能边做边调整决定。程序性知识分三层：</p>
+<ul>
+<li><b>核心原则</b>：优先满足任务要求；区分观测到的属性和推断出的属性；用现有证据验证生成结果。</li>
+<li><b>任务工作流</b>：某个建造阶段（如孪生重建、表亲生成）的高层流程、约束和验收要求。</li>
+<li><b>专项技能</b>：具体操作的指导，如几何重建、关节建模、物理仿真。</li>
+</ul>
+<p>任务开始时，代理拿到核心原则和相关工作流；专项技能按需查阅。三层合起来引导决策，但不规定工具调用的固定顺序。</p>
+<p><b>经验提炼和技能复用。</b>在核心原则的引导下，代理回看执行记录，把有效的构建和修正流程写成“个人技能”：问题怎么发现、怎么解决、证据是什么，有时还写适用条件和怎么改到新场景。个人技能和内置技能分开保存，用编码客户端自带的机制存取。</p>
+<p><b>基于执行的修正和验证。</b>两类反馈：</p>
+<ul>
+<li>渲染视图和真实观测对比，找视觉差异；</li>
+<li>仿真交互暴露物理行为的失败。</li>
+</ul>
+<p>框架还用显式任务约束来把关，例如带关节的孪生必须有必要的部件和关节关系。验证用任务专属的仿真检查，比如关节运动、接触行为、形变完整性，而且要求证据和当前资产一致。检查不过，代理就按诊断改资产或物理参数，再重跑检查。</p>
+
+<div class="fig" id="fig3"><span class="lab">图 3 · 第 4 页 · <a href="https://arxiv.org/html/2611.31098v1#S2.F3">看原图 ↗</a></span><p>建世界的细节图。左边是代理框架：内置技能分 L1 核心原则、L2 任务工作流，代理（ASTRA）读取它们，并把经验写回个人技能、跨任务复用；可选工具列成一排：SAM3、COLMAP、VGGT、Blender、相机位姿、网格拟合、纹理烘焙、3DGS、PhysX、Newton、接触测试、运动检查、实验设计、功能检查。右边三列示例：<b>数字孪生</b>（分析与分离物体 → Blender 代码建模，例如用 helix() 生成螺纹 → 场景组装和视觉对齐，瓶子和瓶盖螺纹配合），<b>数字表亲</b>（识别不变量 → 物体细化和测试 → 场景变化：布局、风格、光照），<b>物理标定</b>（给定初速度 v0 或初角速度 ω0，设计试验 → PhysX 记录 → 和真实位置、旋转曲线对比后修正摩擦系数 μ）。顶部引号里是一条示例指令：“为这个场景建孪生，生成表亲，并把物理标定到和视频里的运动一致。”</p></div>
+
+<h3 id="s3-2">3.2 可扩展的仿真世界构建</h3>
+<h4>3.2.1 场景重建</h4>
+<p>代理把可操作物体重建成可编辑的 3D 资产：写 Blender 脚本建几何和任务相关的交互结构（关节部件、可变形面），反复修改。有额外几何线索时，它还可以：</p>
+<ul>
+<li>用物体掩码和深度估计约束可见几何；</li>
+<li>用标定过的多视角观测，通过轮廓拟合细化参数化模型；</li>
+<li>用已知尺寸的参照物确定度量尺度。</li>
+</ul>
+<p>背景单独重建，用网格、高斯泼溅或二者结合。视觉复杂、图像覆盖足够的背景用高斯泼溅保留外观；桌面、障碍物这类接触面用网格做碰撞几何。如果高斯背景里包含要操作的物体，就删掉物体原位置附近的高斯点，然后代理检查渲染视图里有没有残影或缺块，必要时调整删除范围或重建。</p>
+<h4>3.2.2 数字表亲</h4>
+<p><b>物体层。</b>以孪生为参照，改任务物体的几何、外观和材质，但保留任务相关的交互结构：</p>
+<ul>
+<li>带关节物体保留关节类型、连杆连接关系和控制角色；</li>
+<li>可变形物体保留附着关系。</li>
+</ul>
+<p>有合适资产时，也可以直接从现有库（LeHome、GarmentLab）里取。</p>
+<p><b>场景层。</b>把物体层的表亲和布局、背景外观、光照的变化组合起来。改布局时，代理先从孪生和任务里识别重要的空间和功能关系，再重新摆放和旋转物体，同时保证三件事：</p>
+<ul>
+<li>支撑稳定；</li>
+<li>留够机器人操作的空间；</li>
+<li>任务相关的功能关系不被破坏。</li>
+</ul>
+<p>每个候选场景都要经过渲染和任务相关的仿真交互，验证视觉合理、物理稳定、可以操作，才会被接受。</p>
+<h4>3.2.3 物理仿真和渲染</h4>
+<p>刚体和带关节物体用 PhysX，靠碰撞几何和关节约束模拟接触和运动。可变形物体按行为选表示：</p>
+<ul>
+<li>布用基于粒子的面；</li>
+<li>绳用杆模型；</li>
+<li>软体用体网格。</li>
+</ul>
+<p>这些表示用兼容的 PhysX 或 Newton 求解器模拟。精细的视觉表面由仿真形变驱动，这样渲染质量高，物理分辨率不用跟着提高。渲染时，可交互的网格资产和周围环境放在同一个 USD 场景里，用 Omniverse RTX 渲染器，支持纯网格渲染，也支持网格物体加高斯泼溅背景的混合渲染。</p>
+<h4>3.2.4 物理推断和标定</h4>
+<p>每个世界都需要质量、摩擦、阻尼、材料刚度等参数。分两步：</p>
+<ol>
+<li><b>初始化。</b>从几何和材质估计，例如质量 = 体积 × 假设的密度。代理再用任务相关的仿真检查物理是否合理：接触是否稳定，关节运动是否有效，形变是否合理。不对就改参数或模型配置，重跑受影响的检查。</li>
+<li><b>按视频标定。</b>有真实交互录像时，代理先判断哪些参数能被观测到的运动约束住，再为它们设计仿真试验，写明初始条件、控制输入和候选参数范围。每个候选值的流程是：重置仿真，施加并核实实际生效的参数值，记录轨迹，和真实观测对齐算运动差异；差异再指导下一轮取值。</li>
+</ol>
+<p>“核实实际生效的参数值”这一步值得注意：PhysX 之类的引擎里，摩擦等参数常常由两个接触物体的材质按某种规则合成，代理设的值不一定就是生效的值。论文没有展开具体怎么核实。</p>
+
+<h3 id="s3-3">3.3 代理调度的策略开发</h3>
+<p>不走固定训练流水线，代理按任务要求和手头已有的示范或策略选工具和学习方法：</p>
+<ul>
+<li><b>代码即策略</b>：写可执行控制程序，先从视觉观测分割、定位任务物体，再把 BODex 式的抓取优化和 cuRobo 运动规划组合起来，或者调用 MPC 按状态反馈更新动作。</li>
+<li><b>状态输入的强化学习</b>：奖励由任务目标和仿真状态构造，代理写。</li>
+</ul>
+<p>仿真反馈帮代理修改程序逻辑、工具参数或奖励设计。控制程序和 RL 策略既可以直接当任务策略，也可以生成示范。</p>
+<p>拿到示范后，代理可以训练 ACT 或 Diffusion Policy 这类视觉运动策略。在多个数字表亲里用不同初始条件收集示范，可以拓宽训练数据覆盖的任务构型。代理在仿真里评估这些策略，按观察到的失败决定是否、怎样修正：</p>
+<ul>
+<li>如果有兼容的专家能在当前策略访问到的状态上给出纠正动作，就做 DAgger 式修正，把纠正加进示范集再训练；</li>
+<li>也可以训练 RL decorator（Policy Decorator），即冻结基础策略，用任务奖励学一个残差动作修正。</li>
+</ul>
+<p>迭代中验证过的开发流程同样提炼成技能，记录适用条件和对付的是哪类失败。最后把选中的策略拿到真机上评估。</p>
+
+<h2 id="s4">4 实验</h2>
+<p>四个问题，从下游往上游：</p>
+<ol>
+<li>仿真里练出的策略能否迁到真机（4.1）；</li>
+<li>策略性能和泛化怎样随数据量和世界多样性变化（4.2）；</li>
+<li>构建的世界在外观、几何、物理上有多忠实（4.3）；</li>
+<li>积累的经验能否帮助新任务（4.4）。</li>
+</ol>
+
+<h3 id="s4-1">4.1 真机部署</h3>
+<p>Dexmate 机器人，装 Sharpa 灵巧手和 Orbbec RGB-D 相机。每个方法每个任务 30 次真机试验，报成功率。</p>
+<p><b>任务。</b></p>
+<ul>
+<li>(1) 插销（Peg）：把销子插进孔里。</li>
+<li>(2) 叠杯（Cup）：把蓝杯放到白杯上。</li>
+<li>(3) 装齿轮（Gear）：把齿轮装到板上。</li>
+<li>(4) 抽纸擦桌（Wipe）：打开盒子，抽一张纸，擦桌子。</li>
+<li>(5) 拧瓶盖（Cap）：拿起松着的瓶盖，放到瓶口，拧紧。</li>
+<li>(6) 提杯（Lift）：把浅蓝色杯子提高至少 10 cm。</li>
+<li>(7) 取放杯（PickPlace）：拿起蓝杯，正放到白杯右边。</li>
+<li>(8) 拧螺母（Nut）：在固定的螺栓上把螺母拧满五圈。</li>
+</ul>
+<p><b>两组对比。</b></p>
+<ul>
+<li><b>(a) 比仿真世界的构建。</b>为了只看环境的作用，策略修正方式固定：每个任务先用 60 条真机示范训练 ACT，作为共同起点和模仿学习基线；然后所有方法都用同一套 RL decorator 修正，数据量相同。对手是：
+<ul>
+<li>真机训练：用额外的真机交互做修正；</li>
+<li>PolaRiS、SimFoundry：两种从真实观测构建可交互仿真的方法。</li>
+</ul>
+为了控制变量，所有 Real2Sim 方法（包括本文）用同样的输入视频，<b>只构建数字孪生</b>。</li>
+<li><b>(b) 比代理式策略开发。</b>所有方法都用本文构建的仿真环境，对手是 ASPIRE 和 ENPIRE 两个自动化策略开发的代理框架；各方法都可以按自己的策略使用那 60 条真机示范。ACT 仍作为模仿学习基线。</li>
+</ul>
+
+<div class="tablewrap"><table class="t-t1" id="t1"><caption>表 1 · 精细任务上的真机成功率（每格 30 次）· <a href="https://arxiv.org/html/2611.31098v1#S4.T1">看原表 ↗</a></caption>
+<thead><tr><th colspan="6">(a) 仿真世界构建的比较</th></tr><tr><th>方法</th><th>Peg</th><th>Cup</th><th>Gear</th><th>Wipe</th><th>Cap</th></tr></thead><tbody>
+<tr><td>ACT（模仿学习）</td><td>66.7%</td><td>53.3%</td><td>43.3%</td><td>46.7%</td><td>53.3%</td></tr>
+<tr><td>真机训练</td><td>86.7%</td><td>96.7%</td><td>86.7%</td><td>60.0%</td><td class="best">93.3%</td></tr>
+<tr><td>PolaRiS</td><td>83.3%</td><td>66.7%</td><td>60.0%</td><td>50.0%</td><td>63.3%</td></tr>
+<tr><td>SimFoundry</td><td>73.3%</td><td>83.3%</td><td>40.0%</td><td>46.7%</td><td>56.7%</td></tr>
+<tr><td>Real2Worlds2Real</td><td class="best">100.0%</td><td class="best">100.0%</td><td class="best">93.3%</td><td class="best">70.0%</td><td class="best">93.3%</td></tr>
+</tbody>
+<thead><tr><th colspan="6">(b) 代理式策略开发的比较</th></tr><tr><th>方法</th><th>Lift</th><th>PickPlace</th><th>Nut</th><th>Cup</th><th></th></tr></thead><tbody>
+<tr><td>ACT（模仿学习）</td><td>56.7%</td><td>50.0%</td><td>40.0%</td><td>53.3%</td><td></td></tr>
+<tr><td>ENPIRE</td><td>76.7%</td><td>83.3%</td><td>53.3%</td><td>80.0%</td><td></td></tr>
+<tr><td>ASPIRE</td><td>90.0%</td><td>86.7%</td><td>63.3%</td><td>80.0%</td><td></td></tr>
+<tr><td>Real2Worlds2Real</td><td class="best">100.0%</td><td class="best">90.0%</td><td class="best">73.3%</td><td class="best">100.0%</td><td></td></tr>
+</tbody></table></div>
+
+<div class="viz" id="w-t1">
+<p class="cap">重画 · 表 1 的每格成功率（点）和 Wilson 95% 区间（线），每格 n = 30。悬停看分数。</p>
+<div class="seg" id="t1-seg"><button data-v="a" aria-pressed="true">(a) 世界构建</button><button data-v="b" aria-pressed="false">(b) 策略开发</button></div>
+<svg id="t1-svg" viewBox="0 0 680 400" role="img" aria-label="表 1 成功率和置信区间"></svg>
+<div class="viz-legend" id="t1-lg"></div>
+</div>
+
+<p><b>结果 (a)。</b>本文方法明显好于另外两个 Real2Sim 基线，并在所有任务上和真机训练相当或更好。PolaRiS 和 SimFoundry 比 ACT 起点提升有限，作者归因于任务关键几何不准，例如 SimFoundry 重建出的齿轮没有齿，轴距也不对，仿真里学到的修正迁移不到真实装配上。作者还解释了为什么能超过真机训练：同样的数据预算下，仿真让策略见到更多样的物体摆放。</p>
+<p><b>结果 (b)。</b>本文好于两个代理基线，Nut 和 Cup 上提升明显。作者用 Nut 举例：ASPIRE 和 ENPIRE 靠脚本化的旋拧动作，对螺母位置变化敏感；本文在脚本执行之外加了闭环策略，按执行反馈调整动作。</p>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 表 1(a) 每格 30 次能分辨多少</span><p>30 次的分辨率是 3.33 个百分点，表里每个数都是 k/30（例如 93.3% = 28/30，46.7% = 14/30）。和“真机训练”逐任务做双侧 Fisher 精确检验：Peg 30 对 26，p = 0.11；Cup 30 对 29，p = 1.0；Gear 28 对 26，p = 0.67；Wipe 21 对 18，p = 0.59；Cap 28 对 28，p = 1.0。没有一个任务显著。五个任务合起来是 137/150 对 127/150（91.3% 对 84.7%），p ≈ 0.11。所以论文说“相当或更好”是准确的，不宜读成“超过真机训练”。和 ACT 起点比，四个任务 p &lt; 0.001，只有 Wipe（21 对 14）p = 0.12 不显著。五个方法的平均：ACT 52.7%、真机训练 84.7%、PolaRiS 64.7%、SimFoundry 60.0%、本文 91.3%（我算的，论文没给平均）。</p></div>
+
+<div class="note" id="n2"><span class="lab">读者注 2 · 表 1(b) 的“明显提升”</span><p>和最强的代理基线 ASPIRE 逐任务比：Lift 30 对 27，p = 0.24；PickPlace 27 对 26，p = 1.0；Nut 22 对 19，p = 0.58；Cup 30 对 24，p = 0.024。只有 Cup 显著。论文特意点名的 Nut，差 3 次，在 30 次里分不开。四任务合计 109/120 对 96/120（90.8% 对 80.0%），p ≈ 0.027，整体上的优势是有的。另外 (b) 里所有方法都用本文的仿真环境，所以这组对比只说明调度方式的差别，不涉及世界构建。</p></div>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · 真机实验没有用到“Worlds”</span><p>(a) 组明写了所有 Real2Sim 方法“只构建数字孪生”。所以标题里的“一族世界”（数字表亲）和 3.2.4 节的视频物理标定，在真机实验里都没有出场；或者说，论文没有说 (a) 组的孪生做过物理标定。表亲的价值只有 4.2 节 Stack Cups 一个任务的曲线支撑。(b) 组用的是“我们的仿真环境”，没说包不包括表亲。要证明表亲对真机有用，最直接的实验是 (a) 组再加一行“孪生 + 表亲”，论文没有做。“同样的数据量”在 (a) 里具体是多少次交互，论文也没给。</p></div>
+
+<div class="note" id="n4"><span class="lab">读者注 4 · Cup 在 (a)、(b) 里各出现一次</span><p>叠杯（Cup）同时出现在 (a) 和 (b)。ACT 基线两处都是 53.3%（16/30），本文两处都是 100%。看起来 ACT 起点是同一批试验；本文的两个 100% 是不是同一批，论文没说。如果是同一个策略，(a) 里它是“孪生 + RL decorator”，(b) 里它是“代理自己选的方法”，说明在 Cup 上代理选的就是 RL decorator 这条路（我的推断）。</p></div>
+
+<h3 id="s4-2">4.2 扩展交互数据和世界多样性</h3>
+<p>为了排除代理调度的影响，这一节统一用 Diffusion Policy，训练设置固定，只在代表性的 Stack Cups 任务上每次变一个维度。</p>
+<ul>
+<li><b>数据量。</b>世界集合固定，物体初始位姿随机，改训练示范数。在见过和没见过的场景上评估：成功率先升后趋平。再打开 DAgger，代理从失败回合收集纠正示范加进训练，越过了平台期。</li>
+<li><b>世界多样性。</b>示范固定 1,000 条，训练世界通过物体表亲、场景布局和背景变化从 10 个加到 1,000 个，在 100 个没见过的场景上评估，成功率随世界数稳定上升。</li>
+</ul>
+
+<div class="viz" id="w-f4">
+<p class="cap">重画 · 图 4（<a href="https://arxiv.org/html/2611.31098v1#S4.F4">看原图 ↗</a>）。数值是我从 PDF 矢量路径按刻度读出的，和图上标注的百分数一致；DAgger 点的横坐标图里没标，读图约 2,600。圆点：见过的场景；方块：没见过的场景；空心：DAgger 修正后。</p>
+<svg id="f4-svg" viewBox="0 0 680 280" role="img" aria-label="图 4 重画：示范数和世界数的扩展曲线"></svg>
+<div class="viz-legend"><span><i style="background:var(--p1)"></i>见过的场景</span><span><i style="background:var(--p2)"></i>没见过的场景</span><span><i style="background:var(--p3)"></i>DAgger 修正</span></div>
+</div>
+
+<div class="tablewrap"><table class="t-sm"><caption>图 4 的读数（重画用的数）</caption>
+<thead><tr><th>(a) 示范数 N</th><th>100</th><th>500</th><th>1,000</th><th>2,000</th><th>3,000</th><th>DAgger（约 2,600）</th></tr></thead><tbody>
+<tr><td>见过的场景</td><td>4%</td><td>54%</td><td>66%</td><td>76%</td><td>76%</td><td>87%</td></tr>
+<tr><td>没见过的场景</td><td>3%</td><td>43%</td><td>52%</td><td>49%</td><td>58%</td><td>73%</td></tr>
+</tbody>
+<thead><tr><th>(b) 世界数 N</th><th>10</th><th>100</th><th>200</th><th>500</th><th>1,000</th><th></th></tr></thead><tbody>
+<tr><td>没见过的场景</td><td>17%</td><td>46%</td><td>57%</td><td>64%</td><td>71%</td><td></td></tr>
+</tbody></table></div>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 图 4 读出来的几件事</span><p>横坐标按刻度换算：(a) 的五个点在 N = 100、500、1,000、2,000、3,000；(b) 在 10、100、200、500、1,000。DAgger 的虚线从 N = 2,000 的点出发，终点横坐标约 2,590，正文没写加了多少条纠正示范，按图看约 600 条（我的读数）。三点值得注意：</p>
+<ul>
+<li>没见过场景的曲线不单调：1,000 条时 52%，2,000 条时降到 49%，3,000 条才到 58%。“先升后趋平”的说法对见过场景（76%、76%）成立，对没见过场景只能算“上升放缓”。</li>
+<li>论文没写每个点评估了多少回合，(a) 也没写是多少个世界；(b) 写了 100 个没见过的场景，但没说每个场景跑几次。所以这几个百分点的波动是否超出噪声，没法判断。</li>
+<li>两图没写是在仿真还是真机上评测。“100 个没见过的场景”在真机上不现实，我推断是仿真。若是仿真，这一节说明的是“在这套仿真里更多世界有帮助”，和真机泛化是两回事。</li>
+</ul></div>
+
+<div class="note" id="n6"><span class="lab">读者注 6 · (a) 和 (b) 放在一起看</span><p>两张图在“1,000 条示范”处可以对上：(a) 没见过场景是 52%，(b) 训练世界 1,000 个时是 71%，训练世界 10 个时只有 17%。所以 (a) 用的“固定世界集合”应在 100 到 200 个之间（(b) 在这两档是 46% 和 57%）。这只是插值推断，论文没给 (a) 的世界数。如果推断成立，(b) 的含义更强：同样 1,000 条示范，世界从约 150 个加到 1,000 个，没见过场景的成功率能提高近 20 个点，超过把示范从 1,000 条加到 3,000 条的效果（52% → 58%）。</p></div>
+
+<h3 id="s4-3">4.3 世界保真度和代理设计</h3>
+<p><b>世界质量。</b>表 2 用三个来源的真实采集评估重建世界：</p>
+<ul>
+<li>Fruits（SimFoundry 的数据）；</li>
+<li><a class="ds" href="https://github.com/swtyree/hope-dataset">HOPE-Video</a>；</li>
+<li><a class="ds" href="https://github.com/apple/ARKitScenes">ARKitScenes</a>。</li>
+</ul>
+<p>每个方法拿自己规定的输入，评分时不做事后对齐或缩放。四个维度：</p>
+<ul>
+<li><b>视觉</b>：参考视角渲染质量，用 PSNR、SSIM、LPIPS。</li>
+<li><b>几何</b>：深度精度；物体检出完整度（Object F1）；3D 摆放精度（Position quality）；参考视角可见表面重建（Visible-surface F-score@1 cm）。</li>
+<li><b>物理</b>：在 PyBullet 里受重力的动态稳定性（Stability），以及无穿透摆放（Penetration quality）。</li>
+<li><b>场景</b>：物体之间的支撑关系（Support recall），以及空间布局一致性（Surface occupancy IoU）。</li>
+</ul>
+<p>两个消融：</p>
+<ul>
+<li><b>w/o agent</b>：把代理编排换成固定流水线；</li>
+<li><b>w/o adaptive refinement</b>：去掉反馈驱动的修正循环。</li>
+</ul>
+
+<div class="tablewrap"><table class="t-t2" id="t2"><caption>表 2 · 真实场景上的世界质量（同一批采集，各方法拿各自规定的输入；“质量分”考虑完整度，漏检和误检都扣分）· <a href="https://arxiv.org/html/2611.31098v1#S4.T2">看原表 ↗</a></caption>
+<thead><tr><th rowspan="2">方法</th><th colspan="3">视觉</th><th colspan="4">几何</th><th colspan="2">物理</th><th colspan="2">场景</th></tr>
+<tr><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>深度质量 ↑</th><th>Object F1 ↑</th><th>位置质量 ↑</th><th>可见表面 F@1cm ↑</th><th>稳定性 ↑</th><th>穿透质量 ↑</th><th>支撑召回 ↑</th><th>占据 IoU ↑</th></tr></thead><tbody>
+<tr><td>ACDC</td><td>9.5</td><td>0.08</td><td>1.12</td><td>0.000</td><td>0.05</td><td>0.000</td><td>0.000</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.04</td></tr>
+<tr><td>SimFoundry</td><td>10.4</td><td>0.60</td><td>0.66</td><td>0.005</td><td>0.26</td><td>0.006</td><td>0.002</td><td>0.17</td><td>0.00</td><td>0.01</td><td>0.05</td></tr>
+<tr><td>PolaRiS</td><td>21.5</td><td>0.72</td><td>0.34</td><td>0.033</td><td>0.58</td><td>0.033</td><td>0.037</td><td>0.28</td><td>0.09</td><td>0.16</td><td>0.07</td></tr>
+<tr><td>本文 w/o agent（固定流水线）</td><td>12.3</td><td>0.61</td><td>0.46</td><td>0.001</td><td>0.54</td><td>0.001</td><td>0.002</td><td>0.10</td><td>0.41</td><td>0.47</td><td>0.01</td></tr>
+<tr><td>本文 w/o adaptive refinement</td><td>15.7</td><td>0.66</td><td>0.46</td><td>0.035</td><td>0.37</td><td>0.047</td><td>0.012</td><td>0.24</td><td>0.14</td><td>0.23</td><td>0.01</td></tr>
+<tr><td>本文</td><td class="best">23.8</td><td class="best">0.85</td><td class="best">0.25</td><td class="best">0.063</td><td class="best">0.69</td><td class="best">0.062</td><td class="best">0.108</td><td class="best">0.63</td><td class="best">0.55</td><td class="best">0.58</td><td class="best">0.16</td></tr>
+</tbody></table></div>
+<p>论文结论：四个维度上本文都好于 Real2Sim 基线和两个消融，说明代理编排和自适应修正都必不可少。逐列核对，本文确实在全部 11 列都是最好。</p>
+
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 2 的绝对值和两个消融</span><p><b>绝对值很低。</b>本文的深度质量 0.063、位置质量 0.062、可见表面 F-score@1 cm 0.108。“考虑完整度”的分数会因漏检和误检扣分，“不做事后对齐或缩放”又让单目输入的尺度误差全部计入，所以低分可能主要来自这两项。指标的具体定义在补充材料里，arXiv 版没有附，我无法判断 0.06 意味着几厘米。只能说这张表适合比较方法之间的相对好坏，不适合当绝对精度看。</p>
+<p><b>两个消融各有所长。</b>固定流水线（w/o agent）的几何很差（深度 0.001、位置 0.001），但 Object F1 0.54、穿透 0.41、支撑召回 0.47 都比“有代理但不修正”（0.37、0.14、0.23）高。也就是说，代理不做反馈修正时，物体找得更不全，摆放也更容易互相穿透、悬空。只有两样都加上，所有列才同时变好。论文没有分析这种交叉，我的理解是：代理带来的是几何精度，反馈修正带来的是物理合理性。</p>
+<p>ACDC 在表里出现，但正文没有提到它（它就是参考文献 [11] 的 digital cousins 方法）。</p></div>
+
+<p><b>物理标定。</b>作者从三个来源的真实视频构造了 7 个参数估计任务，涵盖摩擦、恢复系数和摆长：</p>
+<ul>
+<li>EV-RealPhys（引用 [24] 的 RGB-D 刚体跟踪和摩擦滤波工作）；</li>
+<li><a href="gauge.html">GAUGE</a>；</li>
+<li>IRIS。</li>
+</ul>
+<p>在同一协议下比较四类做法：</p>
+<ul>
+<li>默认参数；</li>
+<li>基于视频的系统辨识；</li>
+<li>2D 跟踪加闭式动力学；</li>
+<li>直接让 VLM 推断。</li>
+</ul>
+<p>评估三项：</p>
+<ul>
+<li>参数和参考值的一致程度；</li>
+<li>在留出试验上的运动预测误差；</li>
+<li>物理一致性（是否违反观测到的运动约束）。</li>
+</ul>
+
+<div class="tablewrap"><table class="t-t3" id="t3"><caption>表 3 · 从单段 RGB 视频估计物理参数 · <a href="https://arxiv.org/html/2611.31098v1#S4.T3">看原表 ↗</a></caption>
+<thead><tr><th>方法</th><th>参数误差 ↓</th><th>预测误差 ↓</th><th>约束违反 ↓</th></tr></thead><tbody>
+<tr><th colspan="4">默认参数</th></tr>
+<tr><td>PhysX 默认值</td><td>119.4%</td><td>83.1%</td><td>20.1%</td></tr>
+<tr><td>LLM 手册值</td><td>25.0%</td><td>18.3%</td><td>20.1%</td></tr>
+<tr><th colspan="4">基于视频的系统辨识</th></tr>
+<tr><td>NIRPI [17]</td><td>48.4%</td><td>17.1%</td><td>–</td></tr>
+<tr><td>Garcia 等 [13]</td><td>3702%</td><td>515%</td><td>–</td></tr>
+<tr><th colspan="4">单次推断</th></tr>
+<tr><td>2D 跟踪 + 解析式</td><td>24.4%</td><td>13.1%</td><td>–</td></tr>
+<tr><td>Qwen3-VL-8B</td><td>48.2%</td><td>23.6%</td><td>33.9%</td></tr>
+<tr><td>Claude Opus 5.5</td><td>25.4%</td><td>15.4%</td><td>20.0%</td></tr>
+<tr><td>本文</td><td class="best">4.2%</td><td class="best">2.6%</td><td class="best">0.0%</td></tr>
+</tbody></table></div>
+<p>本文覆盖全部 7 个任务，参数误差 4.2%，预测误差 2.6%；摩擦的上下界满足观测到的运动约束，在评估过的扰动子集上估计值变化很小。作者也说明，各方法覆盖的任务不同，细节在补充材料。</p>
+
+<div class="note" id="n8"><span class="lab">读者注 8 · 表 3 比的是什么</span><p><b>平均不在同一组任务上。</b>论文自己说“各方法的任务覆盖不同”。本文覆盖 7 个，其他方法的平均是在它们能做的子集上算的，子集是哪些在补充材料里，看不到。比如 Garcia 等的 3702% 可能只来自一两个它不适用的任务；而“–”表示这几个方法不输出约束违反这一项。不同覆盖下的平均，严格说不能直接排名。</p>
+<p><b>本文是闭环，VLM 是单次。</b>本文的做法是代理设计仿真试验，逐个候选值跑 PhysX 并和视频对齐（3.2.4 节），本质上是带仿真器的系统辨识。Claude Opus 5.5、Qwen3-VL-8B 是“看视频直接说一个数”。所以 4.2% 对 25.4% 体现的是“能不能跑仿真反复对比”，而不是“GPT-6 Astra 比 Claude 更懂物理”。公平的对照应是把同一个仿真闭环交给不同的模型来驱动，论文没有做。</p>
+<p><b>两个 20.1%。</b>PhysX 默认值和 LLM 手册值的约束违反都是 20.1%，参数误差却差了近 5 倍（119.4% 对 25.0%）。我猜违反来自同一个或同几个任务，与参数取值关系不大（未核实）。</p></div>
+
+<h3 id="s4-4">4.4 技能复用带来的自我改进</h3>
+<p>两组实验都是逐步扩充技能库，其他条件（输入、评估标准、设置）不变。</p>
+<p><b>建世界效率。</b>留出任务是切柠檬。代理在四个嵌套的技能库下各建一次这个世界：</p>
+<ol>
+<li>基础技能；</li>
+<li>再加处理水果的经验；</li>
+<li>再加几何切割技能；</li>
+<li>再加完整的交互式切割技能。</li>
+</ol>
+<p>输入和验证标准完全相同。通过验证所需的 token 每一级都在下降，从 2,810 万降到 1,390 万（约一半）；重建质量相当（SSIM 0.925 对 0.929）。作者的解释是：代理复用存下来的流程，而不是靠试错重新摸索。</p>
+<p><b>长时程任务。</b>在 <a class="ds" href="https://github.com/Zxy-MLlab/LIBERO-PRO">LIBERO-Pro</a> Long 上，代理为 20 个长时程任务写控制脚本：一半带位置扰动，一半带任务扰动，每个任务在 50 个留出初始状态上评估。技能库从 0 个扩到 136 个（都来自其他任务）时：</p>
+<ul>
+<li>总体成功率从 52.9% 升到 82.2%；</li>
+<li>位置扰动从 46.8% 升到 78.8%，任务扰动从 59.0% 升到 85.6%；</li>
+<li>不挑最好的程序、对所有候选程序取平均，也从 44.1% 升到 69.1%。作者据此说，技能让程序本身变好了，而不只是挑得更准。</li>
+</ul>
+<p>对比之下，没有技能库的已有方法（π0.5、CaP-Agent0）都不超过 8%。</p>
+
+<div class="viz" id="w-f5">
+<p class="cap">重画 · 图 5（<a href="https://arxiv.org/html/2611.31098v1#S4.F5">看原图 ↗</a>）。(a) 的 0 和 3 两档是图上标注值，1、2 两档按刻度读出；原图还有一条 SSIM 折线（0.925 到 0.929），这里省略。(b) 的端点和正文一致，中间各点按刻度读出。</p>
+<svg id="f5-svg" viewBox="0 0 680 290" role="img" aria-label="图 5 重画：技能库扩充的效果"></svg>
+<div class="viz-legend" id="f5-lg"></div>
+</div>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 图 5(a) 是一个任务、一次运行</span><p>按刻度读出的四档 token 是 28.1M、21.6M、17.9M、13.9M，逐级下降，和正文“每一级都下降”一致。13.9/28.1 = 0.495，即降了 50.5%，正文说“约 50%”。不过这是一个留出任务（切柠檬）在每档技能库下各建一次的结果，论文没有说重复了几次。代理每次运行的 token 消耗本身波动很大，单次的下降幅度只能当示例看。SSIM 折线中间两档读出来约 0.91 到 0.92，比两端略低，变化都在 0.02 以内。另外，即使是 1,390 万 token，也说明搭一个场景的代理开销并不小。</p></div>
+
+<div class="note" id="n10"><span class="lab">读者注 10 · 图 5(b) 的点和分辨率</span><p>横坐标 0、21、39、57、88、102、122、136 是等比例刻度（每个技能约 1.07 pt），八个点按刻度读出：</p>
+<ul>
+<li>位置扰动：46.8、57.6、61.2、69.8、71.0、71.0、78.8、78.8；</li>
+<li>任务扰动：59.0、70.4、70.8、72.8、71.2、83.8、85.6、85.6；</li>
+<li>总体：52.9、64.0、66.0、71.3、71.1、77.4、82.2、82.2。</li>
+</ul>
+<p>每一点的总体都正好是位置、任务两项的平均，例如 (69.8 + 72.8)/2 = 71.3。这和“各 10 个任务、每任务 50 个状态”对得上：每种扰动 500 回合，分辨率 0.2 个百分点，读数也都是 0.2 的倍数。</p>
+<p>曲线不单调：88 个技能时，任务扰动从 72.8 降到 71.2，总体从 71.3 降到 71.1；122 到 136 完全持平。“不挑程序的平均”在 0 到 39 个技能之间从 44.1 降到 42.8，到 57 个才回升。“20 个任务”我推断是 LIBERO-Long 的 10 个任务各配两种扰动（未核实）。原图图例里“已有方法 ≤ 8%”出现了两次，一次写“(π0.5, CaP-Agent0)”，一次写“(no library)”，像是排版遗留。</p></div>
+
+<div class="note" id="n11"><span class="lab">读者注 11 · “已有方法 ≤ 8%”的对比口径</span><p>这里的代理写的是控制脚本，即 3.3 节的代码即策略。它可以调用分割、抓取、运动规划工具，通常也能读仿真状态；π0.5 是从图像端到端出动作的 VLA。LIBERO-Pro 的扰动正是为了击穿 VLA 对训练布局的记忆而设计的，所以 π0.5 不到 8% 并不意外。这组对比说明“写程序的代理比端到端 VLA 更抗这类扰动”，不能说明“技能库”本身的作用。技能库的作用要看 0 个技能（52.9%）到 136 个技能（82.2%）这一段。</p>
+<p>还有一个协议问题：82.2% 是“挑最好的候选程序”后的成绩。如果挑选用的就是那 50 个留出初始状态，这个数就偏乐观。论文没说明挑选用的是哪些状态，相对公平的数是“不挑程序的平均”：44.1% 到 69.1%。</p></div>
+
+<h2 id="s5">5 结论；LLM 使用声明</h2>
+<p>结论复述贡献：</p>
+<ul>
+<li>代理框架从有限的真实观测出发，构建忠实的数字孪生和多样、物理上可执行的数字表亲，支撑自适应的数据生成和策略开发；</li>
+<li>视觉和执行反馈驱动世界和策略的修正，成功的流程提炼为技能；</li>
+<li>实验显示世界保真度提高、策略能迁到真机，数据量和世界多样性都能提升性能与泛化，技能积累提高了建世界效率和长时程任务成功率。</li>
+</ul>
+<p>论文没有单独的局限一节。</p>
+<p><b>LLM 声明。</b>工具编排框架里驱动建世界和策略开发的模型是 GPT-6 Astra；Qwen3-VL-8B 和 Claude 只作为表 3 的对照模型；ChatGPT 用于润色语言和排版 LaTeX 表格。</p>
+
+<div class="note" id="n12"><span class="lab">读者注 12 · 可复现性和没写的局限</span><ul>
+<li><b>依赖闭源模型。</b>整个框架的“大脑”是 GPT-6 Astra，论文没有换模型的消融，比如换成开源模型时效果掉多少。代码说“soon”，技能库内容也没有公开。</li>
+<li><b>代理开销。</b>一个场景要 1,400 万到 2,800 万 token（图 5a）。论文没有报告建一个世界或开发一个策略要多少墙钟时间、多少次工具调用，也没有失败率，即有多少场景代理最终没能通过验证。</li>
+<li><b>可变形物体只出现在方法里。</b>3.2.3 节写了布、绳、软体的表示，切柠檬也涉及切割；但 8 个真机任务全是刚体或关节物体，表 3 也只有刚体参数。</li>
+<li><b>人工介入程度。</b>引言说“不需要针对场景的人工干预”，但论文没有记录实验中人有没有介入、介入几次。</li>
+</ul></div>
+
+<div class="note" id="n13"><span class="lab">读者注 13 · 和站内评测类工作的区别</span><p>SIMPLER、<a href="real2sim-eval.html">Real-to-Sim 评测</a>和 <a href="fabricbench.html">FabricBench</a> 都要回答“仿真里的排序能不能代表真机”，所以报告 Pearson、MMRV、Spearman 这类一致性指标。本文把仿真当训练场，判断标准只有一个：策略回到真机后成功率高不高。它没有报告任何仿真成功率和真机成功率的对照，所以无从判断本文的世界能不能用来评测，比如能否替代真机给策略排名。表 2 的保真度指标是对静态场景打分，不涉及动态交互的一致性。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">表 1(a) 的分辨率</a>：和真机训练逐任务都不显著，合计 137 对 127/150，p ≈ 0.11。</li>
+<li><a href="#n2">表 1(b) 的“明显提升”</a>：只有 Cup 显著（p = 0.024），Nut 22 对 19 分不开。</li>
+<li><a href="#n3">真机没用到表亲</a>：(a) 组只建孪生，表亲只在 Stack Cups 曲线上出现。</li>
+<li><a href="#n4">Cup 出现两次</a>：ACT 基线相同，本文两处都是 100%。</li>
+<li><a href="#n5">图 4 读数</a>：没见过场景在 2,000 条时下降；DAgger 约加 600 条（读图）；评测回合数和环境未写。</li>
+<li><a href="#n6">图 4 两图对照</a>：(a) 的世界数推断在 100–200 之间（插值推断）。</li>
+<li><a href="#n7">表 2</a>：绝对值很低；两个消融一个强在找物体和物理，一个强在几何精度。</li>
+<li><a href="#n8">表 3</a>：各方法覆盖的任务不同；比较的是“有无仿真闭环”，不是模型强弱。</li>
+<li><a href="#n9">图 5(a)</a>：中间两档读数 21.6M、17.9M；单任务单次运行。</li>
+<li><a href="#n10">图 5(b)</a>：总体等于两项平均，8 个点全对上；88 个技能处有回落。</li>
+<li><a href="#n11">“≤ 8%”的口径</a>：写程序的代理对端到端 VLA；挑选协议未说明，不挑程序的平均是 44.1% 到 69.1%。</li>
+<li><a href="#n12">可复现性</a>：依赖 GPT-6 Astra，代码未发布，没报墙钟时间和失败率，可变形部分没有实验。</li>
+<li><a href="#n13">和评测类工作的区别</a>：没有仿真和真机的一致性数据。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页 / 代码</th><th>论文</th></tr></thead><tbody>
+<tr><td>Real2Worlds2Real</td><td>本文</td><td><a href="https://real2worlds2real.github.io/">real2worlds2real.github.io</a>；代码未发布</td><td><a href="https://arxiv.org/abs/2611.31098">2611.31098</a></td></tr>
+<tr><td>PolaRiS</td><td>表 1(a)、表 2 的 Real2Sim 基线</td><td>–</td><td><a href="https://arxiv.org/abs/2512.16881">2512.16881</a></td></tr>
+<tr><td>SimFoundry</td><td>表 1(a)、表 2 的基线；Fruits 场景来源</td><td>–</td><td>arXiv 2606（参考文献 [44]）</td></tr>
+<tr><td>ACDC</td><td>数字表亲方法，表 2 基线</td><td>–</td><td><a href="https://arxiv.org/abs/2410.07408">2410.07408</a></td></tr>
+<tr><td>ASPIRE</td><td>表 1(b) 的代理基线</td><td>–</td><td><a href="https://arxiv.org/abs/2607.00272">2607.00272</a></td></tr>
+<tr><td>ENPIRE</td><td>表 1(b) 的代理基线</td><td>–</td><td><a href="https://arxiv.org/abs/2606.19980">2606.19980</a></td></tr>
+<tr><td>Policy Decorator</td><td>RL 残差修正，表 1(a) 所有方法共用</td><td>–</td><td>ICLR 2025</td></tr>
+<tr><td>Agentic Real2Sim</td><td>相关的代理式构建工作</td><td>–</td><td><a href="https://arxiv.org/abs/2607.19190">2607.19190</a></td></tr>
+<tr><td>ARSTAG</td><td>相关的代理式 Real2Sim2Real 数据生成</td><td>–</td><td><a href="https://arxiv.org/abs/2609.24563">2609.24563</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/Zxy-MLlab/LIBERO-PRO">LIBERO-PRO</a></td><td>4.4 节的长时程评测</td><td>github.com/Zxy-MLlab/LIBERO-PRO；站内 <a href="libero.html">LIBERO</a></td><td><a href="https://arxiv.org/abs/2510.03827">2510.03827</a></td></tr>
+<tr><td>CaP-X</td><td>CaP-Agent0 所在的编码代理基准</td><td>–</td><td><a href="https://arxiv.org/abs/2603.22435">2603.22435</a></td></tr>
+<tr><td><a class="ds" href="https://github.com/apple/ARKitScenes">ARKitScenes</a></td><td>表 2 的场景来源之一</td><td>github.com/apple/ARKitScenes</td><td>NeurIPS 2021 数据集</td></tr>
+<tr><td><a class="ds" href="https://github.com/swtyree/hope-dataset">HOPE-Video</a></td><td>表 2 的场景来源之一</td><td>github.com/swtyree/hope-dataset</td><td>IROS 2022</td></tr>
+<tr><td>GAUGE</td><td>表 3 的视频来源之一</td><td>站内 <a href="gauge.html">精读</a></td><td><a href="https://arxiv.org/abs/2608.05948">2608.05948</a></td></tr>
+<tr><td>cuRobo</td><td>运动规划</td><td><a href="https://github.com/NVlabs/curobo">NVlabs/curobo</a></td><td><a href="https://arxiv.org/abs/2310.17274">2310.17274</a></td></tr>
+<tr><td>Newton</td><td>可变形仿真</td><td><a href="https://github.com/newton-physics/newton">newton-physics/newton</a></td><td>–</td></tr>
+<tr><td>站内</td><td>对照阅读</td><td><a href="real2sim-eval.html">Real-to-Sim</a>、<a href="phystwin.html">PhysTwin</a>、<a href="simpler.html">SIMPLER</a>、<a href="fabricbench.html">FabricBench</a>、<a href="six-policies.html">六个策略</a>、<a href="libero.html">LIBERO</a></td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2611.31098 后的整理，不是作者的官方内容。原文：Jinzhong Gu、Jiakai Chen、Xinyi Cao、Yan Shen、Hangke Sui、Shutian Zheng、Xiang Xiao、Haoran Lu、Fan Xu、Lu Shi、Daochen Shi、Ruihua Zhang、Wei Zhan、Masayoshi Tomizuka、Ruihai Wu，《Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation》，arXiv 2026，许可为 arXiv 非独占分发；本页不含原图，图 4、图 5 是我按 PDF 矢量路径读数重画的，示意图是我画的。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="real2worlds2real/widgets.js" defer></script>
+</body>
+</html>
