@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Real2Worlds2Real 论文精读 · Paper Reading Lab</title>
-<meta name="description" content="arXiv 2611.31098 Real2Worlds2Real 的中文精读：由编码代理（GPT-6 Astra）调度工具，从少量 RGB 图像或视频搭数字孪生和数字表亲，按视频标定物理参数，再在仿真里调度数据生成和策略训练，把验证过的做法存成技能复用。逐节覆盖正文，表 1 到表 3 照录，图 4、图 5 按矢量路径读数重画，14 条读者注。">
+<meta name="description" content="arXiv 2611.31098 Real2Worlds2Real 的中文精读：由编码代理（GPT-6 Astra）调度工具，从少量 RGB 图像或视频搭数字孪生和数字表亲，按视频标定物理参数，再在仿真里调度数据生成和策略训练，把验证过的做法存成技能复用。逐节覆盖正文，表 1 到表 3 照录，放原图 1–5，图 4、图 5 另按矢量路径读数重画，13 条读者注。">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 <style>
@@ -46,7 +46,7 @@ td.best{font-weight:700}
 <div class="meta"><a href="https://arxiv.org/abs/2611.31098">arXiv 原文</a><a href="https://arxiv.org/html/2611.31098v1">HTML 版</a><a href="https://arxiv.org/pdf/2611.31098">PDF</a><a href="https://real2worlds2real.github.io/">项目主页</a><a href="https://huggingface.co/papers/2611.31098">Hugging Face 论文页</a><span>正文 8 页 + 参考文献，共 12 页；没有附录</span></div>
 
 <div class="callout">
-<p><b>关于这份精读。</b>这篇论文在 arXiv 上登记的是默认的非独占分发许可（arXiv nonexclusive-distrib 1.0）。按本站规则不放原图：图 1 到图 3 用文字描述，“看原图”打开 arXiv HTML 版的对应位置；图 4、图 5 是矢量图，我从 PDF 导出 SVG，按坐标轴刻度标定后读出每个点，再自己重画，图注标“重画”。正文不逐字翻译，表格数字照录原文。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>关于这份精读。</b>这篇论文在 arXiv 上登记的是默认的非独占分发许可（arXiv nonexclusive-distrib 1.0）。经站点作者决定放原图：图 1 到图 5 从 PDF 裁切（只裁切和缩放），图注保留文字描述，“看原图”打开 arXiv HTML 版的对应位置。图 4、图 5 另外按 PDF 矢量路径、对照坐标轴刻度读出每个点后重画了一版，图注标“重画”。正文不逐字翻译，表格数字照录原文。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
 <p><b>版本和代码。</b>arXiv 只有 v1（2026-11-23）。项目主页写着代码“Code soon”，截至 2026-11-26 没有公开，所以本页没有代码对照。正文多处说“细节见补充材料”（表 2 的指标定义、表 3 的任务覆盖），但 arXiv 上的 PDF 只有 12 页，没有附带补充材料，这些细节我看不到。项目主页没有标许可，只链接，不抓图。</p>
 </div>
 
@@ -104,7 +104,10 @@ td.best{font-weight:700}
 <li>实验覆盖三方面：仿真里练出的策略迁移到真机，世界的视觉和物理保真度，世界多样性和数据量两个方向的扩展规律。</li>
 </ol>
 
-<div class="fig" id="fig1"><span class="lab">图 1 · 第 1 页 · <a href="https://arxiv.org/html/2611.31098v1#S0.F1">看原图 ↗</a></span><p>总览图，左右两大块。左块“代理式建世界”：真实观测（RGB、可选视频、一句指令“把杯子放到盘子上”）进入工具编排框架（标着 Astra），经过“推理与规划 → 建世界 → 反思与修正（诊断、适应、改进）→ 总结更新”循环，下方三个小格：场景理解与重建（深度、分割）、可扩展的数字表亲（数字孪生和变体 1–4，变化物体、布局、材质、光照，用 Omniverse RTX 渲染）、物理推断与标定（两轮迭代，摩擦、质量、阻尼、刚度从“不匹配”到“对齐”）。右块“代理式策略开发”：A 工具引导的规划与执行（抓取生成器 → cuRobo → 执行），B 奖励引导的强化学习（代理生成或更新奖励函数），C 从示范做模仿学习，D 基于模型的规划（候选轨迹里选一条）。中间一条“提炼出的流程 → 可复用技能”连接两块，最右是真机部署。</p></div>
+<figure class="pfig" id="fig1">
+<img src="real2worlds2real/fig1.webp" width="1600" height="906" alt="图 1：总览图，左右两大块。左块“代理式建世界”：真实观测（RGB、可选视频、一句指令“" loading="lazy">
+<figcaption><span class="lab">图 1 · 原文第 1 页 · Gu 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2611.31098v1#S0.F1">看原图 ↗</a></span>总览图，左右两大块。左块“代理式建世界”：真实观测（RGB、可选视频、一句指令“把杯子放到盘子上”）进入工具编排框架（标着 Astra），经过“推理与规划 → 建世界 → 反思与修正（诊断、适应、改进）→ 总结更新”循环，下方三个小格：场景理解与重建（深度、分割）、可扩展的数字表亲（数字孪生和变体 1–4，变化物体、布局、材质、光照，用 Omniverse RTX 渲染）、物理推断与标定（两轮迭代，摩擦、质量、阻尼、刚度从“不匹配”到“对齐”）。右块“代理式策略开发”：A 工具引导的规划与执行（抓取生成器 → cuRobo → 执行），B 奖励引导的强化学习（代理生成或更新奖励函数），C 从示范做模仿学习，D 基于模型的规划（候选轨迹里选一条）。中间一条“提炼出的流程 → 可复用技能”连接两块，最右是真机部署。</figcaption>
+</figure>
 
 <h2 id="s2">2 相关工作</h2>
 <h3>2.1 Real-to-Sim 场景生成</h3>
@@ -118,7 +121,10 @@ td.best{font-weight:700}
 <p>MimicGen 系列用以物体为中心的变换和技能重组扩充示范；RoboGen、GenSim2 用规划和强化学习生成任务和监督；也有代理框架用混合求解器和技能探索自动找轨迹（AnyTask、SkillWeaver）。ARSTAG、DREAM、DexAgent 先重建任务专用仿真，再分别用状态输入专家、任务与运动规划、人体动作引导生成示范。本文的不同点是：把多样的、物理上有依据的世界和代理调度的数据生成结合起来，并研究世界多样性和数据规模怎样影响策略的性能和泛化。</p>
 
 <h2 id="s3">3 方法</h2>
-<div class="fig" id="fig2"><span class="lab">图 2 · 第 3 页 · <a href="https://arxiv.org/html/2611.31098v1#S2.F2">看原图 ↗</a></span><p>“技能演化”示意。建世界技能和策略技能各自在反馈下变好，复用和组合后又催生新技能、新任务，形成持续自我改进的循环。</p></div>
+<figure class="pfig" id="fig2">
+<img src="real2worlds2real/fig2.webp" width="1335" height="1639" alt="图 2：“技能演化”示意。建世界技能和策略技能各自在反馈下变好，复用和组合后又催生新技能" loading="lazy">
+<figcaption><span class="lab">图 2 · 原文第 3 页 · Gu 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2611.31098v1#S2.F2">看原图 ↗</a></span>“技能演化”示意。建世界技能和策略技能各自在反馈下变好，复用和组合后又催生新技能、新任务，形成持续自我改进的循环。</figcaption>
+</figure>
 <p>整体流程：给定 RGB 图像或视频和一句任务描述，代理先在技能引导下的工具编排框架里建世界（3.1、3.2），再在这些世界里调度策略开发（3.3），最后把选中的策略部署到真机。</p>
 
 <svg class="dia" viewBox="0 0 680 220" role="img" aria-label="示意：两段流程和技能库">
@@ -153,7 +159,10 @@ td.best{font-weight:700}
 </ul>
 <p>框架还用显式任务约束来把关，例如带关节的孪生必须有必要的部件和关节关系。验证用任务专属的仿真检查，比如关节运动、接触行为、形变完整性，而且要求证据和当前资产一致。检查不过，代理就按诊断改资产或物理参数，再重跑检查。</p>
 
-<div class="fig" id="fig3"><span class="lab">图 3 · 第 4 页 · <a href="https://arxiv.org/html/2611.31098v1#S2.F3">看原图 ↗</a></span><p>建世界的细节图。左边是代理框架：内置技能分 L1 核心原则、L2 任务工作流，代理（ASTRA）读取它们，并把经验写回个人技能、跨任务复用；可选工具列成一排：SAM3、COLMAP、VGGT、Blender、相机位姿、网格拟合、纹理烘焙、3DGS、PhysX、Newton、接触测试、运动检查、实验设计、功能检查。右边三列示例：<b>数字孪生</b>（分析与分离物体 → Blender 代码建模，例如用 helix() 生成螺纹 → 场景组装和视觉对齐，瓶子和瓶盖螺纹配合），<b>数字表亲</b>（识别不变量 → 物体细化和测试 → 场景变化：布局、风格、光照），<b>物理标定</b>（给定初速度 v0 或初角速度 ω0，设计试验 → PhysX 记录 → 和真实位置、旋转曲线对比后修正摩擦系数 μ）。顶部引号里是一条示例指令：“为这个场景建孪生，生成表亲，并把物理标定到和视频里的运动一致。”</p></div>
+<figure class="pfig" id="fig3">
+<img src="real2worlds2real/fig3.webp" width="1600" height="895" alt="图 3：建世界的细节图。左边是代理框架：内置技能分 L1 核心原则、L2 任务工作流，代" loading="lazy">
+<figcaption><span class="lab">图 3 · 原文第 4 页 · Gu 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2611.31098v1#S2.F3">看原图 ↗</a></span>建世界的细节图。左边是代理框架：内置技能分 L1 核心原则、L2 任务工作流，代理（ASTRA）读取它们，并把经验写回个人技能、跨任务复用；可选工具列成一排：SAM3、COLMAP、VGGT、Blender、相机位姿、网格拟合、纹理烘焙、3DGS、PhysX、Newton、接触测试、运动检查、实验设计、功能检查。右边三列示例：<b>数字孪生</b>（分析与分离物体 → Blender 代码建模，例如用 helix() 生成螺纹 → 场景组装和视觉对齐，瓶子和瓶盖螺纹配合），<b>数字表亲</b>（识别不变量 → 物体细化和测试 → 场景变化：布局、风格、光照），<b>物理标定</b>（给定初速度 v0 或初角速度 ω0，设计试验 → PhysX 记录 → 和真实位置、旋转曲线对比后修正摩擦系数 μ）。顶部引号里是一条示例指令：“为这个场景建孪生，生成表亲，并把物理标定到和视频里的运动一致。”</figcaption>
+</figure>
 
 <h3 id="s3-2">3.2 可扩展的仿真世界构建</h3>
 <h4>3.2.1 场景重建</h4>
@@ -281,6 +290,11 @@ td.best{font-weight:700}
 <li><b>世界多样性。</b>示范固定 1,000 条，训练世界通过物体表亲、场景布局和背景变化从 10 个加到 1,000 个，在 100 个没见过的场景上评估，成功率随世界数稳定上升。</li>
 </ul>
 
+<figure class="pfig" id="fig4">
+<img src="real2worlds2real/fig4.webp" width="1304" height="968" alt="图 4：两张折线图。(a) 交互数据扩展：横轴训练示范数 N，青色圆点是见过的场景，橙色" loading="lazy">
+<figcaption><span class="lab">图 4 · 原文第 7 页 · Gu 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2611.31098v1#S4.F4">看原图 ↗</a></span>两张折线图。(a) 交互数据扩展：横轴训练示范数 N，青色圆点是见过的场景，橙色方块是没见过的场景，虚线和空心点是 DAgger 修正后（87% 和 73%）。(b) 世界多样性扩展：横轴训练世界数，成功率从 17% 升到 71%。下面是我按矢量路径读数的重画和读数表。</figcaption>
+</figure>
+
 <div class="viz" id="w-f4">
 <p class="cap">重画 · 图 4（<a href="https://arxiv.org/html/2611.31098v1#S4.F4">看原图 ↗</a>）。数值是我从 PDF 矢量路径按刻度读出的，和图上标注的百分数一致；DAgger 点的横坐标图里没标，读图约 2,600。圆点：见过的场景；方块：没见过的场景；空心：DAgger 修正后。</p>
 <svg id="f4-svg" viewBox="0 0 680 280" role="img" aria-label="图 4 重画：示范数和世界数的扩展曲线"></svg>
@@ -399,6 +413,11 @@ td.best{font-weight:700}
 </ul>
 <p>对比之下，没有技能库的已有方法（π0.5、CaP-Agent0）都不超过 8%。</p>
 
+<figure class="pfig" id="fig5">
+<img src="real2worlds2real/fig5.webp" width="1312" height="2023" alt="图 5：(a) 建世界效率：技能数 0 到 3，token 消耗从 28.1M 降到 1" loading="lazy">
+<figcaption><span class="lab">图 5 · 原文第 8 页 · Gu 等，arXiv 非独占分发许可，只做了裁切，经站点作者决定放原图 · <a href="https://arxiv.org/html/2611.31098v1#S4.F5">看原图 ↗</a></span>(a) 建世界效率：技能数 0 到 3，token 消耗从 28.1M 降到 13.9M（深色实线，左轴），SSIM 保持在 0.925 到 0.929（橙色虚线，右轴）。(b) 长时程任务成功率：横轴技能数 0 到 136，四条线分别是位置扰动、任务扰动、20 个任务总体、不挑程序的零样本平均；底部灰色虚线是没有技能库的已有方法（≤ 8%）。下面是重画。</figcaption>
+</figure>
+
 <div class="viz" id="w-f5">
 <p class="cap">重画 · 图 5（<a href="https://arxiv.org/html/2611.31098v1#S4.F5">看原图 ↗</a>）。(a) 的 0 和 3 两档是图上标注值，1、2 两档按刻度读出；原图还有一条 SSIM 折线（0.925 到 0.929），这里省略。(b) 的端点和正文一致，中间各点按刻度读出。</p>
 <svg id="f5-svg" viewBox="0 0 680 290" role="img" aria-label="图 5 重画：技能库扩充的效果"></svg>
@@ -476,7 +495,7 @@ td.best{font-weight:700}
 <tr><td>站内</td><td>对照阅读</td><td><a href="real2sim-eval.html">Real-to-Sim</a>、<a href="phystwin.html">PhysTwin</a>、<a href="simpler.html">SIMPLER</a>、<a href="fabricbench.html">FabricBench</a>、<a href="six-policies.html">六个策略</a>、<a href="libero.html">LIBERO</a></td><td>–</td></tr>
 </tbody></table></div>
 
-<footer><p>精读是我读 arXiv 2611.31098 后的整理，不是作者的官方内容。原文：Jinzhong Gu、Jiakai Chen、Xinyi Cao、Yan Shen、Hangke Sui、Shutian Zheng、Xiang Xiao、Haoran Lu、Fan Xu、Lu Shi、Daochen Shi、Ruihua Zhang、Wei Zhan、Masayoshi Tomizuka、Ruihai Wu，《Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation》，arXiv 2026，许可为 arXiv 非独占分发；本页不含原图，图 4、图 5 是我按 PDF 矢量路径读数重画的，示意图是我画的。</p></footer>
+<footer><p>精读是我读 arXiv 2611.31098 后的整理，不是作者的官方内容。原文：Jinzhong Gu、Jiakai Chen、Xinyi Cao、Yan Shen、Hangke Sui、Shutian Zheng、Xiang Xiao、Haoran Lu、Fan Xu、Lu Shi、Daochen Shi、Ruihua Zhang、Wei Zhan、Masayoshi Tomizuka、Ruihai Wu，《Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation》，arXiv 2026，许可为 arXiv 非独占分发；原图 1–5 经站点作者决定从 PDF 裁切放入，图 4、图 5 另有我按 PDF 矢量路径读数的重画，示意图是我画的。</p></footer>
 </div>
 <a class="totop" href="#toc">目录</a>
 <script src="real2worlds2real/widgets.js" defer></script>

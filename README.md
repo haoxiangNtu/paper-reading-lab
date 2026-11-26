@@ -8,7 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
-| Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation（[arXiv 2611.31098](https://arxiv.org/abs/2611.31098)，2026-11） | [real2worlds2real 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2worlds2real.html) | 编码代理（GPT-6 Astra）调度工具建数字孪生和表亲、按视频标定物理，再调度策略开发，技能跨任务复用。真机每格 30 次，和真机训练分不开；真机对比只用了孪生；表 3 比的是有无仿真闭环。非独占许可，文字描述图 1–3，图 4、图 5 按矢量路径读数重画。代码未发布。 | 13 条 |
+| Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation（[arXiv 2611.31098](https://arxiv.org/abs/2611.31098)，2026-11） | [real2worlds2real 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2worlds2real.html) | 编码代理（GPT-6 Astra）调度工具建数字孪生和表亲、按视频标定物理，再调度策略开发，技能跨任务复用。真机每格 30 次，和真机训练分不开；真机对比只用了孪生；表 3 比的是有无仿真闭环。非独占许可，经站点作者决定放原图 1–5，图 4、图 5 另按矢量路径读数重画。代码未发布。 | 13 条 |
 | FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，经站点作者决定放原图 1–6；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
 | Igniting VLMs toward the Embodied Space（WALL-OSS，[arXiv 2509.11766](https://arxiv.org/abs/2509.11766)，2025-09，CC BY 4.0） | [wall-oss 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/wall-oss.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/wall-oss/index.html) | VLA，不是世界模型。图 7 和正文数字对不上；参数量可精确拆分；代码冻结范围比论文说的大。另有“提法与对比的公平性审视”一节（#audit），含 π0 与 WALL-OSS 单层结构对比图（#fig-attn）。 | 19 条 |
@@ -415,7 +415,7 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
 papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
-papers/real2worlds2real.html  Real2Worlds2Real 精读（不放原图；重画图 widgets.js 在 papers/real2worlds2real/；没有 3D 动画）
+papers/real2worlds2real.html  Real2Worlds2Real 精读（原图 1–5 和重画图 widgets.js 在 papers/real2worlds2real/；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
 papers/gr00t2.html         gr00t2 精读（原图在 papers/gr00t2/，11 幕动画在 interactives/gr00t2/）
