@@ -20,6 +20,14 @@
 <h2 id="list">逐节精读</h2>
 <div class="papers">
 <article class="paper">
+<p class="t"><a href="papers/pf-flip.html">PF-FLIP：用一套粒子同时算水和空气，在一台工作站上模拟几十亿粒子的破碎浪</a></p>
+<p class="en">Adaptive Phase-Field-FLIP for Very Large Scale Two-Phase Fluid Simulation</p>
+<div class="meta"><span>ACM TOG 44(4) · SIGGRAPH 2025</span><span>TUM · RWTH Aachen</span><span>2026-11-26 读</span></div>
+<p class="d">水和空气都用 FLIP 粒子，靠 1000:1 的密度差直接把溅射质量压成相场，不做表面重建；MSBG 用稠密块索引、固定几何块大小、可变块分辨率做多分辨率，8 色溅射和块级红黑平滑；粒子按离水面距离拆分、随机删除粗化；自适应多重网格 + 柔性 PCG 让压力求解只占三成时间。核算：式 (12) 按字面多加一份速度增量（推断漏括号）；式 (13) 的黏性约为真实水的 2800 倍；随机粗化只在期望上守质量；图 17 按矢量读数，几何多重网格比不完全 Cholesky 迭代少 16 倍但时间只少 3.8 倍；表 7 里活跃格子只占有效体积的 2%–6%。附 MSBG 代码对照和我们的 Taichi 单相复现对照。</p>
+<div class="tags"><span class="pill">流体仿真 · 两相 FLIP</span><span class="pill">ACM 版权 · 文字描述图</span><span class="pill rn">14 条读者注</span></div>
+<div class="links"><a class="go" href="papers/pf-flip.html">读精读 →</a><a href="papers/pf-flip.html#w-phi">相场交互图</a><a href="papers/pf-flip.html#repro">复现对照</a><a href="https://ge.in.tum.de/publications/very-large-scale-two-phase-flip/">项目页</a></div>
+</article>
+<article class="paper">
 <p class="t"><a href="papers/real2worlds2real.html">Real2Worlds2Real：让编码代理从几张照片搭出一族仿真世界，再在里面把策略练好送回真机</a></p>
 <p class="en">Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation</p>
 <div class="meta"><span>arXiv 2611.31098v1</span><span>UC Berkeley · NVIDIA · UIUC · CMU</span><span>2026-11-26 读</span></div>

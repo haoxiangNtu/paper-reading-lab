@@ -1,6 +1,6 @@
 # Paper Reading Lab：接手说明（给 Codex / 其他代理）
 
-最后更新：2026-11-26（含 real2worlds2real、fabricbench、real2sim-eval、phystwin、rgbench、mundo、openwam、molmoact2、libero）。写给接手维护这个仓库的代理。先读完这一页再动手。
+最后更新：2026-11-26（含 pf-flip、real2worlds2real、fabricbench、real2sim-eval、phystwin、rgbench、mundo、openwam、molmoact2、libero）。写给接手维护这个仓库的代理。先读完这一页再动手。
 
 ## 1. 这是什么
 
@@ -42,6 +42,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 触觉（2026-11-17） | `lingbot-touch`（arXiv 2611.12806，CC BY 4.0 放原图；项目网页 © All rights reserved，只链接不抓取）；页末有空的 `#qa` 节 |
 | NVIDIA Cosmos / GR00T（2026-11-16） | `cosmos`、`cosmos-transfer1`、`cosmos-reason1`、`cosmos-predict25`、`cosmos-policy`、`cosmos3`、`cosmos-interactive`、`gr00t`、`gr00t2`（2026-11-17，NVIDIA 白皮书无 arXiv，全权保留，经站点作者决定放原图；正式代码未发布，开发分支 codex/n2-action-expert 为评测许可，用户决定保留“只引文件名和键名”的写法）；和 OpenWAM 相关的页末有 `#openwam` 节 |
 | WAM / VLA（用户在复现 LIBERO） | `openwam`（arXiv 2609.07398；和 Stanford 同名的 2610.07922 不是一篇）`molmoact2`、`libero`（基准本身，CC BY 4.0）；上游模型 `wan`、`dinov3`、`vjepa21`、`svae`、`rae`，各页末有 `#openwam` 节。三页都有 `#repro` 节；LIBERO 环境与各家评测协议对照在 `openwam.html#qa-libero` |
+| 流体仿真（2026-11-26） | `pf-flip`（ACM TOG 2025 / SIGGRAPH，ACM 版权，按默认规则不放原图，25 张图文字描述，“看原图”链到 TUM 预印本 PDF 的 `#page=N`；图 17 用 `pdftocairo -svg` 读柱高重画在 `papers/pf-flip/widgets.js`，另有式 (7) 相场和图 8 块开销的交互图）。MSBG 代码 tum-pbs/MSBG commit 655038d（Apache-2.0）只有数据结构。`papers/pf-flip/repro-*.webp` 是我们自己的 Taichi 渲染（代码在仓库外 `../flip-wave/`），不是论文图。来源是用户在小红书看到的 PF-FLIP 海浪笔记 |
 | Real2Sim2Real 代理（2026-11-26） | `real2worlds2real`（arXiv 2611.31098，非独占；2026-11-26 用户要求放原图，图 1–5 裁切到 `papers/real2worlds2real/fig1–fig5.webp`，只对这一篇有效；图 4、图 5 用 `pdftocairo -svg` 读点后重画在 `papers/real2worlds2real/widgets.js`；代码“soon”未发布，补充材料不在 arXiv 上；项目主页无许可只链接）。表 1 的 Fisher 检验和 Wilson 区间按每格 30 次现算 |
 | 概念专题（2026-11-25） | `six-policies`：FabricBench 的六个策略按 8 部件对照。总对照表 `#mx` 和三个交互都读页内 `<script id="six-data">` 的 JSON；这份 JSON 和表是用仓库外脚本（scratchpad 的 data.py + tpl.html）生成的，直接改页面时两处要一起改。GR00T 按 N1 写（FabricBench 未写版本） |
 | 布料策略基准（2026-11-25） | `fabricbench`（arXiv 2611.31577，非独占；2026-11-25 用户要求放原图，图 1–6 裁切到 `papers/fabricbench/fig1–fig6.webp`，只对这一篇有效；代码和资产截至 2026-11-25 未发布，项目主页无许可只链接）。没有 3D 动画；`papers/fabricbench/widgets.js` 画表 3 底色、式 (3) 摩擦交互、表 4 折线、图 4 散点（Wilson 区间按 N=50/20 现算）。表 15 末列 GarmentDynamics 是从 `rgbench` 页抄的 RGBench 表 5，不是本文数字。排行榜 leaderboard.html 是 JS 渲染，要无头 Chrome |

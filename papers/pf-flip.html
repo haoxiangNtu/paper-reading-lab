@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PF-FLIP 论文精读 · Paper Reading Lab</title>
+<meta name="description" content="SIGGRAPH 2025 论文 Adaptive Phase-Field-FLIP 的中文精读：用 FLIP 粒子同时模拟水和空气，靠 1000:1 的密度差直接从粒子密度得到相场，不做表面重建；配合不用树的多分辨率稀疏块网格 MSBG、不找邻居的随机粒子粗化，以及自适应多重网格预条件的共轭梯度，在一台 CPU 工作站上跑到几十亿粒子。逐节覆盖正文，表 1–7 照录，图 17 按矢量路径读数重画，附 MSBG 代码对照和我们的 Taichi 单相复现对照，14 条读者注。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-t1{min-width:560px}.t-t2{min-width:520px}.t-t5{min-width:560px}.t-t6{min-width:460px}.t-t7{min-width:720px}.t-links{min-width:640px}.t-sm{min-width:460px}.t-rp{min-width:640px}
+.t-t7 td,.t-t7 th{font-size:13px}
+.viz{--viz-surface:#121a2b;--p1:#5aa2f0;--p2:#f08a4b;--p3:#3cc48e;--p4:#d8a520;--p5:#b48cf0;--p6:#e06aa8;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 6px;max-width:none}
+.viz p{max-width:none;font-size:14.5px}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.7}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:4px 0}
+.viz-legend i{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:.25em;margin-right:6px}
+.ctl{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13.5px;margin:6px 0}
+.ctl label{display:inline-flex;align-items:center;gap:8px}
+.ctl input[type=range]{width:150px}
+.ctl output{font-family:var(--font-mono);font-size:12.5px;min-width:3.5em}
+.readout{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin:4px 0 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:4px 8px 4px 0}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:3px 13px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.dia{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.dia text{font:13px var(--font-body);fill:var(--fg)}
+.dia .mu{fill:var(--muted);font-size:12px}
+.dia .bx{fill:var(--panel);stroke:var(--line)}
+.dia .hl{fill:var(--panel);stroke:var(--accent)}
+.dia .ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dia .fb{stroke:var(--accent);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.notes li{max-width:74ch}
+.algo{font-family:var(--font-mono);font-size:13px;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto;white-space:pre;max-width:100%}
+td.best{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="rgbench.html">RGBench</a><a href="phystwin.html">PhysTwin</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">ACM TOG 44(4) · SIGGRAPH 2025 · DOI 10.1145/3730854 · 预印本 2025-07-07 · 中文精读</p>
+<h1>PF-FLIP：用一套粒子同时算水和空气，在一台工作站上模拟几十亿粒子的破碎浪</h1>
+<p class="orig">Adaptive Phase-Field-FLIP for Very Large Scale Two-Phase Fluid Simulation</p>
+<p>作者 Bernhard Braun（慕尼黑工业大学 TUM）、Jan Bender（亚琛工业大学 RWTH）、Nils Thuerey（TUM）。</p>
+<div class="meta"><a href="https://ge.in.tum.de/publications/very-large-scale-two-phase-flip/">TUM 项目页</a><a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf">预印本 PDF</a><a href="https://doi.org/10.1145/3730854">ACM DOI</a><a href="https://www.youtube.com/watch?v=nt9BohngvoE">视频</a><a href="https://github.com/tum-pbs/MSBG">MSBG 代码</a><a href="https://animation.rwth-aachen.de/publication/0594/">RWTH 页面</a><span>正文约 21 页 + 参考文献，共 23 页；没有附录</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>这篇是 ACM TOG 论文（SIGGRAPH 2025），PDF 首页写着“© 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM”；我读的是作者单位 TUM 公开的预印本（PDF 创建于 2025-07-07，23 页）。没有 arXiv 版本。按本站规则不放原图：25 张图都用文字描述，“看原图”打开预印本 PDF 的对应页。图 17 是矢量图，我从 PDF 导出 SVG，按对数刻度读出四组柱高后重画，图注标“重画”。另有两张示意图和两张交互图是我按论文公式画的。正文不逐字翻译，表格数字照录原文。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>作者只开源了 MSBG 数据结构（<a href="https://github.com/tum-pbs/MSBG">tum-pbs/MSBG</a>，Apache-2.0），读的是 commit 655038d（2025-06-09）。仓库里只有数据结构、粒子溅射和曲率流演示，<b>没有</b>PF-FLIP 求解器、压力求解器和喷雾模型。代码对照见 <a href="#code">代码对照</a> 一节。</p>
+<p><b>这篇是怎么来的。</b>用户在小红书上看到一条笔记：一位艺术家在 SIGGRAPH 2025 看到 PF-FLIP 后，花两个月在 Autodesk Bifrost 里做出了破碎海浪。我们先用 Taichi 在 GPU 上写了一个单相 FLIP 破碎浪（代码不在本仓库），再回头精读这篇。两者的差距见 <a href="#repro">和我们的 Taichi 复现对照</a>。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和站内页面的关系</a><a href="#s1">1 引言</a><a href="#s2">2 相关工作</a><a href="#s3">3 Phase-Field FLIP</a><a href="#s3-3">3.3 相场</a><a href="#s3-6">3.6 G2P</a><a href="#s3-7">3.7 黏性</a><a href="#s4">4 自适应网格 MSBG</a><a href="#s5">5 自适应粒子</a><a href="#s6">6 自适应泊松求解器</a><a href="#s7">7 喷雾与渲染</a><a href="#s8">8 结果</a><a href="#s8-3">8.3 求解器对比</a><a href="#s8-4">8.4 大场景</a><a href="#s9">9–10 局限与结论</a><a href="#code">代码对照</a><a href="#repro">复现对照</a><a href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>电影里的大型水体（巨浪、瀑布、溃坝、陨石入海）看起来“大”，很大程度上靠的是空气：水猛烈运动时会带动周围空气，空气阻力把水撕成喷雾和水雾，水雾再被空气中的湍流卷成一条条丝带。图形学里常用的单相水模拟把空气当作压力为零的真空，于是只能靠“白水”粒子之类的经验做法往上补，而且怎么放大尺度都像“慢动作的小水花”。</p>
+<p>这篇论文要做的是：把水和空气都当成流体一起算，而且要算到几十亿粒子、几千格每维的分辨率，只用一台 CPU 工作站。为此要同时解决三件事：</p>
+<ul>
+<li><b>两相怎么表示（第 3 节）。</b>提出 Phase-Field FLIP（PF-FLIP）：水和空气都用 FLIP 粒子，每个粒子带一个固定的类型和质量。粒子溅到网格上得到的质量本身就是密度场，因为水比空气重 1000 倍，粒子噪声完全盖不住两相的差别，所以直接把密度压缩成 0 到 1 的相场就能分出水和空气，不需要水平集、VOF 之类的表面维护步骤。</li>
+<li><b>空间自适应（第 4、5 节）。</b>提出 MSBG（多分辨率稀疏块网格）：一个稠密的块索引数组，每个块几何大小相同、分辨率可以不同，没有树。粒子大小也随离水面的距离变化，粗化时不合并邻居，而是按概率随机删掉粒子。</li>
+<li><b>压力求解（第 6 节）。</b>水气密度比 1000:1 让压力方程非常病态。作者把 Galerkin 多重网格推广到多分辨率网格，平滑器只在残差大的块上反复做，再把这种不对称的多重网格放进柔性预条件共轭梯度里。压力求解最终只占每步时间的约三成。</li>
+</ul>
+<p>结果：MSBG 在粒子转网格、PDE 迭代、网格转粒子三项上比 OpenVDB 快 3.7–9.6 倍（表 2）；压力求解比不完全 Cholesky 预条件少两个数量级的迭代（图 17）；最大的例子有 31 亿 FLIP 粒子，每步约 2 分钟，一共跑了 3.5 天（图 1、表 7）。</p>
+
+<svg class="dia" viewBox="0 0 680 300" role="img" aria-label="示意：PF-FLIP 每个时间步的流程">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+<text x="12" y="20" class="mu">示意（我画的）：PF-FLIP 一个时间步。方框旁的数字是论文小节号。</text>
+<rect class="bx" x="12" y="34" width="150" height="70" rx="8"/><text x="87" y="58" text-anchor="middle">水粒子 + 空气粒子</text><text x="87" y="78" text-anchor="middle" class="mu">类型固定，质量 ρ_l 或 ρ_g</text><text x="87" y="96" text-anchor="middle" class="mu">大小随层级 l_p 变</text>
+<rect class="hl" x="190" y="34" width="150" height="70" rx="8"/><text x="265" y="58" text-anchor="middle">P2G（3.2）</text><text x="265" y="78" text-anchor="middle" class="mu">溅出质量 m 和动量 P</text><text x="265" y="96" text-anchor="middle" class="mu">核 (1−d²/r²)³</text>
+<rect class="hl" x="368" y="34" width="150" height="70" rx="8"/><text x="443" y="58" text-anchor="middle">相场 φ（3.3）</text><text x="443" y="78" text-anchor="middle" class="mu">由面上质量直接压缩</text><text x="443" y="96" text-anchor="middle" class="mu">β = 1/ρ(φ)</text>
+<rect class="hl" x="526" y="34" width="142" height="70" rx="8"/><text x="597" y="58" text-anchor="middle">压力（3.5、6）</text><text x="597" y="78" text-anchor="middle" class="mu">自适应多重网格</text><text x="597" y="96" text-anchor="middle" class="mu">+ 柔性 PCG</text>
+<rect class="bx" x="526" y="130" width="142" height="70" rx="8"/><text x="597" y="154" text-anchor="middle">G2P（3.6、3.7）</text><text x="597" y="174" text-anchor="middle" class="mu">FLIP 权重按相</text><text x="597" y="192" text-anchor="middle" class="mu">和网格层级定</text>
+<rect class="bx" x="368" y="130" width="150" height="70" rx="8"/><text x="443" y="154" text-anchor="middle">RK3 推进（3.7）</text><text x="443" y="174" text-anchor="middle" class="mu">水速度外推几格</text><text x="443" y="192" text-anchor="middle" class="mu">局部自适应步长</text>
+<rect class="bx" x="190" y="130" width="150" height="70" rx="8"/><text x="265" y="154" text-anchor="middle">逃逸粒子（3.4、7）</text><text x="265" y="174" text-anchor="middle" class="mu">φ&lt;0.3 的水粒子 → 液滴</text><text x="265" y="192" text-anchor="middle" class="mu">φ&gt;0.7 的 → 气泡（删）</text>
+<rect class="bx" x="12" y="130" width="150" height="70" rx="8"/><text x="87" y="154" text-anchor="middle">自适应（5.4）</text><text x="87" y="174" text-anchor="middle" class="mu">细化图 M → 重建 MSBG</text><text x="87" y="192" text-anchor="middle" class="mu">粒子拆分 / 随机删除</text>
+<path class="ar" d="M162 69H188" marker-end="url(#ah)"/><path class="ar" d="M340 69H366" marker-end="url(#ah)"/><path class="ar" d="M518 69H524" marker-end="url(#ah)"/>
+<path class="ar" d="M597 104V128" marker-end="url(#ah)"/><path class="ar" d="M526 165H520" marker-end="url(#ah)"/><path class="ar" d="M368 165H342" marker-end="url(#ah)"/><path class="ar" d="M190 165H164" marker-end="url(#ah)"/>
+<path class="fb" d="M87 130V106" marker-end="url(#ah)"/>
+<rect class="bx" x="12" y="216" width="656" height="76" rx="8"/><text x="24" y="238">MSBG（4.2）贯穿所有步骤：稠密块索引，每块一个分辨率（最细 16³ 或 32³）。</text><text x="24" y="258">8 色无锁溅射、块级红黑平滑、Morton 排序遍历，都依赖“所有块几何大小相同”。</text><text x="24" y="278" class="mu">只在渲染帧（每 5–10 步）才重建水面和喷雾密度。</text>
+</svg>
+
+<h3>速览：几个关键数字</h3>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>项目</th><th>数值</th><th>出处</th></tr></thead><tbody>
+<tr><td>水气密度比</td><td>1000:1</td><td>3.3 节</td></tr>
+<tr><td>相场界面厚度</td><td>ε_φ = r_0 = Δx（一个格子）</td><td>3.3 节</td></tr>
+<tr><td>FLIP 权重 α_FLIP</td><td>水 0.985，空气 0.96</td><td>8.4 节</td></tr>
+<tr><td>MSBG 基本块分辨率</td><td>默认 16（也用 32），细化 3–4 级</td><td>4.2 节</td></tr>
+<tr><td>平滑器松弛因子</td><td>ω = 6/7</td><td>6.3 节</td></tr>
+<tr><td>CFL 数</td><td>3–4，每帧 2–7 步</td><td>8.4 节</td></tr>
+<tr><td>压力残差容差</td><td>10⁻⁴（CFD 对比用 10⁻⁸）</td><td>8.3 节</td></tr>
+<tr><td>硬件</td><td>AMD Threadripper 32 核、256 GB 内存，不用 GPU</td><td>8 节</td></tr>
+<tr><td>最大例子</td><td>压力 6144×2048×1600，喷雾 18432×6144×4800；31 亿 FLIP + 10 亿喷雾粒子；每步 1.9 分钟，共 3.5 天</td><td>图 1、表 7</td></tr>
+</tbody></table></div>
+
+<h2 id="rel">和站内页面的关系</h2>
+<ul>
+<li><a href="rgbench.html">RGBench</a>、<a href="fabricbench.html">FabricBench</a> 讲的是布料仿真器，<a href="phystwin.html">PhysTwin</a> 讲弹簧质点。它们关心的是“和真实物体对得上”；这篇关心的是视觉特效，目标是“看起来像大尺度水体”，论文自己说没有去精确匹配参考照片的条件（8.4 节）。</li>
+<li><a href="real2worlds2real.html">Real2Worlds2Real</a> 里的可变形体用 PhysX / Newton 的粒子模型，是机器人仿真的做法，追求速度和可控；这篇是离线影视级仿真，一步要几十秒到两分钟。</li>
+<li>本站其他页面都是机器人或学习方向，这是第一篇纯物理仿真的数值方法论文。读法上，第 3 节是物理模型，第 4–6 节基本是高性能计算和数值线性代数。</li>
+</ul>
+
+<h2 id="s1">1 引言</h2>
+<p>作者先用一个例子说明问题（图 2）：50 米的陨石高速撞进海里，单相求解器的结果像往池塘里扔了块石头再放慢镜头。原因是大尺度水流本质上是两相现象：大量水体剧烈运动会带动空气，空气动力随水气相对速度的平方增长；韦伯数很高，表面张力撑不住，水被撕成液滴；液滴也不走抛物线，而是跟着湍流空气走。要把这些算出来，既要有水气耦合的速度场，也要有足够的分辨率，从液滴尺度一直覆盖到大浪尺度。</p>
+<div class="fig" id="fig1"><span class="lab">图 1 · 原文第 1 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=1">看原图 ↗</a></span><p>首页大图，左右两张。左边是一张真实照片（巨浪拍在防波堤上，浪顶炸开大片白色水雾，署名 PA / Eloy Alonso）；右边是本文的模拟：一道大浪撞上水槽中间的障碍物，浪头碎成大片喷雾和水雾云。图注写这个例子约有 30 亿粒子，平均每步约 2 分钟，没有用程序化效果或喷雾后处理。</p></div>
+<div class="fig" id="fig2"><span class="lab">图 2 · 原文第 3 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=3">看原图 ↗</a></span><p>动机例子：50 米的陨石高速撞入海面，三列对比。左：标准单相求解器（Bridson 2015）；中：单相加二次喷雾粒子（Ihmsen 等 2012）；右：本文的两相模拟。单相时“水花边缘”冲得很高，喷雾粒子均匀散开；两相时喷雾被空气湍流卷成复杂的团块和丝带。三者分辨率相同：压力 1024³，喷雾密度 3072³。</p></div>
+<p>作者归纳了三个挑战：两相模拟本身、空间自适应、高效的迭代压力求解器。对应四项贡献：</p>
+<ol>
+<li><b>PF-FLIP</b>：混合欧拉/拉格朗日的两相方法，适用于高雷诺数、高密度比的湍流，不需要表面重建；</li>
+<li><b>MSBG</b>：简单、高效、适合现代硬件的空间自适应框架；</li>
+<li><b>粒子—网格双重自适应</b>，包括不需要邻居搜索的随机粒子粗化；</li>
+<li><b>面向两相高密度比的自适应泊松求解器</b>。</li>
+</ol>
+<p>引言里还给了两个后文会用到的数字：MSBG 在 32768³ 的有效分辨率上，两分钟内解完一个有 1000 亿未知量的测试 PDE（读者注 <a href="#n6">6</a> 核算）；所有大例子都在单台工作站上跑，没有用 GPU。</p>
+<div class="fig" id="fig3"><span class="lab">图 3 · 原文第 4 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=4">看原图 ↗</a></span><p>大坝泄洪：约 40 m/s 的水柱从闸门射出，砸进下游水池，周围是翻滚的水雾。右下角嵌了一张三峡大坝泄洪的真实照片作参考。图注说没有为照片条件调参，也没有加湍流增强或后处理；压力有效分辨率 2048×1024²，水面和喷雾 8192×4096²，每步约 40 秒。</p></div>
+
+<h2 id="s2">2 相关工作</h2>
+<p>按主题归纳，括号里是论文认为的不足：</p>
+<ul>
+<li><b>单相自由表面方法。</b>只解水，空气压力设为 0，界面用曲率力或 Ghost Fluid 方法处理。图形学里已经很成熟，本文采用的 FLIP（Zhu 和 Bridson 2005）也有大量扩展，但都针对单相。</li>
+<li><b>补空气的经验做法。</b>二次喷雾粒子（Ihmsen 2012）、低分辨率的附加喷雾速度场（Kim 2006）、两个单相求解器、把水当成空气的固体边界（Loki、Pahi 这类制作管线）、把喷雾当成第二相（Nielsen 和 Østerby 2013）。（要大量手调，或者缺少物理的两相速度场。）</li>
+<li><b>两相求解器。</b>粒子水平集 + 八叉树（Hong 和 Kim 2005）、CIP、CLSVOF、MLS；和本文最接近的是 Boyd 和 Bridson 2012 的 MultiFLIP。（MultiFLIP 要较贵的界面重建；解不出两相之间的剪切层，只能用“粒子反弹”的经验散度模型强加自由滑移；只做了约 80³ 的小场景。）MPM 可以看作 FLIP 的推广，通用但不针对大尺度水气。格子玻尔兹曼方法适合 GPU，能接近实时（Li 2020、2022、2024），本文选 CPU 是为了不受显存限制，也更容易做空间自适应。SPH 的两相方法时间步太小，粒子又不自适应。</li>
+<li><b>稀疏和多分辨率。</b>论文强调两者的区别：稀疏只存“活跃”区域；多分辨率让不同区域有不同分辨率。流体的 Navier–Stokes 不只在表面附近要解，水体内部也要解，只是可以粗一些，所以需要真正的多分辨率。</li>
+<li><b>自适应网格。</b>八叉树、四面体网格、幂图、GPU 上的 DCGrid。SPGrid 用硬件页地址转换，优雅但只在 Linux 上可用，和大页内存冲突，做多分辨率还要另挂八叉树。OpenVDB 是行业标准，擅长稀疏但不支持多分辨率，块也小。</li>
+<li><b>自适应粒子。</b>常见做法是拆分加合并，合并需要找邻居。这对 SPH 不是问题，但会破坏 FLIP“粒子互不交互”的优势。窄带 FLIP（NB-FLIP，Ferstl 等 2016）是 Houdini 里的行业标准，只在水面附近保留一层同尺寸粒子，相当于本文只有一级粒子细化的情形。</li>
+<li><b>压力求解。</b>CFD 里有几何多重网格预条件的 Krylov 方法、代数多重网格、算子相关的网格间传递、紧缩（deflation）方法；MacLachlan 等 2008 专门比较过高密度比的情形。在 AMR 上做多重网格，难点是粗网格表示和跨分辨率边界的误差传递。SPGrid 方案里压力投影能占总时间的 90%。</li>
+</ul>
+<div class="fig" id="fig4"><span class="lab">图 4 · 原文第 4 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=4">看原图 ↗</a></span><p>破碎的海浪，浪顶后方拖着一缕缕水雾，是空气在浪峰后形成的湍流尾流把雾卷成的丝带。图注说这种效果在图形学里以前没法用完全物理的高分辨率动画做出来。</p></div>
+
+<h2 id="s3">3 Phase-Field FLIP</h2>
+<p>要解的是两种不可压、不相溶流体的 Navier–Stokes 方程：</p>
+\[ \frac{\partial \mathbf u}{\partial t} = -\mathbf u\cdot\nabla\mathbf u - \frac{\nabla p}{\rho} + \nu\nabla^2\mathbf u + \frac{\mathbf f}{\rho} \tag{1} \]
+\[ \nabla\cdot\mathbf u = 0 \tag{2} \]
+<p>下标 l、g 表示液相和气相，ρ_l ≫ ρ_g。相函数 φ: Ω → [0, 1] 区分两相，密度 ρ(x) = lerp(ρ_l, ρ_g, φ(x))，黏性 ν(x) 同样插值。</p>
+<p>界面表示方法分两大类：显式追踪（例如网格）和隐式捕捉。隐式捕捉又分尖锐界面（VOF、水平集）和扩散界面（相场）。VOF 守质量但要做复杂的几何重建；水平集一般不守质量，要反复重新初始化；经典相场要解带正则项的四阶 PDE，往往还要额外措施才能守质量。PF-FLIP 是另一条路：混合欧拉—拉格朗日，<b>没有任何界面维护或重建步骤</b>。</p>
+
+<h3 id="s3-1">3.1 FLIP 和记号</h3>
+<p>FLIP 把粒子的优点（无耗散、守质量的输运）和网格的优点（压力投影里空间导数好离散）结合起来。粒子互不交互，不需要邻居搜索，代价是额外的噪声。作者认为这对目标场景不是坏事，因为湍流飞溅本身就“很吵”。记号：p、q 是粒子，i、j 是格子；交错 MAC 网格，压力在格心，速度在面心；u_ai 表示格子 i 在 a 轴方向那个面（位于 x_i + e_a/2）上的速度。</p>
+
+<h3 id="s3-2">3.2 粒子到网格（P2G）</h3>
+<p>每个粒子有一个固定的类型：水或空气。每步开始把质量和动量溅到格子面上：</p>
+\[ m_{ai} = \sum_p w_{ai,p}\, m_p \tag{3} \]
+\[ \mathbf P_{ai} = \sum_p w_{ai,p}\, m_p \mathbf u_p \tag{4} \]
+\[ m_p = \begin{cases} \rho_l V_p & p \text{ 是水粒子} \\ \rho_g V_p & p \text{ 是空气粒子} \end{cases} \tag{5} \]
+<p>类型终身不变，所以质量守恒。偶尔会删掉卡在固体里的粒子，作者说实际上不造成明显的质量损失，也一般不需要重新补种粒子。没有尺寸自适应时 V_p = 1。</p>
+<p>因为溅射权重之后要拿来当相场用，需要比较光滑，所以不用 FLIP 常见的三线性权重，而是用类似 SPH 的高阶多项式核：</p>
+\[ w_{ai,p} = \Big(\max\big(1 - (\lVert \mathbf x_i + \mathbf e_a/2 - \mathbf x_p\rVert / r_p)^2,\ 0\big)\Big)^3 \tag{6} \]
+<p>核的支撑是球形的，是距离平方的三次式，所以不用开方。面动量除以面质量得到临时面速度 ũ*_ai = P_ai / m_ai。</p>
+
+<h3 id="s3-3">3.3 从密度得到相场</h3>
+<p>相场几乎是白送的：上一步累加的溅射权重乘质量，就是面上的原始质量密度 ρ̃_ai = m_ai，而且正好在变系数泊松方程需要的位置（格子面上）。原始密度有粒子分布不均带来的高频起伏，但水气密度差 1000 倍，起伏远不足以混淆两相。作者把原始值归一化、压缩、截断：</p>
+\[ \phi(\tilde\rho) = \begin{cases} 0 & \tilde\rho < \tilde\rho_{\min} \\ \min\Big(\sqrt{\dfrac{\max(\tilde\rho - \tilde\rho_{\min},\,0)}{\alpha_\phi\,\tilde\rho_0\,\rho_l}},\ 1\Big) & \text{其他} \end{cases} \tag{7} \]
+<ul>
+<li>ρ̃_0：粒子完全均匀分布时核权重之和；</li>
+<li>α_φ（默认 1）：在噪声（大）和“刚度”（小）之间取舍，效果类似人工表面张力，可以当艺术参数；</li>
+<li>ρ̃_min = η_φ ρ_g ρ̃_0，η_φ = log(ρ_l/ρ_g)，用来避免把空气里偶然的密度尖峰当成水；</li>
+<li>φ &lt; 0.5 的格子标为空气，其余标为水；水—水之间的面 φ 直接设为 1，空气—空气的面设为 0，界面以外的起伏全部抹掉；</li>
+<li>界面厚度 ε_φ 等于粒子基准半径 r_0，取 r_0 = Δx。经典相场方法通常要 3 格以上。</li>
+</ul>
+<p>作者强调两点。一是和“变密度 FLIP”的区别：那本质上是单相求解器，相内密度连续变化；PF-FLIP 明确把相场和原始密度分开，再用相场插值出物理密度和黏性。二是质量和动量用同一套粒子输运，不像水平集、VOF 那样速度和界面各用一种输运格式，所以不会出现两者不一致。</p>
+<div class="fig" id="fig6"><span class="lab">图 6、图 7 · 原文第 7 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=7">看原图 ↗</a></span><p>图 6 是用式 (7) 算出的相场的一张二维切片：水体呈亮色，内部有细碎的颗粒状起伏；空气一侧是均匀的黑色，因为空气里的密度起伏幅度小 1000 倍。画出的等值线只是示意，算法本身不需要表面重建。图 7 是一维例子：横轴是位置，左边是空气粒子、右边是水粒子；原始密度在水一侧围绕 1 上下起伏（标注“粒子分布不均导致的密度起伏”），在空气一侧贴近 0（标注“空气里的起伏小 1000 倍”）；相场曲线在界面处从 0 跳到 1，把两侧干净地分开。</p></div>
+
+<div class="viz" id="w-phi">
+<p class="cap">交互 · 按式 (7) 画的 φ(ρ̃) 曲线（我画的，不是原图）。横轴是原始密度除以“满水密度” ρ_l ρ̃_0。竖线是 ρ̃_min；虚线是 φ = 0.5，也就是格子被标成“水”的门槛。</p>
+<div class="ctl">
+<label>α_φ <input type="range" id="phi-a" min="0.25" max="2" step="0.05" value="1"><output id="phi-a-o">1.00</output></label>
+<label>密度比 ρ_l/ρ_g <input type="range" id="phi-r" min="1" max="3" step="0.05" value="3"><output id="phi-r-o">1000</output></label>
+<span class="seg" id="phi-log"><button data-v="e" aria-pressed="true">log = ln</button><button data-v="10" aria-pressed="false">log = log₁₀</button></span>
+</div>
+<svg id="phi-svg" viewBox="0 0 680 260" role="img" aria-label="相场函数曲线"></svg>
+<p class="readout" id="phi-out"></p>
+</div>
+<div class="note" id="n1"><span class="lab">读者注 1 · 式 (7) 的两个门槛具体是多少</span><p>把原始密度写成满水密度的比例 s = ρ̃ / (ρ_l ρ̃_0)。ρ̃_min 对应 s_min = η_φ ρ_g / ρ_l。论文写 η_φ = log(ρ_l/ρ_g)，没说是哪个底；按自然对数，η_φ = ln 1000 = 6.91，s_min = 0.0069，也就是满水密度的 0.69%，相当于空气平均密度的 6.9 倍；如果是以 10 为底，η_φ = 3，s_min = 0.3%（未核实是哪一个）。φ = 0.5 时 (s − s_min)/α_φ = 0.25，所以 α_φ = 1 时，一个格子的原始密度达到满水的 25.7% 就会被标成“水”；Rayleigh–Taylor 测试用的 α_φ = 0.5 对应 13.2%。另外，α_φ = 1 时即使正好是满水密度，φ = √0.9931 = 0.9965，不到 1；所以论文另外规定水—水之间的面直接取 φ = 1。上面的交互图可以拖动 α_φ 看这两个门槛怎么移动。</p></div>
+
+<h3 id="s3-4">3.4 逃逸粒子和表面张力</h3>
+<p>以前的 FLIP 两相方法（Boyd 和 Bridson 2012）要用“粒子反弹”防止水和空气粒子乱混。PF-FLIP 的分辨率足够高，可以在两相之间用更符合物理的无滑移条件，界面上速度不跳变，所以不需要这个经验做法。如果粒子还是跑到了“错误的一侧”，就把它解释成亚网格尺度的液滴或气泡：位置处 φ &lt; 1/2 − δ_φ 的水粒子变成液滴，φ &gt; 1/2 + δ_φ 的空气粒子变成气泡，δ_φ 默认 0.2。液滴按第 7 节作为纯拉格朗日质点继续模拟，重新落回水体时再变回 FLIP 粒子。气泡在目前的实现里直接删掉，作者说在大尺度场景里它们看不出来。</p>
+<p>表面张力在两相求解器里很贵，但主要影响毫米级的毛细波，对目标场景不重要，所以直接忽略。</p>
+
+<h3 id="s3-5">3.5 两相压力投影</h3>
+<p>P2G 加重力之后的速度 u* 一般不满足散度为零。标准做法是减去按密度倒数加权的压力梯度 u = u* − Δt ∇p / ρ，两边取散度得到变系数泊松方程：</p>
+\[ \Delta t\, \nabla\cdot\big(\beta(\mathbf x)\nabla p(\mathbf x)\big) = \nabla\cdot\mathbf u^*(\mathbf x) + c_{\mathrm{div}}(\mathbf x) \tag{8} \]
+\[ \beta(\mathbf x) = 1/\rho(\mathbf x) \tag{9} \]
+<p>c_div 是散度修正项，让局部粒子密度保持在目标值 ρ̃_0 附近，保证体积守恒（Losasso 等 2008）。一维离散：</p>
+\[ \beta_{i+\frac12}\Big(\frac{p_{i+1}-p_i}{\Delta x}\Big) - \beta_{i-\frac12}\Big(\frac{p_i-p_{i-1}}{\Delta x}\Big) = \frac{1}{\Delta t}\big(u^*_{i+\frac12} - u^*_{i-\frac12}\big) \tag{10} \]
+<p>系数 β 在格子面上采样，而 PF-FLIP 的相场本来就在面上，不需要像别的方法那样从格心插值，也不需要为 Ghost Fluid 外推准备符号距离场。矩阵 L 对称正定，适合预条件共轭梯度，但高密度比让它非常病态，即使用多重网格也收敛很慢，第 6 节专门解决。</p>
+
+<h3 id="s3-6">3.6 网格到粒子（G2P）</h3>
+<p>得到无散的网格速度后，减去加外力之前保存的临时速度，得到这一步的速度增量：</p>
+\[ \Delta\mathbf u = \mathbf u - \tilde{\mathbf u}^* \tag{11} \]
+<p>插值到粒子上加到粒子速度。FLIP 通常再混入一点网格速度（PIC）来压噪声，论文印出的形式是：</p>
+\[ \mathbf u_p^{\text{new}} = \alpha_{\text{FLIP}}\,\mathbf u_p^{\text{old}} + I(\Delta\mathbf u, \mathbf x_p) + (1-\alpha_{\text{FLIP}})\,I(\mathbf u, \mathbf x_p) \tag{12} \]
+<div class="note" id="n2"><span class="lab">读者注 2 · 式 (12) 按字面会多加一份速度增量</span><p>拿一个最简单的情形检查：所有粒子和网格的速度原本都是 U，这一步网格速度整体加了 d。按印出来的式 (12)：α U + d + (1 − α)(U + d) = U + (2 − α) d，比应有的 U + d 多出 (1 − α) d。标准的 FLIP/PIC 混合（Bridson 2015）是 α(u_old + I(Δu)) + (1 − α) I(u)，这样才得到 U + d。所以式 (12) 应该是在 α_FLIP 后面漏了括号（我的推断，论文没有勘误）。我们的 Taichi 复现用的是标准形式。</p></div>
+
+<h3 id="s3-7">3.7 黏性和推进</h3>
+<p>水气交界处的速度梯度（比如破碎浪上方的风）由黏性控制，所以两相流需要按相变化的黏性。Bridson 指出 α_FLIP 引入的人工黏性直接决定物理黏性：</p>
+\[ \nu = (1-\alpha_{\text{FLIP}})\,\frac{\Delta x^2}{6\Delta t} \tag{13} \]
+<p>作者利用这一点，在 G2P 时按粒子类型（水或空气）取不同的 α_FLIP，就以和无黏欧拉方程相同的成本解了带变黏性的完整两相方程。代价是能表示的黏性有范围：下限是压住 FLIP 噪声需要的最小黏性，上限受显式格式限制。作者认为对高分辨率、大 CFL 的大尺度水气场景，这是好的近似。最后粒子在无散速度场里用三阶 Runge–Kutta 推进，步长局部自适应；水的速度向空气一侧外推几格，保证水粒子用的是水的速度。</p>
+<div class="note" id="n3"><span class="lab">读者注 3 · 式 (13) 给出的黏性比真实的水大三个数量级</span><p>代入 CFL = vΔt/Δx，式 (13) 可写成 ν = (1 − α) Δx v / (6 CFL)。拿大坝泄洪（图 3）估一下：区域 200 m、2048 格，Δx ≈ 0.098 m；v = 40 m/s；CFL 取 8.4 节的 3–4 的中值 3.5；水的 α = 0.985。得到 ν_水 ≈ 0.015 × 0.098 × 40 / 21 ≈ 2.8 × 10⁻³ m²/s，约是真实水（1.0 × 10⁻⁶）的 2800 倍。空气 α = 0.96，ν_气 / ν_水 = 0.04 / 0.015 ≈ 2.7，而真实空气和水的运动黏性之比约为 15（1.5 × 10⁻⁵ 比 1.0 × 10⁻⁶）。这些是我按论文参数的估算，Δx 用的是最细层，实际 Δt 论文没给。结论是：式 (13) 的“黏性”实际上是数值黏性的大小，按相设置只是让空气比水更“黏”一点，并不对应真实物性；论文在 8.4 节也只说是好的近似。</p></div>
+
+<h2 id="s4">4 自适应：MSBG</h2>
+<p>三维流体模拟的成本随分辨率 n 按 O(n⁴) 增长（三个空间维度加时间步数），两相还让压力求解更难，所以必须自适应。块式方法把网格拆成均匀的小块，保持规则的访存模式。已有方法（VDB、SPGrid、块八叉树）一般用 4³ 或 8³ 的小块，以减少块内浪费的空格子：如果界面是光滑的二维曲面，块大小为 n 时空格子比例是 1 − O(n²)/n³，块越大越接近 100%（图 8 曲线 a）。</p>
+
+<h3 id="s4-1">4.1 块大小很重要</h3>
+<p>作者给了四个理由，主张用大得多的块（16³、32³）：</p>
+<ul>
+<li><b>界面是分形。</b>自然界有看头的流体界面分形维数约 2.5，不是光滑的二维曲面。空格子比例变成 1 − O(n^2.5)/n³，比曲线 a 低得多（曲线 b）。</li>
+<li><b>块边界开销。</b>边界格子占比 (n³ − (n−2)³)/n³ = 1 − (1 − 2/n)³ 随块变大迅速下降（曲线 c）。多重网格平滑这类模板运算在块边界上代价很高。</li>
+<li><b>硬件。</b>现在的 CPU 缓存更大、SIMD 更宽、虚拟内存页更大，16³ 或 32³ 的块可以整块放进 L2 或 L3 缓存。</li>
+<li><b>块数少。</b>块少到可以用一个稠密的线性数组做全局块索引。曲线 d 是 1% 占用、单个 4 字节通道时稠密索引的内存开销 1/(0.01 n³)：16³ 的块只占总内存的约 2%，通道越多占比越低。</li>
+</ul>
+<div class="viz" id="w-blk">
+<p class="cap">按公式重画 · 图 8 左的四条开销曲线（我按论文给的式子画；曲线 a、b 里 O(·) 的常数论文没给，这里取 1，只看趋势）。横轴是块分辨率 n，竖线标出 MSBG 默认的 16。</p>
+<svg id="blk-svg" viewBox="0 0 680 270" role="img" aria-label="块大小与四种开销的关系"></svg>
+<div class="viz-legend" id="blk-lg"></div>
+</div>
+<div class="fig" id="fig8"><span class="lab">图 8 · 原文第 11 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=11">看原图 ↗</a></span><p>左：块大小和四种理论开销的关系，(a) 光滑界面附近每块浪费的格子，(b) 分形界面附近浪费的格子，(c) 块边界开销，(d) 1% 占用、单个浮点通道时稠密块索引的存储开销。右：MSBG 结构示意。上面是“自然界里的水气界面”，下面依次是细化图 M（每块一个层级数字，0 最细，例如 0 0 1 2 2 / 0 0 1 1 2 …）、线性的块索引网格（存块编号或空），以及最终的分辨率不同的块：靠近界面的块格子密，远离界面的块格子稀，但每块在空间里一样大。</p></div>
+
+<h3 id="s4-2">4.2 MSBG</h3>
+<p>MSBG 的做法：一个稠密的线性数组存块指针；所有块的<b>几何大小固定</b>，只改变每块的<b>分辨率</b>。这和树结构相反：树是改变块的大小、保持块内格子数不变。几何块大小每次模拟选定一次；块分辨率在模拟中随空间自适应变化（论文把“分辨率高的块”简称为“大块”）。每块的分辨率由块细化图 M 决定，M 由应用给的细化准则算出（5.4 节）。</p>
+<p>限制是：细化层数最多为基本块分辨率的以 2 为底的对数。作者认为这不是问题，因为三维里每粗一级成本降为八分之一；本文所有结果最多用 3 或 4 级，基本块分辨率默认 16。粗层的块边界开销更大，但大部分格子都在最细的块里，所以影响有限。梯度、散度和固体边界的离散沿用 Losasso 2004、Weber 2015，跨分辨率时梯度用常数 Δg = 4/3 缩放（图 9c）。</p>
+<h4>表 1 · MSBG 和块八叉树的比较（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=10">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-t1"><thead><tr><th></th><th>MSBG</th><th>块八叉树</th></tr></thead><tbody>
+<tr><td>构建（例如从粒子）</td><td>O(n)，容易并行</td><td>O(n log n)，并行不简单</td></tr>
+<tr><td>随机访问</td><td>O(1)</td><td>O(log n)</td></tr>
+<tr><td>模板访问</td><td>统一访问 6 个邻块</td><td>访问数量不定的邻块，最多 24 个</td></tr>
+<tr><td>分级（grading）</td><td>快</td><td>并行困难</td></tr>
+<tr><td>自适应</td><td>只受块栅格限制</td><td>不够灵活，“末端兄弟”分辨率必须相同</td></tr>
+<tr><td>支持多色技巧</td><td>是</td><td>否</td></tr>
+<tr><td>代码复杂度</td><td>低</td><td>高</td></tr>
+<tr><td>细化深度</td><td>log₂（基本分辨率）</td><td>不限</td></tr>
+</tbody></table></div>
+
+<h3 id="s4-3">4.3 MSBG 能做什么</h3>
+<ul>
+<li><b>多分辨率多色方案。</b>因为所有块一样大，可以按块坐标奇偶给块染色：块级红黑多重网格平滑器（6.3 节）、8 色无锁粒子溅射（改编自 Fang 等 2018）。同色的块互不相邻，可以并行写不加锁。八叉树块大小不一，做不了。MAC 格子所有面的溅射权重用 SIMD/AVX 并行算，P2G 每秒能处理几亿粒子。</li>
+<li><b>时空连贯的访存。</b>块内本来就连续；遍历时再把活跃块按 Morton 码排序。和 SPGrid 把 Morton 编码放进每个格子地址不同，MSBG 只对块编号算一次 Morton 码再排序，保留简单的线性索引。</li>
+<li><b>动态任务调度。</b>块的分辨率不同，块内格子数不同，直接并行会负载不均；用 TBB 的动态任务调度。</li>
+</ul>
+
+<h2 id="s5">5 自适应粒子和双重自适应</h2>
+<p>网格自适应之外，粒子也要自适应。每个粒子有一个层级 l_p，半径 r_p = r_0 2^{l_p}。粒子层级和所在格子的网格层级 l_i = M[b_i] 是两回事。</p>
+<h3>5.1 随机粗化</h3>
+<p>细变粗时，已有方法把几个小粒子合并成大粒子，需要找邻居。作者的观察是：均匀分布的粒子在每个方向粗化一倍，等价于密度降为八分之一，而这可以通过随机删掉 7/8 的粒子得到。一般地，被标记粗化的粒子以概率</p>
+\[ \mathrm{prob}_{\mathrm{del}} = 1 - 1/\big(2^{\,l_{\text{new}} - l_{\text{old}}}\big)^3 \]
+<p>被删除。为防止在粗细过渡区来回震荡，加了一个延迟粗化计数器做迟滞。</p>
+<div class="note" id="n4"><span class="lab">读者注 4 · 随机粗化只在期望上守质量</span><p>3.2 节说“粒子类型终身不变，所以质量守恒”。拆分确实守恒（1 个变 8 个）。但粗化是随机删除：粗化一级时每个粒子以 1/8 的概率留下，留下的粒子半径翻倍、体积变 8 倍（论文只写了 r_p = r_0 2^{l_p}，没明写 V_p 随层级变 8 倍，我是按体积推的），所以质量只在期望上守恒。局部波动很大：原来 8 个粒子的一小团，全部被删光的概率是 (7/8)⁸ = 34%；留下粒子数的相对标准差是 √(8 × 1/8 × 7/8) / 1 ≈ 94%。对 N 个粒子组成的区域，相对波动约为 √(7/N)，一百万个粒子时约 0.26%。粗化只发生在离水面远的区域，作者没有报告这部分的质量误差。</p></div>
+<h3>5.2 细化准则</h3>
+<p>默认用离水气界面的距离。PF-FLIP 本身不维护距离场，所以把相场降采样、阈值化后，用一阶精度的推进算法算一个低分辨率的辅助 SDF d̃(x)。这个 SDF 只用于决定粒子细化，所以精度够用。也可以选用速度旋度的大小，以捕捉离开表面的流动细节（尤其是空气里的湍流，图 12 左列），但本文的例子都只用了距离准则。</p>
+<h3>5.3 消除空间上不均匀的数值黏性</h3>
+<p>数值方法的人工黏性取决于格子间距 Δx。多分辨率时 Δx 不同，人工黏性也就不同，这在 AMR 文献里经常被忽视。作者和 Ando 2013 一样，利用式 (13) 调整 α_FLIP；区别是他们按<b>所在格子的间距</b>而不是粒子大小来修正。这样粒子半径和格子大小就解耦了，在大 CFL、粒子一步可能跨过分辨率边界的情况下很关键。代码里有一个对应的编译开关，见 <a href="#code">代码对照</a>。</p>
+<h3 id="s5-4">5.4 粒子—网格双重自适应：七步</h3>
+<ol>
+<li><b>算块细化图 M。</b>对每个粒子，找出和它包围盒（按 CFL 放大一点）相交的所有块 B_i，用原子取最小值 M[i] ← min(l_p, M[i])。</li>
+<li><b>正则化 M。</b>强制 2:1 分级，相邻块最多差一级。</li>
+<li><b>按新 M 初始化 MSBG</b>，分配数据通道。</li>
+<li><b>P2G。</b>对每个粒子，用坐标的移位和按位与，从稠密块索引里直接算出所在块 b_i、层级 l = M[b_i] 和块内格子 c_ik；遍历半径 r_p 内的邻块和格子，把加权的质量和速度溅到交错位置。粒子层级等于网格层级时，就是常见的 27 格邻域；也允许 l_p = l + 1，让粗粒子平滑地进入细一级的网格区域。</li>
+<li><b>算辅助场</b>，比如细化准则要用的 d̃。</li>
+<li><b>决定每个粒子的新层级。</b>例如 l_new = ⌊|β_bw d̃(x_p)| / m_0⌋，m_0 是 MSBG 基本块分辨率，β_bw 控制细化带宽。l_new &lt; l_p 时把粒子拆成 8 个小粒子，随机抖动在格子的 8 个卦限里。l_new &gt; l_p 时延迟计数 D_p 加一，D_p ≥ 3 才标记粗化；l_new ≤ l_p 时 D_p 清零。被标记的粒子按上面的概率删除。</li>
+<li><b>推进一步</b>，用 MSBG 做自适应网格上的速度插值。</li>
+</ol>
+<div class="fig" id="fig9"><span class="lab">图 9 · 原文第 11 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=11">看原图 ↗</a></span><p>(a) 粒子密度和大小随离界面的距离变化：靠近水面的粒子小而密，水体深处的粒子大而稀。(b) 粒子采样的速度场（三维模拟的二维切片，显示涡量大小），格子大小跟着粒子大小变。(c) 粗细过渡处的压力梯度离散：细格压力 p_1 和粗格压力 p 的差除以 hΔ_g；细线是格子边界，粗线是 MSBG 块边界。</p></div>
+
+<h2 id="s6">6 自适应泊松求解器</h2>
+<p>多分辨率离散保证了矩阵 L 对称、7 点模板，但高密度比让系数几乎不连续，即使多重网格预条件的 CG 也会变慢。作者提出一个完全自适应的多重网格预条件共轭梯度方法。</p>
+<h3>6.1 代数聚合多重网格</h3>
+<p>Shao 等 2022 用（无光滑的）代数聚合多重网格做固定分辨率单相流体，本质上是格心的 Galerkin 粗化：</p>
+\[ L^{2h} = R_h^{2h}\, L^h\, P_{2h}^h \tag{14} \]
+<p>h 是细网格间距，P 和 R = Pᵀ 是延拓和限制算子。作者把它推广到多分辨率自适应网格。算法 1 是无矩阵、大规模并行的构建：每个格子只存对称 7 点模板的 3 个面系数，最细层的面系数直接由相场按式 (9) 给出；矩阵对角元是这些面系数之和。粗一级的面系数是细层对应 2×2 个细面系数之和乘缩放因子 s/4。缩放因子按两侧块的分辨率关系取：同级 2^l，粗—细 2^l σ_CF，细—粗 2^l σ_FC，其中 σ_CF = 1/(4Δg)、σ_FC = 2σ_CF，来自 4.2 节保持对称的多分辨率梯度离散和式 (14) 的 Galerkin 原则。某块在这一级没有更细的子块时，直接按引用复用上一级的系数。</p>
+<div class="algo">算法 1  并行多分辨率 Galerkin 多重网格粗化（结构概括）
+for L = 1 .. M−1                         # 多重网格层
+  for 每个 MSBG 块 i（并行）
+    l = level(i, L)
+    if l == level(i, L−1): 直接引用上一级系数; continue
+    for 轴 a = x, y, z
+      s = 按 l 和邻块层级的差取 2^l / 2^l·σ_CF / 2^l·σ_FC
+      for 块内每个格子 j:
+        F[i,L][j,a] = s · (该粗面对应的 2×2 个细面系数之和) / 4</div>
+<h3>6.2 借助 MSBG</h3>
+<p>MSBG 同时承载两套层级：MSBG 的分辨率层级 l 和多重网格层级 L；比 MSBG 块索引还粗的多重网格层用额外的均匀网格。和 SPGrid 的多分辨率金字塔相比，不需要额外的八叉树；多分辨率结构本身就允许平滑跨越分辨率边界，不需要额外的层间传递来收集和传播幽灵格子。</p>
+<div class="fig" id="fig10"><span class="lab">图 10、图 11 · 原文第 12、13 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=12">看原图 ↗</a></span><p>图 10 用一维例子说明多分辨率多重网格：MSBG 的多重网格层级和分辨率层级相互独立，左下角是均匀网格上 Galerkin 粗化的一维示意。图 11：(a) 八叉树上做不了红黑（棋盘）着色，块格上标着问号；(b) 本文两级红黑平滑器在一个并行半扫描中的活跃元素：两个分辨率层级（0 和 1）的块，每块里是按 SIMD 向量组织的格子，红黑交替。</p></div>
+<h3>6.3 按块松弛</h3>
+<p>平滑器通常是 1–3 次加权 Jacobi 或 Gauss–Seidel。Jacobi 好并行但收敛慢，还要一个临时的目标数组。作者在 MSBG 上做了一个混合 Gauss–Seidel（Baker 等 2011）：<b>块之间</b>按红黑顺序做并行的 Jacobi 半扫描，<b>块内</b>也按红黑顺序做原地 Gauss–Seidel，以整个 SIMD 字（AVX 下 8 个浮点数）为单位更新。块内的部分 Gauss–Seidel 收敛更快；红黑排序的块可以原地更新，不需要额外缓冲，内存省一半。和 P2G 一样，这依赖全局统一的块结构，树结构做不到。因为还有 Jacobi 成分，要乘阻尼因子 ω = 6/7（三维的最优值）保证收敛。</p>
+<h3>6.4 自适应松弛</h3>
+<p>核心想法来自完全自适应多重网格（Rüde 1993；Kowarschik 等 2006）：只在残差大的地方集中做平滑。维护一个活跃块列表：初始包含这一层所有相关块（l(i, L) ≤ L 的块，加上更粗一级的一圈过渡块）；从无锁 FIFO 队列里取块松弛，松弛后最大有效残差仍超过阈值 θ 的块重新入队，边界格子残差超过 θ 的邻块也入队。和原方法不同，不等队列清空，只做固定的 10–20 轮，因为它只用在预条件器里。</p>
+<p>为了提高缓存效率，一个块载入缓存后连续做多次扫描，摊薄从内存读数据和拼“光环缓冲”（邻块边界数据）的成本。扫描次数不固定：一直扫到块内残差降到初始的 1/3，接近三维泊松问题中 Gauss–Seidel 的最优收敛因子。几轮之后活跃块往往能整个放进 CPU 末级缓存，后面的迭代不再受内存带宽限制。</p>
+<div class="algo">算法 2  并行两级红黑自适应多重网格松弛（结构概括）
+初始活跃块 B = { l(i,L) ≤ L 的块 } ∪ { 分辨率边界上 l(i,L) = L+1 的块 }
+for iter = 1 .. N_max（10–20）
+  if B 为空: break
+  B 按 Morton 码排序
+  for 外层颜色 I_rb = 0, 1                  # 块级红黑
+    for B 中块坐标奇偶 = I_rb 的块（并行）
+      r0 = RelaxBlock(i)                     # 块内红黑，δ = ω(b_j − L_j u)/L_jj，ω = 6/7
+      repeat r = RelaxBlock(i) until r/r0 &lt; 1/3 或次数到上限
+      if r &gt; θ: 把块 i 放进新列表；边界残差 &gt; θ 的邻块也放进去（原子比较交换去重）
+  交换新旧列表</div>
+<p><b>有效残差的定义。</b>Kowarschik 等用按对角元缩放的残差。在两相问题里，空气区的对角元比水区大几个数量级（β = 1/ρ），缩放会把空气区残差的动态范围压小 1000 倍，空气块几乎永远进不了活跃列表。作者改用“块内局部松弛后所有变量的最大变化量乘以对角元”，相当于把两相的反差拉平。</p>
+<p><b>自适应阈值。</b>以前的工作用固定 θ 却不说怎么选。这里多重网格只是 CG 的预条件器，残差每轮 CG 迭代都在指数下降，固定 θ 不合适。作者对初始有效残差取对数直方图，θ 取均值加两倍标准差；直方图只用每块的残差最大值来建，很快。</p>
+<p><b>柔性预条件共轭梯度。</b>CG 要求预条件器对称，所以前后平滑次数必须一样，而自适应松弛天然不对称。作者用柔性 PCG（Bouwmeester 等 2015）：把 Fletcher–Reeves 更新换成 Polak–Ribière，即使预条件器不对称正定也稳健。它要多存一个向量，正好被红黑块平滑省下的缓冲抵消。</p>
+<div class="fig" id="fig12"><span class="lab">图 12 · 原文第 14 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=14">看原图 ↗</a></span><p>自适应多重网格松弛：一个三维模拟沿 XY、XZ、YZ 的三张切片（蓝色水、黄色空气、橙色活跃块）。左列是涡量大小，空气里的湍流比水体内部强；中列是平滑 2 次后的残差和活跃块，约占全部块的 10%；右列是平滑 6 次后，活跃块只剩约 1%，集中在界面和湍流区。</p></div>
+
+<h2 id="s7">7 喷雾和渲染</h2>
+<p>喷雾大体沿用已有做法：逃逸的水粒子（3.4 节）变成纯拉格朗日液滴，受重力和空气速度场产生的阻力驱动（Gissler 2017；Song 2005），用带局部自适应步长的 RK2 积分。另外在界面附近速度梯度大的地方按 Ihmsen 2012 的方式额外发射喷雾粒子。每个液滴有自己的半径，发射时从对数正态分布采样，之后按蒸发方程 dr_p/dt ∼ −1/r 缩小。</p>
+<p>作者发现，喷雾一定要用比压力求解器高得多的分辨率来模拟和渲染：喷雾密度场用 16 位浮点，分辨率是压力和速度场的 2–4 倍，喷雾粒子按这个分辨率模拟并光栅化成体积密度。渲染用基于 MSBG 的体积光线追踪器，带近似多次散射；水面用标准的粒子蒙皮和表面平滑重建（Bhattacharya 2011）。喷雾光栅化和水面重建只在渲染帧做，即每 5–10 步一次。高曲率的水气界面用类似泡沫的散射系数渲染，此外没有后处理或程序纹理。</p>
+<div class="fig" id="fig13"><span class="lab">图 13 · 原文第 15 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=15">看原图 ↗</a></span><p>笔记本电脑上跑的陨石撞海：6 亿粒子，压力有效分辨率 1024³，喷雾 3072³，平均每步约 70 秒。画面是撞击后升起的巨大水幕和四散的喷雾；右下角是一张按速度旋度着色的相场二维切片。</p></div>
+
+<h2 id="s8">8 结果</h2>
+<p>除特别说明外都在一台 AMD Threadripper 工作站上跑（32 核、256 GB 内存）；图 13 在笔记本上跑（Intel Core i7、14 核、32 GB）。求解器不用 GPU，作者强调这是为了不受显存容量限制。</p>
+<h3 id="s8-1">8.1 MSBG 的性能</h3>
+<p>测试三类代表性操作：P2G、基于模板的 PDE 迭代、G2P。把 16 亿个粒子按 3 格半径的球光栅化到有效分辨率 10000² × 5000 的稀疏网格上，得到 106 亿个活跃体素；再做 10 次拉普拉斯扩散；然后做 10 亿次线性插值查询。粒子取自陨石例子（图 13）的一帧。基线是 OpenVDB 11。</p>
+<h4>表 2 · MSBG 和 VDB 在代表性操作上的性能（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=16">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-t2"><thead><tr><th>测试</th><th>VDB</th><th>MSBG</th><th>提升</th></tr></thead><tbody>
+<tr><td>P2G（百万粒子/秒）↑</td><td>16.7</td><td>62.6</td><td>× 3.7</td></tr>
+<tr><td>PDE（百万格/秒）↑</td><td>948</td><td>9097</td><td>× 9.6</td></tr>
+<tr><td>G2P（百万粒子/秒）↑</td><td>634</td><td>4051</td><td>× 6.4</td></tr>
+<tr><td>内存（GB）↓</td><td>37.3</td><td>41.4</td><td>× 0.9</td></tr>
+</tbody></table></div>
+<div class="note" id="n5"><span class="lab">读者注 5 · 表 2 的倍数核对</span><p>62.6 / 16.7 = 3.75，9097 / 948 = 9.60，4051 / 634 = 6.39，和表中 × 3.7、× 9.6、× 6.4 一致。内存 41.4 / 37.3 = 1.11，即 MSBG 多用 11%，和正文“只多 11%”一致；表里写“× 0.9”是 37.3 / 41.4 = 0.90，表示“内存这一项是变差了”。注意 MSBG 的块是 16³，VDB 是 8³，块体积差 8 倍，内存只多 11%。</p></div>
+<h4>表 3 · 7 点拉普拉斯核的内存带宽利用率（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=16">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>方法</th><th>流式拷贝（基线）</th><th>VDB</th><th>SPGrid</th><th>MSBG</th></tr></thead><tbody>
+<tr><td>占峰值带宽</td><td>100%</td><td>11%</td><td>39%</td><td>90%</td></tr>
+</tbody></table></div>
+<p>论文的论点是：一个自适应方案如果在自适应网格上每个活跃格子的速度接近均匀网格，就算是最优的；均匀网格上的模板运算基本受内存带宽限制，所以用“占峰值带宽的比例”来衡量。SPGrid 的数字来自 Aanjaneya 2017 表 1，不是本文重测。</p>
+<p><b>1000 亿体素。</b>把斯坦福兔子的 32k 个点各缩成一只小兔子，摆成 32k 只兔子，一共 32k × 32k ≈ 10 亿粒子；光栅化到 32k³ 的 MSBG（基本块分辨率 32）上作为窄带符号距离场，约 1000 亿个活跃体素（虚拟体素 35 万亿）。然后做 10 次平均曲率流平滑。为了放进内存，用单个半精度通道，平均曲率流（二阶、宽模板）用 8 色块方案并行原地更新，不需要临时通道。4K 渲染约 30 秒。</p>
+<div class="note" id="n6"><span class="lab">读者注 6 · 1000 亿体素这组数核对</span><p>32768³ = 3.52 × 10¹³，即 35 万亿虚拟体素，和论文一致；MSBG 仓库 README 写的是“30 trillion virtual”，偏小。32768² = 1.07 × 10⁹，即“10 亿粒子”。图 15 的图注说平均曲率流每次迭代每秒处理 100 亿个未知量；10 次迭代 × 1000 亿 / (100 亿/秒) = 100 秒，和引言说的“两分钟以内”一致。仓库 README 还说这是在“32 核、256 GB”的单 CPU 上跑的，和第 8 节的硬件一致。</p></div>
+<div class="fig" id="fig14"><span class="lab">图 14、图 15 · 原文第 16 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=16">看原图 ↗</a></span><p>图 14：表 2 的测试场景，16 亿粒子按 3 格半径的球光栅化后，经拉普拉斯扩散得到一片稀疏的体积。图 15：32k³ MSBG 网格上的“兔子堆兔子”，远看是一只大兔子，近看每个点都是一只小兔子，表面经平均曲率流平滑。</p></div>
+
+<h3 id="s8-2">8.2 相场的基本测试</h3>
+<p><b>规定速度场里的相场输运。</b>标准的剪切流测试：一个球在随时间变化的剪切速度场里被拉伸，到 T/2 时形变最大，再反向流回来。误差按 (Σ_i (φ(x_i, 0) − φ(x_i, T))² / φ²(x_i, 0))^{1/2} 计算。</p>
+<h4>表 4 · 剪切流输运测试的相场相对误差（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=16">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>模型</th><th>相对误差</th></tr></thead><tbody>
+<tr><td>De Rosis 和 Enan 2021</td><td>0.0490</td></tr>
+<tr><td>Li 等 2022</td><td>0.0500</td></tr>
+<tr><td>本文</td><td class="best">0.0314</td></tr>
+</tbody></table></div>
+<p>作者说：拉格朗日—欧拉混合输运比纯欧拉的相场输运误差小，在意料之中。</p>
+<p><b>三维 Rayleigh–Taylor 不稳定。</b>按 He 等 1999 的设置：Atwood 数 A = (ρ_l − ρ_g)/(ρ_l + ρ_g) = 0.9，不计表面张力，网格 256×64×64，区域长度 L = 0.05，ν_l = ν_g = 4 × 10⁻⁵，g = 9.81（SI 单位），α_φ = 0.5，CFL = 0.5。尖端位置随时间的曲线和参考一致。后期因为没有表面张力，薄片会碎成丝和液滴，参考结果里没有这个现象，作者认为这说明 ε_φ = Δx 的尖锐相场能解析接近网格奈奎斯特极限的细结构。</p>
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 4 和 RT 测试能说明多少</span><p>表 4 的两个对照数字取自对方论文，本文没有重跑；三者用的分辨率、时间步、相场厚度论文没有写，所以“误差小 36%”（1 − 0.0314/0.049 = 0.36）只能算参考。RT 测试的 L = 0.05 没说是哪条边；如果是 256 格那条边，Δx ≈ 0.2 mm。尖端位置的对比只有图 16(b) 的曲线，没有数值误差。RT 后期出现参考里没有的破碎，作者解释为相场更尖锐，但也可能和 FLIP 噪声有关，论文没有区分（我的推断）。</p></div>
+<div class="fig" id="fig16"><span class="lab">图 16 · 原文第 17 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=17">看原图 ↗</a></span><p>(a) 剪切流测试的三帧：t = 0 时的圆球、t = T/2 时被拉成薄片的螺旋形、t = T 时恢复成近似圆球。(b) Rayleigh–Taylor 不稳定：上面是界面形态的渲染，下面是尖端位置随归一化时间的曲线，本文的点和 He 等 1999 的参考曲线基本重合。</p></div>
+
+<h3 id="s8-3">8.3 自适应泊松求解器</h3>
+<p>用最难的陨石场景对比各种压力求解器：有效分辨率 1536³，约 16 亿粒子，取水、空气、固体相对速度最剧烈的阶段平均 10 步。</p>
+<div class="viz" id="w-f17">
+<p class="cap">重画 · 图 17（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=17">看原图 ↗</a>）。数值是我从 PDF 矢量路径按对数刻度（10¹、10²、10³ 三条刻度线）读出的柱顶高度，不是论文给的数字。</p>
+<svg id="f17-svg" viewBox="0 0 680 280" role="img" aria-label="图 17 重画：四种压力求解器的迭代数和每步时间"></svg>
+<div class="viz-legend"><span><i style="background:var(--p1)"></i>PCG 迭代数</span><span><i style="background:var(--p2)"></i>每步 CPU 时间（秒）</span></div>
+</div>
+<div class="tablewrap"><table class="t-sm"><caption>图 17 的读数（重画用的数）</caption><thead><tr><th>预条件器</th><th>迭代数</th><th>每步时间（秒）</th><th>每次迭代（秒）</th></tr></thead><tbody>
+<tr><td>不完全 Cholesky</td><td>≈ 1500</td><td>≈ 310</td><td>0.21</td></tr>
+<tr><td>几何多重网格</td><td>≈ 91</td><td>≈ 81</td><td>0.88</td></tr>
+<tr><td>Galerkin MG + 边界松弛</td><td>≈ 22</td><td>≈ 19</td><td>0.87</td></tr>
+<tr><td>自适应多重网格（本文）</td><td>≈ 7</td><td>≈ 6.4</td><td>0.90</td></tr>
+</tbody></table></div>
+<p>论文的描述：不完全 Cholesky 迭代超过 10³ 次；几何多重网格把迭代数和时间降低约一个数量级；Galerkin 多重网格加边界松弛再降约 4 倍；本文再降约 3 倍。</p>
+<div class="note" id="n8"><span class="lab">读者注 8 · 图 17 的读数和正文的倍数</span><p>按读数，相邻两档的比是：迭代数 16.4×、4.2×、3.1×；时间 3.8×、4.2×、3.0×。后两档和正文的“约 4 倍”“约 3 倍”一致。第一档正文说迭代和时间都改善约一个数量级，但时间只降了 3.8 倍，因为多重网格每次迭代要 0.88 秒左右，是不完全 Cholesky（0.21 秒）的 4 倍多。从不完全 Cholesky 到本文，迭代少 212 倍、时间少 49 倍。这些都是读图值，柱顶读数误差约 ±2%。</p></div>
+<p><b>和 CFD 求解器比较。</b>重跑 MacLachlan 等 2008 的“困难场景”：上升并破碎的气泡，故意不计表面张力，界面极其复杂。这里残差容差特意设成 10⁻⁸（其他例子用 10⁻⁴）。</p>
+<h4>表 5 · 和 CFD 压力求解器的比较（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=18">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-t5"><thead><tr><th>方法</th><th>每步迭代数</th><th>模板大小</th><th>每步预处理成本</th><th>自适应网格细化</th></tr></thead><tbody>
+<tr><td>本文</td><td class="best">≈ 30</td><td>4</td><td>低</td><td>原生 / MSBG</td></tr>
+<tr><td>BoxMG-CG</td><td>≈ 40</td><td>4/14</td><td>高</td><td>困难</td></tr>
+<tr><td>DIC-CG</td><td>&gt; 300</td><td>4</td><td>中</td><td>中</td></tr>
+</tbody></table></div>
+<p>BoxMG 和 DIC（紧缩不完全 Cholesky）的迭代数取自 MacLachlan 等 2008 图 7a。本文迭代更少，每次迭代也更便宜，因为模板小；BoxMG 除最细层外都用 14 个系数，每步预处理要嵌套循环算对称 27 点模板的 14 个系数，而本文只需扫一遍多重网格层级、每格算 3 个系数。更重要的是本文能自然推广到多分辨率；27 点模板的 BoxMG 很难做自适应。作者还把这个场景的分辨率提高到原研究最高的 10 倍（2000³ 对 200³），每步迭代数差不多（图 18）。</p>
+<div class="note" id="n9"><span class="lab">读者注 9 · 表 5 的“模板大小 4”指的是存储的系数个数</span><p>第 6 节说矩阵是对称 7 点模板，每格存 3 个面系数，对角元是它们的和。所以表 5 的“4”应理解为每格存储的系数个数（3 个面系数加对角元），不是 4 点模板；BoxMG 的“14”同理，是对称 27 点模板的 13 个非对角系数加对角元，和正文“14 coefficients for a symmetric 27-point stencil”对得上。正文却写成“smaller, 4-point stencil”，措辞不准。</p></div>
+<h4>表 6 · 每步平均时间分解（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=18">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-t6"><thead><tr><th>方法</th><th>P2G</th><th>压力</th><th>推进</th><th>其他</th></tr></thead><tbody>
+<tr><td>本文（图 25 场景）</td><td>27%</td><td class="best">30%</td><td>13%</td><td>30%</td></tr>
+<tr><td>Setaluri 等 2014（最高分辨率例子）</td><td>–</td><td>91%</td><td>5%</td><td>4%</td></tr>
+<tr><td>Zeng 等 2022（CFD 溃坝）</td><td>–</td><td>83%</td><td>–</td><td>17%</td></tr>
+</tbody></table></div>
+<p>作者说在所有例子里压力求解都不超过总时间的约三分之一，不论分辨率和流动多复杂。</p>
+<div class="fig" id="fig18"><span class="lab">图 18 · 原文第 18 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=18">看原图 ↗</a></span><p>上排：MacLachlan 等 2008 的“困难场景”，几个气泡上升、变形、破碎。下排：t = 0.0266 秒时放大的二维切片，显示相场（蓝水黄气）和涡量。(a) 按原研究的 200³ 重跑，气泡边缘比较圆钝；(b) 本文 10 倍分辨率的自适应模拟，界面上出现大量细小的褶皱和碎片，涡量结构也细得多。</p></div>
+
+<h3 id="s8-4">8.4 完整的大场景</h3>
+<p>通用设置：每步 30–100 秒，CFL 3–4，每帧 2–7 步；α_FLIP 水 0.985、空气 0.96；分辨率都写成“有效分辨率”，即要在最细层分辨界面所需的等价均匀网格；全部是物理模拟，没有涡量约束或其他人工湍流增强。</p>
+<ul>
+<li><b>带障碍的溃坝（图 19）。</b>类似 Li 等 2022、2024 的设置，把区域加宽给飞溅留空间，有效分辨率从 Li 2024 的 800 × 400² 提高到 1600³。分别跑 3 米和 400 米两个尺度，各用单相自由表面和本文两相求解器。单相结果在两个尺度下几乎一样，只是时间被拉长，大尺度看起来像小尺度的慢动作；两相在 400 米尺度下出现爆炸状的喷射和由空气涡管卷出的喷雾丝带。</li>
+<li><b>数值波浪水槽和两相湍流（图 20、22）。</b>用标准推板造波机生成大孤立波。速度场显示方法能解析水气边界层、流动分离、自由剪切层和浪峰后的湍流尾流，作者说这在图形学里以前没有在不用程序化手段的前提下以高分辨率做到过。</li>
+<li><b>极限分辨率的浪和障碍（图 1）。</b>把分辨率推到 256 GB 内存的极限：压力 6k × 2k × 1.6k，喷雾 18k × 6k × 5k，超过 30 亿粒子，水槽中间放一个固体障碍。平均每步约 2 分钟，一共 3.5 天。</li>
+<li><b>大坝泄洪（图 3）。</b>参照三峡大坝：水以 40 m/s 从直径 5 m、向下倾斜 18° 的闸门射出，闸门离水池 9 m 高，水池初始水深 3 m。区域 L = 200 m，压力 2048 格，水面和喷雾 8192 格。</li>
+<li><b>海啸冲击复杂海岸（图 24）。</b>程序生成的分形海岸，初速 30 m/s，有效分辨率 4096 × 1024²。和真实照片对比喷雾云的形态。</li>
+<li><b>海浪列在沙滩上破碎（图 4、5、21、23、25）。</b>公里级的海面，多列波浪爬坡破碎；造波板斜着放，让波浪和区域边界的反射相互作用，形成更自然的波形（图 21）。有效分辨率 3072 × 1536 × 1024，约 20 亿粒子，每步平均 60 秒。能看到浪顶上被风吹出的水雾丝、卷浪浪舌拍下时的爆炸状喷射和喷雾羽流，以及“浪管”。</li>
+</ul>
+<h4>表 7 · 大场景统计（<a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=20">看原表 ↗</a>）</h4>
+<div class="tablewrap"><table class="t-t7"><thead><tr><th>图</th><th>压力有效分辨率</th><th>喷雾密度有效分辨率</th><th>最多粒子 FLIP / 喷雾</th><th>分钟 每步 / 每帧</th></tr></thead><tbody>
+<tr><td>1</td><td>6144×2048×1600</td><td>18432×6144×4800</td><td>3.1 / 1.0 B</td><td>1.9 / 9.5</td></tr>
+<tr><td>3</td><td>2048×1024²</td><td>8192×4096²</td><td>1.1 / 0.5 B</td><td>0.7 / 4.0</td></tr>
+<tr><td>4、5、25</td><td>3072×1536×1024</td><td>12288×6144×4096</td><td>2.0 / 0.1 B</td><td>1.0 / 5.7</td></tr>
+<tr><td>22</td><td>4096×1024×512</td><td>12288×3072×1536</td><td>1.0 / 0.2 B</td><td>0.6 / 6.1</td></tr>
+<tr><td>24</td><td>4096×1024²</td><td>12288×3072²</td><td>1.2 / 0.5 B</td><td>0.8 / 7.0</td></tr>
+</tbody></table></div>
+<p>表注：活跃压力格子数等于 FLIP 粒子数除以 8。</p>
+<div class="note" id="n10"><span class="lab">读者注 10 · 表 7 能算出的几件事</span><p><b>活跃比例。</b>活跃压力格子 = 粒子数 / 8，除以有效分辨率的体积：图 1 为 3.875 亿 / 201 亿 = 1.9%；图 3 为 1.375 亿 / 21.5 亿 = 6.4%；图 4、5、25 为 2.5 亿 / 48.3 亿 = 5.2%；图 22 为 1.25 亿 / 21.5 亿 = 5.8%；图 24 为 1.5 亿 / 42.9 亿 = 3.5%。也就是说，“有效分辨率”里只有 2%–6% 的格子真正存在，这是自适应带来的节省。</p>
+<p><b>每帧步数。</b>每帧分钟数除以每步分钟数：5.0、5.7、5.7、10.2、8.75。正文说每帧 2–7 步，图 22 和图 24 对不上。可能“每帧”时间还包括只在渲染帧做的水面重建和喷雾光栅化（我的推断，论文没说每帧时间里包含什么）。</p>
+<p><b>其他核对。</b>图 1 的 3.5 天 = 5040 分钟，按每帧 9.5 分钟约 530 帧（24 fps 约 22 秒）；图注“约 30 亿粒子、每步约 2 分钟”和表 7 的 3.1 B、1.9 分钟一致；正文“6k × 2k × 1.6k”“18k × 6k × 5k”和表 7 一致。图 3 正文“每步约 40 秒”= 0.7 分钟。喷雾和压力的分辨率比依次是 3、4、4、3、3，和第 7 节“2–4 倍”一致。</p></div>
+<div class="fig" id="fig19"><span class="lab">图 19–25 · 原文第 19–21 页 · <a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf#page=19">看原图 ↗</a></span><p>图 19：溃坝的 2×2 对比，左列 3 米、右列 400 米；上行单相、下行两相。只有右下（400 米两相）出现爆炸状的喷射和紫圈标出的喷雾丝带。图 20：海浪在沙滩上破碎时的两相速度场（涡量），左上角嵌一张三维渲染，有效分辨率 4096 × 1024 × 512。图 21：斜置造波板的场景设置。图 22：500 米区域的大浪，(a) 二维涡量切片显示浪峰后空气中的边界层分离、自由剪切层和湍流尾流，(b) 同一道浪破碎时的三维渲染。图 23：图 25 场景的局部放大，浪管内部翻卷的水和湍流。图 24：大浪高速冲击海岸，和 AP 的真实照片对比，两者都有大片被风吹散的喷雾云。图 25：20 亿粒子的海浪列破碎全景，浪顶飘着水雾丝，浪舌拍下处炸起喷雾羽流。</p></div>
+
+<h2 id="s9">9 局限，10 结论和展望</h2>
+<p><b>局限。</b></p>
+<ul>
+<li>分辨率边界目前不能穿过水气界面。这是大多数笛卡尔自适应网格的共同限制，原则上可以解除（Ando 和 Batty 2020），作者计划以后做。</li>
+<li>最大细化深度受基本块分辨率的对数限制，即 log₂16 或 log₂32。作者说实际上没遇到问题，因为每多一级成本降为八分之一。</li>
+<li>和其他 FLIP 方法一样，粒子分布的高频噪声会让场量比较“吵”。对目标场景不要紧，但对很小尺度、表面张力主导、尤其密度比低的情形可能不适用。</li>
+</ul>
+<p><b>结论和展望。</b>论文把 PF-FLIP、粒子与网格的双重多分辨率方案和自适应泊松求解器结合起来，在所有关键环节（网格、粒子、压力求解）都做了自适应，没有留下扩展性差的瓶颈。展望里提到：让分辨率边界能穿过水面；接入模拟的湍流风场，做由真实风驱动的风暴海浪；用 CFD 里的液滴雾化模型改进喷雾；把方法用到 CFD 应用里，比如大型数值波浪水槽、海岸和海洋工程里的波浪—结构相互作用。</p>
+<div class="note" id="n11"><span class="lab">读者注 11 · 哪些地方不能从论文复现</span><p>论文给了算法结构，但几个影响结果的参数没写：式 (7) 的 log 底（读者注 1）；细化带宽 β_bw 和延迟粗化的具体用法之外的细化层数怎么定；c_div 散度修正的具体形式；喷雾的阻力系数、对数正态分布参数、蒸发速率；Ihmsen 式额外喷雾的发射阈值；渲染里“泡沫状散射系数”的取值。各大场景的造波参数（推板行程、周期）也没给。加上求解器没有开源，目前只能复现算法思路，不能复现图上的效果。</p></div>
+
+<h2 id="code">代码对照：tum-pbs/MSBG</h2>
+<p>读的是 commit <code>655038d</code>（2025-06-09，Apache-2.0）。仓库约 2.6 万行 C++，依赖 TBB，带 ISPC 内核和 VectorClass 头文件；README 说是实验阶段的研究代码，只在 Linux 和 Windows（MSYS2/MinGW64）上编译。主要内容和论文的对应：</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>论文</th><th>代码位置</th><th>说明</th></tr></thead><tbody>
+<tr><td>8 色无锁溅射（4.3 节）</td><td><code>src/msbg.h:642</code> <code>getBlockColor8</code>；<code>src/msbg_demo.cpp:515</code> 起</td><td>颜色 = (bx&amp;1) + ((by&amp;1)&lt;&lt;1) + ((bz&amp;1)&lt;&lt;2)，按颜色分 8 批，每批内块并行。代码注释里留着一行另一种位序，标“??? Fang et. al”</td></tr>
+<tr><td>Morton 排序（4.3 节）</td><td><code>src/msbg2.cpp:46</code> <code>sortBlockListMorton</code></td><td>用 <code>tbb::parallel_sort</code> 按块坐标的 64 位 Morton 码排序活跃块编号，和论文“每块只算一次 Morton 码”一致</td></tr>
+<tr><td>细化图 2:1 正则化（5.4 节第 2 步）</td><td><code>src/msbg.cpp:1202</code> <code>regularizeRefinementMap</code></td><td>函数注释“Enforce resolution transitions not larger than one level”；断言分辨率层数在 2 到 5 之间，和 log₂16 = 4、log₂32 = 5 对得上</td></tr>
+<tr><td>层数上限</td><td><code>src/msbg.h:49</code> <code>MSBG_MAX_LEVELS 12</code></td><td>注释说“包括多重网格层”，即 MSBG 分辨率层之外还有更粗的多重网格层（6.2 节）</td></tr>
+<tr><td>按格子层级调 α_FLIP（5.3 节）</td><td><code>src/msbgcell.h:63</code> <code>G2P_FLIP_ALPHA_USE_GRID_LEVEL</code></td><td>编译开关的名字和 5.3 节“按格子间距而不是粒子大小修正”一致，但用它的 G2P 代码不在仓库里</td></tr>
+<tr><td>“兔子堆兔子”（8.1 节）</td><td><code>src/main.cpp</code>，<code>msbg_demo -c1/-c2</code></td><td>-c1 低分辨率、-c2 高分辨率；-b 选基本块分辨率 16 或 32</td></tr>
+</tbody></table></div>
+<div class="note" id="n12"><span class="lab">读者注 12 · 仓库里有求解器的“影子”，但没有求解器</span><p>仓库没有 PF-FLIP、压力求解器、喷雾的实现，但头文件里留着它们的配置字段。<code>src/wturbglob.h:357</code> 有 <code>float air_flip_alpha[8]</code>，按数组长度推测是按层级给空气设 α_FLIP（我的推断）；同一个结构体里还有 <code>air_compr_on</code>、<code>air_compr_speed_of_sound</code>，即“可压缩空气”开关和声速，论文完全没有提到；另有 <code>air_speed_ref</code>、<code>air_speed_profile_*</code> 这样的风速剖面参数，可能对应第 10 节说的“接入风场”。<code>src/msbg.h:2763–2764</code> 有 FLIP 速度差用的网格（<code>vec3_2</code>、<code>velocityAirDiff</code>）。这些只能说明作者的完整代码比论文写的功能多，不能用来复现。</p></div>
+
+<h2 id="repro">和我们的 Taichi 复现对照</h2>
+<p>为了复现小红书里那种破碎浪的效果，我们先用 Taichi 在 RTX 4090 D 上写了一个 GPU 单相 FLIP：3 cm 网格（427 × 107 × 171），约 1200 万粒子；场景是一个 0.7 m 高的孤立波撞上斜放的浅礁后翻卷；白水按 Ihmsen 2012 的思路发射；渲染用自己写的光线步进。每帧（模拟 + 1080p 渲染）约 1 秒。代码在仓库外的 <code>WorldModelTest/flip-wave/</code>。</p>
+<figure class="pfig" id="rp1">
+<img src="pf-flip/repro-peel.webp" width="1600" height="900" alt="我们的 Taichi 单相 FLIP：浪沿礁线依次卷起，浪舌下方有空腔" loading="lazy">
+<figcaption><span class="lab">我们的复现 · 不是论文的图 · 第 42 帧，岸边侧视</span>一道浪沿斜放的礁线从左到右依次卷起，浪舌下方是透亮的空腔，右侧浪舌已经开始拍下、冒出白水。</figcaption>
+</figure>
+<figure class="pfig" id="rp2">
+<img src="pf-flip/repro-down.webp" width="1600" height="900" alt="我们的 Taichi 单相 FLIP：从高处顺着礁线看浪舌拍下" loading="lazy">
+<figcaption><span class="lab">我们的复现 · 不是论文的图 · 第 46 帧，顺礁线俯视</span>浪舌已经拍下，前缘是一道白水，后面的水面有 FLIP 粒子噪声带来的细碎波纹。</figcaption>
+</figure>
+<div class="tablewrap"><table class="t-rp"><thead><tr><th></th><th>PF-FLIP（论文）</th><th>我们的 Taichi 复现</th></tr></thead><tbody>
+<tr><td>相</td><td>水和空气都是粒子，相场由密度得到</td><td>只有水；空气是压力为 0 的空格子</td></tr>
+<tr><td>相当于图 2 的哪一列</td><td>右列（两相）</td><td>中列（单相 + 二次喷雾粒子）</td></tr>
+<tr><td>溅射核</td><td>(1 − d²/r²)³，球形支撑</td><td>三线性</td></tr>
+<tr><td>网格</td><td>MSBG 多分辨率，3–4 级</td><td>均匀稠密网格</td></tr>
+<tr><td>粒子</td><td>按离水面距离拆分 / 随机删除</td><td>每格 8 个，大小相同</td></tr>
+<tr><td>压力求解</td><td>自适应多重网格 + 柔性 PCG，约 7 次迭代</td><td>Jacobi 预条件 CG，每帧累计 1000–2400 次迭代</td></tr>
+<tr><td>FLIP 权重</td><td>按相（0.985 / 0.96）和格子层级</td><td>统一 0.97</td></tr>
+<tr><td>喷雾</td><td>逃逸粒子 + 空气阻力 + 对数正态半径 + 蒸发</td><td>按速度和法向概率发射，抛体 + 常数阻尼，落水变泡沫</td></tr>
+<tr><td>规模</td><td>10–30 亿粒子，CPU 256 GB，每步 0.5–2 分钟</td><td>1200 万粒子，GPU 24 GB，每帧约 1 秒</td></tr>
+</tbody></table></div>
+<div class="note" id="n13"><span class="lab">读者注 13 · 单相能做到什么，做不到什么</span><p>我们的结果说明，浪的翻卷、空腔和浪舌拍下这些“大形状”单相 FLIP 就能做出来，因为它们主要由重力和水的惯性决定；论文的图 19 也说单相和两相在小尺度下差别不大。做不出来的是论文真正要解决的部分：空气被带动后形成的尾流、把喷雾卷成丝带的湍流、喷雾被空气减速后悬在空中的雾云。我们的白水只受常数阻尼，速度场里根本没有空气，所以喷雾一旦离开水面就只能走抛物线。要往 PF-FLIP 靠，第一步是把空气也撒上粒子、按式 (7) 算相场、按式 (9) 给面系数；但在 1000:1 的密度比下，我们现在的 Jacobi 预条件 CG 基本不会收敛，必须先换成多重网格预条件。</p></div>
+<div class="note" id="n14"><span class="lab">读者注 14 · “不用 GPU”这个选择</span><p>论文说选 CPU 是因为大场景的内存需求超过高端 GPU 的显存。按表 7，图 1 有 31 亿 FLIP 粒子加 10 亿喷雾粒子，即使每个粒子只存位置和速度（24 字节），也要约 100 GB，确实放不进 24–80 GB 的单卡。我们的复现在 24 GB 显存里放 1200 万粒子绰绰有余，但要到论文的规模，要么像论文这样上大内存 CPU，要么走多卡分区。另外，MSBG 的 8 色溅射和块级红黑平滑本来就是为 CPU 缓存和 SIMD 设计的，搬到 GPU 上未必还有同样的优势（我的推断）。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">式 (7) 的门槛</a>：按 ln，ρ̃_min 是满水的 0.69%；α_φ = 1 时达到满水 25.7% 就标为水。</li>
+<li><a href="#n2">式 (12) 漏括号</a>：按字面会多加 (1 − α)Δu，应为 α(u_old + IΔu) + (1 − α)Iu。</li>
+<li><a href="#n3">式 (13) 的黏性</a>：大坝例子估算 ν_水 ≈ 2.8 × 10⁻³ m²/s，约真实水的 2800 倍；气水黏性比 2.7，真实约 15。</li>
+<li><a href="#n4">随机粗化</a>：只在期望上守质量；8 个粒子全删的概率 34%。</li>
+<li><a href="#n5">表 2 的倍数</a>：3.75、9.60、6.39 都对得上；内存 × 0.9 表示多用 11%。</li>
+<li><a href="#n6">1000 亿体素</a>：32768³ = 35 万亿虚拟体素（README 写 30 万亿偏小）；10 次 × 1000 亿 / 100 亿每秒 = 100 秒。</li>
+<li><a href="#n7">表 4 和 RT 测试</a>：对照数字取自对方论文，分辨率未对齐；RT 区域尺寸没说清。</li>
+<li><a href="#n8">图 17 读数</a>：迭代 1500 → 91 → 22 → 7；第一档时间只降 3.8 倍，不是一个数量级。</li>
+<li><a href="#n9">表 5 的“模板大小 4”</a>：是每格存储的系数个数（3 个面系数加对角元），不是 4 点模板。</li>
+<li><a href="#n10">表 7</a>：活跃格子只占有效体积的 2%–6%；图 22、24 每帧 10.2、8.75 步，超出正文的 2–7 步。</li>
+<li><a href="#n11">不能复现的部分</a>：log 底、c_div、喷雾参数、造波参数都没给，求解器未开源。</li>
+<li><a href="#n12">MSBG 仓库</a>：没有求解器，但配置里有可压缩空气、风速剖面等论文没提的字段。</li>
+<li><a href="#n13">单相能做到什么</a>：翻卷和空腔能做，空气尾流和雾云做不出来。</li>
+<li><a href="#n14">不用 GPU</a>：图 1 的粒子仅位置和速度就约 100 GB，单卡放不下。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页 / 代码</th><th>论文</th></tr></thead><tbody>
+<tr><td>PF-FLIP</td><td>本文</td><td><a href="https://ge.in.tum.de/publications/very-large-scale-two-phase-flip/">TUM 项目页</a>；<a href="https://www.youtube.com/watch?v=nt9BohngvoE">视频</a>；<a href="https://github.com/tum-pbs/MSBG">MSBG 代码</a>（只有数据结构）</td><td><a href="https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf">预印本</a>；<a href="https://doi.org/10.1145/3730854">10.1145/3730854</a>（ACM 页面对脚本返回 403，浏览器可打开）</td></tr>
+<tr><td>ST-FLIP</td><td>同一作者的后续工作，时空 FLIP</td><td>–</td><td><a href="https://ge.in.tum.de/download/ST-FLIP.pdf">预印本 PDF</a></td></tr>
+<tr><td>OpenVDB</td><td>表 2、表 3 的基线</td><td><a href="https://www.openvdb.org/">openvdb.org</a></td><td>Museth 2013，ACM TOG 32(3)</td></tr>
+<tr><td>TBB</td><td>MSBG 的并行库</td><td><a href="https://github.com/uxlfoundation/oneTBB">oneTBB</a></td><td>–</td></tr>
+<tr><td>MultiFLIP</td><td>最接近的 FLIP 两相方法</td><td>–</td><td>Boyd 和 Bridson 2012，ACM TOG 31(2)</td></tr>
+<tr><td>Ihmsen 白水</td><td>二次喷雾粒子，图 2 中列、本文第 7 节的额外喷雾</td><td>–</td><td>Ihmsen 等 2012，The Visual Computer 28</td></tr>
+<tr><td>代数聚合多重网格</td><td>6.1 节的出发点</td><td>–</td><td>Shao、Huang、Michels 2022，ACM TOG 41(4)</td></tr>
+<tr><td>MacLachlan 等 2008</td><td>表 5 的 CFD 对照和“困难场景”</td><td>–</td><td>J. Comput. Phys. 227(23)</td></tr>
+<tr><td>GridFluidSim3D</td><td>开源 PIC/FLIP，我们复现时参考的结构</td><td><a href="https://github.com/rlguy/GridFluidSim3D">rlguy/GridFluidSim3D</a></td><td>–</td></tr>
+<tr><td>FLIP Fluids</td><td>Blender 插件，开源的白水实现</td><td><a href="https://github.com/rlguy/Blender-FLIP-Fluids">rlguy/Blender-FLIP-Fluids</a></td><td>–</td></tr>
+<tr><td>mantaflow</td><td>Thuerey 组的流体框架，Blender 流体的底层</td><td><a href="https://github.com/thunil/mantaflow">thunil/mantaflow</a></td><td>–</td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 PF-FLIP 预印本后的整理，不是作者的官方内容。原文：Bernhard Braun、Jan Bender、Nils Thuerey，《Adaptive Phase-Field-FLIP for Very Large Scale Two-Phase Fluid Simulation》，ACM Transactions on Graphics 44(4)，SIGGRAPH 2025，DOI 10.1145/3730854；© 2025 作者，出版权授予 ACM。本页不含原图；图 17 是我按 PDF 矢量路径读数重画的，示意图和交互图是我按论文公式画的；“我们的复现”两张图是我们自己的 Taichi 渲染。MSBG 代码为 Apache-2.0。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+<script src="pf-flip/widgets.js" defer></script>
+</body>
+</html>

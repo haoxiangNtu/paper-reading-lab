@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Adaptive Phase-Field-FLIP for Very Large Scale Two-Phase Fluid Simulation（ACM TOG 44(4)，SIGGRAPH 2025，[预印本](https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf)） | [pf-flip 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/pf-flip.html) | 两相 FLIP：密度直接压成相场、MSBG 多分辨率块网格、随机粒子粗化、自适应多重网格柔性 PCG，单台 CPU 工作站跑到 30 亿粒子。式 (12) 疑漏括号，式 (13) 黏性远大于真实值，图 17 按矢量读数重画。ACM 版权，图用文字描述；附 MSBG 代码对照和 Taichi 单相复现对照。 | 14 条 |
 | Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation（[arXiv 2611.31098](https://arxiv.org/abs/2611.31098)，2026-11） | [real2worlds2real 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2worlds2real.html) | 编码代理（GPT-6 Astra）调度工具建数字孪生和表亲、按视频标定物理，再调度策略开发，技能跨任务复用。真机每格 30 次，和真机训练分不开；真机对比只用了孪生；表 3 比的是有无仿真闭环。非独占许可，经站点作者决定放原图 1–5，图 4、图 5 另按矢量路径读数重画。代码未发布。 | 13 条 |
 | FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，经站点作者决定放原图 1–6；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
 | ∇Mimic: Ultra-Efficient Humanoid Control with Differentiable Simulation（[arXiv 2610.41654](https://arxiv.org/abs/2610.41654)，2026-10） | [nablamimic 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/nablamimic.html) · [11 幕 3D 动画](https://haoxiangntu.github.io/paper-reading-lab/interactives/nablamimic/index.html) | 给 MuJoCo Warp 反向打补丁，一阶梯度训练人形跟踪。“20 分钟对 1.2 小时”GPU 不同口径，同为 H100 约 2.9 倍；默认配置不是论文配方。非独占许可，图用文字描述。 | 20 条 |
@@ -91,6 +92,16 @@
 | 六个操作策略对照（2026-11-25） | [six-policies](https://haoxiangntu.github.io/paper-reading-lab/papers/six-policies.html) | 改动谱系 + 任选两个对比、六张结构图（训练 / 推理切换）、FabricBench 点图 | FabricBench 评测的 ACT、DP、π0.5、GR00T N1、LingBot-VA、Fast-WAM 按 8 个部件逐格对照；外观泛化按“有没有机器人预训练”分两组，构型泛化六个都差。表和交互共用页内 `#six-data`。 |
 | VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
+
+## PF-FLIP 读后要点
+
+- 核心想法很简单：水和空气都撒 FLIP 粒子，溅射时累加的质量就是密度；水比空气重 1000 倍，粒子噪声盖不住两相差别，按式 (7) 压缩截断就是相场，不需要水平集或 VOF。
+- 式 (7) 的 log 底没写；按自然对数，空气门槛是满水密度的 0.69%，α_φ = 1 时原始密度到满水的 25.7% 就算“水”。
+- 式 (12) 按字面会多加 (1 − α)Δu，应是 α(u_old + IΔu) + (1 − α)Iu（推断漏括号）。式 (13) 的“按相黏性”实际是数值黏性，大坝例子约为真实水的 2800 倍。
+- 随机粗化（删掉 7/8 粒子）只在期望上守质量，8 个粒子全删的概率 34%。
+- 图 17 按矢量读数：PCG 迭代 1500 → 91 → 22 → 7，每步 310 → 81 → 19 → 6.4 秒；第一档时间只降 3.8 倍。
+- 只开源了 MSBG 数据结构（Apache-2.0，commit 655038d），没有求解器；头文件里有可压缩空气、风速剖面等论文没提的配置字段。
+- 我们的 Taichi 单相 FLIP（仓库外 WorldModelTest/flip-wave）对应论文图 2 的中列：卷浪和空腔能做，空气尾流和雾云做不出来。
 
 ## Real2Worlds2Real 读后要点
 
@@ -415,6 +426,7 @@ papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/rea
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
 papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
+papers/pf-flip.html  PF-FLIP 精读（ACM 版权不放原图；图 17 重画、相场和块开销交互图、复现截图在 papers/pf-flip/；没有 3D 动画）
 papers/real2worlds2real.html  Real2Worlds2Real 精读（原图 1–5 和重画图 widgets.js 在 papers/real2worlds2real/；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）
 papers/mundo.html          Mundo 精读（无论文、无原图；11 幕动画在 interactives/mundo/）
