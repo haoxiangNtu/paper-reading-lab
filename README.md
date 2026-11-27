@@ -8,6 +8,7 @@
 
 | 论文 | 精读页 | 主题 | 读者注 |
 |---|---|---|---|
+| Has GPT-6-Astra Achieved Embodied Intelligence?（[arXiv 2610.22471](https://arxiv.org/abs/2610.22471)，2026-10） | [gpt6-astra-embodied 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/gpt6-astra-embodied.html) | 通用大模型不训练、靠上下文学习和 10× 步数当机器人控制器：12 个仿真基准、RoboDojo 上的 harness 消融、8 台真机、下一代基准原则。arXiv 非独占，图用文字描述；表 2、表 13 重画成交互图，附显著性计算器。 | 14 条 |
 | Adaptive Phase-Field-FLIP for Very Large Scale Two-Phase Fluid Simulation（ACM TOG 44(4)，SIGGRAPH 2025，[预印本](https://ge.in.tum.de/download/Adaptive_Phase_Field_FLIP_preprint.pdf)） | [pf-flip 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/pf-flip.html) | 两相 FLIP：密度直接压成相场、MSBG 多分辨率块网格、随机粒子粗化、自适应多重网格柔性 PCG，单台 CPU 工作站跑到 30 亿粒子。式 (12) 疑漏括号，式 (13) 黏性远大于真实值，图 17 按矢量读数重画。ACM 版权，图用文字描述；附 MSBG 代码对照和 Taichi 单相复现对照。 | 14 条 |
 | Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation（[arXiv 2611.31098](https://arxiv.org/abs/2611.31098)，2026-11） | [real2worlds2real 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/real2worlds2real.html) | 编码代理（GPT-6 Astra）调度工具建数字孪生和表亲、按视频标定物理，再调度策略开发，技能跨任务复用。真机每格 30 次，和真机训练分不开；真机对比只用了孪生；表 3 比的是有无仿真闭环。非独占许可，经站点作者决定放原图 1–5，图 4、图 5 另按矢量路径读数重画。代码未发布。 | 13 条 |
 | FabricBench: A Standardized Policy Benchmark for Bimanual Fabric Manipulation with a Contact-Driven Deformable Simulator（[arXiv 2611.31577](https://arxiv.org/abs/2611.31577)，2026-11） | [fabricbench 精读](https://haoxiangntu.github.io/paper-reading-lab/papers/fabricbench.html) | 双臂布料策略基准，接触驱动的抓放和双向负载传递；6 任务 × 6 策略，构型比外观难。真机只证明任务难度排序；RGBench 对比漏了同团队 GarmentDynamics；π0.5 训练样本是 openpi 默认的四分之一。非独占许可，经站点作者决定放原图 1–6；没有 3D 动画，页内有摩擦交互图和两张重画图。代码未发布。 | 21 条 |
@@ -93,6 +94,17 @@
 | 六个操作策略对照（2026-11-25） | [six-policies](https://haoxiangntu.github.io/paper-reading-lab/papers/six-policies.html) | 改动谱系 + 任选两个对比、六张结构图（训练 / 推理切换）、FabricBench 点图 | FabricBench 评测的 ACT、DP、π0.5、GR00T N1、LingBot-VA、Fast-WAM 按 8 个部件逐格对照；外观泛化按“有没有机器人预训练”分两组，构型泛化六个都差。表和交互共用页内 `#six-data`。 |
 | VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
+
+## GPT-6-Astra 具身评测 读后要点
+
+- 协议两条：每个任务先让模型读训练集示范、写一个冻结的知识包（任务指南、动作参考、视觉参考、辅助代码、检查与恢复、元数据六类）；步数上限放宽到 10 倍，同一回合接着跑。权重始终不变。
+- 图 1 是 10× 成绩对基线的 1× 成绩。按 1× 截断比，12 个里 9 个领先，Bench2Dex 持平（25.6 对 25.5），RoboDojo 直接控制 27.6 低于代理式最好的 31.4；表 2 里 RoboDojo 的 54.2 是另一套配置（ICL + VLA 闭环）。
+- 表 2 图注说 1× 单独跑，但 LIBERO、RoboDojo、DexJoCo、Bench2Dex 的附录都写的是同一回合在 1× 处截断；只有 SIMPLE 和导航两列数字不同。
+- 样本量：RoboDojo 每任务 5 次（基线 50），Bench2Dex 3 次（78 对 1,300），DexJoCo 55 回合，BEHAVIOR 每任务 1 次（37/100，区间 28–47，仍明显领先 14.8）。SIMPLE 的 98.8 只是 Matched-8 的 80 回合；LHPR-VLN 从 205 筛到 114，FantasyVLN 的 2.44% = 5/205 像是全集上的数（推断）。
+- 导航的 10× 只重跑 1× 失败的回合、保留较好的那次，更像第二次机会（推断）。
+- 表 13 每个配置 126 回合：基线成功 20 回合，方向式命令 23，自适应块 26，关节角 11；动作表示和分块的差别在这个样本量下分不出来，ICL、ICL + 闭环和“开环更差”站得住。动作接口更有力的证据是 BEHAVIOR 上关节空间 1% → 末端位姿 37%。自适应块比基线少用 55% token；表 13 的 ICL token 9.57M 和表 5 的 12.04–12.47M 对不上。
+- 成本按论文的 1M token ≈ 1 美元：RoboDojo 10× 每回合约 39 美元、3.6 小时；1× 的 55 分钟计算对应 8–76 秒的指令运动。
+- 真机每任务约 3 次，单任务成功率几乎没有统计意义；合计看刚体抓放 17/18，插插头 0/11。主动视觉（用空闲手臂的腕部相机看瓶口）是最有意思的观察。
 
 ## 扩散与流匹配 读后要点
 
@@ -436,6 +448,7 @@ papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interac
 papers/diffusion-flow.html 概念专题：扩散与流匹配（动画在 papers/diffusion-flow/widgets.js，解析最优去噪器，没有网络）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
 papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
+papers/gpt6-astra-embodied.html  GPT-6-Astra 具身评测报告精读（arXiv 非独占不放原图；表 2、表 13 重画和显著性计算器在 papers/gpt6-astra-embodied/widgets.js；没有 3D 动画）
 papers/pf-flip.html  PF-FLIP 精读（ACM 版权不放原图；图 17 重画、相场和块开销交互图、复现截图在 papers/pf-flip/；没有 3D 动画）
 papers/real2worlds2real.html  Real2Worlds2Real 精读（原图 1–5 和重画图 widgets.js 在 papers/real2worlds2real/；没有 3D 动画）
 papers/rgbench.html        RGBench 精读（无原图，重画图在 papers/rgbench/；11 幕动画在 interactives/rgbench/）

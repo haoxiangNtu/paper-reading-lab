@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GPT-6-Astra 具身评测报告精读 · Paper Reading Lab</title>
+<meta name="description" content="arXiv 2610.22471 v2《Has GPT-6-Astra Achieved Embodied Intelligence?》的中文精读：不训练、只靠上下文学习和 10 倍步数预算，一个通用大模型在 12 个机器人基准上的表现；System 2 与 VLA 的协作和动作接口消融；8 台真机零样本实验；以及下一代具身基准的三条原则。逐节覆盖正文和附录，表 2、13、14 照录，三张交互图，14 条读者注（样本量、置信区间、几处口径不一致）。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-t2{min-width:720px}.t-t13{min-width:760px}.t-t14{min-width:720px}.t-sm{min-width:460px}.t-c{min-width:760px}.t-links{min-width:640px}.t-ci{min-width:560px}
+.t-t2 td,.t-t2 th,.t-t13 td,.t-t13 th,.t-t14 td,.t-t14 th,.t-c td,.t-c th{font-size:13px}
+.viz{--viz-surface:#121a2b;--p1:#5aa2f0;--p2:#f08a4b;--p3:#3cc48e;--p4:#d8a520;--p5:#b48cf0;--p6:#e06aa8;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 6px;max-width:none}
+.viz p{max-width:none;font-size:14.5px}
+.viz svg{display:block;width:100%;height:auto;touch-action:pan-y}
+.viz-grid{stroke:var(--line);stroke-width:1;opacity:.7}
+.viz-tick{fill:var(--muted);font:12px var(--font-mono)}
+.viz-lab{fill:var(--fg);font:13px var(--font-body)}
+.viz-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:4px 0}
+.viz-legend i{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:-.05em;margin-right:6px}
+.ctl{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13.5px;margin:6px 0}
+.ctl label{display:inline-flex;align-items:center;gap:8px}
+.ctl input[type=number]{width:5.5em;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:13px var(--font-mono)}
+.ctl select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:inherit;font-size:13.5px;max-width:100%}
+.readout{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin:4px 0 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:4px 8px 4px 0}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:3px 13px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.dia{display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.dia text{font:13px var(--font-body);fill:var(--fg)}
+.dia .mu{fill:var(--muted);font-size:12px}
+.dia .bx{fill:var(--panel);stroke:var(--line)}
+.dia .hl{fill:var(--panel);stroke:var(--accent)}
+.dia .ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dia .fb{stroke:var(--accent);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.figd{border-left:3px solid var(--line);padding:4px 0 4px 12px;margin:12px 0;color:var(--fg)}
+.figd b{color:var(--accent)}
+.notes li{max-width:74ch}
+td.best{font-weight:700}
+td.num{font-family:var(--font-mono);text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="vla-design-space.html">VLA 设计空间</a><a href="libero.html">LIBERO</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">arXiv 2610.22471 · cs.RO · v2 2026-10-19（v1 2026-10-15）· 技术报告 · 中文精读</p>
+<h1>GPT-6-Astra 算具身智能了吗：不训练的通用大模型在 12 个机器人基准、8 台真机上的全面评测</h1>
+<p class="orig">Has GPT-6-Astra Achieved Embodied Intelligence?</p>
+<p>署名 Joint Research Team。附录 A 列出的项目负责人是 Zhongang Cai、Zhonghua Wu、Qingyi Tao；顾问组包括 Lei Yang、Chen Change Loy、Lewei Lu、Ziwei Liu、Dahua Lin 等。论文没有写单位，主页挂在商汤的 SenseNova 站点上，基线框架 RoboRSI 也来自 OpenSenseNova。</p>
+<div class="meta"><a href="https://arxiv.org/abs/2610.22471">arXiv 摘要页</a><a href="https://arxiv.org/pdf/2610.22471v2">PDF（v2）</a><a href="https://arxiv.org/html/2610.22471v2">arXiv HTML</a><a href="https://www.sensenova.ai/has-gpt-6-astra-achieved-embodied-intelligence">项目主页</a><a href="https://github.com/OpenSenseNova/SenseNova-RoboRSI">RoboRSI（基线框架）</a><span>正文 18 页，附录到第 66 页；12 个基准、8 台真机</span></div>
+
+<div class="callout">
+<p><b>关于这份精读。</b>arXiv 摘要页登记的许可是非独占分发（nonexclusive-distrib 1.0），按本站规则<b>不放原图</b>。21 张图都用文字描述，“看原图”链接到 PDF 的对应页。表格是数据，表 2、表 13、表 14 照录数字。图 1 和图 7 我按表 2、表 13 的数字重画成交互图，图注标“重画”。正文不逐字翻译。“读者注”是我核算或对照的结果，不属于论文内容，页尾有汇总。</p>
+<p><b>代码。</b>论文没有发布这次评测的代码、知识包或回合记录。第 3 节消融用的基线框架 <a href="https://github.com/OpenSenseNova/SenseNova-RoboRSI">OpenSenseNova/SenseNova-RoboRSI</a> 是公开仓库，这次没有读它的代码。</p>
+<p><b>先说结论。</b>这篇报告的结论比标题克制：作者认为 GPT-6-Astra 在基准上已经基本跨过“具身能力”的门槛，但还没有到“实用的具身智能”。最强的数字依赖两个条件：允许从训练集示范里做上下文学习，以及把步数预算放宽到 10 倍。这两样在真机上都不免费。读的时候最值得留意的是样本量：多数基准上 GPT-6-Astra 每个任务只跑 3–5 次，基线往往跑 50 次（读者注 3）。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">摘要与速览</a><a href="#rel">和站内页面的关系</a><a href="#s1">1 引言</a><a href="#s2">2 统一协议下的大规模评测</a><a href="#s2-1">2.1 协议</a><a href="#s2-2">2.2 上下文学习</a><a href="#s2-3">2.3 放宽步数</a><a href="#s2-4">2.4 局限</a><a href="#s3">3 Harness 设计</a><a href="#s4">4 真机</a><a href="#s5">5 下一代基准</a><a href="#s6">6 结论</a><a href="#appA">附录 A–B</a><a href="#appC">附录 C 各基准</a><a href="#appD">附录 D 消融</a><a href="#appE">附录 E 真机</a><a href="#notes">读者注汇总</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">摘要与速览</h2>
+<p>GPT-6-Astra 是一个通用多模态大模型，不是机器人策略。这篇报告不训练它、不改权重，只给它机器人能用的观测和动作接口，让它当控制器，回答四个问题：</p>
+<ul>
+<li><b>上限在哪（第 2 节）。</b>在 12 个仿真基准上用统一协议评测：允许它先“读”训练集示范，写一个冻结的“知识包”；并把每回合的步数上限放宽到官方的 10 倍。结果在 LIBERO 系列和 SIMPLE 上接近饱和，RoboDojo 81.9%，DexJoCo 87.3%（图 1）。剩下的短板是：知识包难以迁移到别的任务、成本和耗时过高、不会核实物理上是否真的完成、不能从不可逆的失误中恢复、长程任务里会破坏已经完成的进度。</li>
+<li><b>怎么接机器人（第 3 节）。</b>在 RoboDojo 上消融 harness（指把模型接到观测、动作和反馈上的那层外部框架）：让 GPT-6-Astra 逐步审核 VLA（π0.5）提出的动作比单用 VLA 或开环下发子目标好得多，但 token 很贵；末端位姿命令好于关节角；让模型自己决定每次出几步动作也有帮助。</li>
+<li><b>上真机会怎样（第 4 节）。</b>8 台真机、零样本、没有示范。同一个模型能驱动所有平台，但成功率取决于任务：刚体抓放 17/18，插插头 0/11。两个亮点是主动视觉（用另一只手臂的腕部相机去看花瓶口）和直接指挥人形机器人的底层运动控制器。真机上“多给步数换成功率”的办法不再可行。</li>
+<li><b>基准该怎么改（第 5 节）。</b>提出三条原则：任务从人的需求出发、按结果的效用打分；不给领域内示范，经验要在部署中自己获得；世界不等模型思考，思考的时间要算进去。作者用 Isaac Sim 搭了一套公寓原型，展示了五类失败。</li>
+</ul>
+
+<svg class="dia" viewBox="0 0 680 270" role="img" aria-label="示意：第 2 节的评测协议">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+<text x="12" y="20" class="mu">示意（我按图 2 和 2.1 节画的）：每个任务一次准备、多次独立测试。</text>
+<rect class="bx" x="12" y="36" width="150" height="78" rx="8"/><text x="87" y="60" text-anchor="middle">训练数据</text><text x="87" y="80" text-anchor="middle" class="mu">示范轨迹，或在训练</text><text x="87" y="98" text-anchor="middle" class="mu">场景里的探索</text>
+<rect class="hl" x="190" y="36" width="160" height="78" rx="8"/><text x="270" y="60" text-anchor="middle">ICL 准备</text><text x="270" y="80" text-anchor="middle" class="mu">GPT-6-Astra 自己挑数据、</text><text x="270" y="98" text-anchor="middle" class="mu">写笔记和代码；不碰测试集</text>
+<rect class="hl" x="378" y="36" width="140" height="78" rx="8"/><text x="448" y="60" text-anchor="middle">知识包 K</text><text x="448" y="80" text-anchor="middle" class="mu">哈希后冻结、只读</text><text x="448" y="98" text-anchor="middle" class="mu">六类内容（图 3）</text>
+<rect class="bx" x="12" y="150" width="656" height="108" rx="8"/>
+<text x="24" y="172">每个测试回合：新会话 + K + 任务指令 + 允许的观测和动作接口；权重不变</text>
+<text x="24" y="194" class="mu">循环：看观测 → 给下一个动作或动作序列 → 环境执行 → 返回新观测（回合内保留历史，可以诊断和重试）</text>
+<text x="24" y="216" class="mu">1×：官方步数上限。10×：同一回合接着跑到 10 倍上限（不重置），在 2×…10× 处各记一次成绩</text>
+<text x="24" y="238" class="mu">回合之间不传任何信息，K 测试期间不更新</text>
+<path class="ar" d="M162 75H188" marker-end="url(#ah)"/><path class="ar" d="M350 75H376" marker-end="url(#ah)"/><path class="ar" d="M448 114V148" marker-end="url(#ah)"/>
+<rect class="bx" x="546" y="36" width="122" height="78" rx="8"/><text x="607" y="60" text-anchor="middle">真机（第 4 节）</text><text x="607" y="80" text-anchor="middle" class="mu">没有 K，改用人</text><text x="607" y="98" text-anchor="middle" class="mu">写的上下文；按时计</text>
+</svg>
+
+<h3>速览：几个关键数字</h3>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>项目</th><th>数值</th><th>出处</th></tr></thead><tbody>
+<tr><td>基准数</td><td>12 个设置，五类：桌面臂、灵巧手、人形、家务移动操作、视觉语言导航</td><td>2.1 节</td></tr>
+<tr><td>步数预算</td><td>1× 官方上限；10× 在同一回合里接着跑</td><td>2.1 节</td></tr>
+<tr><td>10× 下的成功率</td><td>LIBERO-Long++ 100、LIBERO-PRO 99.3、Ultra-Long 98.9、SIMPLE 98.8、RxR 90、R2R 88、DexJoCo 87.3、RoboDojo 81.9、RoboLab 69.2、Bench2Dex 61.5、BEHAVIOR 37.0（只跑 1×）、LHPR-VLN 28.9</td><td>图 1、表 2</td></tr>
+<tr><td>成本换算</td><td>约 98% 是缓存输入 token，按 1M token ≈ 1 美元估</td><td>图 5 图注</td></tr>
+<tr><td>单回合成本</td><td>LIBERO-Long++ 约 1M token、53 分钟；Ultra-Long 约 8.9M、111 分钟；RoboDojo 10× 约 38.6M、217 分钟</td><td>表 4、表 5</td></tr>
+<tr><td>最好的协作方式</td><td>ICL + VLA 闭环审核：RoboDojo 成功率 54.17%，每回合 19.3M token</td><td>表 13</td></tr>
+<tr><td>动作接口</td><td>BEHAVIOR 上关节空间 1% → 末端位姿 37%</td><td>附录 C.10</td></tr>
+<tr><td>真机</td><td>8 台平台，零样本；刚体抓放 17/18，插插头 0/11，导航搜索 9/23；默认每次试验限时 60 分钟</td><td>4 节、表 14</td></tr>
+<tr><td>G1 人形</td><td>约 90% 时间在思考，一次操作试验超过 1 小时</td><td>4.3 节</td></tr>
+</tbody></table></div>
+
+<h2 id="rel">和站内页面的关系</h2>
+<ul>
+<li><a href="vla-design-space.html">VLA 设计空间</a>讲的是怎么训练一个 VLA；这篇问的是反面：不训练机器人策略，一个通用大模型能走多远。第 3 节又把两者接在一起，让大模型当 System 2 审核 VLA（π0.5）的动作。</li>
+<li><a href="libero.html">LIBERO</a> 页讲过基准本身和各家评测协议。这篇用的是它的三个变体：LIBERO-PRO（扰动）、LIBERO-Long++ 和 LIBERO-Ultra-Long（来自 LiLo-VLA，长程组合）。原版 LIBERO 已经被 VLA 刷到 97% 以上，这些变体就是为了拉开差距。</li>
+<li><a href="wall-oss-05.html#w10-rd">WALL-OSS 0.5 的 RoboDojo 榜单分析</a>里列过 RoboDojo 的分组和榜单；这篇在 RoboDojo 上做了最多实验（表 5、表 13）。</li>
+<li><a href="diffusion-flow.html">扩散与流匹配</a>页讲 VLA 一次生成一整段动作块。这篇 3.2 节的“动作块”是另一回事：大模型一次决策给出 L 个末端位姿目标，L 只有 1–4。</li>
+<li><a href="real2worlds2real.html">Real2Worlds2Real</a> 也由 GPT-6 Astra 驱动，但那篇让代理搭仿真世界、练策略再送回真机；这篇让模型直接当控制器。</li>
+<li>表 6、表 11 的基线里有本站读过的模型家族：<a href="cosmos3.html">Cosmos 3</a> 的两个策略（Cosmos3-Nano / Edge-Policy）、GR00T N1.6（本站有 <a href="gr00t.html">GR00T N1</a> 和 <a href="gr00t2.html">GR00T 2</a>）；<a href="molmoact2.html">MolmoAct2</a> 出现在相关工作里。</li>
+</ul>
+
+<h2 id="s1">1 引言</h2>
+<p>作者的出发点是：GPT-6-Astra 在机器人操作和导航上的表现，已经开始挑战“每个任务、每种机器人训一个专用模型（VLA、WAM）”的做法，而且它表现出零样本泛化、上下文学习和失败恢复。报告把它当作透镜，看这个新能力水平对研究社区意味着什么。引言按四部分预告了结论，这里只记几条正文没有再强调的说法：</p>
+<ul>
+<li>评测协议的两条原则都被说成“合理”：训练专用策略时示范本来就能用，所以允许 ICL；标准步数会低估一个能发现错误并重试的模型。</li>
+<li>引言列了六条局限，比摘要多一条：“难以找出任务失败的原因”。</li>
+<li>真机部分第 3 个发现提出了“System 0”这个说法：底层高频运动控制器（如人形的全身控制器），区别于任务训练出来的 System 1 策略。</li>
+</ul>
+
+<h2 id="s2">2 统一协议下的大规模评测</h2>
+<h3 id="s2-1">2.1 协议</h3>
+<p>十二个设置分五类：</p>
+<ul>
+<li>桌面机械臂：<a class="ds" href="https://arxiv.org/abs/2607.04434">RoboDojo</a>、<a class="ds" href="https://www.roboticsproceedings.org/rss22/">RoboLab</a>（RSS 2026）、<a class="ds" href="https://arxiv.org/abs/2602.21531">LIBERO-Long++ 和 LIBERO-Ultra-Long</a>（来自 LiLo-VLA 论文）、<a class="ds" href="https://arxiv.org/abs/2510.03827">LIBERO-PRO</a>。</li>
+<li>灵巧手：<a class="ds" href="https://arxiv.org/abs/2609.15726">Bench2Dex</a>、<a class="ds" href="https://arxiv.org/abs/2605.16257">DexJoCo</a>。</li>
+<li>人形移动操作：<a class="ds" href="https://arxiv.org/abs/2606.08278">SIMPLE</a>（Unitree G1 + 两只 Dex3 手）。</li>
+<li>长程家务：<a class="ds" href="https://behavior.stanford.edu/">BEHAVIOR-1K</a> 2026 挑战赛（<a href="https://huggingface.co/spaces/behavior-1k/2026-challenge-leaderboard">排行榜</a>）。</li>
+<li>视觉语言导航：<a class="ds" href="https://jacobkrantz.github.io/vlnce/">VLN-CE</a> 的 R2R 和 RxR、<a class="ds" href="https://openaccess.thecvf.com/content/CVPR2025/html/Song_Towards_Long-Horizon_Vision-Language_Navigation_Platform_Benchmark_and_Method_CVPR_2025_paper.html">LHPR-VLN</a>。</li>
+</ul>
+<p><b>为什么允许 ICL。</b>传统策略都是在基准提供的示范上训练或微调的。不给 GPT-6-Astra 看这些示范，比的就是两种不同的信息条件。所以让它在不更新权重的前提下，通过上下文“学”同样的示范。</p>
+<p><b>为什么放宽步数。</b>作者观察到 GPT-6-Astra 经常能识别失败、改策略、继续尝试，而严格的步数上限会在恢复成功前截断回合。1× 是基准规定的预算，衡量在既定条件下的表现；10× 衡量多给机会时完成率能涨多少。</p>
+<p><b>ICL 准备。</b>每个任务单独准备一次。GPT-6-Astra 分析示范，写任务笔记和可复用代码，打包成知识包，测试前冻结，测试时提供给该任务的每一个回合。准备阶段不接触测试回合和评测器私有信息。</p>
+<p><b>测试回合。</b>每个回合在新的隔离会话里开始，给任务指令、冻结的知识包和允许的观测、动作接口。每个决策点它看当前观测，给出下一个动作或一段动作，环境执行后返回新观测。回合内保留交互历史，回合之间不传信息。观测、动作语义、控制频率和成功判定在两种预算下都一样。</p>
+<p><b>10× 预算。</b>在 1× 以及累计 2×、…、10× 处各报告一次。延长是在<b>同一回合</b>里接着跑，保留历史和已经造成的环境后果，不重置。回合在验证成功、遇到适用的终止失败或预算耗尽时结束。（但导航基准的做法和这段描述不一样，见<a href="#n6">读者注 6</a>。）</p>
+<div class="figd"><b>图 2（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=4">看原图 ↗</a>）。</b>左边是训练数据（示范或在训练场景中的探索），经过 ICL 准备（排除测试回合；GPT-6-Astra 检查数据、保留它认为有用的部分、写笔记和代码），冻结成知识包 K（哈希、只读）。右边是测试回合：每次复制一份 K，和环境交互，权重固定，新会话，步数上限 1× 或 10×；回合结束不写回任何东西，回合之间不迁移。本页开头的示意图就是按这张图画的。</div>
+
+<h3 id="s2-2">2.2 上下文学习</h3>
+<p>在 1× 下，GPT-6-Astra 已经在大多数设置上追平或超过已发表的最好结果，差距最大的是 LIBERO-Ultra-Long 和 DexJoCo，几乎翻倍（82.2 对 44.0，78.2 对 40.3）。为了单独看 ICL 的作用，作者在 SIMPLE 上对比零样本和 ICL：四个共同任务的 1× 成功率从 70.8% 升到 90.8%，成功回合也更短（表 12，见 <a href="#appC">附录 C.9</a>）。</p>
+<p>ICL 的收益取决于训练数据覆盖测试任务的程度。LIBERO 系列、SIMPLE、VLN-CE 的测试任务紧贴训练分布，知识包几乎可以直接检索和改写示范的动作或路线，所以接近饱和。DexJoCo 是接触密集的灵巧操作，但按阶段索引的动作参考和控制器辅助函数覆盖得很好。RoboLab 没有训练集，建不了任务级知识包，成功率中等。</p>
+<p><b>知识包里有什么。</b>结构不是规定好的，GPT-6-Astra 自己决定看什么、存什么，但各基准反复出现六类内容：</p>
+<div class="tablewrap"><table class="t-sm"><thead><tr><th>组成</th><th>内容</th><th>典型文件</th></tr></thead><tbody>
+<tr><td>任务指南</td><td>目标、阶段、策略；子任务顺序、物体角色、约束</td><td>.md</td></tr>
+<tr><td>动作参考</td><td>示范轨迹、抓取构型、阶段锚点，测试时检索片段再改写</td><td>.npz</td></tr>
+<tr><td>视觉参考</td><td>示范帧、接触区域裁图，用来和当前观测比对</td><td>.png</td></tr>
+<tr><td>可执行辅助</td><td>正逆运动学、检索、动作生成的 Python 程序</td><td>.py</td></tr>
+<tr><td>检查与恢复</td><td>完成判据（可观察的证据）、失败症状到纠正动作的对应</td><td>.md .py</td></tr>
+<tr><td>元数据与出处</td><td>机器人规格、接口约定、数据来源和离线验证记录</td><td>.md .py</td></tr>
+</tbody></table></div>
+<p>各基准侧重不同：Bench2Dex、DexJoCo 侧重手型、按阶段索引的动作和灵巧控制辅助；LIBERO-Long++ / Ultra-Long 把示范组织成可组合的原子技能；LIBERO-PRO 主要存文字策略和从探索中得到的恢复知识；SIMPLE 存完整的数值轨迹和改动作块的辅助函数；导航基准存策略、地标、停止指引；BEHAVIOR 侧重物体抓取可供性、双臂和工具接触几何。</p>
+<p><b>知识包怎么用。</b>事后分析显示一个共同流程：读任务指南 → 用辅助函数检索候选动作 → 拿视觉参考核对执行。它不是回放示范，而是改写：Bench2Dex 装球入盒时重映射参考关节、补偿 4–5 cm 的工作台高度差，同时保持示范的双臂支撑几何；DexJoCo 拍照任务里打滑后换了一个备选的拾取参考。作者也承认这些分析没有分离出各组成部分的因果贡献。</p>
+<div class="figd"><b>图 3（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=5">看原图 ↗</a>）。</b>知识包的六个格子（就是上表六行），各标典型文件类型；右侧是测试回合，GPT-6 把 K 和当前观测、机器人状态一起读，做“检索 · 改写 · 检查”。</div>
+
+<h3 id="s2-3">2.3 放宽步数预算</h3>
+<p>除了数据覆盖，任务本身的难度也限制了 1× 成绩。即使有 ICL，有四个基准离解决还很远：RoboDojo、Bench2Dex 需要精确的双臂或灵巧操作、反复纠正；BEHAVIOR、LHPR-VLN 需要跨很多阶段跟踪子目标，是所有设置里成功率最低的。</p>
+<p>放到 10× 后，RoboDojo 成功率约翻三倍（27.6 → 81.9），1× 没完成的回合约四分之三在 10× 内完成，精度组涨得最多；Bench2Dex 翻了一倍多（25.6 → 61.5）。LHPR-VLN 只涨了一点（25.4 → 28.9），说明长程导航的问题不是多给步数能解决的。BEHAVIOR 官方预算本来就大，没有延长。1× 已经很好的基准也有提升：DexJoCo、VLN-CE 到 90% 左右，LIBERO 系列和 SIMPLE 超过 95%。</p>
+<div class="figd"><b>图 4（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=6">看原图 ↗</a>）。</b>12 个小图，横轴是预算（官方上限的倍数，对数轴，点在 1×、2×、5×、10×），纵轴成功率。圆点是观测值，粉色曲线是拟合趋势，灰线是“上界”：假设每个在已评测预算内耗尽步数仍未成功的回合，在无限预算下都有可能成功。BEHAVIOR 只有 1× 一个点。</div>
+<div class="figd"><b>图 5（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=7">看原图 ↗</a>）。</b>(a) 各基准每个任务平均的 token，(b) 平均时间，从下到上堆叠 ICL 准备、1× 运行、延长到 10× 的增量。10× 的增量看起来不大，是因为很多回合在成功或终止失败时提前结束了。图注说约 98% 的 token 是缓存输入，所以用“1M token ≈ 1 美元”估成本。具体数字见下面的读者注 9。</div>
+
+<p>下面是表 2 的照录和重画。注意表 2 有两个“1×”：“Up to 1×”列是单独跑的 1×，“Up to 10×”下的“Cutoff at 1×”是 10× 那次运行在 1× 处的截断。两者在多数基准相同，在 SIMPLE 和导航上不同；RoboDojo 的 54.2 带星号，是用了 VLA 的结果（读者注 1、2）。</p>
+<div class="tablewrap"><table class="t-t2"><thead>
+<tr><th rowspan="2">基准</th><th colspan="2">已发表最好（SOTA）</th><th colspan="2">代理式最好</th><th>Up to 1×</th><th colspan="2">Up to 10×</th></tr>
+<tr><th>方法</th><th>SR</th><th>方法</th><th>SR</th><th>SR</th><th>10× 处</th><th>1× 处</th></tr></thead><tbody>
+<tr><td colspan="8"><b>桌面机械臂</b></td></tr>
+<tr><td>LIBERO-Long++</td><td>LiLo-VLA</td><td class="num">82.0</td><td>–</td><td class="num">–</td><td class="num">97.5</td><td class="num best">100.0</td><td class="num">97.5</td></tr>
+<tr><td>LIBERO-PRO</td><td>πRLinf</td><td class="num">50.0</td><td>RPent / GPT-6 Astra</td><td class="num">92.6</td><td class="num">98.3</td><td class="num best">99.3</td><td class="num">98.3</td></tr>
+<tr><td>LIBERO-Ultra-Long</td><td>LiLo-VLA</td><td class="num">44.0</td><td>–</td><td class="num">–</td><td class="num">82.2</td><td class="num best">98.9</td><td class="num">82.2</td></tr>
+<tr><td>RoboDojo</td><td>Awomo-0.5</td><td class="num">29.6</td><td>PhysicalRSI</td><td class="num">31.4</td><td class="num">54.2*</td><td class="num best">81.9</td><td class="num">27.6</td></tr>
+<tr><td>RoboLab‡</td><td>FLUX 3 Action</td><td class="num">42.9</td><td>–</td><td class="num">–</td><td class="num">57.1</td><td class="num best">69.2</td><td class="num">57.1</td></tr>
+<tr><td colspan="8"><b>人形</b></td></tr>
+<tr><td>SIMPLE</td><td>Psi-0</td><td class="num">92.5</td><td>–</td><td class="num">–</td><td class="num">96.3</td><td class="num best">98.8</td><td class="num">97.5</td></tr>
+<tr><td colspan="8"><b>移动平台</b></td></tr>
+<tr><td>BEHAVIOR</td><td>Rondo</td><td class="num">14.8</td><td>Agent</td><td class="num">5.3</td><td class="num best">37.0</td><td class="num">–</td><td class="num">–</td></tr>
+<tr><td colspan="8"><b>灵巧手</b></td></tr>
+<tr><td>DexJoCo</td><td>π0.5</td><td class="num">40.3</td><td>–</td><td class="num">–</td><td class="num">78.2</td><td class="num best">87.3</td><td class="num">78.2</td></tr>
+<tr><td>Bench2Dex</td><td>π0.5</td><td class="num">25.5</td><td>–</td><td class="num">–</td><td class="num">25.6</td><td class="num best">61.5</td><td class="num">25.6</td></tr>
+<tr><td colspan="8"><b>导航</b></td></tr>
+<tr><td>VLN-CE RxR</td><td>Qwen-RobotNav</td><td class="num">76.5</td><td>–</td><td class="num">–</td><td class="num">82.0</td><td class="num best">90.0</td><td class="num">84.0</td></tr>
+<tr><td>VLN-CE R2R</td><td>Robostral Navigate</td><td class="num">77.4</td><td>GPT-6-Astra (ultra)</td><td class="num">81.3</td><td class="num">80.0</td><td class="num best">88.0</td><td class="num">85.0</td></tr>
+<tr><td>LHPR-VLN</td><td>FantasyVLN</td><td class="num">2.4</td><td>Claude Code Opus-5</td><td class="num">5.3</td><td class="num">21.1</td><td class="num best">28.9</td><td class="num">25.4</td></tr>
+</tbody></table></div>
+<p class="readout">表 2 照录（<a href="https://arxiv.org/html/2610.22471v2#S9.T2">看原表 ↗</a>）。* 用了 VLA；‡ 零样本，没有训练数据。基线都是 1× 下的已发表数字。粗体是 GPT-6-Astra 自己三列里的最高值，不是我加的比较结论。</p>
+
+<div class="viz" id="w-t2">
+<p class="cap">交互图 1（重画）· 图 1 / 表 2：各基准成功率，GPT-6-Astra 的两根条可叠加 Wilson 95% 区间</p>
+<div class="ctl"><span>GPT 的 1× 用</span><span class="seg" id="t2-one"><button data-v="cut" aria-pressed="true">10× 运行的 1× 截断</button><button data-v="sep" aria-pressed="false">单独的 1× 运行</button></span><span>置信区间</span><span class="seg" id="t2-ci"><button data-v="on" aria-pressed="true">显示</button><button data-v="off" aria-pressed="false">隐藏</button></span></div>
+<div class="viz-legend"><span><i style="background:var(--p5)"></i>已发表最好</span><span><i style="background:var(--p4)"></i>代理式最好</span><span><i style="background:var(--p2)"></i>GPT-6-Astra 1×</span><span><i style="background:var(--p1)"></i>GPT-6-Astra 10×</span></div>
+<svg id="t2-svg" viewBox="0 0 680 536" role="img" aria-label="表 2 各基准成功率条形图"></svg>
+<p class="readout">回合数 N 取自附录 C 各节；SIMPLE 用 Matched-8 的 80 回合；RoboLab 论文没写 GPT-6-Astra 跑了多少回合，所以不画区间。成功数按“成功率 × N”四舍五入还原。</p>
+</div>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · 图 1 的对比口径，以及表 2 的两个“1×”</span><p><b>图 1 是 10× 对 1×。</b>图 1 的条形是 GPT-6-Astra 在 10× 下的成绩，基线都是官方 1× 预算下的已发表数字。图注写明了这一点，正文 2.2 节“1× 下已追平或超过大多数”这句也成立。按表 2 的“1× 截断”列和两个基线取大者比：12 个里 9 个领先；Bench2Dex 25.6 对 25.5 算持平；RoboDojo 27.6 低于代理式最好的 31.4；R2R 要看用哪个 1×（85.0 高于 81.3，80.0 低于 81.3）。</p><p><b>两个 1× 的说法互相矛盾。</b>表 2 图注说“表中的 1× 是和 10× 分开单独跑的，执行时把相应预算写进了上下文”。但附录 C.1（LIBERO-PRO）、C.2（LIBERO-Long）、C.3（RoboDojo）、C.6（DexJoCo）都写明 1× 是同一回合跑到 1× 边界时的成绩，然后接着跑到 10×；C.5（Bench2Dex）则是重放动作恢复到 1× 终点后续跑。这些基准上“Up to 1×”和“1× 截断”两列的数字完全相同，和附录的说法一致。真正不同的只有 SIMPLE（96.3 对 97.5）、RxR（82.0 对 84.0）、R2R（80.0 对 85.0）、LHPR-VLN（21.1 对 25.4）和带 VLA 的 RoboDojo。所以“分开单独跑”最多只适用于这几个，图注写成了全表通用。</p></div>
+
+<div class="note" id="n2"><span class="lab">读者注 2 · RoboDojo 的 54.2 和 81.9 不是同一个配置</span><p>表 2 里 RoboDojo 的“Up to 1×”是 54.2*，星号表示用了 VLA。对照表 13，这正是“ICL + VLA 闭环”那一行的 54.17%（π0.5 提议动作、GPT-6-Astra 审核），每回合 19.3M token，并且用的是 3 个种子 × 42 任务的消融设置。而 81.9 和 27.6 来自表 5：GPT-6-Astra 直接控制、不用 VLA，每任务 5 个布局共 210 回合。也就是说，同一行里 1× 和 10× 是两套系统、两套回合。只看直接控制这一种，1× 的 27.6 低于代理式最好的 PhysicalRSI（31.4）和非代理最好的 Awomo-0.5（29.6）。另外，表 2 写 Awomo-0.5 是 29.6，表 5 同一个基线的总成功率是 30.56（五组平均也只有 31.06），我没查到 29.6 的来源（未核实）。</p></div>
+
+<div class="note" id="n10"><span class="lab">读者注 10 · 10× 救回了多少 1× 没完成的回合</span><p>用“(10× − 1×) / (100 − 1×)”算 1× 时没成功的回合里有多大比例在 10× 内完成（1× 用截断值）：LIBERO-Long++ 100%，LIBERO-Ultra-Long 94%，RoboDojo 75%（和正文“约四分之三”一致），LIBERO-PRO 59%，SIMPLE 52%，Bench2Dex 48%，DexJoCo 42%，RxR 38%，RoboLab 28%，R2R 20%，LHPR-VLN 5%。分成三档看更清楚：长程桌面操作（Ultra-Long、RoboDojo）几乎都能靠多试救回来；灵巧手大约一半；导航，尤其多目标的 LHPR-VLN，几乎救不回来。这和 2.4 节“导航卡在中间目的地后会无目的地乱逛”的描述对得上。这里的数字只用了表 2，没有考虑提前终止的回合。</p></div>
+
+<h3 id="s2-4">2.4 局限</h3>
+<p>作者先讲两个方法层面的局限，再讲从回合视频和日志里归纳的三种行为失败。基础设施中断按失败计分，但不计入行为分析。</p>
+<p><b>知识包大多是任务专用的，迁移差。</b>RoboDojo 的 Open 组没有本任务示范，只能用从其他四组学来的通用知识包，10× 后仍是五组里最低的（67.5%，其他组 75–97%，表 5）。RoboLab 没有训练集，GPT-6-Astra 领先列出的基线，但绝对成功率中等。</p>
+<p><b>时间和成本高。</b>LIBERO-Long++ 1× 成功率已经超过 97%，每回合仍要约 100 万 token、近一小时；Ultra-Long 约 900 万 token、近两小时；RoboDojo 10× 平均每回合超过三小时。推理延迟不计入步数预算，所以这也限制了需要实时控制的场景。</p>
+<p><b>核实物理上是否成功。</b>它能察觉任务没完成，却找不出哪个物理条件没满足，于是纠正不收敛。三个例子：Bench2Dex 拼图里它报告四块已拼成矩形，又注意到回合没结束，继续调残余偏移，结果把拼块又拉开了；RoboDojo 挂杯子里它把头部相机中“杯柄和挂钩重叠”当成挂好了，没确认挂钩穿过杯柄，杯子落在桌上，之后重抓时又把“手指合拢”当成接触到了；RoboDojo 装蛋托里它把四个蛋都放进去并报告撤手后仍坐稳，回合却以部分得分失败。</p>
+<p><b>从有后果的动作中恢复。</b>有些改变无法撤销：RoboDojo 倒液体时杯子早早翻倒、液体洒了，它扶正杯子继续倒，但洒出的回不来，回合结束时预算大部分没用；DexJoCo 装配里销钉掉到地上，它判断够不到，把手臂停好就不动了。如果失败的一步是后续步骤的前提（打开容器、固定物体），在它成功前下游都动不了，重试只会消耗预算。LHPR-VLN 里会出现卡在中间目的地、丢掉导航计划、开始乱逛的情况。成功的恢复通常要换策略而不是重复：DexJoCo 折眼镜时它改从侧面接近，先试提一下确认抓牢，再完成任务。</p>
+<p><b>长程任务里保住已有进度。</b>RoboDojo 收纳笔记本和耳机：笔记本收好了、耳机也挂上了，它回去调一只耳罩，结果把头梁从支架上拉了下来，预算用完前没再挂回去。BEHAVIOR can_meat：已经拿在台面旁的罐子在下一个动作中倾斜、掉到地上，进度要重建。作者的结论是要持续跟踪和复查早先建立的条件，而不是把完成的子目标当成永久成立。</p>
+<div class="figd"><b>图 6（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=8">看原图 ↗</a>）。</b>三列六对“关键事件前 / 结果”画面，紫色箭头标出相关物体。(a) 核实成功：RoboDojo 倒液体、Bench2Dex 拼图；(b) 从后果中恢复：BEHAVIOR 从冰箱取物失败、整理工具箱时没能让箱盖保持打开；(c) 保住进度：RoboDojo 收纳笔记本和耳机、BEHAVIOR 搬运杂货。</div>
+
+<h2 id="s3">3 Harness 设计</h2>
+<p>多给交互能提高完成率，但收益取决于代理怎么用这些交互；更长的执行代价很高，也不能可靠解决核实、恢复和保住进度的问题。所以作者转向 harness 本身，在 RoboDojo 上做受控消融，看哪些设计能提高成功率、代价多少。完整的表 13 在<a href="#appD">附录 D</a>，这里先讲两组主要结论。</p>
+<h3 id="s3-1">3.1 System 1 与 System 2 的协作</h3>
+<p>System 2 是 GPT-6-Astra，System 1 是在 RoboDojo 上微调过的 <a href="https://arxiv.org/abs/2504.16054">π0.5</a>。比较三种方式：(i) 单用 VLA；(ii) 开环：GPT 定子目标，VLA 直接执行关节动作序列；(iii) 闭环：VLA 提议的动作经正运动学转成候选末端位姿，GPT 接受、修改或拒绝后再执行。闭环里审核步长 L ∈ {1, 4}，L 是每次 GPT 调用审核的 VLA 动作数。再加上 ICL，单独用和与闭环 VLA（L = 2）合用两种。</p>
+<p>结果（表 13 第 C 组）：单用 VLA 平均成功率 6.91%；开环 5.83%，用 0.387M token；闭环比开环最多高 20.00 个百分点，但逐动作审核要 7.664M token；L = 4 把 token 降 63.5% 到 2.796M，成功率还从 23.61% 升到 25.83%；ICL + 闭环 VLA 最高，54.17%，比最好的非 ICL 闭环配置高 28.34 个百分点，但用 19.335M token，约是它的 6.9 倍。</p>
+<p>作者的解读：只把执行交给 System 1 不够可靠；频繁的 System 2 审核 token 太多；一次审核更长的动作序列，成功率和效率都更好。方向是让核实和恢复更有选择性。</p>
+<div class="figd"><b>图 7（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=10">看原图 ↗</a>）。</b>RoboDojo 上的 token 成本（百万，对数轴）对平均成功率散点图，每个点是一种配置；两条虚线交于代理式 GPT-6-Astra 基线，把图分成四个象限。A 组是协作方式，B 组是动作表示和分块。下面的交互图 2 按表 13 的数字重画。</div>
+<h3 id="s3-2">3.2 动作表示和分块</h3>
+<p>基线沿用 <a href="https://github.com/OpenSenseNova/SenseNova-RoboRSI">RoboRSI</a> 代理框架：GPT-6-Astra 看 RGB 图像和机器人状态，每次决策输出一个笛卡尔末端位姿动作。动作表示比较三种：绝对末端位姿目标（基线）、方向式运动命令（相对方向和距离）、直接关节角。执行步长比较：单步（L = 1）、固定 4 步块、自适应块（GPT 自己从 1–4 里选）。</p>
+<p>结果：方向式命令平均成功率 +2.50 个百分点，关节角 −5.84。作者据此提出多模态模型的具身能力和底层控制空间之间有“表示鸿沟”。固定块用 0.435M token，但成功率 −4.17；自适应块 +4.44，用 1.146M token。结论是 harness 应该暴露和模型推理对齐的、语义化的动作命令，把精确执行交给底层控制器，并用自适应的执行步长平衡性能和推理成本。</p>
+
+<div class="viz" id="w-t13">
+<p class="cap">交互图 2（重画）· 图 7 / 表 13：每回合 token 对平均成功率，竖线是 ±1.96 倍标准误（我按回合数估的）</p>
+<div class="ctl"><span>纵轴</span><span class="seg" id="t13-m"><button data-v="sr" aria-pressed="true">成功率</button><button data-v="score" aria-pressed="false">平均分</button></span><span>误差线</span><span class="seg" id="t13-err"><button data-v="on" aria-pressed="true">显示</button><button data-v="off" aria-pressed="false">隐藏</button></span></div>
+<div class="viz-legend"><span><i style="background:var(--fg)"></i>基线</span><span><i style="background:var(--p3)"></i>A 代理组件</span><span><i style="background:var(--p2)"></i>B 动作表示和分块</span><span><i style="background:var(--p1)"></i>C 协作与 ICL</span></div>
+<svg id="t13-svg" viewBox="0 0 680 372" role="img" aria-label="表 13 token 对成功率散点图"></svg>
+<p class="readout">虚线交点是基线（2.56M token，15.56%）。左上象限＝更便宜也更好。单用 VLA 那一行没有 GPT token，没画。误差线按各类成功率和类内回合数（泛化 36、精度 24、长程 24、记忆 18、开放 24；ICL 那一行按表 5 的 60/40/40/30/40）算平均值的标准误，是近似，没考虑同一任务内回合的相关性。</p>
+</div>
+
+<div class="note" id="n7"><span class="lab">读者注 7 · 表 13 的差别换算成回合数</span><p>表 13 每个配置在 42 个任务上各跑 3 个种子，共 126 回合。从各类成功率能还原出整数回合数：泛化 12 个任务（36 回合）、精度 8（24）、长程 8（24）、记忆 6（18）、开放 8（24），合计 42，和表 5 的分组一致。“平均成功率”是五类的不加权平均。</p><p>换算后：基线成功 8 + 0 + 1 + 4 + 7 = 20 回合；方向式命令 23 回合（正文的 +2.50 个百分点就是多成功 3 回合）；自适应块 26；固定块 16；关节角 11；反馈子代理 31；历史压缩 27；规划子代理 25；执行子代理 21。</p><p>按二项分布估，基线平均成功率的标准误约 3.1 个百分点，两配置之差的标准误约 4.5。于是 z 值：方向式 +0.5、自适应块 +0.9、固定块 −1.0、关节角 −1.4、历史压缩 +1.2、反馈子代理 +1.9、闭环 L=4 +2.1、开环 −2.7、ICL +3.3、ICL + 闭环 +7.1。也就是说，3.2 节的四个动作表示和分块结论在这个样本量下都分不出高下；比较站得住的是 ICL、ICL + 闭环，以及“开环更差”。这是我按独立二项估的近似，作者没有报告误差。动作表示这条结论更有力的证据其实在附录 C.10：BEHAVIOR 上关节空间 1% → 末端位姿 37%（各 100 个任务）。</p></div>
+
+<div class="note" id="n8"><span class="lab">读者注 8 · 自适应块其实比基线省 token；表 13 和表 5 的 ICL token 对不上</span><p><b>省 token。</b>3.2 节说“自适应块比固定块成功率高、token 也多”，这只是和固定块比。和基线比，自适应块 1.15M 对 2.56M，少 55%；方向式命令 1.91M，少 25%。这两项都是“更好又更便宜”，落在交互图 2 的左上象限。历史压缩也一样：0.86M，比基线少 66%，正文附录 D.1 有写。</p><p><b>对不上。</b>表 13 的“w/ ICL”一行注明“ICL-only 结果取自表 5”，成功率 29.67 确实等于表 5 五组 1× 成功率的不加权平均（28.33、15.00、20.00、70.00、15.00 → 29.67）。但它的 token 写 9.57M，而表 5 的 1× token 五组平均是 12.04M，42 任务平均是 12.47M，都不是 9.57（未核实原因，可能统计口径不同，比如是否含缓存输入）。</p></div>
+
+<h2 id="s4">4 真机</h2>
+<p>仿真协议的两个前提在真机上都不成立：测试任务已有成功示范，多执行的步数是免费的。所以真机版协议改了两处：上下文从“知识包”换成“人写的结构化信息”，零样本；预算从步数换成挂钟时间。</p>
+<h3 id="s4-1">4.1 设置</h3>
+<p>8 台平台、5 类形态，从简单到复杂排列（表 1、表 14）。与仿真协议的三点不同：(1) 零样本，没有示范、没有从数据提炼的知识包，也没有任务或机器人专用训练；(2) 人写的上下文，比如工具定义、关节限位、相机位置、安全约束、灵巧手的开合预设，有的平台还给了任务级提示（如允许的抓取点），所有平台都不提供“抓起来”“放进去”这类高层语义技能；(3) 按挂钟时间计，通常每次试验 60 分钟，操作员全程手握急停，由人按物理结果判断成功，而不是看模型自己说完成了。布料折叠这类任务没有统一的质量标准，成功只表示“做完了”。</p>
+<div class="tablewrap"><table class="t-t14"><thead><tr><th>平台</th><th>相机</th><th>动作接口</th><th>任务指令之外给的上下文</th><th>任务和结果（成功 / 试验）</th></tr></thead><tbody>
+<tr><td colspan="5"><b>单臂 + 夹爪</b>（问题：仿真结果能否迁移，从刚体到可变形体和精确接触）</td></tr>
+<tr><td>Franka 3，Robotiq 2F-85</td><td>腕部 ZED Mini + 第三人称 ZED 2</td><td>末端位姿 + 抓取标记</td><td>机器人设置</td><td>积木堆叠 6/6；布料折叠 2/4；插插头 0/3</td></tr>
+<tr><td>Franka Panda，Franka Hand</td><td>标定过的腕部网络摄像头</td><td>绝对末端位姿 + 夹爪开合</td><td>工具定义、关节限位、安全约束</td><td>胶带卷堆叠 3/3；毛巾折叠 2/2；布料折叠 1/2；插插头 0/5</td></tr>
+<tr><td>AgileX PiPER，Pika 夹爪</td><td>腕部 + 侧视</td><td>末端位姿和夹爪命令；本地工具做 IK</td><td>分步任务提示、允许的抓取点</td><td>容器套叠 3/3；布料折叠 3/3；插插头 0/3</td></tr>
+<tr><td colspan="5"><b>双臂 + 夹爪</b>（问题：能否协调两只手臂）</td></tr>
+<tr><td>AgileX Piper，两臂</td><td>前视 + 两个腕部</td><td>直接控制两臂，没有预定义协议</td><td>机器人规格和官方手册</td><td>12 个任务 14/14：电池放盘、电池入盒、积木入篮、物品入格、叠杯、提篮、双臂扶牛奶盒、笔入笔筒、毛巾卷金字塔、毛巾折叠、T 恤折叠、插花</td></tr>
+<tr><td colspan="5"><b>双臂 + 灵巧手</b>（问题：能否控制高自由度的手）</td></tr>
+<tr><td>Tianji M6S，Wuji Gen-1 手</td><td>头部 Azure Kinect</td><td>末端位姿 + 抓取标记</td><td>工具定义、关节限位、手型预设；人写的抓取脚本</td><td>玩具抓取 3/3；瓶子抓取 1/3†；模型自己写抓取代码 0/3</td></tr>
+<tr><td colspan="5"><b>轮式移动操作</b>（问题：能否在房间尺度行动）</td></tr>
+<tr><td>Galaxea R1 Pro</td><td>头部双目、底盘五个、两个腕部 D405</td><td>GPT-6-Astra 直接控制开放的各部件</td><td>GPT-6-Astra 在机器人上做过一次探索</td><td>找洗衣机并按按钮 2/2‡；收花入篮 0/2§；6 个桌面任务 9/9（提篮、毛巾卷入托盘、海绵入水槽、衣服入篮、擦洒出物并整理、瓶子和毛巾入托盘）</td></tr>
+<tr><td>AgileX Tracer + xArm7</td><td>臂上 RealSense D455</td><td>三种导航路点</td><td>无（没有机器人模型、SLAM、碰撞检测）</td><td>导航和搜索 9/23（五个任务）</td></tr>
+<tr><td colspan="5"><b>人形</b>（问题：能否当 System 2 指挥底层运动和手臂控制）</td></tr>
+<tr><td>Unitree G1（29 自由度），两只 Wuji Gen-1 手</td><td>头部 Azure Kinect</td><td>14 个手臂关节目标、手二值开合；IMU 转向、0.15 m/s 定时行走、停止</td><td>工具定义、关节限位、手二值预设、运动和安全约束</td><td>玩具拿起放下 2/3；转身、走近桌子并停下 3/3</td></tr>
+</tbody></table></div>
+<p class="readout">表 1 和表 14 合并照录（<a href="https://arxiv.org/html/2610.22471v2#S11.T14">看原表 ↗</a>）。没有任何平台用示范；相机只列给了 GPT-6-Astra 的。† 经人反馈后成功；‡ 以按下按钮为准；§ 两次都因躯干过温故障中止。</p>
+<div class="figd"><b>图 8（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=12">看原图 ↗</a>）。</b>八个平台各一行视频帧，按时间排列，角标是成功次数：(a) Franka 3 积木堆叠，(b) Franka Panda 胶带卷堆叠，(c) Pika 在接收的碗被碰歪后重新规划，(d) 双臂 Piper 把笔插进笔筒，(e) Tianji M6S 用人写的抓取脚本抓瓶子（成功的那次），(f) Galaxea R1 Pro 找到洗衣机并按按钮，(g) AgileX Tracer 走到黑色显示器前，(h) Unitree G1 转身、走近桌子、停下。</div>
+<h3 id="s4-2">4.2 三个发现</h3>
+<p><b>发现 1：一个模型驱动所有形态，成功率看任务。</b>刚体抓放可靠（17/18），和仿真一致；可变形物体（Franka 3 布料折叠 2/4）、精确接触（插插头三个平台合计 0/11）、长程移动任务（Tracer 导航搜索 9/23）明显更难。第二只手臂扩大了零样本能完成的任务范围；场景变化时它会根据执行反馈重新规划（图 8c）。</p>
+<p><b>发现 2：能做什么取决于能看到什么。</b>插花任务里夹爪从上方竖直夹着花茎，随夹爪移动的腕部相机看不到下方的花瓶口。单臂 Franka 3 上腕部相机是唯一的近景，插入时始终看不到瓶口，失败，花掉在花瓶旁。双臂 Piper 上，持花那只手臂的腕部视角同样受限，但 GPT-6-Astra 移动空闲的另一只手臂，直到它的腕部相机对准瓶口，然后完成插入。作者的说法是“视角成了动作空间的一部分”，并指出遥操作示范里几乎没有这种行为：操作员从自己的位置看场景，很少为解决遮挡去移动机器人的相机，所以从示范学的策略没有可模仿的。</p>
+<div class="figd"><b>图 9（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=13">看原图 ↗</a>）。</b>插花任务的主视角和腕部视角。(a) 单臂 Franka 3：夹爪竖直持茎，腕部相机看不到瓶口，插入失败。(b) 双臂 Piper：持花臂的腕部视角只看到花茎；空闲臂移动，三格加框画面依次是“看不到花瓶”“接近花瓶”“瓶口入画”，之后插入成功。</div>
+<p><b>发现 3：GPT-6-Astra 当 System 2，直接指挥现成的 System 0 运动控制。</b>人形上它思考得比局部运动控制慢得多，作者测试它能否不经过任务训练的 System 1 策略，直接通过现成控制器行动。SIMPLE 里它给出关节、身体和移动目标，由解耦的 WBC 或 AMO 控制器执行；真机 G1 上它给手臂关节目标和手的开合（2/3），并通过厂商速度接口转向和行走（3/3），两个任务分开评测。作者也说明，这只证明了慢速、靠反馈监督的方式可行，不是可靠的实时视觉运动控制。</p>
+<h3 id="s4-3">4.3 两个前提在真机上都受限</h3>
+<p><b>物理约束限制了延长执行。</b>仿真里多走的步和失败的尝试没有后果，真机上有三类约束：(i) 安全：超出控制器限制的接触会触发保护停机，通常直接结束试验，比如 Franka 3 折薄布时夹爪碰到桌面，PiPER 插插头时 3 次里有 2 次以关节碰撞故障结束，GPT-6-Astra 无法从这类硬件级故障中恢复；掉落物体这类结果不可逆。(ii) 机械极限：它得不到命令施加负载的直接反馈；Tianji M6S 上反复抓取时 Wuji 手指关节在负载下卡住，唯一的保护是它给自己设的温度阈值，手达到 62 °C 后中断；Galaxea R1 Pro 两次收花都因躯干过温故障结束。(iii) 实时：仿真里模型思考时环境暂停，真机上时间是所有代价累积的通道（token、安全风险、硬件磨损、人工监护）。G1 上它约 90% 的时间在思考，一次操作试验超过一小时。</p>
+<p><b>没有示范改变了 ICL 的形态。</b>人写的上下文能覆盖相当一部分任务，但这仍是专家做提示工程，质量直接决定结果：Tianji 手上没有预定义抓取原语时一次都没抓成（0/3），有人写的抓取原语后 3/3。上下文也不一定要人写：Galaxea R1 Pro 上 GPT-6-Astra 在一次不动机器人的熟悉环节里，读厂商文档、实时探测传感器和控制器，自己写了机器人档案，之后每个任务都从它开始。作者列出几种还没评测的上下文来源：跨形态示范、仿真里自己生成的示范、人类示范、机器人自己的部署历史、多台机器人共享的知识包。</p>
+
+<div class="note" id="n12"><span class="lab">读者注 12 · 真机数字怎么读</span><p>真机每个任务 2–6 次试验，大多 3 次。“3/3”的 Wilson 95% 区间是 44%–100%，“0/3”是 0%–56%，单个任务的成功率几乎没有统计意义，能看的是跨平台的合计：刚体抓放 17/18（区间 74%–99%），插插头 0/11（区间 0%–26%）。插插头的 11 次是 Franka 3 的 3 次、Franka Panda 的 5 次和 PiPER 的 3 次，和正文一致。发现 1 里“刚体抓放 17/18”具体包含哪些任务，正文没有列；按表 14 的计数，我凑不出唯一的组合（未核实）。双臂 Piper 的“12 个任务 14/14”和 R1 Pro 的“9/9”，图 13 图注说是“报告的回合”的计数，不一定是全部尝试。</p></div>
+
+<h2 id="s5">5 迈向下一代具身基准</h2>
+<p>前几节说明，GPT-6-Astra 在现有基准上的成绩很依赖基准给的条件：上下文里有基准的示范，步数预算放宽时失败不花钱，还要把通用代理适配到为学习型策略设计的动作接口上。这些条件来自现有基准为模仿学习设计的方式：收集示范、拟合策略、在同一任务的留出回合上评测。作者认为，对通用代理来说，这类基准部分衡量的是它利用基准所给条件的能力；只提高难度（基准饱和后的常见做法）改变不了这一点。</p>
+<h3 id="s5-1">5.1 三条原则</h3>
+<p>目标设置借鉴语言代理的评测：代理只通过机器人的传感器感知、只通过硬件开放的命令行动，在一个持续演化的世界里做一次部署并按结果评分；它在这个接口之上搭的一切都算被测系统的一部分。现有具身基准像规划语言那样判定成功：BEHAVIOR 用的 BDDL 受 PDDL 启发，把任务写成单个状态下必须成立的目标条件。这继承了经典规划的假设：完全确定的目标、二值成功、世界只随代理的动作改变、按步计时、给定的世界模型。三条原则各打破至少一条。</p>
+<p><b>原则一：任务来自人的需求。</b>基准任务通常是“机器人能被证明做到的”，因为要为它们收集示范。部署的机器人却要做服务对象需要的事，不管有没有机器人做过。任务应该按人的说法表述，也要测代理是否知道自身形态的边界：人形机器人可以去拿梯凳换天花板灯泡，轮式底盘应该请人帮忙。真实需求还带着没人说出口的义务：无人看管的炉子、开着的水龙头、代理自己打开没关的柜门。所以把这些义务（Duty）和显式请求（Intent）放在同一次部署里，并在世界时钟上设截止时间。“做早饭”这样的请求不能当成一个目标来判：它可以细化成一片吐司，也可以是一顿热饭，各种细化对人的价值不同，需要对结果定义效用，而不是数满足了几个目标谓词。固定检查甚至会和指令自相矛盾：Bench2Dex 的装调料盒任务要求把三瓶调料放进盒子，成功检查还要求酱油和醋瓶直立，指令里没提。代理也可能用检查没预料到的方式满足请求，或者钻比请求更弱的检查的空子，所以判分器本身要用人对不同结果的排序来验证。</p>
+<div class="figd"><b>图 10（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=15">看原图 ↗</a>）。</b>同一个早餐任务的两种写法。左边是 BEHAVIOR-1K 的 cook_bacon 活动定义（BDDL）：列出六片培根、冰箱、煎锅等物体，初始条件和目标条件；目标在每一步对当前状态检查，第一次成立就算成功。图注指出：没有任何条件要求关火；“cooked”在物体最高温度超过阈值后就一直为真，所以烧焦的培根也算熟了。右边是作者设想的判分器需要表达的东西：请求原话“能给我做个早饭吗？”；上下文是住户 15 分钟后出门；时钟用世界时间，思考也会推进它；完成后再观察 5 分钟；按端上桌的东西和时间给分，住户离开后价值衰减；“熟了”定义为核心温度不低于 70 °C，“焦了”定义为表面温度不低于 200 °C，只有从未烧焦的才算端上；“永不”条款（着火、机器人碰到人）和“一旦……则在时限内恢复”条款（冰箱打开后 1 分钟内关上，灶头空着就关火）。这两类条款对应缺失（absence）和有界响应（bounded-response）两种规约模式，可以用度量时序逻辑或信号时序逻辑在整条轨迹上检查。谓词定义在只有判分器知道的物理量上。图注说所有常数都是示意。</div>
+<p><b>原则二：经验在测试时获得。</b>新任务在部署时往往没有示范，而示范也限制了代理能学到的东西（上面说的主动视觉就是例子）。所以基准不提供领域内训练回合和场景示范，代理要靠自己探索把通用先验落到陌生的家和身体上：摸清布局、试可供性、搞懂各家古怪的电器。规划语言假设世界模型是给定的，基准目标也残留着这一点：cooked、toggled_on 这样的谓词等于告诉代理哪些变量重要，而真实的空气炸锅只有一个旋钮定时器，吐司机的旋钮给的是连续的结果。所以判分器应该在对代理保密的物理量上定义谓词，探索和其他动作一样消耗世界时间、产生副作用。经验在一次部署内的多个请求之间保留，部署之间重置，所以评估单位是一次部署，代理多快在其中变得能干也是要测的量。</p>
+<p><b>原则三：世界不停。</b>步数预算放宽在仿真里不花钱，是因为模型思考时模拟器暂停：RoboDojo 的标准预算对应 8–76 秒的指令运动，而平均计算时间是 55 分钟。作者提出：从一次观测到下一条命令之间的时间（推理、工具调用、通信）按上一条命令继续模拟，和真机一样；宿主机的仿真和渲染时间不计。判分器要在世界时钟上观察整条轨迹，包括代理宣布完成后的一段时间，因为只看最终状态看不到“蛋熟了、然后又烧焦了”。义务成为轨迹上的约束：全程避免，或者一旦触发就在时限内恢复。时间也决定结果的价值：住户 15 分钟后出门，10 分钟端上鸡蛋和吐司比一小时后端上全套早餐更好，所以效用要同时看做成了什么和什么时候做成。</p>
+<h3 id="s5-2">5.2 家居原型</h3>
+<p>作者在 NVIDIA Isaac Sim 里用一条可复现的流程搭了一套完全可交互的一居室公寓：公开资产加一张户型图组成住宅；编码代理在人工审核下按真实尺寸摆放日用品；每个部件都绑定物理，包括关节、接触、基于位置的流体和布料，以及日常电器的加热和烹饪过程。环境按“因果保真”构建：代理决策所依赖的东西，从物体质量和摩擦到热量从灶头传到锅再传到食物，都要有正确的因果关系，并以真实数据为依据。</p>
+<div class="figd"><b>图 11（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=16">看原图 ↗</a>）。</b>六格流程：(1) 公开资产，(2) 户型图，二者合成可交互的家；(3) 编码代理在人工审核下把日用品按真实尺寸放在命名的支撑面上；(4) 每个部件绑定物理（关节、液体、布料、接触）；(5) 任务只陈述需求，例如“能给我做个早饭吗？”；(6) 代理要自己弄懂冰箱、空气炸锅和吐司机，判分同时看请求（Intent）和没人说出的义务（Duty，如关冰箱门）。代理只通过机器人机载相机观察，思考会推进世界时间。</div>
+<p>在这个公寓里，GPT-6-Astra 按第 4 节的零样本设置控制一台 AgiBot G2：通过机器人自己的接口，只看机载相机和本体感知，没有示范，只有一份形态说明。图 12 展示了五个代表性失败，作者归纳成三个发现：</p>
+<ul>
+<li><b>只顾手上的东西，忘了家里其他地方。</b>整理书桌时它移动夹着的书，手臂把别的东西碰到地上，肘部把显示器推歪；收纳杂货时它打开冰箱放牛奶，然后转去把水果拿到桌上，冰箱门从世界时间 300 秒开到 765 秒。家里其他部分（包括它自己的手臂和它改变过的状态）似乎只在挡住下一步时才进入它的决策。只检查最终状态会漏掉这两种情况：回合结束时冰箱关上了，书的位置也说明不了书桌其他东西怎样了。</li>
+<li><b>没有示范，就弄不清陌生装置怎么动、自己的身体该站在哪。</b>做早饭要从冰箱拿培根。它拉开冰箱门、一只手臂扶着门，但底盘停在窄过道里，开着的门挡在另一只手臂和搁架之间。要拿到培根，得把底盘放到让门和自身都能塞进冰箱和身后台面之间的位置。它只规划了夹爪和把手，没规划身体其他部分：松开把手去够，门就关上了，回到原点。遇到不熟悉的水龙头，它一直推把手而不是转，水池满了溢出来。两种情况它都在重复、微调同一个动作。</li>
+<li><b>依据的观测在它思考时就过时了。</b>它通过头部相机看煎蛋，正确地决定蛋一凝固就关火，但每次决策要花几秒世界时间、火还开着，等它关火时，蛋已经凝固约 90 秒、烧焦了。它的推理方式像是世界会等它，在第 2 节的模拟器里确实如此。</li>
+</ul>
+<div class="figd"><b>图 12（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=17">看原图 ↗</a>）。</b>五个失败，紫色框标出相关物体，时间戳是世界时间，外部相机仅作可视化：(a) 整理时的意外碰撞；(b) 搬水果时冰箱门开着（300 s 到 765 s）；(c) 打开的冰箱伸手够不进去，另一只手只能绕过门；(d) 水龙头没关、排水口堵着，水池溢出顺着柜子流到地上；(e) 决定关火的过程花了 8 s 世界时间，火一直开着，关火时蛋已凝固约 90 s，烧焦。</div>
+<p>作者承认这些回合数量少、只是定性的，但方向一致：在第 2 节的基准上，“决定做什么”的能力就够了；在只陈述需求、不给示范、世界不停的家里，还要把决定落实到行动上，这正是它目前欠缺的。</p>
+<h3 id="s5-3">5.3 开放问题</h3>
+<ul>
+<li><b>判分器的证据。</b>要给“发生了什么”打分，判分器需要物理事实（蛋有没有翻、有没有焦），而模拟器仍用启发式状态切换来建模这些。学习型判分器还补不上：视觉语言成功检测器在接触密集装配上最多 60% 平衡准确率，视觉语言轨迹判分器会被代理自己的推理误导。</li>
+<li><b>仿真保真度。</b>判分器读模拟器状态，建模错误和代理行为看起来一样：关节建模错了可能让代理看似成功，接触伪影可能让它看似失败。目前只有短桌面任务（包括少数可变形物体）被证明仿真能预测真机结果，长程家务还没有。</li>
+<li><b>世界不停的代价。</b>思考时也要模拟所有物理过程，分数就取决于延迟、硬件和服务负载。现有基准要么暂停环境（推理速度不进分数），要么按生成的 token 推进时间（可复现，但不反映部署延迟）。</li>
+<li><b>成本。</b>一次一小时以上的部署重复起来很贵，而即使是短的机器人试验，通常也跑得太少，分不出策略的高下。</li>
+</ul>
+
+<h2 id="s6">6 结论</h2>
+<p>GPT-6-Astra 是具身智能的一次明显跃进，但不是终点。强 harness、上下文学习和足够的执行预算能把很多孤立基准推到接近饱和；剩下的挑战转向跨任务迁移、长程推理、失败恢复，以及真实世界在时间、成本和安全上的约束。作者提醒，基准成绩要越来越谨慎地解读：下一步不是解更多孤立任务，而是让具身系统在真实部署条件下可靠、高效地运行。</p>
+
+<h2 id="appA">附录 A 作者，附录 B 相关工作</h2>
+<p><b>A。</b>分工：项目负责人 3 人；仿真基准 10 人；harness 框架 12 人；真机验证 15 人；基准原型 4 人；分析与呈现 2 人；合作者 7 人；顾问组 9 人。带星号的是核心贡献者。</p>
+<p><b>B.1 基础模型当具身代理。</b>早期工作（SayCan、Inner Monologue、Code as Policies、VoxPoser、ReKep、Gemini Robotics-ER）里基础模型决定“做什么”，“怎么做”交给预定义技能、规划器或单独训练的控制器。本文问的是前沿模型能不能自己当控制器，直接输出末端位姿。2026 年快速增长的另一条线借用编码代理的 harness 范式：有的改动作接口（RoboDawn、Show-Harness 暴露离散语义运动命令，Robo-Harness K1 给标定好的感知工具），有的做上下文和核实（Thea 用场景图做持久上下文，Zetta 围绕冻结的基础策略演化代码式运行时评审和恢复技能），还有 Guava、RHO、HARBOR、EmbodiedSWE。本文第 3 节的消融是对这些系统层面提案的补充。</p>
+<p><b>B.2 机器人策略学习。</b>从 BC-Z、RT-1 到 Implicit BC、BeT、ACT、Diffusion Policy；VLA 从 RT-2、OpenVLA、Octo、RDT 到 π 系列、GR00T N1、Gemini Robotics、MolmoAct2；世界动作模型（WAM）从 UniPi、GR-1/2 到 2026 年的 Cosmos Policy、LingBot-VA、Fast-WAM、DreamZero；最新的 Motus、BagelVLA、VLA-JEPA、π0.7 模糊了两者边界。它们都从机器人数据学策略，本文问的是互补的问题。</p>
+<p><b>B.3 具身基准。</b>这一节列了本文用到的和相关的基准，结论和第 5 节一致。</p>
+
+<h2 id="appC">附录 C 各基准的完整结果</h2>
+<p>每个基准一节，结构相同：任务和示范、观测和控制、预算和延长、结果和对比。下表是我按各节整理的设置对照，回合数和基线回合数是理解表 2 的关键。</p>
+<div class="tablewrap"><table class="t-c"><thead><tr><th>节</th><th>基准</th><th>GPT 回合数</th><th>基线回合数</th><th>动作接口</th><th>1× 预算</th><th>结果（1× → 10×）</th></tr></thead><tbody>
+<tr><td>C.1</td><td>LIBERO-PRO</td><td>800（8 套件 × 10 任务 × 10 初始态）</td><td>按各自论文</td><td>Panda OSC 7 维 @20 Hz，模型选原语再编译</td><td>10,000 环境步或 100 轮规划</td><td>786/800 → 794/800</td></tr>
+<tr><td>C.2</td><td>LIBERO-Long++ / Ultra-Long</td><td>120 / 90（每任务 10）</td><td>按 LiLo-VLA 发布的协议</td><td>同上</td><td>600–800 / 1,800–3,200 步</td><td>97.5 → 100；82.2 → 98.9</td></tr>
+<tr><td>C.3</td><td>RoboDojo</td><td>210（42 任务 × 5 布局）</td><td>2,100（每任务 50）</td><td>每臂末端位置 + 四元数 + 夹爪，IK，@25 Hz</td><td>200–1,900 控制步</td><td>27.6 → 81.9</td></tr>
+<tr><td>C.4</td><td>RoboLab</td><td>未报告</td><td>1,200（120 任务 × 10）</td><td>–</td><td>–</td><td>57.1 → 69.2</td></tr>
+<tr><td>C.5</td><td>Bench2Dex</td><td>78（26 任务 × 3）</td><td>1,300（每任务 50）</td><td>绝对关节目标 @20 Hz，模型自选块长</td><td>593–1,542 控制步</td><td>25.6 → 61.5</td></tr>
+<tr><td>C.6</td><td>DexJoCo</td><td>55（11 任务 × 5 种子）</td><td>3 训练种子 × 每任务 50</td><td>–</td><td>1,000–1,500 动作步</td><td>78.2 → 87.3</td></tr>
+<tr><td>C.7</td><td>LHPR-VLN</td><td>114（从 205 筛出）</td><td>见读者注 5</td><td>前进 0.25 m、转 30°、停止；三视角</td><td>500 动作</td><td>21.1 → 28.9</td></tr>
+<tr><td>C.8</td><td>VLN-CE R2R / RxR</td><td>各 100（子集）</td><td>官方 val-unseen 全集</td><td>前进 0.25 m、转 15° 或 30°；单目</td><td>500 动作</td><td>80 → 88；82 → 90</td></tr>
+<tr><td>C.9</td><td>SIMPLE</td><td>Matched-8：80</td><td>每格 10，全 180</td><td>(T, 36) 物理动作块：手指、手臂、躯干、底盘</td><td>按基准</td><td>97.5 → 98.8（Matched-8）</td></tr>
+<tr><td>C.10</td><td>BEHAVIOR-1K</td><td>100（每任务 1 次）</td><td>挑战赛排行榜</td><td>21 维：底盘 3、躯干 4、两个 6 维末端位姿、两个夹爪</td><td>人类示范平均长度 × 1.5</td><td>37/100</td></tr>
+</tbody></table></div>
+<p class="readout">我按附录 C 各节整理。“–”是该节没有写或我没找到。</p>
+<p><b>几处值得记下的细节。</b></p>
+<ul>
+<li><b>LIBERO-PRO（C.1）。</b>知识包按基础任务挑选，合并对应 Task / Swap 家族的笔记和从单独的公开探索阶段提炼的全局策略、感知、核实、恢复笔记；不含任何评测轨迹、当前初始态或可复用的像素、坐标、动作序列。1× 时 786/800（98.25%），比此前最强的 RPent / GPT-6-Astra（低推理强度）高 5.62 个百分点；错误集中在 Long Task（97%）和 Long Swap（90%）。</li>
+<li><b>LIBERO-Long++ / Ultra-Long（C.2，表 4）。</b>每个组合任务的知识包只用发布的原子技能训练集（4,050 条轨迹，每技能 150 条）。Long++ 的“重排序”变体上，π0.5 和 OpenVLA-OFT 都是 0%，GPT-6-Astra 96.7%；Ultra-Long 上两者也几乎为 0。Ultra-Long 的“Organize Table”单回合要 15–18M token，是最贵的任务。</li>
+<li><b>RoboDojo（C.3，表 5）。</b>双臂 ARX X5，三路 640×480 RGB；物体位姿、深度、分割、接触、模拟器隐藏状态、任务源码和评测器诊断都不给。每个目标相对当前位姿最多 5 cm、0.35 rad。前四组每个任务看 10 条示范；Open 组 8 个任务共用从其他组 340 条示范学的一个包。10× 下 Store laptop and headphones 平均每回合 137.9M token、1,125 分钟，成功率仍为 0（得分 40）。</li>
+<li><b>RoboLab（C.4，表 6）。</b>1× 57.1% 高于所有列出的基线（最好的 FLUX 3 Action 42.9%，VLA 里最好的 π0.5 28.0%）。作者自己说这不是相同推理成本下的比较，也需要任务级结果才能知道差距来自哪个能力轴。</li>
+<li><b>Bench2Dex（C.5）。</b>12 种臂-手组合，Full 随机化。给了机器人运动学和相机标定（作者认为标定好的部署里这些本来可得），不给物体状态、深度、分割、接触和评测器反馈。1× 时的回合已经跑完了，10× 是用原始重置配置加记录动作精确重放恢复到超时终点，再续接原来的上下文；重放要在容差内匹配存档的数值状态。表 7 的 token 是下界。</li>
+<li><b>DexJoCo（C.6）。</b>6 个单臂、5 个双臂任务，rand_full 随机化（物体位置、桌高、外部相机、光照、桌面纹理），动力学随机化关闭。延长时用一个新的 GPT-6-Astra 会话接管同一个仍在运行的模拟器实例和本回合历史，不重置也不重放。</li>
+<li><b>LHPR-VLN（C.7，表 9）和 VLN-CE（C.8，表 10）。</b>见读者注 5、6。LHPR-VLN 上整条序列成功率不到 30%，单个目标成功率 62.87%；STOP 会不可逆地推进阶段，所以目标核实和进度跟踪很关键。</li>
+<li><b>SIMPLE（C.9，表 11、12）。</b>见读者注 4。零样本 → ICL 在成功回合上把平均动作步数从 376.9 降到 210.4（−44.2%），挂钟时间从 47.0 降到 31.4 分钟，但 token 从 2.64M 升到 6.40M；准备一次 8.34M token、90.4 分钟。</li>
+<li><b>BEHAVIOR（C.10）。</b>见读者注 11。</li>
+</ul>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · 样本量：GPT-6-Astra 跑得少，基线跑得多</span><p>附录 C 的回合数整理在上表。几个关键对比（Wilson 95% 区间，我现算）：</p>
+<div class="tablewrap"><table class="t-ci"><thead><tr><th>对比</th><th>GPT-6-Astra</th><th>基线</th></tr></thead><tbody>
+<tr><td>Bench2Dex 1×</td><td>20/78 = 25.6%，17.3–36.3</td><td>π0.5 331/1300 = 25.5%，23.2–27.9</td></tr>
+<tr><td>DexJoCo 1×</td><td>43/55 = 78.2%，65.6–87.1</td><td>π0.5 40.3%（3 种子 × 50 × 11）</td></tr>
+<tr><td>RoboDojo 1× / 10×</td><td>58/210 = 27.6%，22.0–34.0；172/210 = 81.9%，76.1–86.5</td><td>Awomo-0.5 30.56%（2,100 回合）</td></tr>
+<tr><td>SIMPLE Matched-8 1×</td><td>78/80 = 97.5%，91.3–99.3</td><td>Psi-0 74/80 = 92.5%，84.6–96.5</td></tr>
+<tr><td>BEHAVIOR</td><td>37/100，28.2–46.8</td><td>Rondo 14.8%</td></tr>
+<tr><td>LHPR-VLN 1×</td><td>24/114 = 21.1%，14.6–29.4</td><td>Claude Code Opus-5 6/114 = 5.3%，2.4–11.0</td></tr>
+</tbody></table></div>
+<p>Bench2Dex 上正文说“和 π0.5 相当”，区间宽度差了四倍，这个说法本身没问题，但也意味着 1× 下看不出谁更好。各附录基本都诚实地写了“基线回合数不同，不能直接比较”（C.5、C.6、C.7、C.8 都有），问题在于图 1 和摘要没有带上这层保留。下面的计算器可以自己试。</p></div>
+
+<div class="viz" id="w-sig">
+<p class="cap">交互图 3 · 两个成功率差多少才算数（Wilson 区间 + Fisher 精确检验）</p>
+<div class="ctl"><label>预设 <select id="sg-pre"><option value="b2d">Bench2Dex 1×：GPT 对 π0.5</option><option value="simple">SIMPLE Common-4：ICL 对 Psi-0</option><option value="dir">表 13：方向式命令对基线</option><option value="fb">表 13：反馈子代理对基线</option><option value="lhpr">LHPR-VLN：GPT 对 Claude Code</option><option value="dojo">RoboDojo：10× 对 1×</option></select></label></div>
+<p class="readout" id="sg-desc">Bench2Dex 1×：GPT-6-Astra 20/78 对 π0.5 331/1300（附录 C.5）</p>
+<div class="ctl"><label>A 成功 <input type="number" id="sg-k1" value="20" min="0"></label><label>A 回合 <input type="number" id="sg-n1" value="78" min="1"></label><label>B 成功 <input type="number" id="sg-k2" value="331" min="0"></label><label>B 回合 <input type="number" id="sg-n2" value="1300" min="1"></label></div>
+<svg id="sg-svg" viewBox="0 0 680 96" role="img" aria-label="两个成功率的置信区间"></svg>
+<p class="readout" id="sg-out"></p>
+<p class="readout">Fisher 检验假设两组回合相互独立。RoboDojo 的 10× 和 1× 是同一批回合，配对检验会更显著，这里只是示意。</p>
+</div>
+
+<div class="note" id="n4"><span class="lab">读者注 4 · SIMPLE 的 98.8 只覆盖 3 个任务、80 个回合</span><p>表 2 里 SIMPLE 的 96.3、97.5、98.8 都是 Matched-8 上的数：XMovePick L0–L2、BendPick L0–L1、Tabletop L0–L2，共 8 格 80 回合（96.3 = 77/80，97.5 = 78/80，98.8 = 79/80）。SIMPLE 原论文表 1 的评测集是 6 个任务 × 3 个难度 = 180 回合。Matched-8 不含 BendPick L2、整个 Handover、XMoveBendPick 和 PickBetweenTables。论文说明了这 8 格是按“四种设置都有完整结果”挑的，不是按成功率挑的，并说它“不是对全部 SIMPLE 任务的估计”。但被排除的恰好包括基线更难的格子：Psi-0 在全 180 回合上是 85.6%，在 Matched-8 上是 92.5%。另外，PickBetweenTables 的 GPT-6-Astra 结果是“按结果挑选的子集，并用了修订后的发布指标”，只计入参考用的六任务总数。图 1 的 SIMPLE 条没有标出这些。</p></div>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 导航基准用的是筛过的子集</span><p><b>LHPR-VLN。</b>官方未见测试集有 205 回合、27 个场景。作者人工检查了参考轨迹上子任务目标是否可见，只保留所有目标都可见的回合，剩 114 回合、25 个场景。Claude Code Opus-5 的 5.26% 正好是 6/114，应当是同一子集上的数；但 FantasyVLN 的 2.44% 正好是 5/205，不是任何 k/114（2/114 = 1.75%，3/114 = 2.63%），看起来是全量 205 回合上的数（我的推断，表 9 没有说明基线的回合集）。如果是这样，表 2 里 LHPR-VLN 的“SOTA 2.4”是在更难的全集上测的。</p><p><b>VLN-CE。</b>R2R 用的是 Open-Nav 选的 100 回合子集；RxR 的 100 回合是作者自己抽的：在 20,000 个分层子集里选指令长度和路径长度分布最接近全集的一个，再做 60,000 次场景内替换。基线大多是官方 val-unseen 全集（R2R 1,839 回合）上的数。C.8 节自己写了“回合覆盖、观测和推理预算的差异限制了比较”。</p></div>
+
+<div class="note" id="n6"><span class="lab">读者注 6 · 导航的 10× 更像“第二次机会”，不是接着跑</span><p>2.1 节说延长是在同一回合里接着跑，回合在终止失败时结束。但导航的规则不同：VLN-CE 里 STOP 会结束回合；LHPR-VLN 里 STOP 会不可逆地推进阶段。C.7 写的是“延长评测保留 1× 的成功结果，只对起初不成功的回合用更大的预算评测，并在更高时保留之前的分数”；C.8 写的是“延长评测用于起初不成功的回合，报告的延长结果保留之前的成功和每个指标在两次中更好的值”。一个已经在错误位置 STOP 的回合没法“接着跑”，所以这些回合应当是从头再跑一次（我的推断，论文没有用“重跑”这个词）。表 2 里导航的“1× 截断”高于单独 1×（R2R 85.0 对 80.0，LHPR-VLN 25.4 对 21.1）也符合这个解释：第二次运行在前 500 步内就成功了一些第一次失败的回合。这样，导航的 10× 成绩实际上是“两次尝试取较好的一次”，提升里有一部分来自重试，而不只是步数更多。</p></div>
+
+<div class="note" id="n11"><span class="lab">读者注 11 · BEHAVIOR 的 37%</span><p>BEHAVIOR-1K 2026 挑战赛的 100 个任务，每个任务只跑公开测试的第 0 回合、种子 0，一次。37/100 的 Wilson 95% 区间是 28.2%–46.8%，下界仍高于排行榜最好的 14.8%，所以“领先”这个结论站得住。两点需要注意：(1) 作者保留了默认的 R1Pro 机器人，但“附带下面描述的手臂控制器修改”，把 23 维关节空间接口换成了 21 维末端位姿接口（官方 IK 控制器把位姿转成手臂运动），示范里的关节命令也用官方正运动学转成了末端位姿。我没有核实挑战赛规则是否允许这样换接口，也没有核实排行榜上的方法用的是什么接口（未核实）。(2) 同一套系统用关节空间接口时只有 1%，换接口后 37%。这一条是全文关于动作表示最有力的证据，比 3.2 节 RoboDojo 上几个百分点的差别强得多。</p></div>
+
+<h2 id="appD">附录 D Harness 消融</h2>
+<p>42 个 RoboDojo 任务，每个任务用不同种子跑 3 次（ICL 那一行除外，沿用表 5）。同时报告任务得分（反映部分完成）和成功率（完全完成），按五个维度分组：泛化、精度、长程、记忆、开放。token 包括 GPT-6-Astra 和辅助代理的输入和输出。除非另说，都和 RoboRSI 基线比。</p>
+<div class="tablewrap"><table class="t-t13"><thead><tr><th>配置</th><th>平均</th><th>泛化</th><th>精度</th><th>长程</th><th>记忆</th><th>开放</th><th>token (M) ↓</th></tr></thead><tbody>
+<tr><td>基线</td><td class="num">22.78 / 15.56</td><td class="num">27.08 / 22.22</td><td class="num">9.79 / 0.00</td><td class="num">23.13 / 4.17</td><td class="num">22.22 / 22.22</td><td class="num">31.67 / 29.17</td><td class="num">2.56</td></tr>
+<tr><td colspan="8"><b>A 代理组件</b></td></tr>
+<tr><td>+ 规划子代理</td><td class="num">26.03 / 19.44</td><td class="num">37.08 / 33.33</td><td class="num">11.88 / 4.17</td><td class="num">21.46 / 4.17</td><td class="num">40.56 / 38.89</td><td class="num">19.17 / 16.67</td><td class="num">2.96</td></tr>
+<tr><td>+ 执行子代理</td><td class="num">21.56 / 15.28</td><td class="num">36.39 / 33.33</td><td class="num">14.79 / 4.17</td><td class="num">10.63 / 0.00</td><td class="num">25.56 / 22.22</td><td class="num">20.42 / 16.67</td><td class="num">2.55</td></tr>
+<tr><td>+ 反馈子代理</td><td class="num">30.00 / 24.72</td><td class="num">30.83 / 27.78</td><td class="num">16.88 / 12.50</td><td class="num">24.38 / 8.33</td><td class="num">33.33 / 33.33</td><td class="num">44.58 / 41.67</td><td class="num">2.74</td></tr>
+<tr><td>+ 历史压缩</td><td class="num">28.03 / 21.11</td><td class="num">35.42 / 33.33</td><td class="num">7.29 / 0.00</td><td class="num">24.38 / 4.17</td><td class="num">38.89 / 38.89</td><td class="num">34.17 / 29.17</td><td class="num">0.86</td></tr>
+<tr><td colspan="8"><b>B 动作表示和分块</b></td></tr>
+<tr><td>方向式运动命令</td><td class="num">26.61 / 18.06</td><td class="num">24.58 / 22.22</td><td class="num">16.88 / 8.33</td><td class="num">29.38 / 4.17</td><td class="num">23.89 / 22.22</td><td class="num">38.33 / 33.33</td><td class="num">1.91</td></tr>
+<tr><td>关节角</td><td class="num">16.08 / 9.72</td><td class="num">9.86 / 5.56</td><td class="num">5.21 / 0.00</td><td class="num">19.79 / 0.00</td><td class="num">22.22 / 22.22</td><td class="num">23.33 / 20.83</td><td class="num">1.12</td></tr>
+<tr><td>固定块（L = 4）</td><td class="num">17.97 / 11.39</td><td class="num">27.50 / 25.00</td><td class="num">8.96 / 0.00</td><td class="num">18.13 / 0.00</td><td class="num">11.11 / 11.11</td><td class="num">24.17 / 20.83</td><td class="num">0.43</td></tr>
+<tr><td>自适应块</td><td class="num">26.36 / 20.00</td><td class="num">30.83 / 27.78</td><td class="num">18.13 / 8.33</td><td class="num">30.21 / 12.50</td><td class="num">22.22 / 22.22</td><td class="num">30.42 / 29.17</td><td class="num">1.15</td></tr>
+<tr><td colspan="8"><b>C System 1 与 System 2 协作</b></td></tr>
+<tr><td>VLA（π0.5）</td><td class="num">11.41 / 6.91</td><td class="num">13.37 / 8.17</td><td class="num">12.40 / 5.50</td><td class="num">23.54 / 14.67</td><td class="num">5.78 / 4.56</td><td class="num">1.98 / 1.67</td><td class="num">–</td></tr>
+<tr><td>+ VLA 开环（π0.5）</td><td class="num">11.21 / 5.83</td><td class="num">21.67 / 16.67</td><td class="num">1.88 / 0.00</td><td class="num">32.50 / 12.50</td><td class="num">0.00 / 0.00</td><td class="num">0.00 / 0.00</td><td class="num">0.39</td></tr>
+<tr><td>+ VLA 闭环</td><td class="num">31.15 / 23.61</td><td class="num">35.97 / 30.56</td><td class="num">18.54 / 8.33</td><td class="num">36.25 / 16.67</td><td class="num">35.00 / 33.33</td><td class="num">30.00 / 29.17</td><td class="num">7.66</td></tr>
+<tr><td>+ VLA 闭环（L = 4）</td><td class="num">34.64 / 25.83</td><td class="num">38.61 / 33.33</td><td class="num">20.63 / 8.33</td><td class="num">44.79 / 25.00</td><td class="num">33.33 / 33.33</td><td class="num">35.83 / 29.17</td><td class="num">2.80</td></tr>
+<tr><td>+ ICL</td><td class="num">39.24 / 29.67</td><td class="num">34.92 / 28.33</td><td class="num">28.63 / 15.00</td><td class="num">41.38 / 20.00</td><td class="num">73.67 / 70.00</td><td class="num">17.63 / 15.00</td><td class="num">9.57</td></tr>
+<tr><td>+ ICL + VLA 闭环</td><td class="num best">60.08 / 54.17</td><td class="num">54.58 / 50.00</td><td class="num">49.38 / 45.83</td><td class="num">60.42 / 41.67</td><td class="num">66.67 / 66.67</td><td class="num">69.38 / 66.67</td><td class="num">19.33</td></tr>
+</tbody></table></div>
+<p class="readout">表 13 照录（<a href="https://arxiv.org/html/2610.22471v2#S10.T13">看原表 ↗</a>）。每格是得分 / 成功率（%）；“平均”是五类的不加权平均。单用 VLA 那一行的各类成功率（8.17、5.50、14.67、4.56……）不是 1/36、1/24、1/18 的整数倍，回合设置和其他行不同，论文没有说明。</p>
+<h3 id="appD-1">D.1 代理组件</h3>
+<p>四个组件分别加到基线上：(i) 规划子代理，把任务拆成子目标和完成判据，输出放进主代理上下文；(ii) 执行子代理，根据主代理的子目标生成末端位姿动作；(iii) 反馈子代理，评估执行结果，建议继续、调整或重试；(iv) 历史压缩，保留最近四轮，把更早的交互合并成上限 2,000 token 的滚动摘要。</p>
+<p>结果：反馈子代理提升最大，平均得分 +7.22、成功率 +9.16 个百分点，token 只多 7.03%；历史压缩得分 +5.25、成功率 +5.55，token 少 66.41%；规划子代理得分 +3.25，token 多 15.63%，但在记忆类上收益明显；执行子代理得分 −1.22，token 和基线差不多。作者的结论是：有效的代理设计取决于额外的推理怎样支持执行，而不在于组件数量；以后评估新组件要同时看性能和 token。（按读者注 7 的估算，这一组里只有反馈子代理接近显著。）</p>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 成本换算</span><p>按论文自己的约定 1M token ≈ 1 美元（图 5 图注；理由是约 98% 是缓存输入）：</p><ul><li>LIBERO-Long++ 每回合约 1.04M token、53 分钟，约 1 美元；Ultra-Long 8.89M、111 分钟，约 9 美元。外加每个任务一次性的准备：约 1.7–2.0M token、约 20 分钟（表 4）。</li><li>RoboDojo 1× 每回合 12.47M token、55 分钟；10× 每回合 38.63M、217 分钟，约 39 美元。210 回合的 10× 实验约 8,100M token，按约定约 8,100 美元，还不算准备（表 5）。最贵的单项是 Store laptop and headphones，10× 下平均每回合 137.9M token、约 19 小时，成功率 0。</li><li>RoboDojo 的 1× 预算是 200–1,900 个 25 Hz 控制步，即 8–76 秒的运动；平均 55 分钟的计算时间是它的 43–410 倍（3,294 秒 / 76 秒 = 43，/ 8 秒 = 412）。这正是第 5 节“世界不停”原则要针对的落差。</li><li>表 5 的时间“不含模拟器执行动作和轨迹重放”，所以是纯推理和工具调用的时间。</li></ul><p>对比一下：一个 3B 量级的 VLA 在单卡上推理一步通常是几十到一两百毫秒，这个量级是我的估计，论文没有给 VLA 的推理成本。</p></div>
+
+<h2 id="appE">附录 E 真机完整结果</h2>
+<p>每个平台分五部分写：设置、给的上下文、任务和结果、发现、可视化。汇总已在 <a href="#s4-1">4.1 节的表</a>里。补充几条正文没展开的：</p>
+<ul>
+<li><b>Franka 3（E.2）。</b>插插头时第一次失败的插入通常会撞上插座并让机器人停机。作者特别指出，模拟器会让执行继续，真机不会。</li>
+<li><b>PiPER + Pika（E.4）。</b>每次试验从新上下文开始，不带其他试验的轨迹或交互记录。图 8(c) 就是这个平台：接触把接收的碗推歪后，它重新规划。</li>
+<li><b>双臂 Piper（E.5）。</b>没有预定义的双臂协调协议，直接控制两臂；12 个任务全部成功，包括 T 恤折叠和插花。</li>
+<li><b>Tianji M6S（E.6）。</b>三组对照：模型自己写抓取代码 0/3；用人写的抓取脚本，玩具 3/3，瓶子 1/3 且是在人给了反馈之后。</li>
+<li><b>Galaxea R1 Pro（E.7）。</b>每个任务限时一小时，必须在截止前用新拍的图像核实物理结果，否则算失败。机器人档案是 GPT-6-Astra 自己在熟悉环节写的。</li>
+<li><b>AgileX Tracer + xArm7（E.8）。</b>没有机器人模型、SLAM 和碰撞检测，只有三种导航路点；记录视频是第三人称手机拍的。</li>
+<li><b>Unitree G1（E.9）。</b>保留六次运行，每个任务三次；操作和移动用不同的工具集，分开评测。固定身体时的毛绒玩具拿起放下 2/3：失败那次玩具掉下桌，在固定身体的工作空间内没能完成恢复。两个细节：行走时它看了新图像后把每次前进命令从 0.8 秒逐步缩到 0.5、0.3、0.2、0.15 秒，三次都停在自己估计的 0.15–0.20 m 处而不是要求的 0.10 m，理由是“不许接触”；第 3 次拿玩具时 26 个手臂动作全部返回“未到目标就停住”（18 次）或超时（8 次），中位跟踪误差 0.071 rad，人工判定却是成功。作者的意思是：关节目标合法不等于执行忠实。</li>
+</ul>
+<div class="figd"><b>图 13–21（文字描述，<a href="https://arxiv.org/pdf/2610.22471v2#page=52">看原图 ↗</a>）。</b>图 13 是全部零样本真机任务的画廊，每个任务三帧，按结果分三组：A 每次都成功（如 Franka 3 积木堆叠、Franka Panda 胶带卷）；B 部分成功，按成功率排序（B1 是每次都完成但结果不整齐的布料折叠）；C 全部失败（插插头等）。图 14–21 按平台各一张：Franka 3、Franka Panda、PiPER + Pika、双臂 Piper、Tianji M6S（含模型写的抓取代码第 1 轮，玩具始终没被提起）、Galaxea R1 Pro、AgileX Tracer、Unitree G1。</div>
+
+<div class="note" id="n13"><span class="lab">读者注 13 · 这篇报告和它比较的“代理式基线”</span><p>表 2 的代理式基线里有两个也基于 GPT-6-Astra：LIBERO-PRO 的 RPent / GPT-6-Astra（92.6%，低推理强度）和 R2R 的 GPT-6-Astra (ultra)（81.3%）。RoboDojo 团队自己也测过 GPT-6-Astra（表 5 基线列，23.10%）。所以表 2 里“GPT-6-Astra 对基线”的一部分差距，其实是同一个模型在不同 harness、推理强度和协议下的差距：比如 RoboDojo 上 23.10%（RoboDojo 团队的测法）对 27.62%（本文 1×）对 81.90%（本文 10×）。这恰好支持了第 3 节的论点：harness 和预算对结果的影响不亚于模型本身。本文在 LIBERO-PRO、LIBERO-Long 等节写明用的是“最大推理强度”。</p></div>
+
+<div class="note" id="n14"><span class="lab">读者注 14 · 几处文字小问题</span><p>摘要写的是“chucking parameters”，应为 chunking；“close-loop”一般写作 closed-loop（正文 3.1 节用的是 closed-loop）。图 1 图注说“RoboLab 没有训练集，因此没有 ICL”，但表 2 把 RoboLab 标成‡“零样本”，图 1 的条形却和其他 ICL 基准画在一起，读图时容易忽略。3.2 节说自适应块“成功率高于固定块、token 也更多”，容易被读成“比基线贵”，其实比基线便宜（读者注 8）。这些都不影响结论。</p></div>
+
+<h2 id="notes">读者注汇总</h2>
+<ol class="notes">
+<li><a href="#n1">图 1 口径和两个 1×</a>：图 1 是 10× 对基线的 1×；表 2 图注说 1× 单独跑，但多数基准的附录写的是同一回合截断。</li>
+<li><a href="#n2">RoboDojo 的 54.2 和 81.9</a>：一个带 VLA、126 回合，一个直接控制、210 回合；直接控制的 1× 27.6 低于代理式最好的 31.4。</li>
+<li><a href="#n3">样本量</a>：Bench2Dex 78 对 1,300 回合，DexJoCo 55 回合；Wilson 区间见表。</li>
+<li><a href="#n4">SIMPLE Matched-8</a>：98.8 只覆盖 3 个任务 80 回合；Psi-0 在全集 85.6%、在子集 92.5%。</li>
+<li><a href="#n5">导航子集</a>：LHPR-VLN 从 205 筛到 114；FantasyVLN 的 2.44% = 5/205，像是全集上的数（推断）。</li>
+<li><a href="#n6">导航的 10×</a>：STOP 会结束回合，延长更像从头再跑、取两次中较好的（推断）。</li>
+<li><a href="#n7">表 13 换算成回合</a>：基线 20/126；方向式 +2.50 个百分点 = 多 3 回合；动作表示和分块的差别在这个样本量下分不出来。</li>
+<li><a href="#n8">自适应块省 token</a>：比基线少 55%；表 13 的 ICL token 9.57M 和表 5 的 12.04–12.47M 对不上。</li>
+<li><a href="#n9">成本换算</a>：RoboDojo 10× 每回合约 39 美元、3.6 小时；计算时间是指令运动时间的 43–410 倍。</li>
+<li><a href="#n10">10× 救回比例</a>：Ultra-Long 94%、RoboDojo 75%、灵巧手约一半、LHPR-VLN 5%。</li>
+<li><a href="#n11">BEHAVIOR 37%</a>：区间 28–47，仍明显领先；换了末端位姿接口，关节空间只有 1%。</li>
+<li><a href="#n12">真机数字</a>：每任务约 3 次；能看的是合计，刚体 17/18、插插头 0/11。</li>
+<li><a href="#n13">代理式基线</a>：有的也是 GPT-6-Astra；RoboDojo 上同一模型 23.1% → 27.6% → 81.9%。</li>
+<li><a href="#n14">文字小问题</a>：chucking、close-loop；RoboLab 在图 1 里没有区分零样本。</li>
+</ol>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>名称</th><th>是什么</th><th>主页 / 代码</th><th>论文</th></tr></thead><tbody>
+<tr><td>本文</td><td>GPT-6-Astra 具身评测报告</td><td><a href="https://www.sensenova.ai/has-gpt-6-astra-achieved-embodied-intelligence">项目主页</a></td><td><a href="https://arxiv.org/abs/2610.22471">arXiv 2610.22471</a></td></tr>
+<tr><td>RoboRSI</td><td>第 3 节的基线代理框架</td><td><a href="https://github.com/OpenSenseNova/SenseNova-RoboRSI">OpenSenseNova/SenseNova-RoboRSI</a></td><td>–</td></tr>
+<tr><td>GPT-6 Astra on RoboDojo</td><td>RoboDojo 团队对 GPT-6-Astra 的早期评测，表 5 的基线</td><td>–</td><td><a href="https://arxiv.org/abs/2609.24170">arXiv 2609.24170</a></td></tr>
+<tr><td>PhysicalRSI</td><td>RoboDojo 代理式最好</td><td><a href="https://mmlab.hk/research/PhysicalRSI">项目页</a></td><td>–</td></tr>
+<tr><td>Show-Harness</td><td>暴露语义运动命令的 VLM 代理，3.2 节引用</td><td>–</td><td><a href="https://arxiv.org/abs/2609.10522">arXiv 2609.10522</a></td></tr>
+<tr><td>π0.5</td><td>第 3 节的 System 1</td><td>–</td><td><a href="https://arxiv.org/abs/2504.16054">arXiv 2504.16054</a></td></tr>
+<tr><td>RoboDojo</td><td>42 任务双臂基准</td><td>–</td><td><a href="https://arxiv.org/abs/2607.04434">arXiv 2607.04434</a></td></tr>
+<tr><td>LIBERO</td><td>原版基准</td><td><a href="https://libero-project.github.io/">libero-project.github.io</a>；本站 <a href="libero.html">LIBERO 页</a></td><td>–</td></tr>
+<tr><td>LIBERO-PRO</td><td>扰动版 LIBERO</td><td>–</td><td><a href="https://arxiv.org/abs/2510.03827">arXiv 2510.03827</a></td></tr>
+<tr><td>LiLo-VLA</td><td>LIBERO-Long++ / Ultra-Long 的出处</td><td>–</td><td><a href="https://arxiv.org/abs/2602.21531">arXiv 2602.21531</a></td></tr>
+<tr><td>RoboLab</td><td>120 任务泛化基准</td><td>–</td><td><a href="https://www.roboticsproceedings.org/rss22/">RSS 2026 论文集</a></td></tr>
+<tr><td>Bench2Dex</td><td>灵巧手基准</td><td>–</td><td><a href="https://arxiv.org/abs/2609.15726">arXiv 2609.15726</a></td></tr>
+<tr><td>DexJoCo</td><td>MuJoCo 灵巧操作基准</td><td>–</td><td><a href="https://arxiv.org/abs/2605.16257">arXiv 2605.16257</a></td></tr>
+<tr><td>SIMPLE</td><td>人形移动操作基准</td><td>–</td><td><a href="https://arxiv.org/abs/2606.08278">arXiv 2606.08278</a></td></tr>
+<tr><td>BEHAVIOR-1K</td><td>家务长程基准</td><td><a href="https://behavior.stanford.edu/">behavior.stanford.edu</a>；<a href="https://huggingface.co/spaces/behavior-1k/2026-challenge-leaderboard">2026 挑战赛排行榜</a></td><td>–</td></tr>
+<tr><td>VLN-CE</td><td>连续环境视觉语言导航</td><td><a href="https://jacobkrantz.github.io/vlnce/">jacobkrantz.github.io/vlnce</a></td><td>Krantz 等，ECCV 2020</td></tr>
+<tr><td>LHPR-VLN</td><td>长程多目标导航</td><td>–</td><td><a href="https://openaccess.thecvf.com/content/CVPR2025/html/Song_Towards_Long-Horizon_Vision-Language_Navigation_Platform_Benchmark_and_Method_CVPR_2025_paper.html">CVPR 2025</a></td></tr>
+</tbody></table></div>
+
+<footer><p>精读是我读 arXiv 2610.22471 v2 后的整理，不是作者的官方内容。原文：Joint Research Team（项目负责人 Zhongang Cai、Zhonghua Wu、Qingyi Tao 等），《Has GPT-6-Astra Achieved Embodied Intelligence?》，arXiv 2610.22471，2026；arXiv 许可为非独占分发。本页不含原图；交互图 1、2 是我按表 2、表 13 的数字重画的，示意图是我按图 2 画的；置信区间、标准误和检验是我按论文给出的回合数现算的。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script src="gpt6-astra-embodied/widgets.js" defer></script>
+</body>
+</html>
