@@ -89,9 +89,18 @@
 
 | 专题 | 页面 | 交互 | 要点 |
 |---|---|---|---|
+| 扩散与流匹配（2026-11-27） | [diffusion-flow](https://haoxiangntu.github.io/paper-reading-lab/papers/diffusion-flow.html) | 四个动画：二维加噪去噪、条件直线与边际路径、动作块去噪、滚动时域 | 扩散预测噪声、流匹配预测速度，高斯噪声下可互相换算；多步局部取平均能落在某一个峰上，K = 1 等于回归。Diffusion Policy、Octo、π0、GR00T N1 的步数和块长对照原文核对 |
 | 六个操作策略对照（2026-11-25） | [six-policies](https://haoxiangntu.github.io/paper-reading-lab/papers/six-policies.html) | 改动谱系 + 任选两个对比、六张结构图（训练 / 推理切换）、FabricBench 点图 | FabricBench 评测的 ACT、DP、π0.5、GR00T N1、LingBot-VA、Fast-WAM 按 8 个部件逐格对照；外观泛化按“有没有机器人预训练”分两组，构型泛化六个都差。表和交互共用页内 `#six-data`。 |
 | VLA 设计空间（2026-11-24） | [vla-design-space](https://haoxiangntu.github.io/paper-reading-lab/papers/vla-design-space.html) | 部件图（按改动 / 按模型 / 按部件高亮）、6 种接法示意图 | VLA 拆成 8 个部件；15 类常见改动各改哪块；22 个模型总对照表（读表驱动交互）；从 Wall-OSS-0.5 §6 展开；非本站精读的模型只按摘要整理 |
 | 强化学习算法谱系（2026-11-24） | [rl-families](https://haoxiangntu.github.io/paper-reading-lab/papers/rl-families.html) | 页内四个小图：谱系图、PPO 裁剪、Q 高估、三种梯度 | REINFORCE→A2C→TRPO→PPO 和 DQN→DDPG→TD3→SAC→PQL→FastTD3→FastSAC 是同一类可互换的算法；分界在数据复用、策略更新方式、价值学法；PQL、FastTD3 对照原文核对 |
+
+## 扩散与流匹配 读后要点
+
+- 两者都是“学一个去噪方向，再从噪声走 K 小步”。扩散（DDPM/DDIM）网络预测噪声 ε，流匹配网络预测直线插值的速度 x₁ − x₀；在 x = a·数据 + b·ε 这一族里可以互相换算，区别在调度、损失权重和采样器。
+- 网络学到的都是条件均值。回归在观测条件下一步取平均，多峰被混成一种错的；扩散和流匹配在带噪点附近一步步局部取平均，最后落在一个峰上。K = 1 时退化成回归（动画 1、3 可验证）。
+- 直线调度下 Euler 一步就是 DDIM 一步；“流匹配走直线”说的是训练时的条件路径，推理时的边际路径是弯的、不相交。
+- Diffusion Policy：训练 100 级、DDIM 推理，正文说 10 步，表 7 真机写 16 步；Tp = 16、Ta = 8、To = 2。Octo：DDPM 余弦调度 20 级。π0：H = 50，10 步 Euler，20 Hz 执行 16 步、50 Hz 执行 25 步；论文 τ = 1 是数据，openpi 代码 t = 1 是噪声，两者等价；τ 采样 E[τ] = 0.3996。
+- 动画用高斯混合的解析最优去噪器代替网络，只演示机制。
 
 ## PF-FLIP 读后要点
 
@@ -424,6 +433,7 @@ papers/simpler.html SIMPLER 精读
 papers/simpler/     SIMPLER 的原文插图，按 CC BY 4.0 使用，只做了裁切
 papers/real2sim-eval.html  Real-to-Sim 评测精读（裁切原图在 papers/real2sim-eval/，11 幕动画在 interactives/real2sim-eval/）
 papers/phystwin.html       PhysTwin 精读（无原图；11 幕动画在 interactives/phystwin/）
+papers/diffusion-flow.html 概念专题：扩散与流匹配（动画在 papers/diffusion-flow/widgets.js，解析最优去噪器，没有网络）
 papers/six-policies.html   六个操作策略对照（概念专题；交互在 papers/six-policies/widgets.js，数据在页内 #six-data）
 papers/fabricbench.html    FabricBench 精读（原图 1–6 和 widgets.js 在 papers/fabricbench/；没有 3D 动画）
 papers/pf-flip.html  PF-FLIP 精读（ACM 版权不放原图；图 17 重画、相场和块开销交互图、复现截图在 papers/pf-flip/；没有 3D 动画）

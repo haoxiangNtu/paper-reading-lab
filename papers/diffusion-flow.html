@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>扩散与流匹配 · Paper Reading Lab</title>
+<meta name="description" content="概念专题：扩散（DDPM、DDIM）和流匹配（Flow Matching、Rectified Flow）的原理，以及 Diffusion Policy、Octo、π0、GR00T N1 怎样用它们从噪声生成一整段动作（动作块）。四个动画：二维加噪去噪、流匹配的条件路径和边际路径、动作块去噪、动作块的滚动执行。机器人部分的数字对照原文和 openpi 代码核对。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+.t-models{min-width:860px}.t-conv{min-width:620px}.t-links{min-width:640px}.t-toy{min-width:520px}
+.t-models td:first-child{white-space:nowrap;font-weight:600}
+.viz{--viz-surface:#121a2b;--p1:#5aa2f0;--p2:#f08a4b;--p3:#3cc48e;--p4:#d8a520;--p5:#b48cf0;--p6:#e06aa8;--bad:#ff6b6b;border:1px solid var(--line);border-radius:10px;background:var(--viz-surface);padding:10px 12px;margin:16px 0}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f;--bad:#c62828} }
+:root[data-theme="light"] .viz{--viz-surface:#ffffff;--p1:#1f6fc9;--p2:#d2571c;--p3:#12875c;--p4:#a87900;--p5:#7a4fd0;--p6:#c2407f;--bad:#c62828}
+.viz .cap{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin:0 0 6px;max-width:none}
+.viz p{max-width:none;font-size:14.5px}
+.viz canvas{display:block;width:100%;height:auto;border-radius:6px;margin:6px 0}
+.ctl{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:13.5px;margin:6px 0}
+.ctl label{display:inline-flex;align-items:center;gap:8px}
+.ctl input[type=range]{width:140px;accent-color:var(--accent)}
+.ctl input.tl{flex:1 1 220px;width:auto}
+.ctl output{font-family:var(--font-mono);font-size:12.5px;min-width:2.2em}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;font-size:13.5px;border-radius:999px;padding:3px 13px;cursor:pointer}
+.btn[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+.readout{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin:4px 0 0;max-width:none}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{background:none;border:0;color:var(--fg);font:inherit;font-size:13.5px;padding:3px 12px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--accent);font-weight:600}
+.key{border-left:3px solid var(--accent);background:var(--bg2);padding:8px 14px;margin:14px 0;border-radius:0 8px 8px 0}
+.key p{margin:6px 0}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.cmp > div{border:1px solid var(--line);border-radius:10px;padding:8px 14px;background:var(--bg2)}
+.cmp h4{margin:4px 0;font-size:15.5px}
+.cmp p,.cmp li{font-size:14.5px;max-width:none}
+@media (max-width:640px){.cmp{grid-template-columns:1fr}}
+.notes li{max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><a class="brand" href="../index.html">Paper Reading Lab</a>
+<nav><a href="../index.html#list">论文列表</a><a href="../index.html#architecture">专题</a><a href="vla-design-space.html#s-cont">VLA 设计空间</a><a href="https://github.com/haoxiangNtu/paper-reading-lab">GitHub</a></nav></header>
+
+<p class="eyebrow">概念专题 · 生成模型 · 2026-11-27 · 中文整理</p>
+<h1>扩散与流匹配：怎样从噪声生成一整段动作</h1>
+<p class="orig">DDPM · DDIM · Flow Matching · Rectified Flow ｜ Diffusion Policy · Octo · π0 · GR00T N1</p>
+<div class="meta"><span>不是单篇论文精读</span><a href="#links">各方法原文</a><a href="vla-design-space.html#s-cont">VLA 设计空间 · 第 3 类</a><a href="gr00t.html">GR00T N1 精读</a><a href="six-policies.html">六个策略对照</a></div>
+
+<div class="callout">
+<p><b>这一页是什么。</b><a href="vla-design-space.html#s-cont">VLA 设计空间</a>第 3 类改动写了一句：“用扩散或流匹配从噪声生成一整段动作（动作块）”。这一页把这句话拆开讲：扩散和流匹配各自在学什么、推理时怎么一步步从噪声走到动作、两者是什么关系、为什么一次出一整段，以及 Diffusion Policy、Octo、π0、GR00T N1 具体怎么用。</p>
+<p><b>依据。</b>公式按 DDPM、DDIM、Flow Matching、Rectified Flow 原文整理，符号统一成本页的记号。机器人部分的数字逐个对照了原文：Diffusion Policy（arXiv 2303.04137 v5）、Octo（2405.12213 v2）、π0（2410.24164 v4），以及 openpi 代码（commit <code>215abfb</code>，2026-11-27 读）。GR00T N1 的数字取自本站 <a href="gr00t.html">GR00T 精读页</a>，那一页对照过代码。</p>
+<p><b>动画怎么做的。</b>四个动画都<b>没有训练网络</b>。数据分布取高斯混合，这时最优去噪器 \(\mathbb E[x_1\mid x_t]\) 有解析式，动画直接用解析式代替网络。所以动画里看到的差别只来自采样方法和步数，不来自网络误差（<a href="#n9">读者注 9</a>）。都是玩具设定，只演示机制。</p>
+</div>
+
+<nav class="toc" id="toc" aria-label="目录">
+<a href="#tldr">一句话回答</a><a href="#why">为什么不直接回归</a><a href="#diff">扩散</a><a href="#flow">流匹配</a><a href="#same">两者的关系</a><a href="#chunk">生成一整段动作</a><a href="#exec">动作块怎么执行</a><a href="#models">四个模型怎么做</a><a href="#notes" class="rn">读者注</a><a href="#links">链接表</a>
+</nav>
+
+<h2 id="tldr">一句话回答</h2>
+<p><b>扩散和流匹配都是“学一个去噪方向，再沿着它从噪声走很多小步”。</b>训练时，拿一段真实动作，按随机比例混进高斯噪声，让网络从混合结果里猜出“往哪边走能回到干净动作”。推理时，从一段纯噪声出发，每一步问一次网络，往它指的方向挪一点。走完 K 步，噪声就变成了一段动作。</p>
+<p>两者的区别主要在“混噪声的方式”和“网络输出什么”：</p>
+<ul>
+<li><b>扩散</b>（DDPM）：按一条噪声调度混合，网络预测<b>混进去的噪声</b> \(\varepsilon\)。推理时按 DDPM 或 DDIM 公式一步步减掉噪声。</li>
+<li><b>流匹配</b>：噪声和数据之间连一条<b>直线</b>，网络预测沿直线的<b>速度</b> \(x_1-x_0\)。推理时用 Euler 法把速度积分起来。</li>
+</ul>
+<p>在高斯噪声下，这两种写法可以互相换算，是同一类模型的两种参数化（<a href="#same">两者的关系</a>）。机器人里用它们，是因为同一个画面下往往有几种合理做法。直接回归会把几种做法平均成一种错的；扩散和流匹配能采到其中一种完整的做法。</p>
+
+<div class="key">
+<p><b>最关键的一点。</b>网络无论预测 \(\varepsilon\) 还是速度，用的都是均方误差，学到的都是<b>条件均值</b>。回归也是条件均值，为什么扩散就不会“平均成一种错的”？</p>
+<p>区别在<b>在哪里取平均</b>。回归在纯观测条件下一步取平均，几种做法被直接混在一起。扩散和流匹配是在“当前这个带噪的点”附近取平均：噪声大时平均范围很广，只给出一个大致方向；走近以后，附近只剩一种做法，平均就等于这一种。把“取平均”拆成很多小步，每一步只做局部的平均，最后落在某一个峰上。</p>
+<p>反过来，只走一步（K = 1）就回到了回归：所有样本都落在均值上。动画 1 和动画 3 把步数拖到 1 都能看到（<a href="#n6">读者注 6</a>）。</p>
+</div>
+
+<h2 id="why">为什么不直接回归</h2>
+<p>一个常见的例子：机械臂要绕过桌上的障碍去拿东西。示范里有人从左边绕，有人从右边绕。用均方误差直接回归动作，网络学到的是两种做法的平均，也就是从正中间穿过去，正好撞上障碍。</p>
+<p>这类“同一观测、多种做法”在操作任务里很常见：先抓哪个、从哪个方向接近、什么时候松手。Diffusion Policy 论文把它叫作动作分布的多峰性，这是它相对显式回归策略的主要论据之一。除了扩散，也有别的办法处理多峰：把动作离散成 token 再采样（RT-2、π0-FAST，见 <a href="vla-design-space.html">VLA 设计空间</a>第 2 类），或者用混合高斯输出头、隐式能量模型（IBC）。扩散和流匹配的好处是直接生成连续值，而且能一次生成高维的整段动作。</p>
+<p>动画 3 里点“显示回归结果”能看到这条撞上障碍的平均轨迹。</p>
+
+<h2 id="diff">扩散：加噪、学去噪、逐步还原</h2>
+<p><b>记号。</b>这一节沿用 DDPM 的写法：\(x_0\) 是数据（一段干净动作），\(t\) 越大越接近纯噪声。下一节的流匹配沿用 π0 的写法，方向正好相反，\(\tau=1\) 才是数据。两篇原文就是这么写的，本页不强行统一，但每处都会写明。</p>
+
+<h3>正向：按调度混进噪声</h3>
+<p>给定数据 \(x_0\) 和一条噪声调度 \(\bar\alpha_t\)（从 1 降到接近 0），第 \(t\) 级的带噪样本可以一步写出：</p>
+\[x_t=\sqrt{\bar\alpha_t}\,x_0+\sqrt{1-\bar\alpha_t}\,\varepsilon,\qquad \varepsilon\sim\mathcal N(0,I)\tag{1}\]
+<p>\(t\) 小时 \(x_t\) 几乎就是数据，\(t\) 大时几乎是纯噪声。这一步不用学，就是按比例混合。DDPM 原文用 1000 级、线性调度；本页动画用 Improved DDPM 的余弦调度 \(\bar\alpha_t\propto\cos^2\!\big(\tfrac{t+0.008}{1.008}\cdot\tfrac\pi2\big)\)，Octo 用的也是余弦调度。</p>
+
+<h3>训练：让网络猜出混进去的噪声</h3>
+\[\mathcal L=\mathbb E_{x_0,\varepsilon,t}\big\|\varepsilon-\varepsilon_\theta(x_t,t,c)\big\|^2\tag{2}\]
+<p>\(c\) 是条件。生成图像时 \(c\) 是文字，机器人里 \(c\) 是观测（图像、本体状态、指令）。每个训练样本随机抽一个噪声级 \(t\)，所以一个网络要学会所有噪声级下的去噪。</p>
+<p>猜出噪声就等于猜出了干净数据，两者由式 (1) 一一对应：</p>
+\[\hat x_0=\frac{x_t-\sqrt{1-\bar\alpha_t}\,\varepsilon_\theta(x_t,t,c)}{\sqrt{\bar\alpha_t}}\tag{3}\]
+<p>最优的 \(\varepsilon_\theta\) 是条件均值 \(\mathbb E[\varepsilon\mid x_t]\)，对应的 \(\hat x_0\) 就是 \(\mathbb E[x_0\mid x_t]\)：“看到这个带噪样本，干净数据平均来说在哪”。它也和分数（对数密度的梯度）直接相关：\(\nabla_x\log p_t(x)=-\varepsilon_\theta/\sqrt{1-\bar\alpha_t}\)。Diffusion Policy 正文把去噪一步解释成“沿能量梯度走一步带噪的梯度下降”，就是这个关系。</p>
+
+<h3>推理：从噪声一步步往回走</h3>
+<p><b>DDPM</b>（随机）：每步先按式 (3) 估出 \(\hat x_0\)，再从“给定 \(x_t\) 和 \(\hat x_0\) 时 \(x_{t-1}\) 的分布”里采一个：</p>
+\[x_{t-1}=\frac{\sqrt{\bar\alpha_{t-1}}\,\beta_t}{1-\bar\alpha_t}\,\hat x_0+\frac{\sqrt{\alpha_t}\,(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}\,x_t+\sigma_t z,\qquad \sigma_t^2=\frac{(1-\bar\alpha_{t-1})\,\beta_t}{1-\bar\alpha_t}\tag{4}\]
+<p>其中 \(\alpha_t=\bar\alpha_t/\bar\alpha_{t-1}\)，\(\beta_t=1-\alpha_t\)，\(z\sim\mathcal N(0,I)\)。每一步都会加一点新的随机噪声。</p>
+<p><b>DDIM</b>（确定性，\(\eta=0\)）：不加新噪声，把估出的 \(\hat x_0\) 和 \(\hat\varepsilon\) 按下一级的比例重新混合：</p>
+\[x_{s}=\sqrt{\bar\alpha_{s}}\,\hat x_0+\sqrt{1-\bar\alpha_{s}}\,\varepsilon_\theta(x_t,t,c),\qquad s\lt t\tag{5}\]
+<p>\(s\) 可以比 \(t\) 小很多，所以训练用 100 级，推理可以只走 10 步。Diffusion Policy 正文写的就是“训练 100 级、DDIM 推理 10 步”（真机表 7 写的是 16 步，见<a href="#n1">读者注 1</a>）。</p>
+
+<div class="viz" id="w-a1">
+<p class="cap">动画 1 · 二维双月牙：先正向加噪，再反向去噪</p>
+<p>每个点是一个二维样本。前半段把数据按式 (1) 混进噪声，直到变成一团高斯；后半段从同一批噪声出发，按所选方法去噪。后半段的颜色按<b>最后落到哪一块月牙</b>上色，所以一开始就能看出噪声空间里哪片区域会去哪边。淡色线是其中 50 个点的轨迹。</p>
+<div class="ctl"><span class="seg" id="a1-m" role="group" aria-label="采样方法"><button data-v="ddpm" aria-pressed="false">扩散 · DDPM</button><button data-v="ddim" aria-pressed="true">扩散 · DDIM</button><button data-v="flow" aria-pressed="false">流匹配 · Euler</button></span>
+<label>步数 K <input type="range" id="a1-k" min="1" max="100" value="20"><output id="a1-k-o">20</output></label></div>
+<canvas id="a1-cv" role="img" aria-label="二维双月牙数据的加噪与去噪动画"></canvas>
+<div class="ctl"><button class="btn" id="a1-play" type="button">▶ 播放</button><input class="tl" type="range" id="a1-p" min="0" max="1000" value="300" aria-label="时间轴"><button class="btn" id="a1-jump" type="button">跳到去噪</button><button class="btn" id="a1-re" type="button">换一批噪声</button></div>
+<p class="readout" id="a1-out"></p>
+<p>可以试三件事：</p>
+<ul>
+<li><b>DDPM 和 DDIM 比较</b>：DDPM 的轨迹抖动，因为每步加了新噪声；DDIM 的轨迹平滑，同一个噪声点总落到同一处。</li>
+<li><b>把 K 拖到 1</b>：所有点都落在两块月牙中间的空白处。</li>
+<li><b>K 拖到 3～5</b>：流匹配在这里通常比余弦调度的 DDIM 更多落在数据上（下表）。</li>
+</ul>
+</div>
+
+<p>动画 1 里 600 个点“落在数据附近（离最近的分量中心不到 3σ）”的比例，用页面里同一段代码离线跑的结果（种子 1）：</p>
+<div class="tablewrap"><table class="t-toy"><thead><tr><th>方法</th><th>K = 1</th><th>2</th><th>5</th><th>10</th><th>20</th><th>50</th></tr></thead><tbody>
+<tr><td>扩散 · DDPM（余弦）</td><td>0%</td><td>32%</td><td>67%</td><td>91%</td><td>97%</td><td>100%</td></tr>
+<tr><td>扩散 · DDIM（余弦）</td><td>0%</td><td>36%</td><td>69%</td><td>92%</td><td>98%</td><td>99%</td></tr>
+<tr><td>流匹配 · Euler（直线）</td><td>0%</td><td>36%</td><td>80%</td><td>96%</td><td>99%</td><td>100%</td></tr>
+</tbody></table></div>
+<p>这是一个二维玩具，只说明趋势：步数少时误差大，直线调度在少步数时稍好。具体数字换一个数据分布、换一条调度都会变，不能拿来比较真实模型。</p>
+
+<h2 id="flow">流匹配：连直线、学速度、积分</h2>
+<p><b>记号。</b>这一节按 π0 论文的写法：\(\tau\in[0,1]\)，\(x_0\sim\mathcal N(0,I)\) 是噪声，\(x_1\) 是数据。（openpi 代码用的方向相反，见<a href="#n3">读者注 3</a>。）</p>
+
+<h3>训练：噪声和数据之间连一条直线</h3>
+<p>随机取一个噪声 \(x_0\)、一个数据 \(x_1\)、一个 \(\tau\)，在两者之间按直线插值：</p>
+\[x_\tau=\tau\,x_1+(1-\tau)\,x_0\tag{6}\]
+<p>沿这条直线，速度是常数 \(x_1-x_0\)。网络在 \(x_\tau\) 这个位置，学着预测这个速度：</p>
+\[\mathcal L=\mathbb E_{x_0,x_1,\tau}\big\|v_\theta(x_\tau,\tau,c)-(x_1-x_0)\big\|^2\tag{7}\]
+<p>Lipman 等人把它叫 Flow Matching（用最优传输路径时就是这条直线）；Liu 等人从另一个角度提出同样的直线插值，叫 Rectified Flow。π0 论文写的就是式 (6)、(7)：\(A_t^\tau=\tau A_t+(1-\tau)\epsilon\)，目标 \(A_t-\epsilon\)。</p>
+
+<h3>推理：沿学到的速度积分</h3>
+<p>从纯噪声 \(x_0\) 出发，把速度积分到 \(\tau=1\)。π0 用最简单的前向 Euler 法：</p>
+\[x_{\tau+\delta}=x_\tau+\delta\,v_\theta(x_\tau,\tau,c)\tag{8}\]
+<p>π0 用 10 步，\(\delta=0.1\)。GR00T N1 的推理脚本默认 4 步（<a href="gr00t.html#n5">GR00T 读者注 5</a>）。</p>
+
+<h3>直线是训练时的，推理时的路径是弯的</h3>
+<p>式 (7) 的最优解不是某一条直线的速度，而是“所有经过这个点的直线”的平均速度：</p>
+\[v^*(x,\tau)=\mathbb E\big[x_1-x_0\,\big|\,x_\tau=x\big]=\frac{\mathbb E[x_1\mid x_\tau=x]-x}{1-\tau}\tag{9}\]
+<p>训练时噪声和数据是随机配对的，不同的直线会互相穿过。在交叉点上，网络只能给一个平均方向。推理时沿这个平均速度场积分，得到的路径是弯的，而且互不相交（一个点上只有一个速度，常微分方程的解不会交叉）。“流匹配走直线”说的是训练时的条件路径，不是推理时的路径（<a href="#n7">读者注 7</a>）。</p>
+
+<div class="viz" id="w-a2">
+<p class="cap">动画 2 · 一维数据：训练时的直线，推理时的弯路</p>
+<p>横轴是 \(\tau\)，从左边的纯噪声到右边的数据；纵轴是样本的值。数据有两个峰：−1.5（权重 0.35）和 1.2（权重 0.65）。底色是每个 \(\tau\) 下 \(x_\tau\) 的分布，每列单独归一化。颜色按终点在哪个峰。</p>
+<div class="ctl"><span class="seg" id="a2-m" role="group" aria-label="显示内容"><button data-v="cond" aria-pressed="true">条件直线（训练）</button><button data-v="marg" aria-pressed="false">边际路径（推理）</button><button data-v="both" aria-pressed="false">叠在一起</button><button data-v="one" aria-pressed="false">只积分一步</button></span></div>
+<canvas id="a2-cv" role="img" aria-label="流匹配的条件路径与边际路径动画"></canvas>
+<div class="ctl"><button class="btn" id="a2-play" type="button">▶ 播放</button><input class="tl" type="range" id="a2-p" min="0" max="1000" value="600" aria-label="时间轴"><button class="btn" id="a2-re" type="button">换一批样本</button></div>
+<p class="readout" id="a2-out"></p>
+<p>“边际路径”模式下的箭头是式 (9) 的速度场。看 \(\tau\) 在 0.3～0.6 一带：中间那片区域的箭头分成上下两股，样本从这里开始决定去哪个峰。“只积分一步”模式下，Euler 一步走到 \(x_0+v(x_0,0)\)。而 \(v(x,0)=\mathbb E[x_1]-x\)，所以所有样本都到了数据均值 0.26 附近，那里两个峰都没有数据。</p>
+</div>
+
+<h2 id="same">两者的关系</h2>
+<p>把式 (1) 和式 (6) 放在一起看，都是“数据乘一个系数，加上噪声乘一个系数”：</p>
+\[x=a\cdot(\text{数据})+b\cdot\varepsilon\qquad\begin{cases}\text{扩散（VP）：}&a=\sqrt{\bar\alpha_t},\;b=\sqrt{1-\bar\alpha_t}\\[2pt]\text{流匹配（直线）：}&a=\tau,\;b=1-\tau\end{cases}\tag{10}\]
+<p>只要 \(a,b\) 已知，网络预测下面任何一个量，都能换算出其余几个：</p>
+<div class="tablewrap"><table class="t-conv"><thead><tr><th>网络预测</th><th>换算成干净数据 \(\hat x\)</th><th>谁用</th></tr></thead><tbody>
+<tr><td>噪声 \(\hat\varepsilon\)</td><td>\(\hat x=(x-b\,\hat\varepsilon)/a\)</td><td>DDPM、Diffusion Policy、Octo</td></tr>
+<tr><td>干净数据 \(\hat x\)</td><td>直接就是</td><td>部分图像扩散模型；DDPM 原文也讨论过</td></tr>
+<tr><td>速度 \(\hat v=\dot a\,\hat x+\dot b\,\hat\varepsilon\)</td><td>直线调度下 \(\hat x=x+(1-\tau)\,\hat v\)</td><td>π0、GR00T N1（流匹配）</td></tr>
+<tr><td>分数 \(\nabla\log p\)</td><td>\(\hat x=(x+b^2\nabla\log p)/a\)</td><td>分数模型（Song 等）</td></tr>
+</tbody></table></div>
+<p>所以“扩散还是流匹配”不是两种完全不同的模型。真正不同的是三处：</p>
+<ol>
+<li><b>调度</b>：\(a,b\) 随时间怎么变。直线调度下，从噪声到数据的条件路径是直的。</li>
+<li><b>预测目标和损失权重</b>：预测 \(\varepsilon\) 和预测 \(v\)，在同一个 \(x\) 上的误差被放大的倍数不同，等于给不同噪声级配了不同权重。π0 还从 Beta 分布采 \(\tau\)，故意多训练噪声大的一端（<a href="#n4">读者注 4</a>）。</li>
+<li><b>采样器</b>：DDPM 每步加新噪声；DDIM 和流匹配的 Euler 都不加，是在解一个常微分方程。直线调度下，Euler 一步和 DDIM 一步是同一个公式（<a href="#n5">读者注 5</a>）。</li>
+</ol>
+
+<div class="cmp">
+<div><h4>扩散（DDPM / DDIM）</h4><ul><li>网络预测噪声 \(\varepsilon\)</li><li>离散噪声级，常见 100 或 1000 级</li><li>DDPM 随机采样；DDIM 确定性，可以跳级</li><li>机器人里：Diffusion Policy、Octo</li></ul></div>
+<div><h4>流匹配</h4><ul><li>网络预测速度 \(x_1-x_0\)</li><li>\(\tau\) 连续取值</li><li>Euler 积分，确定性</li><li>机器人里：π0 / π0.5、GR00T N1 系列，OpenWAM 等世界-动作模型的动作头</li></ul></div>
+</div>
+
+<h2 id="chunk">生成一整段动作</h2>
+<p><b>动作块</b>（action chunk）就是把未来 \(H\) 步的动作拼成一个张量 \(A\in\mathbb R^{H\times D}\)，\(D\) 是动作维度。生成模型把它当作“一个样本”：噪声也是 \(H\times D\) 的，每一步去噪同时更新所有 \(H\) 步。这和自回归不一样：自回归一步一步往后生成，后面的动作只能看前面的；动作块里每一步都能看到整段的其他步。π0 写明它的动作专家用双向注意力，所有动作 token 互相可见。</p>
+<p>为什么要一次出一段：</p>
+<ul>
+<li><b>前后一致。</b>每一步单独采样时，相邻两步可能各采到不同的峰（这一步想左绕，下一步想右绕），动作来回抖。整段一起采，选定一种做法后整段都按这种做法走。</li>
+<li><b>省推理。</b>扩散要 K 次网络调用才能出一次结果。如果一次只出一步动作，每个控制周期都要跑 K 次；一次出 \(H\) 步、执行其中一部分，摊下来就便宜得多。</li>
+<li><b>对示范里的停顿更稳。</b>遥操作时示范者经常停一下，数据里会出现一串相同的位置指令。Diffusion Policy 论文指出，单步策略容易过拟合这种停顿，在真机上卡住不动；预测动作序列对此更稳，这是它列出的动作序列预测的好处之一。</li>
+</ul>
+<p>观测 \(c\) 怎么进网络，各家不同：Diffusion Policy 的 CNN 版用 FiLM 调制每层特征，Transformer 版用交叉注意力；GR00T N1 的 DiT 用交叉注意力读 VLM 的输出；π0 的动作专家和 VLM 共用注意力，VLM 前缀的键值算一次后缓存，10 步去噪只重算动作部分。</p>
+
+<div class="viz" id="w-a3">
+<p class="cap">动画 3 · 从噪声生成一段 16 步的动作</p>
+<p>俯视图。机械臂末端在下方，要绕过中间的障碍到上方目标。示范有四种做法（淡灰色粗线）：左绕或右绕，各分贴近和宽两种，权重 0.3 / 0.2 / 0.3 / 0.2。每个样本是 16 个路点 × 2 维 = 32 维的一个向量，一开始是纯噪声（很多点在画面外），K 步后变成一条完整路径。右边是每个样本“像哪种示范”的后验概率，可以看到它在哪一步做出了选择。</p>
+<div class="ctl"><span class="seg" id="a3-m" role="group" aria-label="采样方法"><button data-v="ddpm" aria-pressed="false">扩散 · DDPM</button><button data-v="ddim" aria-pressed="false">扩散 · DDIM</button><button data-v="flow" aria-pressed="true">流匹配 · Euler</button></span>
+<label>步数 K <input type="range" id="a3-k" min="1" max="50" value="10"><output id="a3-k-o">10</output></label>
+<button class="btn" id="a3-reg" type="button" aria-pressed="false">显示回归结果</button></div>
+<canvas id="a3-cv" role="img" aria-label="动作块从噪声去噪成轨迹的动画"></canvas>
+<div class="ctl"><button class="btn" id="a3-play" type="button">▶ 播放</button><input class="tl" type="range" id="a3-p" min="0" max="1000" value="500" aria-label="时间轴"><button class="btn" id="a3-re" type="button">再采一次</button></div>
+<p class="readout" id="a3-out"></p>
+<p>用同一段代码离线各采 200 个样本：K = 1 时三种方法都是 100% 撞上障碍（全部落在平均轨迹上）；K = 2 时撞上 28%～34%；K = 3 时 7%～9%；K ≥ 5 时 DDIM 和流匹配都是 0%，DDPM 是 1%（K = 5）和 0%（K = 10）。左绕的比例在 43%～54% 之间，和示范里的 50% 差不多。这是 32 维的玩具，步数要求比真实任务宽松得多，只说明机制。</p>
+</div>
+
+<h2 id="exec">动作块怎么执行</h2>
+<p>生成出 \(H\) 步，通常不会全部执行完。常见做法是<b>滚动时域</b>：执行前 \(T_a\) 步，然后用新的观测重新生成一整块，剩下的 \(H-T_a\) 步丢掉。\(T_a\) 小，反应快，但推理更频繁；\(T_a\) 大，推理省，但两次推理之间是开环执行，看不到新观测。Diffusion Policy 把 \(T_p\)（预测长度）、\(T_a\)（执行长度）和 \(T_o\)（观测历史长度）都当作超参数，大多数任务取 \(T_o=2,\,T_p=16,\,T_a=8\)。</p>
+<p>另一种做法是<b>时间集成</b>（temporal ensembling，ACT 提出）：每一步都推理，把多次推理对同一时刻给出的动作加权平均。π0 论文说早期试过，发现性能变差，改为开环执行动作块；Octo 也说在它们的评测里，时间集成没有比滚动时域更好。</p>
+
+<div class="viz" id="w-a4">
+<p class="cap">动画 4 · 滚动时域：生成 H 步，执行 Tₐ 步，再重新生成</p>
+<p>浅色条是每次推理生成的整块，深色是实际执行的部分，虚线框是被下一次推理替换掉的部分。每行左边的小竖格是这次推理的 K 次去噪。下方算出每秒要跑几次去噪网络，以及每次推理的时间预算。</p>
+<div class="ctl"><span class="seg" id="a4-pre" role="group" aria-label="预设"><button data-v="dp" aria-pressed="true">Diffusion Policy 真机</button><button data-v="pi20" aria-pressed="false">π0 · 20 Hz</button><button data-v="pi50" aria-pressed="false">π0 · 50 Hz</button><button data-v="octo" aria-pressed="false">Octo · ALOHA</button></span></div>
+<div class="ctl"><label>H <input type="range" id="a4-H" min="4" max="64" value="16"><output id="a4-H-o">16</output></label><label>Tₐ <input type="range" id="a4-Ta" min="1" max="64" value="8"><output id="a4-Ta-o">8</output></label><label>K <input type="range" id="a4-K" min="1" max="20" value="10"><output id="a4-K-o">10</output></label><label>控制频率 Hz <input type="range" id="a4-Hz" min="5" max="100" value="10"><output id="a4-Hz-o">10</output></label></div>
+<canvas id="a4-cv" role="img" aria-label="动作块滚动执行的时间轴动画"></canvas>
+<div class="ctl"><button class="btn" id="a4-play" type="button">▶ 播放</button><input class="tl" type="range" id="a4-p" min="0" max="1000" value="400" aria-label="时间轴"></div>
+<p class="readout" id="a4-out"></p>
+<p class="readout" id="a4-note"></p>
+</div>
+<p>按 π0 的设置算：50 Hz 下每 25 步推理一次，每秒 2 次推理、20 次动作专家前向，每次推理有 500 ms 预算；20 Hz 下每 16 步一次，每秒 1.25 次推理，预算 800 ms。这和 π0 附录 D 写的“每 0.5 秒 / 0.8 秒推理一次”一致。</p>
+
+<h2 id="models">四个模型怎么做</h2>
+<div class="tablewrap"><table class="t-models"><thead><tr><th></th><th>Diffusion Policy</th><th>Octo</th><th>π0</th><th>GR00T N1</th></tr></thead><tbody>
+<tr><td>生成方式</td><td>DDPM 训练，DDIM 推理</td><td>DDPM，余弦调度</td><td>流匹配，Euler</td><td>流匹配，Euler</td></tr>
+<tr><td>网络预测</td><td>噪声 \(\varepsilon\)</td><td>噪声 \(\varepsilon\)</td><td>速度（论文 \(A-\epsilon\)；代码 noise − actions，<a href="#n3">注 3</a>）</td><td>速度（论文 \(\epsilon-A\)，代码 \(A-\epsilon\)，<a href="gr00t.html#n4">GR00T 注 4</a>）</td></tr>
+<tr><td>训练时的噪声级</td><td>100 级</td><td>20 级</td><td>τ 连续，Beta 分布偏向噪声端（<a href="#n4">注 4</a>）</td><td>同 π0 的 Beta 分布；τ × 1000 取整成桶</td></tr>
+<tr><td>推理步数</td><td>正文 10；表 7 真机 16（<a href="#n1">注 1</a>）</td><td>20</td><td>10（δ = 0.1）</td><td>脚本默认 4；权重配置写 16</td></tr>
+<tr><td>动作块</td><td>\(T_p=16\)，执行 \(T_a=8\)，观测 \(T_o=2\)（大多数任务）</td><td>论文没写预训练的块长（未核实）；ALOHA 微调预测 64、执行 12</td><td>H = 50；20 Hz 执行 16，50 Hz 执行 25</td><td>16 步</td></tr>
+<tr><td>去噪网络</td><td>1D 时序 U-Net（FiLM）或 Transformer（交叉注意力）</td><td>3 层 MLP 头，隐藏维 256，读 Transformer 的 readout 嵌入</td><td>约 3 亿参数的动作专家，和 VLM 共用注意力</td><td>DiT，交叉注意力读 VLM 第 12 层输出</td></tr>
+<tr><td>出处</td><td>2303.04137 v5：式 (1)(3)、§2.3、§3.4、§6.1、表 7</td><td>2405.12213 v2：§III、附录</td><td>2410.24164 v4：§IV、附录 B、D；openpi <code>pi0.py</code></td><td>本站 <a href="gr00t.html">GR00T 精读</a></td></tr>
+</tbody></table></div>
+<p>从这张表看一条趋势：早期的 Diffusion Policy 和 Octo 用扩散、预测噪声；接在大 VLM 上的 π0 和 GR00T N1 都换成了流匹配，推理步数也降到 4～10。更晚的模型怎么选，见 <a href="vla-design-space.html#s-cont">VLA 设计空间</a>第 3 类和 <a href="six-policies.html">六个策略对照</a>。</p>
+
+<h2 id="notes">读者注</h2>
+
+<div class="note" id="n1"><span class="lab">读者注 1 · Diffusion Policy 的推理步数：正文 10，表 7 写 16</span><p>§3.4 写“真机实验里用 DDIM，训练 100 级、推理 10 步，在 RTX 3080 上推理延迟 0.1 秒”。但附录表 7 里四个真机任务（Real Push-T、Pour、Spread、Mug Flip）的 D-Iters Eval 一栏都是 16，仿真任务都是 100。两处对不上，我没法从论文判断真机实际跑的是 10 还是 16。动画 4 的预设按正文取 10。</p></div>
+
+<div class="note" id="n2"><span class="lab">读者注 2 · Diffusion Policy 式 (1)、(3) 是简写，Octo 照搬了</span><p>Diffusion Policy 式 (1) 写 \(x^{k-1}=\alpha\big(x^k-\gamma\varepsilon_\theta(x^k,k)+\mathcal N(0,\sigma^2I)\big)\)，噪声项写在乘 \(\alpha\) 的括号里面。标准 DDPM（式 4）的随机项在括号外。两种写法只差 \(\sigma\) 的定义，不影响结论。式 (3) 写 \(\mathcal L=\mathrm{MSE}(\varepsilon^k,\varepsilon_\theta(x^0+\varepsilon^k,k))\)，省略了式 (1) 里 \(x^0\) 前的缩放系数 \(\sqrt{\bar\alpha_k}\)，正文只说 \(\varepsilon^k\) 取“该级相应的方差”。Octo 的式 (1) 和 Diffusion Policy 一字不差，也注明训练细节参照 Chi 等人。读代码时以调度器的实现为准；我没有逐行对照 Diffusion Policy 的代码。</p></div>
+
+<div class="note" id="n3"><span class="lab">读者注 3 · π0 论文和 openpi 代码的时间方向相反</span><p>π0 论文（v4 §IV）：\(\tau=0\) 是噪声、\(\tau=1\) 是数据，\(A^\tau=\tau A+(1-\tau)\epsilon\)，目标 \(u=A-\epsilon\)，从 0 积分到 1。openpi 的 <code>src/openpi/models/pi0.py</code>（commit <code>215abfb</code>）反过来：第 199、200 行 <code>x_t = time * noise + (1 - time) * actions</code>，<code>u_t = noise - actions</code>；第 226 行注释写明“t = 1 是噪声、t = 0 是目标”；采样从 <code>time = 1.0</code> 出发，<code>dt = -1/num_steps</code>，默认 <code>num_steps = 10</code>。代入 \(t=1-\tau\)，两者是同一个模型：插值相同，速度差一个负号，步长也差一个负号，乘积一样。GR00T N1 的情况不同：它的论文和代码在同一种时间方向下符号相反，见 <a href="gr00t.html#n4">GR00T 读者注 4</a>。</p></div>
+
+<div class="note" id="n4"><span class="lab">读者注 4 · π0 训练时 65% 的样本落在噪声较大的一半</span><p>π0 附录 B：\(p(\tau)=\mathrm{Beta}\big(\tfrac{s-\tau}{s};1.5,1\big)\)，\(s=0.999\)。令 \(u=(s-\tau)/s\sim\mathrm{Beta}(1.5,1)\)，它的累积分布是 \(u^{1.5}\)，均值 0.6。于是 \(\mathbb E[\tau]=s(1-0.6)=0.3996\)，和 GR00T 精读页算的 0.399 一致。\(\tau\lt 0.5\) 等价于 \(u>0.5\)，概率是 \(1-0.5^{1.5}=0.646\)。\(\tau\) 最大只到 0.999，不会采到几乎干净的样本。openpi 代码（第 197 行）写成 <code>beta(1.5, 1) * 0.999 + 0.001</code>，在它的反向时间里就是同一个分布。</p></div>
+
+<div class="note" id="n5"><span class="lab">读者注 5 · 直线调度下，Euler 一步就是 DDIM 一步</span><p>取 \(x=(1-t)\hat x+t\hat\varepsilon\)（\(t\) 为噪声水平），速度 \(\hat v=\hat x-\hat\varepsilon\)。Euler 走 \(\Delta\)：\(x+\Delta(\hat x-\hat\varepsilon)=(1-t+\Delta)\hat x+(t-\Delta)\hat\varepsilon\)。这正是式 (5) 在 \(a=1-t,\,b=t\) 时的 DDIM 更新。动画 1、3 里“流匹配 · Euler”的代码按速度写，“扩散 · DDIM”按式 (5) 写，差别只来自调度。所以“流匹配步数少”主要归功于直线调度，以及模型训练得是否够直，不是 Euler 法本身有什么特别。</p></div>
+
+<div class="note" id="n6"><span class="lab">读者注 6 · 只走一步就是回归</span><p>从纯噪声出发，第一步网络看到的 \(x\) 不含任何数据信息，最优输出只能是 \(\mathbb E[x_1\mid c]\)，也就是给定观测时数据的平均。DDIM 和 Euler 一步到底，结果就是这个平均：和均方误差回归完全一样。DDPM 的最后一步方差为 0，结论相同。动画 1 的 K = 1 落到两块月牙中间，动画 3 的 K = 1 撞上障碍，都是这个原因。想要一步出结果，需要另外的训练办法，例如蒸馏或一致性模型，本页不展开。</p></div>
+
+<div class="note" id="n7"><span class="lab">读者注 7 · “直线”说的是训练时的条件路径</span><p>动画 2 里 36 对随机配对的条件直线两两相交两百多次（默认样本是 231 次，换样本会变，看动画下方的读数），推理时的边际路径相交 0 次。如果推理时也是直线，一步 Euler 就够了；实际上边际路径在两峰分叉的地方是弯的，所以仍要多步。Rectified Flow 的“重流”（reflow）用模型自己生成的（噪声, 数据）对重新训练，让配对不再交叉、路径更直，这是它和普通流匹配的区别之一。</p></div>
+
+<div class="note" id="n8"><span class="lab">读者注 8 · 三家都只执行动作块的一部分</span><p>Diffusion Policy 大多数任务执行 16 步中的 8 步（表 7；Real Push-T 是 6 步）。π0 附录 D：20 Hz 的 UR5e 和 Franka 每 0.8 秒推理一次（执行 16 步），其他 50 Hz 的机器人每 0.5 秒一次（执行 25 步）；早期试过时间集成，“发现它损害策略性能”，所以开环执行动作块。Octo 附录 E 说在它们的评测里，时间集成没有比滚动时域控制带来额外好处。</p></div>
+
+<div class="note" id="n9"><span class="lab">读者注 9 · 动画里没有网络</span><p>数据是高斯混合 \(\sum_k w_k\mathcal N(\mu_k,s_k^2I)\)，带噪样本 \(x=a\,x_1+b\,\varepsilon\) 在第 \(k\) 个分量下的分布是 \(\mathcal N(a\mu_k,(a^2s_k^2+b^2)I)\)。由此可以精确算出各分量的后验，以及 \(\mathbb E[x_1\mid x]=\sum_k r_k\big(\mu_k+\tfrac{a s_k^2}{a^2s_k^2+b^2}(x-a\mu_k)\big)\)。这是式 (2)、(7) 在无限数据、无限容量下的最优解。真实网络只能近似它，还要处理图像条件，误差会让少步数时的表现更差。代码在 <code>papers/diffusion-flow/widgets.js</code> 的 <code>post()</code> 和 <code>sample()</code>。</p></div>
+
+<div class="note" id="n10"><span class="lab">读者注 10 · 推理步数和训练噪声级是两回事</span><p>Diffusion Policy 训练时有 100 个噪声级，推理只走其中 10 级；Octo 训练和推理都是 20 级；流匹配训练时 τ 是连续的，推理步数可以随便选。GR00T N1 就有两个数：HF 权重配置写 16 步，推理脚本默认 4 步，见 <a href="gr00t.html#n5">GR00T 读者注 5</a>。比较模型的推理速度时，要看实际跑的步数，不要看配置文件里的默认值。</p></div>
+
+<ul class="notes">
+<li><a href="#n1">注 1</a>：Diffusion Policy 推理步数，正文 10，表 7 真机 16。</li>
+<li><a href="#n2">注 2</a>：Diffusion Policy、Octo 的式 (1) 和式 (3) 是简写。</li>
+<li><a href="#n3">注 3</a>：π0 论文和 openpi 代码的时间方向相反，两者等价。</li>
+<li><a href="#n4">注 4</a>：π0 的 τ 采样，E[τ] = 0.3996，65% 落在噪声较大的一半。</li>
+<li><a href="#n5">注 5</a>：直线调度下 Euler 一步等于 DDIM 一步。</li>
+<li><a href="#n6">注 6</a>：K = 1 等于回归。</li>
+<li><a href="#n7">注 7</a>：直线是训练时的条件路径；推理路径是弯的。</li>
+<li><a href="#n8">注 8</a>：三家都只执行动作块的一部分；π0 试过时间集成，效果变差。</li>
+<li><a href="#n9">注 9</a>：动画用解析最优去噪器，没有网络。</li>
+<li><a href="#n10">注 10</a>：推理步数不等于训练噪声级数。</li>
+</ul>
+
+<h2 id="links">链接表</h2>
+<div class="tablewrap"><table class="t-links"><thead><tr><th>方法</th><th>原文</th><th>本站相关页</th></tr></thead><tbody>
+<tr><td>DDPM</td><td><a href="https://arxiv.org/abs/2006.11239">arXiv 2006.11239</a></td><td>—</td></tr>
+<tr><td>Improved DDPM（余弦调度）</td><td><a href="https://arxiv.org/abs/2102.09672">arXiv 2102.09672</a></td><td>—</td></tr>
+<tr><td>DDIM</td><td><a href="https://arxiv.org/abs/2010.02502">arXiv 2010.02502</a></td><td>—</td></tr>
+<tr><td>分数模型（SDE 视角）</td><td><a href="https://arxiv.org/abs/2011.13456">arXiv 2011.13456</a></td><td>—</td></tr>
+<tr><td>Flow Matching</td><td><a href="https://arxiv.org/abs/2210.02747">arXiv 2210.02747</a>；教程 <a href="https://arxiv.org/abs/2412.06264">2412.06264</a></td><td>—</td></tr>
+<tr><td>Rectified Flow</td><td><a href="https://arxiv.org/abs/2209.03003">arXiv 2209.03003</a></td><td>—</td></tr>
+<tr><td>Diffusion Policy</td><td><a href="https://arxiv.org/abs/2303.04137">arXiv 2303.04137</a>；<a href="https://github.com/real-stanford/diffusion_policy">代码</a></td><td><a href="six-policies.html">六个策略对照</a></td></tr>
+<tr><td>ACT（动作块、时间集成）</td><td><a href="https://arxiv.org/abs/2304.13705">arXiv 2304.13705</a></td><td><a href="six-policies.html">六个策略对照</a></td></tr>
+<tr><td>Octo</td><td><a href="https://arxiv.org/abs/2405.12213">arXiv 2405.12213</a></td><td><a href="vla-design-space.html">VLA 设计空间</a></td></tr>
+<tr><td>π0</td><td><a href="https://arxiv.org/abs/2410.24164">arXiv 2410.24164</a>；<a href="https://github.com/Physical-Intelligence/openpi">openpi</a></td><td><a href="vla-design-space.html">VLA 设计空间</a>、<a href="six-policies.html">六个策略对照</a></td></tr>
+<tr><td>GR00T N1</td><td><a href="https://arxiv.org/abs/2503.14734">arXiv 2503.14734</a></td><td><a href="gr00t.html">GR00T N1 精读</a>、<a href="gr00t2.html">GR00T N2</a></td></tr>
+<tr><td>IBC（隐式能量策略）</td><td><a href="https://arxiv.org/abs/2109.00137">arXiv 2109.00137</a></td><td>—</td></tr>
+</tbody></table></div>
+
+<footer><p>这一页是概念整理，不是任何一篇论文的精读。公式按 DDPM、DDIM、Flow Matching、Rectified Flow 原文整理，符号按本页说明。Diffusion Policy（2303.04137 v5）、Octo（2405.12213 v2）、π0（2410.24164 v4）的数字我对照了原文，openpi 代码读的是 commit 215abfb；GR00T N1 的数字取自本站 GR00T 精读页。四个动画是我们自己写的玩具，用解析最优去噪器代替网络，只演示机制。</p></footer>
+</div>
+<a class="totop" href="#toc">目录</a>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']], tags: 'none' },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" async></script>
+<script src="diffusion-flow/widgets.js" defer></script>
+</body>
+</html>

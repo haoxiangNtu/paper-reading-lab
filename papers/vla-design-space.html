@@ -141,7 +141,7 @@
 <div class="algo" id="s-cont"><h3>3 · 连续生成头 + 动作块</h3>
 <p class="where">改：④ 动作表示 · ⑧ 推理（一次出一段）</p>
 <p><b>动机：</b>动作是连续值，而且同一画面下往往有多种合理做法（多峰）。直接回归会把几种做法平均成一种错的。</p>
-<p><b>做法：</b>用扩散或流匹配从噪声生成一整段动作（动作块）。Diffusion Policy 是单任务起点；Octo 在从零训的 Transformer 上接扩散头；π0 和 GR00T N1 用流匹配，π0 一次出 50 步，GR00T N1 出 16 步。</p>
+<p><b>做法：</b>用扩散或流匹配从噪声生成一整段动作（动作块，原理和动画见<a href="diffusion-flow.html">扩散与流匹配专题</a>）。Diffusion Policy 是单任务起点；Octo 在从零训的 Transformer 上接扩散头；π0 和 GR00T N1 用流匹配，π0 一次出 50 步，GR00T N1 出 16 步。</p>
 <p><b>代价：</b>要多步去噪，推理更重；接到 VLM 上时，新加的参数从零初始化，它的梯度会扰动 VLM（引出第 5 类）。</p></div>
 
 <div class="algo" id="s-couple"><h3>4 · 换动作模块的接法</h3>
