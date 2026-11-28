@@ -54,7 +54,7 @@
 </div>
 
 <nav class="toc" id="toc" aria-label="目录">
-<a href="#tldr">一句话回答</a><a href="#why">为什么不直接回归</a><a href="#diff">扩散</a><a href="#mean">取平均</a><a href="#ddim">DDPM 与 DDIM</a><a href="#flow">流匹配</a><a href="#same">两者的关系</a><a href="#chunk">生成一整段动作</a><a href="#exec">动作块怎么执行</a><a href="#models">四个模型怎么做</a><a href="#notes" class="rn">读者注</a><a href="#links">链接表</a>
+<a href="#tldr">一句话回答</a><a href="#why">为什么不直接回归</a><a href="#diff">扩散</a><a href="#sym">符号表</a><a href="#mean">取平均</a><a href="#ddim">DDPM 与 DDIM</a><a href="#flow">流匹配</a><a href="#same">两者的关系</a><a href="#chunk">生成一整段动作</a><a href="#exec">动作块怎么执行</a><a href="#models">四个模型怎么做</a><a href="#notes" class="rn">读者注</a><a href="#links">链接表</a>
 </nav>
 
 <h2 id="tldr">一句话回答</h2>
@@ -125,12 +125,41 @@
 </div>
 
 <h3>推理：从噪声一步步往回走</h3>
+<div class="key" id="sym">
+<p><b>符号表。</b>式 (1)～(5) 里的字母都在这里。下标 \(t\) 表示“第 \(t\) 级噪声”。</p>
+<div class="tablewrap"><table class="t-toy"><thead><tr><th>符号</th><th>意思</th><th>举例</th></tr></thead><tbody>
+<tr><td>\(t\)</td><td>噪声级的编号，0 到 \(T\)。0 是干净数据，\(T\) 是纯噪声</td><td>Diffusion Policy 训练时 \(T=100\)</td></tr>
+<tr><td>\(s\)</td><td>下一步要去的那一级，比 \(t\) 小。DDPM 每次只退一级（\(s=t-1\)），DDIM 可以一次退好几级</td><td>DDIM 10 步：100 → 90 → 80 → …</td></tr>
+<tr><td>\(x_0\)</td><td>干净数据，机器人里就是一段真实动作</td><td>例如 16 步 × 7 维的动作块</td></tr>
+<tr><td>\(x_t\)</td><td>第 \(t\) 级的带噪样本：数据和噪声按比例混合的结果</td><td>推理时就是“当前走到的位置”</td></tr>
+<tr><td>\(\varepsilon\)</td><td>训练时混进去的标准高斯噪声（均值 0，方差 1）</td><td>和 \(x_0\) 同形状</td></tr>
+<tr><td>\(\varepsilon_\theta(x_t,t,c)\)，也写 \(\hat\varepsilon\)</td><td>网络对“混进去的是哪份噪声”的猜测。\(\theta\) 是网络参数，括号里是网络的三个输入</td><td>网络就是这个函数</td></tr>
+<tr><td>\(c\)</td><td>条件，机器人里是观测：图像、本体状态、语言指令</td><td></td></tr>
+<tr><td>\(\hat x_0\)</td><td>帽子 ^ 表示“估计值”。网络猜出噪声后，按式 (3) 反推出的干净数据</td><td></td></tr>
+<tr><td>\(\beta_t\)</td><td>正向加噪时，第 \(t\) 步这一小步加了多少噪声（按方差算）</td><td>DDPM 原文从 0.0001 线性增到 0.02</td></tr>
+<tr><td>\(\alpha_t=1-\beta_t\)</td><td>这一小步保留了多少原信号（按方差算）</td><td>0.9999 ～ 0.98</td></tr>
+<tr><td>\(\bar\alpha_t\)</td><td>从 \(x_0\) 一路加噪到 \(x_t\)，累计保留了多少原信号：\(\bar\alpha_t=\alpha_1\alpha_2\cdots\alpha_t\)。上面的横线表示“累乘”</td><td>从 1 降到接近 0</td></tr>
+<tr><td>\(\sqrt{\bar\alpha_t}\)、\(\sqrt{1-\bar\alpha_t}\)</td><td>式 (1) 里数据和噪声各自的系数，平方和为 1。本页后面简写成 \(a_t\)、\(b_t\)</td><td>\(\bar\alpha_t=0.36\) 时是 0.6 和 0.8</td></tr>
+<tr><td>\(z\)</td><td>推理时每一步<b>新抽</b>的标准高斯噪声，和 \(\varepsilon\) 不是同一份</td><td>只有 DDPM 用</td></tr>
+<tr><td>\(\sigma_t\)</td><td>DDPM 每步新加噪声的标准差</td><td>由 \(\beta_t\)、\(\bar\alpha\) 算出，式 (4) 右边</td></tr>
+<tr><td>\(\eta\)</td><td>DDIM 论文的旋钮：0 是 DDIM，1 是 DDPM，见式 (5a)</td><td></td></tr>
+</tbody></table></div>
+</div>
+
 <p><b>DDPM</b>（随机）：每步先按式 (3) 估出 \(\hat x_0\)，再从“给定 \(x_t\) 和 \(\hat x_0\) 时 \(x_{t-1}\) 的分布”里采一个：</p>
 \[x_{t-1}=\frac{\sqrt{\bar\alpha_{t-1}}\,\beta_t}{1-\bar\alpha_t}\,\hat x_0+\frac{\sqrt{\alpha_t}\,(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}\,x_t+\sigma_t z,\qquad \sigma_t^2=\frac{(1-\bar\alpha_{t-1})\,\beta_t}{1-\bar\alpha_t}\tag{4}\]
 <p>其中 \(\alpha_t=\bar\alpha_t/\bar\alpha_{t-1}\)，\(\beta_t=1-\alpha_t\)，\(z\sim\mathcal N(0,I)\)。每一步都会加一点新的随机噪声。</p>
 <p><b>DDIM</b>（确定性，\(\eta=0\)）：不加新噪声，把估出的 \(\hat x_0\) 和 \(\hat\varepsilon\) 按下一级的比例重新混合：</p>
 \[x_{s}=\sqrt{\bar\alpha_{s}}\,\hat x_0+\sqrt{1-\bar\alpha_{s}}\,\varepsilon_\theta(x_t,t,c),\qquad s\lt t\tag{5}\]
 <p>\(s\) 可以比 \(t\) 小很多，所以训练用 100 级，推理可以只走 10 步。Diffusion Policy 正文写的就是“训练 100 级、DDIM 推理 10 步”（真机表 7 写的是 16 步，见<a href="#n1">读者注 1</a>）。</p>
+
+<p><b>算一遍具体数字。</b>一维的情况，设当前在 \(\bar\alpha_t=0.36\) 这一级（数据系数 0.6，噪声系数 0.8），当前位置 \(x_t=1.0\)，网络猜混进去的噪声是 \(\hat\varepsilon=0.5\)。下一级取 \(\bar\alpha_s=0.64\)（系数 0.8 和 0.6）。</p>
+<ol>
+<li><b>两者都先做：</b>按式 (3) 反推 \(\hat x_0=(1.0-0.8\times0.5)/0.6=1.0\)。意思是：网络认为当前这个点里，干净数据是 1.0，噪声是 0.5。</li>
+<li><b>DDIM</b>（式 5）：按下一级的比例重新混合，\(x_s=0.8\times1.0+0.6\times0.5=1.1\)。没有随机数，算多少次都是 1.1。</li>
+<li><b>DDPM</b>（式 4）：这一跳 \(\alpha=0.36/0.64=0.5625\)，\(\beta=0.4375\)。代入得 \(x_s=0.547\times\hat x_0+0.422\times x_t+0.496\,z=0.969+0.496\,z\)。前两项是“网络估的干净数据”和“当前位置”的加权和，第三项是新抽的随机噪声。每次运行 \(z\) 不同，\(x_s\) 也不同，平均在 0.969，标准差约 0.5。</li>
+</ol>
+<p>两者在“估出 \(\hat x_0\)”这一步完全一样，差别只在下一步的噪声部分是沿用 \(\hat\varepsilon\)，还是部分换成新抽的 \(z\)（<a href="#ddim">DDPM 和 DDIM 到底差在哪</a>）。</p>
 
 <h3 id="ddim">DDPM 和 DDIM 到底差在哪</h3>
 <p><b>先说相同的地方：训练完全一样。</b>两者用同一个式 (2) 训练出同一个网络，差别只在推理时怎么用它。所以可以拿 DDPM 方式训练的网络直接用 DDIM 采样，Diffusion Policy 就是这么做的。DDIM 论文 §3 的出发点是：式 (2) 只用到每一级单独的分布 \(q(x_t\mid x_0)\)（式 1），没有规定相邻两级之间怎么连。只要每一级的分布不变，换一种连法，网络不用重训（DDIM 定理 1）。</p>
