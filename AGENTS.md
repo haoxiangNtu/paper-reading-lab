@@ -1,6 +1,6 @@
 # Paper Reading Lab：接手说明（给 Codex / 其他代理）
 
-最后更新：2026-11-27（含 gpt6-astra-embodied、diffusion-flow、pf-flip、real2worlds2real、fabricbench、real2sim-eval、phystwin、rgbench、mundo、openwam、molmoact2、libero）。写给接手维护这个仓库的代理。先读完这一页再动手。
+最后更新：2026-11-28（含 diffusion-flow 补 DDPM/DDIM、gpt6-astra-embodied、pf-flip、real2worlds2real、fabricbench、real2sim-eval、phystwin、rgbench、mundo、openwam、molmoact2、libero）。写给接手维护这个仓库的代理。先读完这一页再动手。
 
 ## 1. 这是什么
 
@@ -45,7 +45,7 @@ interactives/graspgen/     GraspGen 动画（index.html）+ 网络结构拆解�
 | 流体仿真（2026-11-26） | `pf-flip`（ACM TOG 2025 / SIGGRAPH，ACM 版权，按默认规则不放原图，25 张图文字描述，“看原图”链到 TUM 预印本 PDF 的 `#page=N`；图 17 用 `pdftocairo -svg` 读柱高重画在 `papers/pf-flip/widgets.js`，另有式 (7) 相场和图 8 块开销的交互图）。MSBG 代码 tum-pbs/MSBG commit 655038d（Apache-2.0）只有数据结构。`papers/pf-flip/repro-*.webp` 是我们自己的 Taichi 渲染（代码在仓库外 `../flip-wave/`），不是论文图。来源是用户在小红书看到的 PF-FLIP 海浪笔记 |
 | Real2Sim2Real 代理（2026-11-26） | `real2worlds2real`（arXiv 2611.31098，非独占；2026-11-26 用户要求放原图，图 1–5 裁切到 `papers/real2worlds2real/fig1–fig5.webp`，只对这一篇有效；图 4、图 5 用 `pdftocairo -svg` 读点后重画在 `papers/real2worlds2real/widgets.js`；代码“soon”未发布，补充材料不在 arXiv 上；项目主页无许可只链接）。表 1 的 Fisher 检验和 Wilson 区间按每格 30 次现算 |
 | 具身评测报告（2026-11-27） | `gpt6-astra-embodied`（arXiv 2610.22471 v2，非独占，按默认规则不放原图，21 张图文字描述，“看原图”链到 arXiv PDF 的 `#page=N`，表链到 arXiv HTML 的 `#S9.T2` 等锚点）。没有代码可读。`papers/gpt6-astra-embodied/widgets.js` 有三个交互：表 2 条形图（Wilson 区间按附录 C 的回合数现算，RoboLab 回合数未报告）、表 13 散点（标签位置在 `OFF` 里手工排，改数据要重排）、Wilson + Fisher 显著性计算器。表 13 的类内回合数（36/24/24/18/24）是从成功率反推的，和表 5 分组一致 |
-| 概念专题（2026-11-27） | `diffusion-flow`：扩散与流匹配原理 + 动作块生成，从 `vla-design-space` 第 3 类展开（那里已加链接）。四个 canvas 动画在 `papers/diffusion-flow/widgets.js`，用高斯混合的解析最优去噪器（`post()`、`sample()`）代替网络；页内两张“玩具测量”表是用同一段代码离线跑的（种子 1 / 2），改动画参数要重跑。机器人数字对照 Diffusion Policy v5、Octo v2、π0 v4 原文和 openpi commit 215abfb；GR00T 数字取自 `gr00t` 页 |
+| 概念专题（2026-11-27） | `diffusion-flow`：扩散与流匹配原理 + 动作块生成，从 `vla-design-space` 第 3 类展开（那里已加链接）。六个 canvas 动画在 `papers/diffusion-flow/widgets.js`（2026-11-28 加了动画 1、2：一维两峰条件均值、DDPM/DDIM 对比，原来的 1～4 顺延为 3～6；DDIM 表 1 数字对照 2010.02502 v4），用高斯混合的解析最优去噪器（`post()`、`sample()`）代替网络；页内三张“玩具测量”表是用同一段代码离线跑的（种子 1 / 2；DDPM/DDIM 表 4000 样本、种子 1），改动画参数要重跑。机器人数字对照 Diffusion Policy v5、Octo v2、π0 v4 原文和 openpi commit 215abfb；GR00T 数字取自 `gr00t` 页 |
 | 概念专题（2026-11-25） | `six-policies`：FabricBench 的六个策略按 8 部件对照。总对照表 `#mx` 和三个交互都读页内 `<script id="six-data">` 的 JSON；这份 JSON 和表是用仓库外脚本（scratchpad 的 data.py + tpl.html）生成的，直接改页面时两处要一起改。GR00T 按 N1 写（FabricBench 未写版本） |
 | 布料策略基准（2026-11-25） | `fabricbench`（arXiv 2611.31577，非独占；2026-11-25 用户要求放原图，图 1–6 裁切到 `papers/fabricbench/fig1–fig6.webp`，只对这一篇有效；代码和资产截至 2026-11-25 未发布，项目主页无许可只链接）。没有 3D 动画；`papers/fabricbench/widgets.js` 画表 3 底色、式 (3) 摩擦交互、表 4 折线、图 4 散点（Wilson 区间按 N=50/20 现算）。表 15 末列 GarmentDynamics 是从 `rgbench` 页抄的 RGBench 表 5，不是本文数字。排行榜 leaderboard.html 是 JS 渲染，要无头 Chrome |
 | 概念专题（2026-11-24） | `vla-design-space`：VLA 8 部件 × 15 类改动 × 6 种接法 × 22 模型总表；交互 1 读表 `#mx` 的 `data-s` 和 `.key` 生成模型指纹，改表即改交互；本站有精读页的模型以精读页为准，其余只按摘要整理。`rl-families`：强化学习算法谱系，不是单篇精读；没有 3D 动画，页内四个 SVG 交互（`papers/rl-families/widgets.js`）。FastSAC 数字以 `holosoma-15min` 为准。另：`wall-oss` 页加了 `#audit`（提法与对比的公平性审视），含 WALL-OSS 原版 / 0.5 / 1.0-lite 版本表；π0.5 权重 2025-09-08 才进 openpi，原版没比它不算缺陷；B1 有 π0 / WALL-OSS 单层结构对比 SVG（`#fig-attn`）。`wall-oss-05#w10-rd` 是 RoboDojo 榜单分析（2026-11-24 无头 Chrome 渲染抓取，榜单会变；页面 JS 渲染，WebFetch 拿不到内容） |

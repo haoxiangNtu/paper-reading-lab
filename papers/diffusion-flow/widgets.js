@@ -1,4 +1,4 @@
-// 扩散与流匹配专题页的四个动画。
+// 扩散与流匹配专题页的六个动画。
 // 数据分布都取高斯混合，最优去噪器 E[x1 | x_t] 有解析式，动画直接用它代替训练好的网络。
 // 所以动画里的差别只来自采样方法和步数，不来自网络误差。
 (function () {
@@ -147,7 +147,7 @@
   }
 
   // ======================================================================
-  // 动画 1：二维“双月牙”数据的加噪与去噪
+  // 动画 3：二维“双月牙”数据的加噪与去噪
   // ======================================================================
   (function () {
     var C = mkCanvas('a1-cv', 680, 420); if (!C) return;
@@ -248,7 +248,7 @@
   })();
 
   // ======================================================================
-  // 动画 2：一维数据，横轴 τ（0 噪声 → 1 数据）。条件直线路径和边际路径
+  // 动画 4：一维数据，横轴 τ（0 噪声 → 1 数据）。条件直线路径和边际路径
   // ======================================================================
   (function () {
     var C = mkCanvas('a2-cv', 680, 380); if (!C) return;
@@ -358,7 +358,7 @@
   })();
 
   // ======================================================================
-  // 动画 3：从噪声生成一整段动作（16 步 × 2 维 = 32 维）
+  // 动画 5：从噪声生成一整段动作（16 步 × 2 维 = 32 维）
   // ======================================================================
   var CHUNK = (function () {
     var Hc = 16, S0 = [0, -0.85], GOAL = [0, 0.85], OB = [0, 0], OR = 0.28;
@@ -467,7 +467,7 @@
   })();
 
   // ======================================================================
-  // 动画 4：动作块怎么执行（滚动时域）
+  // 动画 6：动作块怎么执行（滚动时域）
   // ======================================================================
   (function () {
     var C = mkCanvas('a4-cv', 680, 250); if (!C) return;
@@ -529,5 +529,178 @@
     var n0 = $('a4-note'); if (n0) n0.textContent = PRE.dp.note;
     sync();
     if (!REDUCED) pl.play();
+  })();
+
+  // ======================================================================
+  // 动画 1：一维两峰，网络学到的条件均值 E[x0 | x_t] 随噪声水平怎么变
+  // 数据：−1（左绕）和 +1（右绕）各一半，每个峰的标准差 0.1。扩散记号，t = 1 是纯噪声。
+  // ======================================================================
+  (function () {
+    var C = mkCanvas('a5-cv', 680, 330); if (!C) return;
+    var ctx = C.ctx, W = C.W, H = C.H, L = 44, R = 16, T = 30, B = 44, XR = 2.6;
+    var G = GMM([[-1], [1]], [0.01, 0.01], [1, 1]);
+    var N = 40, NS = 200, TR = [], st = { seed: 3 };
+    function X(x) { return L + (W - L - R) * (x + XR) / (2 * XR); }
+    function Y(y) { return T + (H - T - B) * (1 - (y + 1.3) / 2.6); }
+    // 用 200 步 DDIM 预先算好 40 个粒子的轨迹（确定性），播放时按 t 插值
+    function build() {
+      var r = rng(st.seed), m = [0]; TR = [];
+      for (var n = 0; n < N; n++) {
+        var x = [gauss(r)], tr = [x[0]];
+        for (var i = NS; i >= 1; i--) {
+          var c1 = coef('cos', i / NS), c2 = coef('cos', (i - 1) / NS);
+          post(G, x, c1[0], c1[1], m);
+          var e = (x[0] - c1[0] * m[0]) / c1[1];
+          x[0] = c2[0] * m[0] + c2[1] * e; tr.push(x[0]);
+        }
+        TR.push(tr);
+      }
+    }
+    function xAt(n, t) { var u = (1 - t) * NS, i = Math.min(Math.floor(u), NS - 1), f = u - i; return TR[n][i] + (TR[n][i + 1] - TR[n][i]) * f; }
+    function tOf(p) { return 1 - 0.99 * p; }
+    function draw(p) {
+      var c = pal(C.cv), t = tOf(p), cf = coef('cos', t), a = cf[0], b = cf[1], m = [0], i, x;
+      ctx.fillStyle = c.bg; ctx.fillRect(0, 0, W, H);
+      // 网格
+      ctx.strokeStyle = rgba(c.line, 0.9); ctx.lineWidth = 1;
+      [-1, 0, 1].forEach(function (v) { ctx.beginPath(); ctx.moveTo(X(-XR), Y(v)); ctx.lineTo(X(XR), Y(v)); ctx.stroke(); txt(ctx, (v > 0 ? '+' : '') + v, L - 8, Y(v) + 4, c.muted, 11.5, 'right', MONO); });
+      [-2, -1, 0, 1, 2].forEach(function (v) { txt(ctx, String(v), X(v), H - B + 16, c.muted, 11.5, 'center', MONO); });
+      txt(ctx, '当前带噪的点 xₜ', X(XR), H - 6, c.muted, 12, 'right');
+      txt(ctx, '纵轴：网络的输出 x̂₀ = E[x₀ | xₜ]', L, H - 6, c.muted, 12, 'left');
+      // 带噪数据的分布，按“来自哪一边”堆叠上色
+      var dens = [], mx = 0, NX = 260;
+      for (i = 0; i <= NX; i++) {
+        x = -XR + 2 * XR * i / NX;
+        var S = a * a * 0.01 + b * b, pl0 = 0.5 * Math.exp(-0.5 * (x + a) * (x + a) / S) / Math.sqrt(S), pr0 = 0.5 * Math.exp(-0.5 * (x - a) * (x - a) / S) / Math.sqrt(S);
+        dens.push([pl0, pr0]); mx = Math.max(mx, pl0 + pr0);
+      }
+      var hmax = 0.32 * (H - T - B), base = Y(-1.3);
+      function band(lo, hi, col) {
+        ctx.fillStyle = col; ctx.beginPath();
+        for (i = 0; i <= NX; i++) ctx.lineTo(X(-XR + 2 * XR * i / NX), base - hmax * hi(dens[i]) / mx);
+        for (i = NX; i >= 0; i--) ctx.lineTo(X(-XR + 2 * XR * i / NX), base - hmax * lo(dens[i]) / mx);
+        ctx.closePath(); ctx.fill();
+      }
+      band(function () { return 0; }, function (d) { return d[0]; }, rgba(c.p[1], 0.32));
+      band(function (d) { return d[0]; }, function (d) { return d[0] + d[1]; }, rgba(c.p[0], 0.32));
+      // 回归的答案
+      ctx.strokeStyle = c.bad; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(X(-XR), Y(0)); ctx.lineTo(X(XR), Y(0)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(X(XR) - 210, 14); ctx.lineTo(X(XR) - 186, 14); ctx.stroke(); ctx.setLineDash([]);
+      txt(ctx, '回归的答案：恒为 0', X(XR) - 180, 18, c.bad, 12.5, 'left');
+      // 条件均值曲线
+      ctx.strokeStyle = c.fg; ctx.lineWidth = 2.2; ctx.beginPath();
+      for (i = 0; i <= NX; i++) { x = -XR + 2 * XR * i / NX; post(G, [x], a, b, m); if (i) ctx.lineTo(X(x), Y(m[0])); else ctx.moveTo(X(x), Y(m[0])); }
+      ctx.stroke();
+      // 粒子：在曲线上的位置 = (它现在的 xₜ, 网络对它给出的 x̂₀)
+      var sumAbs = 0;
+      for (var n = 0; n < N; n++) {
+        x = xAt(n, t); post(G, [x], a, b, m); sumAbs += Math.abs(m[0]);
+        var col = TR[n][NS] < 0 ? c.p[1] : c.p[0];
+        if (x < -XR || x > XR) continue;
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(x), Y(m[0]), 3.6, 0, 7); ctx.fill();
+        ctx.fillStyle = rgba(col, 0.8); ctx.fillRect(X(x) - 0.8, base + 3, 1.6, 7);
+      }
+      txt(ctx, '噪声水平 t = ' + t.toFixed(2) + '　a = ' + a.toFixed(2) + '　b = ' + b.toFixed(2), L, 18, c.fg, 13);
+      post(G, [a], a, b, m); var rr = post(G, [a], a, b, [0]);
+      var o = $('a5-out');
+      if (o) o.textContent = '一个典型的“右绕”带噪点 xₜ = a = ' + a.toFixed(2) + '：网络判断它来自右边的概率 ' + (100 * rr[1]).toFixed(0) + '%，输出 x̂₀ = ' + m[0].toFixed(2) + '。40 个粒子的 |x̂₀| 平均 ' + (sumAbs / N).toFixed(2) + '（0 = 全是回归的答案，1 = 全部选定了一边）。';
+    }
+    var pl = new Player({ dur: 8000, draw: draw, btn: 'a5-play', range: 'a5-p', watch: 'a5-cv', p0: 0 });
+    var rs = $('a5-re'); if (rs) rs.addEventListener('click', function () { st.seed++; build(); pl.restart(); });
+    build(); pl.render();
+    if (!REDUCED) pl.play();
+    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+    if (mq && mq.addEventListener) mq.addEventListener('change', function () { pl.render(); });
+  })();
+
+  // ======================================================================
+  // 动画 2：DDPM 和 DDIM 是同一个网络、两种采样器，差别只在每步的噪声从哪来
+  // DDIM 论文式 (12)：x_s = a_s·x̂0 + √(b_s² − σ²)·ε̂ + σ·z，式 (16)：σ = η·√(b_s²/b_t²)·√(1 − a_t²/a_s²)
+  // η = 0 是 DDIM，η = 1 是 DDPM（和本页式 (4) 逐项相同）。
+  // ======================================================================
+  (function () {
+    var C = mkCanvas('a6-cv', 680, 384); if (!C) return;
+    var ctx = C.ctx, W = C.W, H = C.H, L = 44, R = 16, T = 30, B = 120;
+    var G = GMM([[-1], [1]], [0.01, 0.01], [1, 1]);
+    var N = 24, st = { eta: 0, K: 10, seed: 5, run: 0 }, Z0 = [], CUR = null, PREV = null, STEPS = [];
+    function X(t) { return L + (W - L - R) * (1 - t); }
+    function Y(x) { return T + (H - T - B) * (1 - (x + 2.6) / 5.2); }
+    function plan() {
+      STEPS = [];
+      for (var i = st.K; i >= 1; i--) {
+        var c1 = coef('cos', i / st.K), c2 = coef('cos', (i - 1) / st.K), a = c1[0], b = c1[1], a2 = c2[0], b2 = c2[1];
+        var sig = b2 > 0 ? st.eta * Math.sqrt((b2 * b2) / (b * b) * Math.max(0, 1 - (a * a) / (a2 * a2))) : 0;
+        STEPS.push({ t: i / st.K, s: (i - 1) / st.K, a: a, b: b, a2: a2, b2: b2, sig: sig, ce: Math.sqrt(Math.max(0, b2 * b2 - sig * sig)) });
+      }
+    }
+    function starts() { var r = rng(st.seed); Z0 = []; for (var n = 0; n < N; n++) Z0.push(gauss(r)); }
+    function runAll() {
+      var r = rng(9001 + 37 * st.run + st.seed), m = [0], out = [];
+      for (var n = 0; n < N; n++) {
+        var x = [Z0[n]], tr = [x[0]];
+        STEPS.forEach(function (q) {
+          post(G, x, q.a, q.b, m);
+          var e = (x[0] - q.a * m[0]) / q.b;
+          x[0] = q.a2 * m[0] + q.ce * e + q.sig * gauss(r); tr.push(x[0]);
+        });
+        out.push(tr);
+      }
+      return out;
+    }
+    function draw(p) {
+      var c = pal(C.cv), K = st.K, u = p * K, k = Math.min(Math.floor(u), K - 1), f = u - k, n, j;
+      ctx.fillStyle = c.bg; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = rgba(c.line, 0.9); ctx.lineWidth = 1;
+      [-2, -1, 0, 1, 2].forEach(function (v) { ctx.beginPath(); ctx.moveTo(X(1), Y(v)); ctx.lineTo(X(0), Y(v)); ctx.stroke(); txt(ctx, String(v), L - 8, Y(v) + 4, c.muted, 11.5, 'right', MONO); });
+      [1, 0.75, 0.5, 0.25, 0].forEach(function (v) { txt(ctx, v.toFixed(2), X(v), H - B + 16, c.muted, 11.5, 'center', MONO); });
+      txt(ctx, '噪声水平 t：左边纯噪声，右边数据', (X(1) + X(0)) / 2, H - B + 32, c.muted, 12, 'center');
+      txt(ctx, '右绕 +1', X(0) - 8, Y(1) - 12, c.p[0], 12, 'right'); txt(ctx, '左绕 −1', X(0) - 8, Y(-1) + 20, c.p[1], 12, 'right');
+      // 上一次（同一批起点）的轨迹，虚线
+      if (PREV) for (n = 0; n < N; n++) {
+        ctx.strokeStyle = rgba(c.muted, 0.55); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath();
+        for (j = 0; j <= K; j++) { var px = X(1 - j / K), py = Y(PREV[n][j]); if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+      // 这一次的轨迹，画到当前进度
+      for (n = 0; n < N; n++) {
+        var tr = CUR[n], col = tr[K] < 0 ? c.p[1] : c.p[0];
+        ctx.strokeStyle = rgba(col, 0.85); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(X(1), Y(tr[0]));
+        for (j = 1; j <= k; j++) ctx.lineTo(X(1 - j / K), Y(tr[j]));
+        var hx = tr[k] + (tr[k + 1] - tr[k]) * f; ctx.lineTo(X(1 - (k + f) / K), Y(hx)); ctx.stroke();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(1 - (k + f) / K), Y(hx), 3, 0, 7); ctx.fill();
+      }
+      // 当前这一步的“噪声预算”：下一级需要的噪声量 b_s²，有多少沿用 ε̂，有多少是新抽的
+      var q = STEPS[k], by = H - B + 66, bw = W - L - R, b2 = q.b2 * q.b2;
+      txt(ctx, '第 ' + (k + 1) + '/' + K + ' 步（t ' + q.t.toFixed(2) + ' → ' + q.s.toFixed(2) + '）：x_s = ' + q.a2.toFixed(2) + '·x̂₀ + ' + q.ce.toFixed(2) + '·ε̂ + ' + q.sig.toFixed(2) + '·z', L, by - 6, c.fg, 12.5, 'left', MONO);
+      if (b2 > 1e-9) {
+        var fr = (q.sig * q.sig) / b2;
+        ctx.fillStyle = rgba(c.p[2], 0.75); ctx.fillRect(L, by, bw * (1 - fr), 16);
+        ctx.fillStyle = rgba(c.p[3], 0.85); ctx.fillRect(L + bw * (1 - fr), by, bw * fr, 16);
+        txt(ctx, '沿用原来的噪声方向 ε̂ ' + Math.round(100 * (1 - fr)) + '%', L + 6, by + 30, c.p[2], 12, 'left');
+        txt(ctx, '新抽的随机噪声 z ' + Math.round(100 * fr) + '%', L + bw, by + 30, c.p[3], 12, 'right');
+      } else txt(ctx, '最后一步：下一级没有噪声，直接输出 x̂₀', L, by + 14, c.muted, 12, 'left');
+      var head = st.eta === 0 ? 'DDIM（η = 0）：每步只把已有的噪声按比例缩小，不加新噪声' : st.eta === 1 ? 'DDPM（η = 1）：每步把一部分噪声换成新抽的' : 'η = ' + st.eta.toFixed(2) + '：介于两者之间';
+      txt(ctx, head, L, 18, c.fg, 13);
+    }
+    var pl = new Player({ dur: 6000, draw: draw, btn: 'a6-play', range: 'a6-p', watch: 'a6-cv', p0: 0 });
+    function stats() {
+      var o = $('a6-out'); if (!o) return;
+      var K = st.K, left = 0, same = 0, agree = 0;
+      for (var n = 0; n < N; n++) { if (CUR[n][K] < 0) left++; if ((CUR[n][K] < 0) === (Z0[n] < 0)) same++; if (PREV && (CUR[n][K] < 0) === (PREV[n][K] < 0)) agree++; }
+      o.textContent = N + ' 条轨迹：左绕 ' + left + '、右绕 ' + (N - left) + '；终点和起点在同一侧 ' + same + '/' + N + (PREV ? '；和上一次（虚线，同一批起点）落在同一侧 ' + agree + '/' + N : '；点“同一批起点再跑一次”看结果变不变') + '。';
+    }
+    function fresh() { PREV = null; plan(); CUR = runAll(); stats(); }
+    var ek = $('a6-eta'), eo = $('a6-eta-o'), kk = $('a6-k'), ko = $('a6-k-o');
+    function syncSeg() { var s = $('a6-pre'); if (s) s.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', +x.getAttribute('data-v') === st.eta ? 'true' : 'false'); }); }
+    seg('a6-pre', function (v) { st.eta = +v; if (ek) { ek.value = v; eo.textContent = v; } fresh(); pl.restart(); });
+    if (ek) ek.addEventListener('input', function () { st.eta = +ek.value; eo.textContent = st.eta.toFixed(2); syncSeg(); fresh(); pl.render(); });
+    if (kk) kk.addEventListener('input', function () { st.K = +kk.value; ko.textContent = st.K; fresh(); pl.render(); });
+    var rr = $('a6-rerun'); if (rr) rr.addEventListener('click', function () { PREV = CUR; st.run++; CUR = runAll(); stats(); pl.restart(); });
+    var rs = $('a6-re'); if (rs) rs.addEventListener('click', function () { st.seed++; starts(); fresh(); pl.restart(); });
+    starts(); fresh(); pl.render();
+    if (!REDUCED) pl.play();
+    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+    if (mq && mq.addEventListener) mq.addEventListener('change', function () { pl.render(); });
   })();
 })();
